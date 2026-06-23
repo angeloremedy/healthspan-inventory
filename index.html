@@ -241,57 +241,29 @@ function refreshSidebar(){
 
 /* ── SYNC ── */
 async function syncNow(){
-  const btn=$('syncBtn'), icon=$('sicon'), lbl=$('slbl');
+  const btn=$('syncBtn'), lbl=$('slbl');
   btn.className='sync-btn spin'; lbl.textContent='Syncing from Google Sheets...';
   try{
-    /* Step 1: read masterfile */
-    const r1=await fetch('/api/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      model:'claude-sonnet-4-6',max_tokens:1000,
-      mcp_servers:[{type:'url',url:'https://drivemcp.googleapis.com/mcp/v1',name:'gdrive'}],
-      system:'You are a file reader. Read the Google Drive file with the given ID and return ONLY the raw content of the first sheet table as plain markdown. No commentary. Stop before any blank line that separates tabs.',
-      messages:[{role:'user',content:'Read file '+FILE_ID+' first sheet only.'}]
-    })});
-    const d1=await r1.json();
-    if(d1.error) throw new Error(d1.error.message);
-    const sheet1=d1.content.map(b=>b.type==='text'?b.text:(b.content?b.content.map(c=>c.text||'').join(''):'')).join('\n');
+    const r = await fetch('/api/sync', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+    const data = await r.json();
+    if(data.error) throw new Error(data.error);
+    if(!data.products || !Array.isArray(data.products)) throw new Error('Unexpected response from sync');
+    if(data.products.length < 5) throw new Error('Too few products returned — check sheet tab names in edge function');
 
-    /* Step 2: read summary sheet */
-    const r2=await fetch('/api/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      model:'claude-sonnet-4-6',max_tokens:1000,
-      mcp_servers:[{type:'url',url:'https://drivemcp.googleapis.com/mcp/v1',name:'gdrive'}],
-      system:'You are a file reader. Read the Google Drive file and return ONLY the sheet that has columns: SKU, PRODUCT NAME, PRODUCT LINE, Category, Received, Sold, and a stock/inventory level column. Plain markdown table only, no commentary.',
-      messages:[{role:'user',content:'Read file '+FILE_ID+' summary/inventory level sheet.'}]
-    })});
-    const d2=await r2.json();
-    if(d2.error) throw new Error(d2.error.message);
-    const sheet2=d2.content.map(b=>b.type==='text'?b.text:(b.content?b.content.map(c=>c.text||'').join(''):'')).join('\n');
+    DATA = data.products;
 
-    /* Step 3: parse into JSON via Claude */
-    const sysPrompt='You are a data extraction assistant. Given two markdown tables from a product inventory Google Sheet, extract all product rows and return ONLY a valid compact JSON array. No markdown, no prose, no code fences, no preamble. Each object: {sku,name,line,category,received,sold,stock,price,batch,expiry,bin}. Rules: use summary sheet for sku/name/line/category/received/sold/stock; masterfile for price/batch/expiry/bin. stock=integer (can be 0 or negative). price=number or null. Replace placeholder dashes with empty string. Omit header/separator rows.';
-    const r3=await fetch('/api/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      model:'claude-sonnet-4-6',max_tokens:1000,
-      system:sysPrompt,
-      messages:[{role:'user',content:'MASTERFILE:\n'+sheet1.slice(0,7000)+'\n\nSUMMARY:\n'+sheet2.slice(0,7000)}]
-    })});
-    const d3=await r3.json();
-    if(d3.error) throw new Error(d3.error.message);
-    let raw=d3.content.filter(b=>b.type==='text').map(b=>b.text).join('');
-    raw=raw.replace(/^[\s\S]*?(\[)/,'[').replace(/\][^]*$/,']');
-    const parsed=JSON.parse(raw);
-    if(!Array.isArray(parsed)||parsed.length<10) throw new Error('Unexpected response shape');
-    DATA=parsed;
-    const now=new Date().toLocaleString('en-PH',{timeZone:'Asia/Manila',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
-    $('sf-foot').innerHTML='<span style="color:var(--gr);font-weight:600">Live</span> &middot; Synced '+now;
+    const ts = new Date(data.synced).toLocaleString('en-PH',{timeZone:'Asia/Manila',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    $('sf-foot').innerHTML='<span style="color:var(--gr);font-weight:600">Live</span> &middot; Synced '+ts;
     $('psub').textContent='Healthspan Global, Inc. \u00b7 live from Google Sheets \u00b7 '+DATA.length+' SKUs';
-    btn.className='sync-btn ok'; lbl.textContent='Synced '+now;
+    btn.className='sync-btn ok'; lbl.textContent='Synced '+ts;
     refreshSidebar();
     if(currentView==='dashboard') renderDashboard(); else renderTable();
   } catch(e){
     btn.className='sync-btn err'; lbl.textContent='Sync failed \u2014 click to retry';
-    const msg=e.message||'Unknown error';
+    const msg = e.message || 'Unknown error';
     $('sf-foot').textContent='Sync error: '+msg.slice(0,120);
     console.error('Sync error:',e);
-    alert('Sync error details: '+msg);
+    alert('Sync error: '+msg);
   }
 }
 
