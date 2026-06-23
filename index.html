@@ -173,9 +173,59 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:10px}
+
+/* ── MOBILE ── */
+.mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--sf);border-top:1px solid var(--bd);z-index:300;padding:0 0 env(safe-area-inset-bottom)}
+.mobile-nav-inner{display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:4px 8px}
+.mobile-nav-inner::-webkit-scrollbar{display:none}
+.mni{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 10px;border-radius:var(--rs);cursor:pointer;color:var(--tx3);font-size:9px;font-weight:500;white-space:nowrap;flex-shrink:0;min-width:52px;transition:all .12s}
+.mni:hover{background:var(--sf2);color:var(--tx)}
+.mni.active{color:var(--ac);background:var(--gr-bg)}
+.mni svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.mni .mni-badge{background:var(--rd);color:#fff;font-size:8px;font-weight:700;padding:1px 4px;border-radius:8px;margin-top:-2px}
+.mobile-topbar{display:none;background:var(--sf);border-bottom:1px solid var(--bd);padding:10px 16px;align-items:center;justify-content:space-between;flex-shrink:0}
+.mobile-topbar .ptitle{font-size:15px;font-weight:700}
+.mobile-topbar .psub{font-size:10px;color:var(--tx3)}
+.mobile-sync{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--bl);cursor:pointer;padding:5px 8px;border-radius:var(--rs);background:var(--bl-bg)}
+.mobile-sync svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.mobile-sync.spin svg{animation:spin 1s linear infinite}
+.mobile-sync.ok{color:var(--gr);background:var(--gr-bg)}
+.mobile-sync.err{color:var(--rd);background:var(--rd-bg)}
+@media(max-width:760px){
+  .sb{display:none!important}
+  .topbar{display:none!important}
+  .mobile-topbar{display:flex!important}
+  .mobile-nav{display:block!important}
+  .main{padding-bottom:calc(68px + env(safe-area-inset-bottom))}
+  .content{padding:12px 14px}
+  .metrics{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}
+  .met-val{font-size:22px}
+  .g2{grid-template-columns:1fr;gap:10px}
+  .g3{grid-template-columns:1fr;gap:10px}
+  .drawer{width:100vw;max-width:100vw}
+  .tscroll{-webkit-overflow-scrolling:touch}
+  .tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;width:100%;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .toolbar{gap:6px}
+  .toolbar select{font-size:11px;padding:5px 7px}
+  .toolbar input[type=text]{font-size:12px}
+  .exp-section-hd{font-size:10px}
+}
 </style>
 </head>
 <body>
+
+<div class="mobile-topbar" id="mobileTopbar">
+  <div>
+    <div class="ptitle" id="mptitle">Dashboard</div>
+    <div class="psub" id="mpsub">Healthspan Global, Inc.</div>
+  </div>
+  <div class="mobile-sync" id="mobileSyncBtn" onclick="syncNow()">
+    <svg id="msicon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+    <span id="mslbl">Sync</span>
+  </div>
+</div>
+
 <div class="shell">
 <aside class="sb">
   <div class="brand">
@@ -202,6 +252,13 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
     <div class="ni" onclick="showView('movement',this)"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Monthly movement</div>
     <div class="ni" onclick="showView('value',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Inventory value</div>
     <div class="ni" onclick="showView('batches',this)"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>Batch view (FEFO)</div>
+    <div class="nlbl">Finance</div>
+    <div class="ni" onclick="showView('aged',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Aged inventory</div>
+    <div class="ni" onclick="showView('shrinkage',this)"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r="1" fill="currentColor"/></svg>Shrinkage tracker</div>
+    <div class="ni" onclick="showView('cashexpiry',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Cash in expiring stock</div>
+    <div class="nlbl">Logistics</div>
+    <div class="ni" onclick="showView('branchtransfer',this)"><svg viewBox="0 0 24 24"><path d="M5 17H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v3"/><rect x="9" y="11" width="14" height="10" rx="2"/><line x1="13" y1="16" x2="19" y2="16"/><line x1="16" y1="13" x2="16" y2="19"/></svg>Branch transfer log</div>
+    <div class="ni" onclick="showView('branchexpiry',this)"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Branch expiry watch</div>
     <div class="nlbl">Product lines</div>
     <div id="lnav"></div>
   </nav>
@@ -235,6 +292,10 @@ let MONTHLY_OUT = {};
 let MONTHS = [];
 let VALUE_BY_LINE = {};
 let REORDER = {}; // sku -> threshold (stored in localStorage-like obj, session only)
+let CASH_EXPIRING = {};
+let EXPIRING_ITEMS = [];
+let BRANCH_TRANSFERS = [];
+let BRANCH_EXPIRY = {};
 let sortCol='stock', sortDir=-1;
 let currentView='dashboard';
 let fLine='',fCat='',fSearch='',fTab='all',fBin='';
@@ -314,6 +375,7 @@ function refreshSidebar(){
 async function syncNow(){
   const btn=$('syncBtn'),lbl=$('slbl');
   btn.className='sync-btn spin';lbl.textContent='Syncing...';
+  updateMobileSync('spin','Syncing...');
   try{
     const r=await fetch('/api/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
     const data=await r.json();
@@ -325,10 +387,16 @@ async function syncNow(){
     MONTHLY_OUT=data.monthlyOut||{};
     MONTHS=data.months||[];
     VALUE_BY_LINE=data.valueByLine||{};
+    CASH_EXPIRING=data.cashExpiring||{};
+    EXPIRING_ITEMS=data.expiringItems||[];
+    BRANCH_TRANSFERS=data.branchTransfers||[];
+    BRANCH_EXPIRY=data.branchExpirySummary||{};
     const ts=new Date(data.synced).toLocaleString('en-PH',{timeZone:'Asia/Manila',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
     $('sf-foot').innerHTML='<span style="color:var(--gr);font-weight:600">Live</span> &middot; Synced '+ts;
     $('psub').textContent='Healthspan Global, Inc. \u00b7 '+DATA.length+' SKUs \u00b7 '+BATCHES.length+' batches';
     btn.className='sync-btn ok';lbl.textContent='Synced '+ts;
+    updateMobileSync('ok','Synced '+ts);
+    updateMobileBadges();
     refreshSidebar();
     if(currentView==='dashboard') renderDashboard();
     else if(currentView==='expiry') renderExpiry();
@@ -355,6 +423,11 @@ function showView(v,el){
   else if(v==='value') renderValue();
   else if(v==='movement') renderMovement();
   else if(v==='batches') renderBatches();
+  else if(v==='aged') renderAged();
+  else if(v==='shrinkage') renderShrinkage();
+  else if(v==='cashexpiry') renderCashExpiry();
+  else if(v==='branchtransfer') renderBranchTransfer();
+  else if(v==='branchexpiry') renderBranchExpiry();
   else renderTable(v);
 }
 function fltLine(line,el){
@@ -698,6 +771,174 @@ function saveReorder(sku){
 }
 function closeDrawer(){$('overlay').classList.remove('open');$('drawer').classList.remove('open');}
 
+
+/* ── AGED INVENTORY ── */
+function renderAged(){
+  const buckets={dead:[],slow:[],aging:[],active:[]};
+  DATA.forEach(p=>{
+    const s=stk(p);
+    if(s!==null&&s>0&&p.agedBucket) buckets[p.agedBucket]=(buckets[p.agedBucket]||[]),buckets[p.agedBucket].push(p);
+  });
+  function agedVal(arr){return arr.reduce((a,p)=>a+(p.stock>0&&p.price?p.stock*p.price:0),0);}
+  function agedTable(arr,label){
+    if(!arr||!arr.length) return '<div class="empty">No items in this category</div>';
+    const sorted=[...arr].sort((a,b)=>b.daysSinceLastSale-a.daysSinceLastSale);
+    return '<div class="tscroll"><table><thead><tr><th>SKU</th><th>Product</th><th>Line</th><th style="text-align:right">Stock</th><th style="text-align:right">Value</th><th style="text-align:right">Days since last sale</th><th>Last sale</th></tr></thead><tbody>'+
+      sorted.map(p=>{
+        const val=p.stock*(p.price||0);
+        const d=p.daysSinceLastSale;
+        const dc=d>180?'color:var(--rd)':d>90?'color:var(--am)':d>30?'color:var(--am)':'';
+        return '<tr onclick="openDrawer(\''+esc(p.sku)+'\')">'+
+          '<td class="mo">'+esc(p.sku)+'</td>'+
+          '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">'+esc(p.name)+'</td>'+
+          '<td class="mu">'+esc(p.line)+'</td>'+
+          '<td class="r stk">'+p.stock+'</td>'+
+          '<td class="r" style="font-weight:600">'+fmtP(val)+'</td>'+
+          '<td class="r" style="font-weight:700;'+dc+'">'+( d===999?'Before 2022':d)+'</td>'+
+          '<td class="mu" style="font-size:11px">'+esc(p.lastSaleDate||'Never')+'</td></tr>';
+      }).join('')+'</tbody></table></div>';
+  }
+  const deadVal=agedVal(buckets.dead), slowVal=agedVal(buckets.slow), agingVal=agedVal(buckets.aging);
+  $('content').innerHTML=
+    '<div class="metrics" style="margin-bottom:16px">'+
+    '<div class="met rd"><div class="met-lbl">Dead stock (&gt;180d)</div><div class="met-val">'+buckets.dead.length+'</div><div class="met-sub">'+fmtK(deadVal)+' tied up</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Slow moving (90&ndash;180d)</div><div class="met-val">'+buckets.slow.length+'</div><div class="met-sub">'+fmtK(slowVal)+' tied up</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Aging (30&ndash;90d)</div><div class="met-val">'+buckets.aging.length+'</div><div class="met-sub">'+fmtK(agingVal)+' tied up</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Active (&lt;30d)</div><div class="met-val">'+buckets.active.length+'</div><div class="met-sub">moved recently</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="exp-section"><div class="exp-section-hd red">Dead stock &mdash; no sale in 180+ days ('+buckets.dead.length+' SKUs)</div><div class="tcard" style="margin-bottom:0">'+agedTable(buckets.dead)+'</div></div>'+
+    '<div class="exp-section"><div class="exp-section-hd amber">Slow moving &mdash; 90&ndash;180 days ('+buckets.slow.length+' SKUs)</div><div class="tcard" style="margin-bottom:0">'+agedTable(buckets.slow)+'</div></div>'+
+    '<div class="exp-section"><div class="exp-section-hd amber">Aging &mdash; 30&ndash;90 days ('+buckets.aging.length+' SKUs)</div><div class="tcard" style="margin-bottom:0">'+agedTable(buckets.aging)+'</div></div>';
+}
+
+/* ── SHRINKAGE TRACKER ── */
+function renderShrinkage(){
+  const items=DATA.filter(p=>Math.abs(p.shrinkage||0)>2&&(p.received||0)>10)
+    .sort((a,b)=>Math.abs(b.shrinkageValue||0)-Math.abs(a.shrinkageValue||0));
+  const totalLoss=items.filter(p=>p.shrinkage>0).reduce((a,p)=>a+(p.shrinkageValue||0),0);
+  const totalOvercount=items.filter(p=>p.shrinkage<0).reduce((a,p)=>a+Math.abs(p.shrinkageValue||0),0);
+  $('content').innerHTML=
+    '<div class="metrics" style="margin-bottom:16px">'+
+    '<div class="met rd"><div class="met-lbl">Unaccounted loss</div><div class="met-val" style="font-size:18px">'+fmtP(totalLoss)+'</div><div class="met-sub">received &minus; sold &minus; pull-outs &minus; current</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Overcount / data gap</div><div class="met-val" style="font-size:18px">'+fmtP(totalOvercount)+'</div><div class="met-sub">current stock exceeds accounting</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">SKUs with discrepancy</div><div class="met-val">'+items.length+'</div><div class="met-sub">difference &gt;2 units</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="panel" style="margin-bottom:12px;font-size:12px;color:var(--tx3)">Formula: Shrinkage = Received &minus; Sold &minus; Internal pull-outs &minus; Current stock. Positive = unaccounted loss. Negative = stock exceeds records (possible data entry gap).</div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>SKU</th><th>Product</th><th style="text-align:right">Received</th><th style="text-align:right">Sold</th><th style="text-align:right">Pull-outs</th><th style="text-align:right">Current</th><th style="text-align:right">Shrinkage</th><th style="text-align:right">Value</th><th>Flag</th></tr></thead><tbody>'+
+    (items.length?items.map(p=>{
+      const sh=p.shrinkage||0;
+      const flag=sh>0?'<span class="pill prd">Loss</span>':'<span class="pill pam">Overcount</span>';
+      const rec=(p.received||0),s=(p.sold||0),po=rec-s-p.stock-sh,cur=p.stock;
+      return '<tr onclick="openDrawer(\''+esc(p.sku)+'\')">'+
+        '<td class="mo">'+esc(p.sku)+'</td>'+
+        '<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis">'+esc(p.name)+'</td>'+
+        '<td class="r mu">'+rec.toLocaleString()+'</td>'+
+        '<td class="r mu">'+s.toLocaleString()+'</td>'+
+        '<td class="r mu">'+Math.max(0,po).toLocaleString()+'</td>'+
+        '<td class="r mu">'+cur.toLocaleString()+'</td>'+
+        '<td class="r stk" style="color:'+(sh>0?'var(--rd)':'var(--am)')+'">'+( sh>0?'+':'')+sh+'</td>'+
+        '<td class="r" style="font-weight:600">'+fmtP(p.shrinkageValue||0)+'</td>'+
+        '<td>'+flag+'</td></tr>';
+    }).join(''):'<tr><td colspan="9"><div class="empty">No significant discrepancies found</div></td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>'+items.length+' SKUs with discrepancies &gt;2 units</span></div></div>';
+}
+
+/* ── CASH IN EXPIRING STOCK ── */
+function renderCashExpiry(){
+  const exp=CASH_EXPIRING||{};
+  const totalAtRisk=(exp.lt30||0)+(exp.lt90||0)+(exp.lt180||0);
+  const totalExpired=exp.expired||0;
+  function expTable(items){
+    if(!items||!items.length) return '<div class="empty">No items</div>';
+    return '<div class="tscroll"><table><thead><tr><th>Product</th><th>Batch</th><th>Expiry</th><th style="text-align:right">Days</th><th style="text-align:right">SOH</th><th style="text-align:right">Unit price</th><th style="text-align:right">Value at risk</th></tr></thead><tbody>'+
+      items.map(i=>{
+        const dc=i.days<0?'color:var(--rd);font-weight:700':i.days<=30?'color:var(--rd)':i.days<=92?'color:var(--am)':'';
+        return '<tr><td>'+esc(i.name)+'</td><td class="mo mu">'+esc(i.batch||'&mdash;')+'</td>'+
+          '<td style="font-size:11px">'+esc(i.expiry)+'</td>'+
+          '<td class="r" style="'+dc+'">'+( i.days<0?Math.abs(i.days)+' ago':i.days)+'</td>'+
+          '<td class="r mu">'+i.soh+'</td>'+
+          '<td class="r mu" style="font-size:11px">'+fmtP(i.price)+'</td>'+
+          '<td class="r" style="font-weight:700;color:'+(i.value>0?'var(--rd)':'var(--tx3)')+'">'+fmtP(i.value)+'</td></tr>';
+      }).join('')+'</tbody></table></div>';
+  }
+  const byBucket={expired:[],lt30:[],lt90:[],lt180:[]};
+  (EXPIRING_ITEMS||[]).forEach(i=>{ if(byBucket[i.bucket]) byBucket[i.bucket].push(i); });
+  $('content').innerHTML=
+    '<div class="metrics" style="margin-bottom:16px">'+
+    '<div class="met rd"><div class="met-lbl">Expired &mdash; write-off risk</div><div class="met-val" style="font-size:18px">'+fmtP(totalExpired)+'</div><div class="met-sub">stock past expiry date</div><div class="met-bar"></div></div>'+
+    '<div class="met rd"><div class="met-lbl">Expiring &lt;30 days</div><div class="met-val" style="font-size:18px">'+fmtP(exp.lt30||0)+'</div><div class="met-sub">urgent action needed</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Expiring 1&ndash;3 months</div><div class="met-val" style="font-size:18px">'+fmtP(exp.lt90||0)+'</div><div class="met-sub">monitor closely</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Expiring 3&ndash;6 months</div><div class="met-val" style="font-size:18px">'+fmtP(exp.lt180||0)+'</div><div class="met-sub">plan ahead</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="exp-section"><div class="exp-section-hd red">Expired ('+byBucket.expired.length+' batches)</div><div class="tcard" style="margin-bottom:0">'+expTable(byBucket.expired)+'</div></div>'+
+    '<div class="exp-section"><div class="exp-section-hd red">Expiring within 30 days ('+byBucket.lt30.length+' batches)</div><div class="tcard" style="margin-bottom:0">'+expTable(byBucket.lt30)+'</div></div>'+
+    '<div class="exp-section"><div class="exp-section-hd amber">Expiring 1&ndash;3 months ('+byBucket.lt90.length+' batches)</div><div class="tcard" style="margin-bottom:0">'+expTable(byBucket.lt90)+'</div></div>'+
+    '<div class="exp-section"><div class="exp-section-hd amber">Expiring 3&ndash;6 months ('+byBucket.lt180.length+' batches)</div><div class="tcard" style="margin-bottom:0">'+expTable(byBucket.lt180)+'</div></div>';
+}
+
+/* ── BRANCH TRANSFER LOG ── */
+function renderBranchTransfer(){
+  const branches=['BGC','Vertis North','GH Mall'];
+  const branchFilter=window._branchFilter||'all';
+  let rows=BRANCH_TRANSFERS||[];
+  if(branchFilter!=='all') rows=rows.filter(t=>t.branch===branchFilter);
+  const stats={};
+  branches.forEach(b=>{
+    const br=BRANCH_TRANSFERS.filter(t=>t.branch===b);
+    stats[b]={orders:br.length,qty:br.reduce((a,t)=>a+t.qty,0)};
+  });
+  $('content').innerHTML=
+    '<div class="metrics" style="margin-bottom:14px">'+
+    branches.map(b=>'<div class="met bl"><div class="met-lbl">'+b+'</div><div class="met-val">'+( stats[b]?stats[b].qty.toLocaleString():0)+'</div><div class="met-sub">'+(stats[b]?stats[b].orders:0)+' transfers (2025+)</div><div class="met-bar"></div></div>').join('')+
+    '</div>'+
+    '<div class="tabs" style="margin-bottom:12px">'+
+    ['all',...branches].map(b=>'<div class="tab'+(branchFilter===b?' active':'')+'" onclick="window._branchFilter=\''+b+'\';renderBranchTransfer()">'+( b==='all'?'All branches':b)+'</div>').join('')+
+    '</div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr>'+
+    '<th>Branch</th><th>SKU</th><th>Product</th><th>Line</th><th style="text-align:right">Qty</th><th>Batch</th><th>Expiry</th><th>Order #</th></tr></thead><tbody>'+
+    (rows.length?rows.slice(0,200).map(t=>{
+      const brc=t.branch==='BGC'?'pbl':t.branch==='Vertis North'?'pgr':'pam';
+      return '<tr><td><span class="pill '+brc+'">'+esc(t.branch)+'</span></td>'+
+        '<td class="mo">'+esc(t.sku)+'</td>'+
+        '<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis">'+esc(t.name)+'</td>'+
+        '<td class="mu">'+esc(t.line||'')+'</td>'+
+        '<td class="r stk">'+t.qty+'</td>'+
+        '<td class="mo mu">'+esc(t.batch||'&mdash;')+'</td>'+
+        '<td style="font-size:11px">'+esc(t.expiry||'&mdash;')+'</td>'+
+        '<td class="mo mu">'+esc(t.order||'&mdash;')+'</td></tr>';
+    }).join(''):'<tr><td colspan="8"><div class="empty">No transfers found</div></td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>Showing '+Math.min(rows.length,200)+' of '+rows.length+' transfers (2025+, newest first)</span></div></div>';
+}
+
+/* ── BRANCH EXPIRY WATCH ── */
+function renderBranchExpiry(){
+  const branches=['BGC','Vertis North','GH Mall'];
+  $('content').innerHTML=
+    '<div style="font-size:12px;color:var(--tx3);margin-bottom:14px">Products sent to each branch in 2025+, sorted by earliest expiry. Use this to prioritize which items each clinic should use first.</div>'+
+    branches.map(branch=>{
+      const items=(BRANCH_EXPIRY[branch]||[]);
+      const now=new Date();
+      const urgent=items.filter(i=>{const pm=i.expiry.match(/^(\d{1,2})\/(\d{4})$/);if(!pm)return false;return (new Date(+pm[2],+pm[1]-1,1)-now)/864e5<=92;}).length;
+      return '<div class="exp-section"><div class="exp-section-hd '+(urgent>0?'red':'green')+'">'+branch+(urgent?' &mdash; '+urgent+' items expiring within 3 months':'')+'</div>'+
+        (items.length?'<div class="tcard" style="margin-bottom:0"><div class="tscroll"><table><thead><tr><th>Product</th><th>SKU</th><th>Batch</th><th>Expiry</th><th style="text-align:right">Days left</th><th style="text-align:right">Qty sent</th><th>Status</th></tr></thead><tbody>'+
+        items.slice(0,30).map(i=>{
+          const pm=i.expiry.match(/^(\d{1,2})\/(\d{4})$/);
+          const expDate=pm?new Date(+pm[2],+pm[1]-1,1):null;
+          const d=expDate?Math.round((expDate-now)/864e5):null;
+          const c=d===null?'pgy':d<0?'prd':d<=31?'prd':d<=92?'pam':'pgr';
+          const lbl=d===null?'No date':d<0?Math.abs(d)+'d ago expired':d+'d left';
+          return '<tr><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">'+esc(i.name)+'</td>'+
+            '<td class="mo mu">'+esc(i.sku)+'</td>'+
+            '<td class="mo mu">'+esc(i.batch||'&mdash;')+'</td>'+
+            '<td style="font-size:11px">'+esc(i.expiry)+'</td>'+
+            '<td class="r" style="font-weight:700;color:'+(d===null?'var(--tx3)':d<0?'var(--rd)':d<=92?'var(--am)':'var(--gr)')+'">'+( d===null?'&mdash;':d<0?Math.abs(d)+'d ago':d+'d')+'</td>'+
+            '<td class="r mu">'+i.qty+'</td>'+
+            '<td><span class="pill '+c+'">'+lbl+'</span></td></tr>';
+        }).join('')+'</tbody></table></div></div>':
+        '<div class="tcard" style="margin-bottom:0"><div class="empty">No transfers recorded for '+branch+'</div></div>');
+    }).join('');
+}
+
 /* ── EXPORT ── */
 function exportCSV(){
   const h=['SKU','Name','Line','Category','Bin','Batch','Expiry','Price','Velocity/mo','Months of stock','Received','Sold','Stock','Status'];
@@ -715,5 +956,66 @@ $('sf-foot').innerHTML='Cached data &middot; <a href="#" onclick="syncNow();retu
 setTimeout(syncNow,600);
 
 </script>
+
+<nav class="mobile-nav">
+  <div class="mobile-nav-inner">
+    <div class="mni active" id="mni-dashboard" onclick="mobileNav('dashboard',this)">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+      Dashboard
+    </div>
+    <div class="mni" id="mni-all" onclick="mobileNav('all',this)">
+      <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="1" fill="currentColor"/><circle cx="3" cy="12" r="1" fill="currentColor"/><circle cx="3" cy="18" r="1" fill="currentColor"/></svg>
+      All SKUs
+    </div>
+    <div class="mni" id="mni-oos" onclick="mobileNav('oos',this)">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg>
+      Out of Stock
+      <span class="mni-badge" id="mb-oos">0</span>
+    </div>
+    <div class="mni" id="mni-low" onclick="mobileNav('low',this)">
+      <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+      Low Stock
+      <span class="mni-badge" id="mb-low">0</span>
+    </div>
+    <div class="mni" id="mni-expiry" onclick="mobileNav('expiry',this)">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Expiry
+      <span class="mni-badge" id="mb-exp">0</span>
+    </div>
+    <div class="mni" id="mni-movement" onclick="mobileNav('movement',this)">
+      <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Movement
+    </div>
+    <div class="mni" id="mni-value" onclick="mobileNav('value',this)">
+      <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      Value
+    </div>
+    <div class="mni" id="mni-batches" onclick="mobileNav('batches',this)">
+      <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+      Batches
+    </div>
+    <div class="mni" id="mni-aged" onclick="mobileNav('aged',this)">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Aged
+    </div>
+    <div class="mni" id="mni-shrinkage" onclick="mobileNav('shrinkage',this)">
+      <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r="1" fill="currentColor"/></svg>
+      Shrinkage
+    </div>
+    <div class="mni" id="mni-cashexpiry" onclick="mobileNav('cashexpiry',this)">
+      <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      Cash Risk
+    </div>
+    <div class="mni" id="mni-branchtransfer" onclick="mobileNav('branchtransfer',this)">
+      <svg viewBox="0 0 24 24"><path d="M5 17H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v3"/><rect x="9" y="11" width="14" height="10" rx="2"/></svg>
+      Transfers
+    </div>
+    <div class="mni" id="mni-branchexpiry" onclick="mobileNav('branchexpiry',this)">
+      <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Branch Expiry
+    </div>
+  </div>
+</nav>
+
 </body>
 </html>
