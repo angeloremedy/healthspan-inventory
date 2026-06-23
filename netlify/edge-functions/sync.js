@@ -1,5 +1,16 @@
 export default async function handler(request, context) {
-  // Only allow POST
+  // Handle CORS preflight
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+      },
+    });
+  }
+
   if (request.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
   }
@@ -7,26 +18,22 @@ export default async function handler(request, context) {
   const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
   if (!ANTHROPIC_API_KEY) {
     return new Response(
-      JSON.stringify({ error: { message: "ANTHROPIC_API_KEY not set in Netlify environment variables." } }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
+      JSON.stringify({ error: { message: "ANTHROPIC_API_KEY not configured in Netlify environment variables." } }),
+      { status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }
     );
   }
 
-  // Optional: restrict to your Netlify domain only
-  const origin = request.headers.get("origin") || "";
-  const allowedOrigins = [
-    Deno.env.get("SITE_URL") || "",
-    "http://localhost:8888",
-    "http://localhost:3000",
-  ].filter(Boolean);
-  const isAllowed = allowedOrigins.length === 0 || allowedOrigins.some(o => origin.startsWith(o));
-  if (!isAllowed) {
-    return new Response("Forbidden", { status: 403 });
+  let body;
+  try {
+    body = await request.json();
+  } catch (err) {
+    return new Response(
+      JSON.stringify({ error: { message: "Invalid JSON in request body." } }),
+      { status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }
+    );
   }
 
   try {
-    const body = await request.json();
-
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -44,13 +51,13 @@ export default async function handler(request, context) {
       status: response.status,
       headers: {
         "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Origin": "*",
       },
     });
   } catch (err) {
     return new Response(
-      JSON.stringify({ error: { message: "Proxy error: " + err.message } }),
-      { status: 502, headers: { "Content-Type": "application/json" } }
+      JSON.stringify({ error: { message: "Upstream error: " + err.message } }),
+      { status: 502, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }
     );
   }
 }
