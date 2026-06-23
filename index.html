@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Healthspan Inventory Monitor</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f5f4f2;--sf:#fff;--sf2:#f0eeec;--sf3:#e8e6e2;
+  --bd:#e2dfd9;--bd2:#ccc9c2;
+  --tx:#181715;--tx2:#6a6860;--tx3:#9a9890;
+  --gr:#0f6e56;--gr-bg:#e0f5ed;--gr-lt:#5dcaa5;
+  --am:#7a4a08;--am-bg:#faeeda;--am-lt:#ef9f27;
+  --rd:#a02a2a;--rd-bg:#fceaea;--rd-lt:#e24b4a;
+  --bl:#155fa0;--bl-bg:#e5f1fb;--bl-lt:#378add;
+  --pu:#4e46b2;--pu-bg:#eeedfe;
+  --ac:#0f6e56;
+  --r:10px;--rs:6px;--rx:4px;
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#111113;--sf:#18181b;--sf2:#1f1f23;--sf3:#27272b;
+  --bd:#2e2e33;--bd2:#45454d;
+  --tx:#f0f0ef;--tx2:#9a9a97;--tx3:#656562;
+  --gr:#5dcaa5;--gr-bg:#062a1f;--gr-lt:#9fe1cb;
+  --am:#ef9f27;--am-bg:#2e1a04;--am-lt:#fac775;
+  --rd:#f09595;--rd-bg:#2a0c0c;--rd-lt:#f7c1c1;
+  --bl:#85b7eb;--bl-bg:#05192e;--bl-lt:#b5d4f4;
+  --pu:#afa9ec;--pu-bg:#16143d;
+  --ac:#5dcaa5;
+}}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--tx);font-size:14px;line-height:1.5;min-height:100vh}
+.shell{display:flex;height:100vh;overflow:hidden}
+.sb{width:228px;flex-shrink:0;background:var(--sf);border-right:1px solid var(--bd);display:flex;flex-direction:column;overflow:hidden}
+.main{flex:1;overflow-y:auto;display:flex;flex-direction:column;min-width:0}
+.brand{padding:18px 16px 14px;border-bottom:1px solid var(--bd)}
+.brand-row{display:flex;align-items:center;gap:9px}
+.bicon{width:30px;height:30px;background:var(--ac);border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.bicon svg{width:15px;height:15px;stroke:#fff;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.bname{font-size:14px;font-weight:700}
+.bsub{font-size:11px;color:var(--tx3);margin-top:2px}
+.sync-btn{margin:10px 10px 0;padding:8px 10px;border-radius:var(--rs);background:var(--bl-bg);border:1px solid var(--bd);font-size:11px;color:var(--bl);display:flex;align-items:center;gap:6px;cursor:pointer;transition:opacity .15s;user-select:none}
+.sync-btn:hover{opacity:.8}
+.sync-btn svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.sync-btn.spin svg{animation:spin 1s linear infinite}
+.sync-btn.ok{background:var(--gr-bg);color:var(--gr)}
+.sync-btn.err{background:var(--rd-bg);color:var(--rd)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.nav{padding:10px 8px;flex:1;overflow-y:auto}
+.nlbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.09em;color:var(--tx3);padding:10px 8px 4px}
+.ni{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:var(--rs);cursor:pointer;color:var(--tx2);font-size:12.5px;transition:all .12s;margin-bottom:1px;user-select:none}
+.ni:hover{background:var(--sf2);color:var(--tx)}
+.ni.active{background:var(--gr-bg);color:var(--gr);font-weight:500}
+.ni svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.nbadge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;background:var(--rd-bg);color:var(--rd)}
+.nbadge.w{background:var(--am-bg);color:var(--am)}
+.nbadge.m{background:var(--sf2);color:var(--tx3)}
+.sf-foot{padding:10px 14px;border-top:1px solid var(--bd);font-size:10.5px;color:var(--tx3);line-height:1.4}
+.topbar{background:var(--sf);border-bottom:1px solid var(--bd);padding:11px 22px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:12px}
+.ptitle{font-size:15px;font-weight:700;letter-spacing:-.01em}
+.psub{font-size:11px;color:var(--tx3);margin-top:1px}
+.tbr{display:flex;gap:7px;align-items:center;flex-shrink:0}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 13px;border-radius:var(--rs);border:1px solid var(--bd2);background:var(--sf);color:var(--tx2);font-size:12px;cursor:pointer;transition:all .12s;font-family:inherit;white-space:nowrap}
+.btn:hover{background:var(--sf2);color:var(--tx)}
+.btn svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.content{padding:18px 22px;flex:1}
+.metrics{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:9px;margin-bottom:18px}
+.met{background:var(--sf);border:1px solid var(--bd);border-radius:var(--r);padding:13px 15px}
+.met-lbl{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--tx3);margin-bottom:7px}
+.met-val{font-size:26px;font-weight:800;line-height:1;letter-spacing:-.02em}
+.met-sub{font-size:10.5px;color:var(--tx3);margin-top:3px}
+.met-bar{height:3px;border-radius:2px;margin-top:10px}
+.met.rd .met-val{color:var(--rd)}.met.rd .met-bar{background:var(--rd-lt)}
+.met.am .met-val{color:var(--am)}.met.am .met-bar{background:var(--am-lt)}
+.met.gr .met-val{color:var(--gr)}.met.gr .met-bar{background:var(--gr-lt)}
+.met.bl .met-val{color:var(--bl)}.met.bl .met-bar{background:var(--bl-lt)}
+.met.pu .met-val{color:var(--pu)}.met.pu .met-bar{background:#7f77dd}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-bottom:18px}
+.panel{background:var(--sf);border:1px solid var(--bd);border-radius:var(--r);padding:15px}
+.phd{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--tx3);margin-bottom:11px;display:flex;align-items:center;gap:5px}
+.phd svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.cw{position:relative;width:100%;height:180px}
+.hbars{display:flex;flex-direction:column;gap:7px}
+.hbrow{display:flex;align-items:center;gap:8px;font-size:11px}
+.hblbl{width:92px;flex-shrink:0;color:var(--tx2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.hblbl:hover{color:var(--ac)}
+.hbtrack{flex:1;height:7px;background:var(--sf2);border-radius:3px;overflow:hidden}
+.hbfill{height:100%;border-radius:3px}
+.hbval{width:44px;text-align:right;color:var(--tx3);flex-shrink:0}
+.alist{display:flex;flex-direction:column;gap:5px;max-height:195px;overflow-y:auto}
+.arow{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:var(--rx);background:var(--sf2);font-size:11.5px;cursor:pointer;transition:background .1s}
+.arow:hover{background:var(--sf3)}
+.adot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.adot.rd{background:var(--rd-lt)}.adot.am{background:var(--am-lt)}
+.aname{flex:1;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ameta{font-size:10px;color:var(--tx3);font-family:ui-monospace,monospace;flex-shrink:0}
+.tabs{display:flex;gap:2px;background:var(--sf2);padding:3px;border-radius:var(--rs);width:fit-content;margin-bottom:12px}
+.tab{padding:5px 13px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:500;color:var(--tx3);transition:all .12s;user-select:none;white-space:nowrap}
+.tab.active{background:var(--sf);color:var(--tx);box-shadow:0 1px 2px rgba(0,0,0,.1)}
+.toolbar{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px;align-items:center}
+.sw{position:relative;flex:1;min-width:170px;max-width:260px}
+.sw svg{position:absolute;left:8px;top:50%;transform:translateY(-50%);width:12px;height:12px;stroke:var(--tx3);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+input[type=text]{width:100%;padding:6px 9px 6px 27px;border:1px solid var(--bd);border-radius:var(--rs);background:var(--sf);color:var(--tx);font-size:12px;font-family:inherit;outline:none}
+input[type=text]:focus{border-color:var(--ac);box-shadow:0 0 0 2px rgba(15,110,86,.12)}
+select{padding:6px 10px;border:1px solid var(--bd);border-radius:var(--rs);background:var(--sf);color:var(--tx);font-size:12px;font-family:inherit;cursor:pointer;outline:none}
+select:focus{border-color:var(--ac)}
+.pill{display:inline-flex;align-items:center;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:600;letter-spacing:.02em;white-space:nowrap}
+.pgr{background:var(--gr-bg);color:var(--gr)}
+.pam{background:var(--am-bg);color:var(--am)}
+.prd{background:var(--rd-bg);color:var(--rd)}
+.pgy{background:var(--sf2);color:var(--tx3)}
+.tcard{background:var(--sf);border:1px solid var(--bd);border-radius:var(--r);overflow:hidden}
+.tscroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{padding:8px 11px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--tx3);background:var(--sf2);border-bottom:1px solid var(--bd);white-space:nowrap;cursor:pointer;user-select:none}
+thead th:hover{color:var(--tx)}
+thead th.sorted{color:var(--ac)}
+tbody tr{border-bottom:1px solid var(--bd);transition:background .08s;cursor:pointer}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:var(--sf2)}
+td{padding:8px 11px;color:var(--tx);vertical-align:middle;white-space:nowrap}
+td.mo{font-family:ui-monospace,'SF Mono',monospace;font-size:10.5px;color:var(--tx2)}
+td.mu{color:var(--tx2)}
+td.r{text-align:right}
+td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.tfooter{padding:9px 14px;border-top:1px solid var(--bd);font-size:11px;color:var(--tx3);display:flex;align-items:center;justify-content:space-between}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.28);z-index:200;display:none}
+.overlay.open{display:block}
+.drawer{position:fixed;right:0;top:0;height:100vh;width:350px;background:var(--sf);border-left:1px solid var(--bd);z-index:201;transform:translateX(100%);transition:transform .2s cubic-bezier(.4,0,.2,1);overflow-y:auto;box-shadow:-4px 0 24px rgba(0,0,0,.12)}
+.drawer.open{transform:translateX(0)}
+.dinn{padding:22px 20px}
+.dclose{position:absolute;top:14px;right:14px;background:none;border:none;cursor:pointer;color:var(--tx3);padding:5px;border-radius:5px}
+.dclose:hover{background:var(--sf2);color:var(--tx)}
+.dclose svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;display:block}
+.dsku{font-size:10.5px;font-family:monospace;color:var(--tx3);margin-bottom:3px}
+.dname{font-size:17px;font-weight:700;margin-bottom:10px;line-height:1.25}
+.dstk{font-size:42px;font-weight:800;line-height:1;margin:14px 0 2px;letter-spacing:-.03em}
+.dsub{font-size:11px;color:var(--tx3)}
+.dvel{margin-top:12px}
+.dvhd{display:flex;justify-content:space-between;font-size:11px;color:var(--tx3);margin-bottom:4px}
+.dvtrack{height:5px;background:var(--sf2);border-radius:3px;overflow:hidden}
+.dvfill{height:100%;border-radius:3px;background:var(--ac)}
+.dsec{margin-top:18px}
+.dsectitle{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--tx3);margin-bottom:7px;padding-bottom:5px;border-bottom:1px solid var(--bd)}
+.drow{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--bd);font-size:12px}
+.drow:last-child{border-bottom:none}
+.dlbl{color:var(--tx3)}
+.dval{font-weight:500;text-align:right;max-width:58%}
+.empty{text-align:center;padding:48px 24px;color:var(--tx3);font-size:13px}
+@media(max-width:760px){.sb{display:none}.g2{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,1fr)}.drawer{width:100vw}}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:10px}
+</style>
+</head>
+<body>
+<div class="shell">
+<aside class="sb">
+  <div class="brand">
+    <div class="brand-row">
+      <div class="bicon"><svg viewBox="0 0 24 24"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" y1="22" x2="12" y2="12"/></svg></div>
+      <div><div class="bname">Healthspan</div><div class="bsub">Global, Inc.</div></div>
+    </div>
+  </div>
+  <div class="sync-btn" id="syncBtn" onclick="syncNow()">
+    <svg id="sicon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+    <span id="slbl">Sync from Google Sheets</span>
+  </div>
+  <nav class="nav">
+    <div class="nlbl">Views</div>
+    <div class="ni active" onclick="showView('dashboard',this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>Dashboard</div>
+    <div class="ni" onclick="showView('all',this)"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="1" fill="currentColor"/><circle cx="3" cy="12" r="1" fill="currentColor"/><circle cx="3" cy="18" r="1" fill="currentColor"/></svg>All SKUs</div>
+    <div class="nlbl">Alerts</div>
+    <div class="ni" onclick="showView('oos',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg>Out of stock<span class="nbadge" id="b-oos">—</span></div>
+    <div class="ni" onclick="showView('low',this)"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r="1" fill="currentColor"/></svg>Low stock<span class="nbadge w" id="b-low">—</span></div>
+    <div class="ni" onclick="showView('neg',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg>Negative stock<span class="nbadge" id="b-neg">—</span></div>
+    <div class="nlbl">Product lines</div>
+    <div id="lnav"></div>
+  </nav>
+  <div class="sf-foot" id="sf-foot">Loading...</div>
+</aside>
+<div class="main">
+  <header class="topbar">
+    <div><div class="ptitle" id="ptitle">Dashboard</div><div class="psub" id="psub">Healthspan Global, Inc. &mdash; warehouse inventory</div></div>
+    <div class="tbr">
+      <button class="btn" onclick="exportCSV()"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV</button>
+    </div>
+  </header>
+  <div class="content" id="content"><div class="empty">Loading inventory data...</div></div>
+</div>
+</div>
+<div class="overlay" id="overlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="dinn">
+    <button class="dclose" onclick="closeDrawer()"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <div id="dbody"></div>
+  </div>
+</div>
+<script>
+
+const SEED = [{"sku":"ME0102","name":"01 ETHNIC SKIN 20G","line":"Meline","category":"Commercial","received":889,"sold":790,"stock":0,"price":4464.29,"batch":"S042","expiry":"10/2024","bin":"IB03","size":"5.7 x 5 x 15.8"},{"sku":"ME0114","name":"01 ETHNIC SKIN 15G","line":"Meline","category":"Commercial","received":454,"sold":392,"stock":45,"price":45.0,"batch":"","expiry":"","bin":"","size":""},{"sku":"ME0109","name":"01 MOIST PROFESSIONAL","line":"Meline","category":"Commercial","received":443,"sold":371,"stock":28,"price":8660.71,"batch":"P1, T01","expiry":"11-2024 / 03-2027","bin":"IA02","size":"5.5 x 5.5 x 6.5"},{"sku":"ME0110","name":"01 RESTORE PROFESSIONAL","line":"Meline","category":"Commercial","received":456,"sold":408,"stock":3,"price":8660.71,"batch":"P1, T01","expiry":"11-2024 / 04-2027","bin":"IB02","size":"5.5 x 5.5 x 6.5"},{"sku":"ME000F","name":"F GENTLE FOAM","line":"Meline","category":"Commercial","received":1735,"sold":1563,"stock":103,"price":1607.14,"batch":"S01","expiry":"12/2026","bin":"GB02","size":"4.5 x 4.5 x 18"},{"sku":"ME0202","name":"02 ETHNIC SKIN DAY","line":"Meline","category":"Commercial","received":2501,"sold":2383,"stock":62,"price":3303.57,"batch":"T04","expiry":"4/2025","bin":"HB03","size":"2 x 2 x 5"},{"sku":"ME0205","name":"02 ETHNIC SKIN NIGHT 20G","line":"Meline","category":"Commercial","received":1480,"sold":1423,"stock":0,"price":3303.57,"batch":"T04","expiry":"10/2025","bin":"HB04","size":"5.7 x 5 x 15.8"},{"sku":"ME0211","name":"02 ETHNIC SKIN NIGHT 30G","line":"Meline","category":"Commercial","received":1328,"sold":1264,"stock":53,"price":null,"batch":"-","expiry":"-","bin":"-","size":"38 x 38 x 32"},{"sku":"ME0301","name":"03 MOIST","line":"Meline","category":"Commercial","received":1979,"sold":1853,"stock":76,"price":2142.86,"batch":"T01","expiry":"4/2027","bin":"HA02","size":"5.7 x 5 x 15.8"},{"sku":"ME0302","name":"03 RESTORE","line":"Meline","category":"Commercial","received":3467,"sold":3190,"stock":171,"price":1964.29,"batch":"S03","expiry":"4/2027","bin":"HA03","size":"8 x 8 x 5.5"},{"sku":"ME0501","name":"05 PIGMENT HOME MASK","line":"Meline","category":"Commercial","received":235,"sold":43,"stock":0,"price":null,"batch":"S03","expiry":"6/2026","bin":"CB01","size":"8 x 8 x 5.5"},{"sku":"ME0001MU","name":"00 MELINEPREP SAMPLE","line":"Meline","category":"MKT SAMPLES","received":482,"sold":12,"stock":0,"price":null,"batch":"T05","expiry":"5/2025","bin":"CB02","size":"3.5 x 2 x 8"},{"sku":"ME0102MU","name":"01 ETHNIC SKIN SAMPLE","line":"Meline","category":"MKT SAMPLES","received":689,"sold":0,"stock":0,"price":null,"batch":"T01","expiry":"3/2025","bin":"CB02","size":"-"},{"sku":"ME0202MU","name":"02 ETHNIC SKIN SKIN DAY SAMPLE","line":"Meline","category":"MKT SAMPLES","received":1262,"sold":3,"stock":0,"price":null,"batch":"P1","expiry":"-","bin":"CB04","size":"-"},{"sku":"ME0205MU","name":"02 ETHNIC SKIN SKIN NIGHT SAMPLE","line":"Meline","category":"MKT SAMPLES","received":1523,"sold":0,"stock":0,"price":null,"batch":"R1","expiry":"-","bin":"CB04","size":"-"},{"sku":"MKT632","name":"MELINE HEAD BAND","line":"Meline","category":"MKT SAMPLES","received":83,"sold":0,"stock":0,"price":null,"batch":"-","expiry":"-","bin":"BB03","size":"-"},{"sku":"ID021","name":"SUN DEFENSE SPF 50+","line":"Inno Derma","category":"Commercial","received":2101,"sold":1847,"stock":0,"price":4419.64,"batch":"T02","expiry":"5/2025","bin":"DA02","size":"4 x 4 x 15"},{"sku":"ID022","name":"SUN DEFENSE SPF 50+ OILY SKIN","line":"Inno Derma","category":"Commercial","received":13583,"sold":11125,"stock":2052,"price":4419.64,"batch":"T02","expiry":"6/2025","bin":"DA03","size":"4 x 4 x 15"},{"sku":"ID020","name":"AKN DAY GEL","line":"Inno Derma","category":"MKT SAMPLES","received":2,"sold":0,"stock":0,"price":null,"batch":"S01","expiry":"-","bin":"EB02","size":"6.5 x 6.5 x 5.5"},{"sku":"TD040","name":"FACE NADE","line":"Inno TDS","category":"Commercial","received":15469,"sold":12971,"stock":2209,"price":5892.86,"batch":"T11","expiry":"9/2025 / 10/2025","bin":"EB04","size":"16.5 x 2.5 x 7"},{"sku":"TD057","name":"FIRMING","line":"Inno TDS","category":"Commercial","received":3249,"sold":2660,"stock":319,"price":5892.86,"batch":"S18, T07","expiry":"12-2024 / 08-2025","bin":"EB03","size":"16.5 x 2.5 x 7"},{"sku":"ID009","name":"AGE RESCUE 24H CREAM","line":"Inno Derma","category":"Commercial","received":920,"sold":738,"stock":88,"price":2544.64,"batch":"S02","expiry":"3/2026","bin":"FB03","size":"4.3 x 3.3 x 18.3"},{"sku":"ID010","name":"AKN \u03b2PURIFIER NIGHT GEL","line":"Inno Derma","category":"Commercial","received":654,"sold":484,"stock":89,"price":2544.64,"batch":"S03","expiry":"7/2026","bin":"EA03","size":"4.3 x 3.3 x 18.3"},{"sku":"ID011","name":"DARK SPOT ERASER DSE+ 24H CREAM","line":"Inno Derma","category":"Commercial","received":1271,"sold":1137,"stock":-6,"price":2812.5,"batch":"T02","expiry":"2/2025","bin":"EA02","size":"4.3 x 3.3 x 18.3"},{"sku":"ID002","name":"DEEP CLEANSER","line":"Inno Derma","category":"Commercial","received":1020,"sold":733,"stock":153,"price":1517.86,"batch":"S042, S051","expiry":"06-2026 / 09-2026","bin":"GA03","size":"5.5 x 5.5 x 21.2"},{"sku":"ID005","name":"EYE REVITALIZER","line":"Inno Derma","category":"Commercial","received":1130,"sold":980,"stock":9,"price":2187.5,"batch":"T01","expiry":"1/2027","bin":"GB03","size":"6.5 x 6.5 x 5.5"},{"sku":"ID013","name":"KERATODERM","line":"Inno Derma","category":"Commercial","received":295,"sold":204,"stock":56,"price":1919.64,"batch":"S01","expiry":"01-2026","bin":"56","size":"5.7 x 5.7 x 21.5"},{"sku":"ID016","name":"SENSITIVE CREAM","line":"Inno Derma","category":"Commercial","received":5325,"sold":5014,"stock":146,"price":1964.29,"batch":"S03","expiry":"7/2026","bin":"FB02","size":"6.5 x 6.5 x 5.5"},{"sku":"ID021MU","name":"SUN DEFENSE SPF 50+ - SAMPLE","line":"Inno Derma","category":"MKT SAMPLES","received":5351,"sold":0,"stock":85,"price":null,"batch":"T02","expiry":"9/2025","bin":"85","size":"DA02"},{"sku":"ID022MU","name":"SUN DEFENSE SPF 50+ OILY SKIN - SAMPLE","line":"Inno Derma","category":"MKT SAMPLES","received":11122,"sold":0,"stock":4460,"price":null,"batch":"S01","expiry":"-","bin":"4460","size":"DA03"},{"sku":"ID009MU","name":"AGE RESCUE 24H CREAM - SAMPLE","line":"Inno Derma","category":"MKT SAMPLES","received":2304,"sold":0,"stock":78,"price":null,"batch":"T01","expiry":"5/2027","bin":"FB03","size":"2.5 x 2.5 x 7.5"},{"sku":"ID010MU","name":"AKN \u03b2PURIFIER 24H CREAM - SAMPLE","line":"Inno Derma","category":"MKT SAMPLES","received":2369,"sold":50,"stock":124,"price":null,"batch":"S02","expiry":"6/2026","bin":"CB03","size":"2.5 x 2.5 x 7.5"},{"sku":"ID011MU","name":"DARK SPOT ERASER DSE+ 24H CREAM - SAMPLE","line":"Inno Derma","category":"MKT SAMPLES","received":847,"sold":0,"stock":0,"price":2812.5,"batch":"S02","expiry":"-","bin":"0","size":"2.5 x 2.5 x 7.5"},{"sku":"TD004MU","name":"FIRMING SAMPLE","line":"Inno TDS","category":"MKT SAMPLES","received":900,"sold":0,"stock":0,"price":0.0,"batch":"","expiry":"","bin":"","size":""},{"sku":"TD025MU","name":"MATRIX SAMPLE","line":"Inno TDS","category":"MKT SAMPLES","received":1176,"sold":0,"stock":0,"price":0.0,"batch":"","expiry":"","bin":"","size":""},{"sku":"MKT133","name":"INNO HEADBAND","line":"Inno Derma","category":"MKT SAMPLES","received":103,"sold":0,"stock":5,"price":null,"batch":"-","expiry":"-","bin":"5","size":"-"},{"sku":"MKT134","name":"INNO BRUSH","line":"Inno Derma","category":"MKT SAMPLES","received":405,"sold":0,"stock":0,"price":null,"batch":"-","expiry":"-","bin":"0","size":"-"},{"sku":"ME0001","name":"00 MELINE PREP","line":"Meline","category":"Commercial","received":1533,"sold":1401,"stock":36,"price":2187.5,"batch":"T03","expiry":"3/2025","bin":"IA03","size":"9 x 2.8 x 11.5"},{"sku":"ME0107","name":"01 MELINE ID","line":"Meline","category":"Commercial","received":2520,"sold":2326,"stock":50,"price":5267.86,"batch":"T03","expiry":"1/2025","bin":"IA04","size":"9 x 2.8 x 11.5"},{"sku":"ID200","name":"HAIR CAPS","line":"Meline","category":"Remedy Exclusive","received":55,"sold":55,"stock":0,"price":1741.07,"batch":"S01","expiry":"-","bin":"0","size":"8.5 x 4 x 12"},{"sku":"MKT630","name":"MELINE TOWEL 90x150CM","line":"Meline","category":"MKT SAMPLES","received":18,"sold":0,"stock":12,"price":null,"batch":"-","expiry":"-","bin":"BB02","size":"-"},{"sku":"ID201","name":"CAPS REDUCER","line":"Inno Derma","category":"Remedy Exclusive","received":5,"sold":0,"stock":0,"price":null,"batch":"-","expiry":"-","bin":"","size":"0"},{"sku":"IC001","name":"INNO-CE MESHA SCARS","line":"INNO-CE","category":"Remedy Exclusive","received":72,"sold":21,"stock":19,"price":null,"batch":"2/2024","expiry":"-","bin":"","size":"19"},{"sku":"ME0209","name":"02 DARK CIRCLES","line":"Meline","category":"Commercial","received":604,"sold":303,"stock":92,"price":null,"batch":"02-2024 / 03-2025","expiry":"5.7 x 5.3 x 15.7","bin":"","size":"92"},{"sku":"TD055","name":"TDS SLIMMING","line":"Inno TDS","category":"Commercial","received":7553,"sold":6001,"stock":1343,"price":null,"batch":"11/2025","expiry":"16.5 x 2.5 x 7","bin":"1343","size":"EA04"},{"sku":"MKT135","name":"INNO TOWEL","line":"Inno Mkt","category":"MKT SAMPLES","received":0,"sold":0,"stock":0,"price":null,"batch":"B43","expiry":"-","bin":"0","size":"-"},{"sku":"MKT130","name":"INNO TOWEL 100x150 CM","line":"Inno Mkt","category":"MKT SAMPLES","received":6,"sold":0,"stock":0,"price":null,"batch":"-","expiry":"-","bin":"0","size":"-"},{"sku":"MKT131","name":"INNO TOWEL 50x100 CM","line":"Inno Mkt","category":"MKT SAMPLES","received":6,"sold":0,"stock":0,"price":null,"batch":"-","expiry":"-","bin":"0","size":"-"},{"sku":"MKT110","name":"INNO BALLPEN","line":"Inno Mkt","category":"MKT SAMPLES","received":6,"sold":0,"stock":0,"price":null,"batch":"B43","expiry":"-","bin":"0","size":"-"},{"sku":"TD200","name":"HYALURONIDASE","line":"Inno TDS","category":"Remedy Exclusive","received":47,"sold":0,"stock":30,"price":null,"batch":"T09","expiry":"5/2025","bin":"30","size":"16.5 x 2.7 x 7.2"},{"sku":"ME0108","name":"01 DARK CIRCLES","line":"Meline","category":"Commercial","received":336,"sold":231,"stock":73,"price":null,"batch":"T01","expiry":"1/2025","bin":"73","size":"7.5 x 5.2 x 5.2"},{"sku":"ME0106","name":"01 INTIMATE","line":"Meline","category":"Commercial","received":907,"sold":722,"stock":83,"price":null,"batch":"S08","expiry":"12/2024","bin":"83","size":"9 x 2.8 x 11.5"},{"sku":"ME0208","name":"02 MELINE INTIMATE","line":"Meline","category":"Commercial","received":607,"sold":370,"stock":205,"price":null,"batch":"-","expiry":"0","bin":"","size":""},{"sku":"EP001","name":"EPIGEN ANTIOX SERUM 30ML","line":"INNO-EPIGEN","category":"Remedy Exclusive","received":26,"sold":0,"stock":0,"price":null,"batch":"-","expiry":"0","bin":"","size":""},{"sku":"EP003","name":"EPIGEN PIGMENT DEF. SERUM 30ML","line":"INNO-EPIGEN","category":"Remedy Exclusive","received":19,"sold":0,"stock":0,"price":null,"batch":"-","expiry":"0","bin":"","size":""},{"sku":"EP004","name":"EPIGEN PURIFYING SERUM 30ML","line":"INNO-EPIGEN","category":"Remedy Exclusive","received":108,"sold":0,"stock":50,"price":null,"batch":"-","expiry":"50","bin":"","size":""},{"sku":"EP002","name":"EPIGEN AGE PERFECTION SERUM 30ML","line":"INNO-EPIGEN","category":"Remedy Exclusive","received":133,"sold":0,"stock":75,"price":null,"batch":"-","expiry":"75","bin":"","size":""},{"sku":"IE001","name":"IE GLYCO AGE 30ML","line":"INNO-EXFO","category":"Remedy Exclusive","received":2,"sold":0,"stock":0,"price":null,"batch":"-","expiry":"0","bin":"","size":""},{"sku":"IE002","name":"IE MANDELAGE 30ML","line":"INNO-EXFO","category":"R&D","received":19,"sold":0,"stock":10,"price":null,"batch":"-","expiry":"10","bin":"","size":""},{"sku":"IE005","name":"IE MCA 35 5x5ML","line":"INNO-EXFO","category":"R&D","received":12,"sold":0,"stock":10,"price":null,"batch":"-","expiry":"10","bin":"","size":""},{"sku":"IE006","name":"IE BIO C (5+5 AMPx2ML)","line":"INNO-EXFO","category":"R&D","received":14,"sold":0,"stock":7,"price":null,"batch":"-","expiry":"7","bin":"","size":""},{"sku":"IE008","name":"IE ULTIMATE EYE CORRECTOR","line":"INNO-EXFO","category":"R&D","received":9,"sold":0,"stock":0,"price":null,"batch":"-","expiry":"0","bin":"","size":""},{"sku":"IE009","name":"IE NEUTRALIZER 100ML","line":"INNO-EXFO","category":"R&D","received":15,"sold":0,"stock":10,"price":null,"batch":"-","expiry":"10","bin":"","size":""},{"sku":"IE010","name":"IE DEGREASING SOLUTION 100ML","line":"INNO-EXFO","category":"Remedy Exclusive","received":2,"sold":0,"stock":0,"price":null,"batch":"-","expiry":"0","bin":"","size":""},{"sku":"IE012","name":"INNO EXFO SKIN RECOVERY 5x5ML","line":"INNO-EXFO","category":"R&D","received":12,"sold":0,"stock":10,"price":null,"batch":"-","expiry":"10","bin":"","size":""},{"sku":"IE013","name":"INNO EXFO TC AGE 5x5ML","line":"INNO-EXFO","category":"Remedy Exclusive","received":2,"sold":0,"stock":0,"price":null,"batch":"-","expiry":"0","bin":"","size":""},{"sku":"IE014","name":"IE XEROSKIN PEEL 6+6x2ML","line":"INNO-EXFO","category":"R&D","received":7,"sold":0,"stock":5,"price":null,"batch":"-","expiry":"5","bin":"","size":""},{"sku":"IE015","name":"IE AKN PEEL 6x2ML","line":"INNO-EXFO","category":"R&D","received":7,"sold":0,"stock":5,"price":null,"batch":"-","expiry":"5","bin":"","size":""},{"sku":"IE017","name":"IE REDNESS PEEL 6x2ML","line":"INNO-EXFO","category":"R&D","received":17,"sold":0,"stock":9,"price":null,"batch":"-","expiry":"9","bin":"","size":""},{"sku":"IE007","name":"IE LIGHTENING 15G","line":"INNO-EXFO","category":"Remedy Exclusive","received":39,"sold":0,"stock":26,"price":null,"batch":"-","expiry":"26","bin":"","size":""},{"sku":"TD044","name":"TDS RESTRUCTURER","line":"Inno TDS","category":"Commercial","received":1160,"sold":660,"stock":372,"price":null,"batch":"10/2024","expiry":"372","bin":"","size":""},{"sku":"TD049","name":"TDS MATRIX","line":"Inno TDS","category":"Commercial","received":1961,"sold":1232,"stock":540,"price":null,"batch":"10/2024","expiry":"540","bin":"","size":""},{"sku":"TD048","name":"TDS FILL UP","line":"Inno TDS","category":"Remedy Exclusive","received":2,"sold":0,"stock":0,"price":0.0,"batch":"","expiry":"","bin":"","size":""},{"sku":"ID001","name":"SOFT CLEANSER 200ml","line":"Inno Derma","category":"R&D","received":5,"sold":0,"stock":1,"price":1.0,"batch":"","expiry":"","bin":"","size":""},{"sku":"ID012","name":"HAIR LOTION 70ml","line":"Inno Derma","category":"Commercial","received":90,"sold":80,"stock":0,"price":0.0,"batch":"","expiry":"","bin":"","size":""},{"sku":"TD046","name":"HAIR VITAL (WOMAN) 4x2.5ml","line":"Inno TDS","category":"Commercial","received":140,"sold":14,"stock":106,"price":106.0,"batch":"","expiry":"","bin":"","size":""},{"sku":"TD047","name":"HAIR LOSS CONTROL (MAN)  4x2.5ml","line":"Inno TDS","category":"Commercial","received":177,"sold":34,"stock":115,"price":115.0,"batch":"","expiry":"","bin":"","size":""},{"sku":"ID008","name":"ID SKIN REPAIR 60G","line":"Inno Derma","category":"Remedy Exclusive","received":265,"sold":223,"stock":0,"price":0.0,"batch":"","expiry":"","bin":"","size":""},{"sku":"TD040MU","name":"TDS FACE NADE SAMPLE","line":"Inno TDS","category":"MKT SAMPLES","received":1685,"sold":0,"stock":0,"price":null,"batch":"0","expiry":"","bin":"","size":""},{"sku":"TD042","name":"DNA PEPT-HA","line":"Inno TDS","category":"Commercial","received":2232,"sold":1693,"stock":264,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"ID008MU","name":"ID SKIN REPAIR 3GRM SAMPLE","line":"Inno Derma","category":"MKT SAMPLES","received":798,"sold":0,"stock":469,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"F5SP114","name":"SkinPen Precision Kit","line":"SKINPEN","category":"Commercial","received":243,"sold":209,"stock":13,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"F5SP072","name":"Treatment Kit","line":"SKINPEN","category":"Commercial","received":18564,"sold":17386,"stock":-105,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"F5SP146","name":"Lift HG 15ML","line":"SKINPEN","category":"Commercial","received":2162,"sold":1872,"stock":192,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"F5SP335","name":"Sterile Biocellulose Masque (24 pcs)","line":"SKINPEN","category":"Commercial","received":7321,"sold":6720,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"IE016","name":"IE SENSITIVE PEEL","line":"INNO-EXFO","category":"R&D","received":5,"sold":0,"stock":5,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"IE018","name":"IE XEROSKIN PEEL HRP","line":"INNO-EXFO","category":"R&D","received":5,"sold":0,"stock":5,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"IE019","name":"IE AKN PEEL HRP","line":"INNO-EXFO","category":"R&D","received":5,"sold":0,"stock":5,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"IE020","name":"IE SENSITIVE PEEL HRP","line":"INNO-EXFO","category":"R&D","received":5,"sold":0,"stock":5,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"IE021","name":"IE REDNESS PEEL HRP","line":"INNO-EXFO","category":"R&D","received":5,"sold":0,"stock":5,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"EP008","name":"BODY CONTOUR","line":"INNO-EPIGEN","category":"R&D","received":5,"sold":0,"stock":5,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"ID004","name":"REFRESH MASK","line":"Inno Derma","category":"R&D","received":5,"sold":0,"stock":5,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"ID103","name":"SOFT CLEANSER PROFESIONAL","line":"Inno Derma","category":"R&D","received":24,"sold":0,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"ID104","name":"DEEP CLEANSER PROFESIONAL","line":"Inno Derma","category":"R&D","received":24,"sold":0,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"ID105","name":"SKIN REPAIR PROFESIONAL","line":"Inno Derma","category":"R&D","received":24,"sold":0,"stock":2,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"ID204","name":"REDUCER CAPS","line":"Inno Derma","category":"R&D","received":5,"sold":0,"stock":5,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"TD005MU","name":"TDS RESTRUCTURER SAMPLE 1ML","line":"Inno TDS","category":"MKT SAMPLES","received":347,"sold":0,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"F5SP364","name":"SP INTL STRESS BALL","line":"SKINPEN","category":"MKT SAMPLES","received":50,"sold":0,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"F5SP272","name":"SP INTL HEADBANDS","line":"SKINPEN","category":"MKT SAMPLES","received":200,"sold":0,"stock":71,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"F5SP273","name":"SP INTL HANDHELD MIRROR","line":"SKINPEN","category":"MKT SAMPLES","received":50,"sold":0,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"F5SP202.1","name":"SP INTL TRAINING FOLDER","line":"SKINPEN","category":"MKT SAMPLES","received":100,"sold":0,"stock":9,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"F5SP169","name":"SP INTL PAPER BAGS","line":"SKINPEN","category":"MKT SAMPLES","received":100,"sold":0,"stock":9,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"F5SP056","name":"SP 25CARTS/50 SHEATHS (TRAINING)","line":"SKINPEN","category":"MKT SAMPLES","received":175,"sold":0,"stock":52,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"LHALA01","name":"LHALA Peel","line":"LHALA","category":"LHALA","received":100,"sold":2,"stock":58,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"LHALA02","name":"LHALA Foam","line":"LHALA","category":"LHALA","received":20,"sold":9,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"LHALA03","name":"Cleansing Brush","line":"LHALA","category":"LHALA","received":40,"sold":10,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"LHALA04","name":"Peeling Brush","line":"LHALA","category":"LHALA","received":20,"sold":10,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"LHALA05","name":"LHALA Secret","line":"LHALA","category":"LHALA","received":1,"sold":0,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"LHALA06","name":"LHALA Secret Post-Treatment Cream","line":"LHALA","category":"LHALA","received":1,"sold":0,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"EX001","name":"EXO-SKIN","line":"INNO-EXOMA","category":"Commercial","received":1095,"sold":625,"stock":272,"price":272.0,"batch":"","expiry":"","bin":"","size":""},{"sku":"IC007","name":"BI-DENS 2.5%","line":"INNO-CE","category":"Commercial","received":3275,"sold":1723,"stock":1134,"price":1134.0,"batch":"","expiry":"","bin":"","size":""},{"sku":"IE022","name":"SCALPEEL HRP","line":"Inno TDS","category":"R&D","received":25,"sold":14,"stock":8,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"MKT091","name":"INNO USB","line":"Inno Mkt","category":"MKT SAMPLES","received":5,"sold":0,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"MKT150","name":"INNO PRODUCT DISPAY","line":"Inno Mkt","category":"MKT SAMPLES","received":2,"sold":0,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"F5BV108","name":"BioJuve Conditioning Cleanse 100ml","line":"BioJuve","category":"BioJuve","received":135,"sold":32,"stock":3,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"F5BV107","name":"BioJuve Biome Support Complex 30ml","line":"BioJuve","category":"BioJuve","received":132,"sold":32,"stock":14,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"F5BV112","name":"BioJuve Living Biome Essential Duo","line":"BioJuve","category":"BioJuve","received":127,"sold":33,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"F5BV109","name":"BioJuve Hydrating Barrier Creme (Normal to Oily Skin) 50ml","line":"BioJuve","category":"BioJuve","received":89,"sold":12,"stock":23,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"F5BV110","name":"BioJuve Hydrating Barrier Creme (Normal to Dry Skin) 50ml","line":"BioJuve","category":"BioJuve","received":70,"sold":20,"stock":4,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"F5BV114","name":"Biojuve Mini Products in a Cosmetic Bag","line":"BioJuve","category":"BioJuve","received":437,"sold":84,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"F5BV156","name":"Biojuve Hero Kit / Discovery Box","line":"BioJuve","category":"BioJuve","received":213,"sold":28,"stock":19,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"MKT111","name":"INNO REGLA / RULER","line":"Inno Mkt","category":"MKT SAMPLES","received":620,"sold":0,"stock":325,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"MKT112","name":"LAPIZ PROMOCIONAL","line":"Inno Mkt","category":"MKT SAMPLES","received":450,"sold":0,"stock":77,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"MKT120","name":"INNO BOLSA TELA / FABRIC BAG","line":"Inno Mkt","category":"MKT SAMPLES","received":868,"sold":0,"stock":165,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"MKT633","name":"MELINE PINCEL / BRUSH","line":"Meline","category":"MKT SAMPLES","received":60,"sold":0,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"MKT155","name":"PELOTA ANTIESTRES INNO","line":"Inno Mkt","category":"MKT SAMPLES","received":50,"sold":0,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"MKT635","name":"PELOTA ANTIESTRES MELINE","line":"Meline","category":"MKT SAMPLES","received":30,"sold":0,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"MKT124","name":"INNO ESPEJO / MIRROR","line":"Inno Mkt","category":"MKT SAMPLES","received":100,"sold":0,"stock":42,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"MKT624","name":"MELINE ESPEJO / MIRROR","line":"Meline","category":"MKT SAMPLES","received":10,"sold":0,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"MKT620","name":"MELINE BOLSA TELA / FABRIC BAG","line":"Meline","category":"MKT SAMPLES","received":59,"sold":0,"stock":46,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"TD051","name":"TDS TIGF 4x2.5ML","line":"Inno TDS","category":"R&D","received":30,"sold":0,"stock":20,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"INVESTA","name":"Q SWITCHED ND:YAG LASER SYSTEM","line":"GTG","category":"Remedy Exclusive","received":4,"sold":0,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"INVESTA 595","name":"595 HAND PIECE","line":"GTG","category":"Remedy Exclusive","received":4,"sold":0,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"INVESTA 660","name":"660 HAND PIECE","line":"GTG","category":"Remedy Exclusive","received":2,"sold":0,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"MACURAY (2in1)","name":"2 IN 1 COOLING SYSTEM","line":"GTG","category":"Remedy Exclusive","received":1,"sold":0,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"Inpure","name":"AQUAPEEL &HYDROGEN & WATER GALVANIC","line":"GTG","category":"Remedy Exclusive","received":2,"sold":0,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"R7","name":"R7","line":"GTG","category":"Remedy Exclusive","received":10,"sold":0,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"S7","name":"S7","line":"GTG","category":"Remedy Exclusive","received":10,"sold":0,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"LASER CARBON CREAM","name":"LASER CARBON CREAM","line":"GTG","category":"Remedy Exclusive","received":3,"sold":0,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"F5BV051.01","name":"BIOJUVE CLINICAL STUDY BOOKLET","line":"BioJuve","category":"BioJuve Mkt","received":1253,"sold":0,"stock":1253,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"F5BV124","name":"BIOJUVE MICROFIBER CLOTH","line":"BioJuve","category":"BioJuve Mkt","received":50,"sold":0,"stock":50,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"F5SP170","name":"SkinPen + BIOJUVE Clinical Study White Paper","line":"BioJuve","category":"BioJuve Mkt","received":50,"sold":0,"stock":50,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"F9BV001","name":"BIOJUVE INTL Golden Bag","line":"BioJuve","category":"BioJuve Mkt","received":50,"sold":0,"stock":50,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"F9BV020","name":"BIOJUVE A4 Format Cardboard Folder","line":"BioJuve","category":"BioJuve Mkt","received":50,"sold":0,"stock":50,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"F9BV021","name":"BIOJUVE - Black NOTEBOOK","line":"BioJuve","category":"BioJuve Mkt","received":50,"sold":0,"stock":50,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"F9BV023","name":"BIOJUVE INTL Ink Pen","line":"BioJuve","category":"BioJuve Mkt","received":100,"sold":0,"stock":100,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"MKT610","name":"MELINE BOLI / PEN","line":"Meline","category":"MKT SAMPLES","received":32,"sold":0,"stock":22,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"INTHERA","name":"INTHERA","line":"GTG","category":"Remedy Exclusive","received":1,"sold":0,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"INTHERA_INSULATED_TIP","name":"INTHEREA 36 PIN INSULATED TIP","line":"GTG","category":"Remedy Exclusive","received":50,"sold":0,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"S-Co2","name":"S-Co2","line":"GTG","category":"Remedy Exclusive","received":2,"sold":0,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"InpureS1Solutions","name":"Inpure S1 Solutions","line":"GTG","category":"Remedy Exclusive","received":3,"sold":0,"stock":3,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"InpureS2Solutions","name":"Inpure S2 Solutions","line":"GTG","category":"Remedy Exclusive","received":3,"sold":0,"stock":3,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"InpureS3Solutions","name":"Inpure S3 Solutions","line":"GTG","category":"Remedy Exclusive","received":3,"sold":0,"stock":3,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"EP010","name":"EPIGEN PERFECT GLOW 150G","line":"INNO-EPIGEN","category":"Remedy Exclusive","received":30,"sold":0,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"AR00008885","name":"TERMOSALUD SILVER BAG","line":"TERMOSALUD MKT","category":"MKT SAMPLES","received":80,"sold":0,"stock":20,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"AR00010606","name":"TERMOSALUD LANYARDS","line":"TERMOSALUD MKT","category":"MKT SAMPLES","received":50,"sold":0,"stock":50,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"AR00010318","name":"CORPORATIVE MARKETING MIRROR","line":"TERMOSALUD MKT","category":"MKT SAMPLES","received":80,"sold":0,"stock":50,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"AR00010317","name":"CORPORATIVE MARKETING VANITY CASE","line":"TERMOSALUD MKT","category":"MKT SAMPLES","received":80,"sold":0,"stock":50,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"AR00008631","name":"TERMOSALUD CORPORATIVE PEN","line":"TERMOSALUD MKT","category":"MKT SAMPLES","received":100,"sold":0,"stock":70,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"AR00010153","name":"TERMOSALUD CORPORATIVE MUG","line":"TERMOSALUD MKT","category":"MKT SAMPLES","received":50,"sold":0,"stock":20,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"AR00008934","name":"TERMOSALUD CORPORATIVE NOTEBOOK","line":"TERMOSALUD MKT","category":"MKT SAMPLES","received":80,"sold":0,"stock":20,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"AR00010578","name":"SYMMED ELITE CATALOGUE","line":"TERMOSALUD MKT","category":"MKT SAMPLES","received":20,"sold":0,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"AR00010222","name":"SYMMED ELITE CATALOGUE","line":"TERMOSALUD MKT","category":"MKT SAMPLES","received":20,"sold":0,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""},{"sku":"AR00009136","name":"CORPORATIVE TERMOSALUD FOLDER","line":"TERMOSALUD MKT","category":"MKT SAMPLES","received":30,"sold":0,"stock":0,"price":null,"batch":"","expiry":"","bin":"","size":""}];
+const FILE_ID = '1tgedHZhpaMkHZqKElL13jBm9f90HRzsW5EkoL8QaW24';
+let DATA = SEED.slice();
+let sortCol='stock', sortDir=-1;
+let currentView='dashboard';
+let fLine='', fCat='', fSearch='', fTab='all';
+let catInst=null;
+const COLORS=['#1D9E75','#378ADD','#7F77DD','#D85A30','#BA7517','#D4537E','#0F6E56','#639922','#185FA5','#854F0B','#993556','#3B6D11'];
+
+const $=id=>document.getElementById(id);
+const stk=p=>typeof p.stock==='number'?p.stock:null;
+function statusOf(s){
+  if(s===null) return {l:'N/A',c:'pgy'};
+  if(s<0)      return {l:'Negative',c:'prd'};
+  if(s===0)    return {l:'Out of stock',c:'prd'};
+  if(s<10)     return {l:'Low',c:'pam'};
+  return              {l:'In stock',c:'pgr'};
+}
+function fmtP(v){return v!=null&&v>10?'&#8369;'+v.toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2}):'&mdash;';}
+function expSoon(e){
+  if(!e||e==='-') return false;
+  const parts=e.match(/([0-9]{1,2})[\/\-]([0-9]{4})/);
+  if(!parts) return false;
+  return (new Date(+parts[2],+parts[1]-1,1)-new Date())/(864e5*30)<6;
+}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+function refreshSidebar(){
+  const oos=DATA.filter(p=>stk(p)===0).length;
+  const low=DATA.filter(p=>{const s=stk(p);return s!==null&&s>0&&s<10;}).length;
+  const neg=DATA.filter(p=>{const s=stk(p);return s!==null&&s<0;}).length;
+  $('b-oos').textContent=oos; $('b-low').textContent=low; $('b-neg').textContent=neg;
+  const lines=[...new Set(DATA.map(p=>p.line).filter(Boolean))].sort();
+  $('lnav').innerHTML=lines.map(l=>{
+    const n=DATA.filter(p=>p.line===l).length;
+    const esc_l=l.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    return '<div class="ni" onclick="fltLine(\''+esc_l+'\',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="currentColor"/></svg><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(l)+'</span><span class="nbadge m">'+n+'</span></div>';
+  }).join('');
+}
+
+/* ── SYNC ── */
+async function syncNow(){
+  const btn=$('syncBtn'), icon=$('sicon'), lbl=$('slbl');
+  btn.className='sync-btn spin'; lbl.textContent='Syncing from Google Sheets...';
+  try{
+    /* Step 1: read masterfile */
+    const r1=await fetch('/api/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      model:'claude-sonnet-4-6',max_tokens:1000,
+      mcp_servers:[{type:'url',url:'https://drivemcp.googleapis.com/mcp/v1',name:'gdrive'}],
+      system:'You are a file reader. Read the Google Drive file with the given ID and return ONLY the raw content of the first sheet table as plain markdown. No commentary. Stop before any blank line that separates tabs.',
+      messages:[{role:'user',content:'Read file '+FILE_ID+' first sheet only.'}]
+    })});
+    const d1=await r1.json();
+    if(d1.error) throw new Error(d1.error.message);
+    const sheet1=d1.content.map(b=>b.type==='text'?b.text:(b.content?b.content.map(c=>c.text||'').join(''):'')).join('\n');
+
+    /* Step 2: read summary sheet */
+    const r2=await fetch('/api/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      model:'claude-sonnet-4-6',max_tokens:1000,
+      mcp_servers:[{type:'url',url:'https://drivemcp.googleapis.com/mcp/v1',name:'gdrive'}],
+      system:'You are a file reader. Read the Google Drive file and return ONLY the sheet that has columns: SKU, PRODUCT NAME, PRODUCT LINE, Category, Received, Sold, and a stock/inventory level column. Plain markdown table only, no commentary.',
+      messages:[{role:'user',content:'Read file '+FILE_ID+' summary/inventory level sheet.'}]
+    })});
+    const d2=await r2.json();
+    if(d2.error) throw new Error(d2.error.message);
+    const sheet2=d2.content.map(b=>b.type==='text'?b.text:(b.content?b.content.map(c=>c.text||'').join(''):'')).join('\n');
+
+    /* Step 3: parse into JSON via Claude */
+    const sysPrompt='You are a data extraction assistant. Given two markdown tables from a product inventory Google Sheet, extract all product rows and return ONLY a valid compact JSON array. No markdown, no prose, no code fences, no preamble. Each object: {sku,name,line,category,received,sold,stock,price,batch,expiry,bin}. Rules: use summary sheet for sku/name/line/category/received/sold/stock; masterfile for price/batch/expiry/bin. stock=integer (can be 0 or negative). price=number or null. Replace placeholder dashes with empty string. Omit header/separator rows.';
+    const r3=await fetch('/api/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      model:'claude-sonnet-4-6',max_tokens:1000,
+      system:sysPrompt,
+      messages:[{role:'user',content:'MASTERFILE:\n'+sheet1.slice(0,7000)+'\n\nSUMMARY:\n'+sheet2.slice(0,7000)}]
+    })});
+    const d3=await r3.json();
+    if(d3.error) throw new Error(d3.error.message);
+    let raw=d3.content.filter(b=>b.type==='text').map(b=>b.text).join('');
+    raw=raw.replace(/^[\s\S]*?(\[)/,'[').replace(/\][^]*$/,']');
+    const parsed=JSON.parse(raw);
+    if(!Array.isArray(parsed)||parsed.length<10) throw new Error('Unexpected response shape');
+    DATA=parsed;
+    const now=new Date().toLocaleString('en-PH',{timeZone:'Asia/Manila',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    $('sf-foot').innerHTML='<span style="color:var(--gr);font-weight:600">Live</span> &middot; Synced '+now;
+    $('psub').textContent='Healthspan Global, Inc. \u00b7 live from Google Sheets \u00b7 '+DATA.length+' SKUs';
+    btn.className='sync-btn ok'; lbl.textContent='Synced '+now;
+    refreshSidebar();
+    if(currentView==='dashboard') renderDashboard(); else renderTable();
+  } catch(e){
+    btn.className='sync-btn err'; lbl.textContent='Sync failed \u2014 click to retry';
+    $('sf-foot').textContent='Error: '+e.message.slice(0,80);
+    console.error('Sync error:',e);
+  }
+}
+
+/* ── VIEWS ── */
+function showView(v,el){
+  currentView=v; fLine=''; fSearch=''; fTab='all';
+  document.querySelectorAll('.ni').forEach(x=>x.classList.remove('active'));
+  if(el) el.classList.add('active');
+  const T={dashboard:'Dashboard',all:'All SKUs',oos:'Out of stock',low:'Low stock',neg:'Negative stock'};
+  $('ptitle').textContent=T[v]||v;
+  if(v==='dashboard') renderDashboard(); else renderTable(v);
+}
+function fltLine(line,el){
+  currentView='line'; fLine=line; fSearch=''; fTab='all';
+  document.querySelectorAll('.ni').forEach(x=>x.classList.remove('active'));
+  if(el) el.classList.add('active');
+  $('ptitle').textContent=line;
+  renderTable();
+}
+
+/* ── DASHBOARD ── */
+function renderDashboard(){
+  const ss=DATA.map(p=>stk(p));
+  const tot=ss.filter(s=>s!==null&&s>0).reduce((a,b)=>a+b,0);
+  const oos=DATA.filter(p=>stk(p)===0);
+  const low=DATA.filter(p=>{const s=stk(p);return s!==null&&s>0&&s<10;});
+  const neg=DATA.filter(p=>{const s=stk(p);return s!==null&&s<0;});
+  const healthy=DATA.filter(p=>{const s=stk(p);return s!==null&&s>=10;});
+  const val=DATA.reduce((a,p)=>{const s=stk(p);return a+(s>0&&p.price?s*p.price:0);},0);
+
+  const byL={};
+  DATA.forEach(p=>{const l=p.line||'Other';const s=stk(p)||0;byL[l]=(byL[l]||0)+Math.max(0,s);});
+  const lE=Object.entries(byL).sort((a,b)=>b[1]-a[1]);
+  const mx=Math.max(...lE.map(e=>e[1]),1);
+
+  const byC={};
+  DATA.forEach(p=>{const c=p.category||'Other';const s=stk(p)||0;byC[c]=(byC[c]||0)+Math.max(0,s);});
+  const cE=Object.entries(byC).sort((a,b)=>b[1]-a[1]);
+
+  $('content').innerHTML=
+    '<div class="metrics">'+
+    '<div class="met pu"><div class="met-lbl">Total SKUs</div><div class="met-val">'+DATA.length+'</div><div class="met-sub">all product lines</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Units in stock</div><div class="met-val">'+tot.toLocaleString()+'</div><div class="met-sub">positive stock</div><div class="met-bar"></div></div>'+
+    '<div class="met rd"><div class="met-lbl">Out of stock</div><div class="met-val">'+oos.length+'</div><div class="met-sub">'+Math.round(oos.length/DATA.length*100)+'% of SKUs</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Low stock</div><div class="met-val">'+low.length+'</div><div class="met-sub">1&ndash;9 units left</div><div class="met-bar"></div></div>'+
+    '<div class="met rd"><div class="met-lbl">Negative stock</div><div class="met-val">'+neg.length+'</div><div class="met-sub">needs check</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Inventory value</div><div class="met-val" style="font-size:18px">&#8369;'+Math.round(val/1000).toLocaleString()+'K</div><div class="met-sub">VAT-exclusive</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="g2">'+
+    '<div class="panel"><div class="phd"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Stock by product line</div><div class="hbars" id="hbars"></div></div>'+
+    '<div class="panel"><div class="phd"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>Category split</div><div class="cw"><canvas id="cc" role="img" aria-label="Donut: stock by category">Category breakdown</canvas></div></div>'+
+    '<div class="panel"><div class="phd"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg>Out of stock &mdash; commercial</div><div class="alist" id="ooslist"></div></div>'+
+    '<div class="panel"><div class="phd"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>Low stock alerts</div><div class="alist" id="lowlist"></div></div>'+
+    '</div>';
+
+  $('hbars').innerHTML=lE.map(([l,v],i)=>
+    '<div class="hbrow"><div class="hblbl" title="'+esc(l)+'" onclick="fltLine(\''+l.replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\',null)">'+esc(l)+'</div>'+
+    '<div class="hbtrack"><div class="hbfill" style="width:'+Math.round(v/mx*100)+'%;background:'+COLORS[i%COLORS.length]+'"></div></div>'+
+    '<div class="hbval">'+v.toLocaleString()+'</div></div>'
+  ).join('');
+
+  if(catInst){catInst.destroy();catInst=null;}
+  catInst=new Chart($('cc'),{type:'doughnut',
+    data:{labels:cE.map(([c])=>c),datasets:[{data:cE.map(([,v])=>v),backgroundColor:COLORS,borderWidth:2,borderColor:'transparent'}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){return ctx.label+': '+ctx.parsed.toLocaleString();}}}}}
+  });
+
+  const oosComm=oos.filter(p=>p.category==='Commercial').sort((a,b)=>b.received-a.received).slice(0,7);
+  $('ooslist').innerHTML=oosComm.length?oosComm.map(p=>
+    '<div class="arow" onclick="openDrawer(\''+esc(p.sku)+'\')"><div class="adot rd"></div><div class="aname">'+esc(p.name)+'</div><div class="ameta">'+esc(p.sku)+'</div></div>'
+  ).join(''):'<div class="empty">No out-of-stock commercial items</div>';
+
+  $('lowlist').innerHTML=low.length?low.sort((a,b)=>stk(a)-stk(b)).slice(0,7).map(p=>
+    '<div class="arow" onclick="openDrawer(\''+esc(p.sku)+'\')"><div class="adot am"></div><div class="aname">'+esc(p.name)+'</div><div class="ameta">'+stk(p)+' left</div></div>'
+  ).join(''):'<div class="empty">No low-stock alerts</div>';
+}
+
+/* ── TABLE ── */
+function renderTable(pre){
+  if(pre==='oos') fTab='oos';
+  else if(pre==='low') fTab='low';
+  else if(pre==='neg') fTab='neg';
+  const lines=[...new Set(DATA.map(p=>p.line).filter(Boolean))].sort();
+  const cats=[...new Set(DATA.map(p=>p.category).filter(Boolean))].sort();
+  const tabHTML=
+    '<div class="tabs">'+
+    '<div class="tab'+(fTab==='all'?' active':'')+'" onclick="setTab(\'all\')">All</div>'+
+    '<div class="tab'+(fTab==='oos'?' active':'')+'" onclick="setTab(\'oos\')">Out of stock</div>'+
+    '<div class="tab'+(fTab==='low'?' active':'')+'" onclick="setTab(\'low\')">Low stock</div>'+
+    '<div class="tab'+(fTab==='neg'?' active':'')+'" onclick="setTab(\'neg\')">Negative</div>'+
+    '</div>';
+  const lOpts=lines.map(l=>'<option value="'+esc(l)+'"'+(fLine===l?' selected':'')+'>'+esc(l)+'</option>').join('');
+  const cOpts=cats.map(c=>'<option value="'+esc(c)+'"'+(fCat===c?' selected':'')+'>'+esc(c)+'</option>').join('');
+  $('content').innerHTML=tabHTML+
+    '<div class="toolbar">'+
+    '<div class="sw"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>'+
+    '<input type="text" id="si" placeholder="Search SKU or product..." value="'+esc(fSearch)+'" oninput="fSearch=this.value;drawRows()"></div>'+
+    '<select id="li" onchange="fLine=this.value;drawRows()"><option value="">All product lines</option>'+lOpts+'</select>'+
+    '<select id="ci" onchange="fCat=this.value;drawRows()"><option value="">All categories</option>'+cOpts+'</select>'+
+    '</div>'+
+    '<div class="tcard"><div class="tscroll"><table>'+
+    '<thead><tr>'+mkTh('sku','SKU')+mkTh('name','Product name')+mkTh('line','Line')+mkTh('category','Category')+mkTh('bin','Bin')+mkTh('expiry','Expiry')+mkTh('price','Price','r')+mkTh('received','Rcvd','r')+mkTh('sold','Sold','r')+mkTh('stock','Stock','r')+'<th>Status</th></tr></thead>'+
+    '<tbody id="tbody"></tbody></table></div>'+
+    '<div class="tfooter"><span id="tc"></span><span>Click a row for details</span></div></div>';
+  drawRows();
+}
+function mkTh(col,lbl,align){
+  const a=sortCol===col?(sortDir>0?' ↑':' ↓'):'';
+  return '<th onclick="toggleSort(\''+col+'\')" class="'+(sortCol===col?'sorted':'')+'"'+(align?' style="text-align:right"':'')+'>'+lbl+a+'</th>';
+}
+function setTab(t){
+  fTab=t;
+  document.querySelectorAll('.tab').forEach(el=>{
+    const map={all:'All',oos:'Out of stock',low:'Low stock',neg:'Negative'};
+    el.classList.toggle('active',el.textContent.trim()===map[t]);
+  });
+  drawRows();
+}
+function toggleSort(col){
+  if(sortCol===col) sortDir*=-1; else{sortCol=col;sortDir=-1;}
+  renderTable();
+}
+function drawRows(){
+  const q=fSearch.toLowerCase();
+  let rows=DATA.filter(p=>{
+    if(q&&!(p.sku.toLowerCase().includes(q)||p.name.toLowerCase().includes(q))) return false;
+    if(fLine&&p.line!==fLine) return false;
+    if(fCat&&p.category!==fCat) return false;
+    const s=stk(p);
+    if(fTab==='oos'&&s!==0) return false;
+    if(fTab==='low'&&!(s!==null&&s>0&&s<10)) return false;
+    if(fTab==='neg'&&!(s!==null&&s<0)) return false;
+    return true;
+  });
+  rows.sort((a,b)=>{
+    let av=a[sortCol],bv=b[sortCol];
+    if(av==null)av=''; if(bv==null)bv='';
+    if(typeof av==='number'&&typeof bv==='number') return (av-bv)*sortDir;
+    return String(av).localeCompare(String(bv))*sortDir;
+  });
+  const tbody=$('tbody');
+  if(!rows.length){
+    tbody.innerHTML='<tr><td colspan="11"><div class="empty">No products match these filters</div></td></tr>';
+  } else {
+    tbody.innerHTML=rows.map(p=>{
+      const s=stk(p); const st=statusOf(s);
+      const sc=s<0?'color:var(--rd)':s===0?'color:var(--rd)':s!==null&&s<10?'color:var(--am)':'';
+      const ew=expSoon(p.expiry)?'color:var(--am);font-weight:600':'';
+      return '<tr onclick="openDrawer(\''+esc(p.sku)+'\')">'+
+        '<td class="mo">'+esc(p.sku)+'</td>'+
+        '<td style="max-width:170px;overflow:hidden;text-overflow:ellipsis" title="'+esc(p.name)+'">'+esc(p.name)+'</td>'+
+        '<td class="mu" style="max-width:100px;overflow:hidden;text-overflow:ellipsis">'+esc(p.line||'')+'</td>'+
+        '<td class="mu">'+esc(p.category||'')+'</td>'+
+        '<td class="mo mu">'+esc(p.bin||'&mdash;')+'</td>'+
+        '<td style="font-size:11px;'+ew+'">'+esc(p.expiry||'&mdash;')+'</td>'+
+        '<td class="r mu" style="font-size:11px">'+fmtP(p.price)+'</td>'+
+        '<td class="r mu">'+(p.received||0).toLocaleString()+'</td>'+
+        '<td class="r mu">'+(p.sold||0).toLocaleString()+'</td>'+
+        '<td class="stk r" style="'+sc+'">'+(s!==null?s.toLocaleString():'&mdash;')+'</td>'+
+        '<td><span class="pill '+st.c+'">'+st.l+'</span></td>'+
+        '</tr>';
+    }).join('');
+  }
+  $('tc').textContent=rows.length+' of '+DATA.length+' SKUs';
+}
+
+/* ── DRAWER ── */
+function openDrawer(sku){
+  const p=DATA.find(x=>x.sku===sku); if(!p) return;
+  const s=stk(p); const st=statusOf(s);
+  const vel=p.received>0?Math.min(100,Math.round(p.sold/p.received*100)):0;
+  const sc=s<0?'var(--rd)':s===0?'var(--rd)':s!==null&&s<10?'var(--am)':'var(--gr)';
+  $('dbody').innerHTML=
+    '<div class="dsku">'+esc(p.sku)+'</div>'+
+    '<div class="dname">'+esc(p.name)+'</div>'+
+    '<span class="pill '+st.c+'">'+st.l+'</span>'+
+    '<div class="dstk" style="color:'+sc+'">'+(s!==null?s.toLocaleString():'&mdash;')+'</div>'+
+    '<div class="dsub">units on hand</div>'+
+    '<div class="dvel"><div class="dvhd"><span>Sell-through</span><span>'+vel+'%</span></div><div class="dvtrack"><div class="dvfill" style="width:'+vel+'%"></div></div></div>'+
+    '<div class="dsec"><div class="dsectitle">Product</div>'+
+    '<div class="drow"><span class="dlbl">Line</span><span class="dval">'+esc(p.line||'&mdash;')+'</span></div>'+
+    '<div class="drow"><span class="dlbl">Category</span><span class="dval">'+esc(p.category||'&mdash;')+'</span></div>'+
+    '<div class="drow"><span class="dlbl">Price (VATex)</span><span class="dval">'+fmtP(p.price)+'</span></div>'+
+    '<div class="drow"><span class="dlbl">Inventory value</span><span class="dval">'+(s>0&&p.price?fmtP(s*p.price):'&mdash;')+'</span></div>'+
+    '</div>'+
+    '<div class="dsec"><div class="dsectitle">Warehouse</div>'+
+    '<div class="drow"><span class="dlbl">Bin location</span><span class="dval">'+esc(p.bin||'&mdash;')+'</span></div>'+
+    '<div class="drow"><span class="dlbl">Batch</span><span class="dval">'+esc(p.batch||'&mdash;')+'</span></div>'+
+    '<div class="drow"><span class="dlbl">Expiry</span><span class="dval" style="'+(expSoon(p.expiry)?'color:var(--am);font-weight:600':'')+'">'+esc(p.expiry||'&mdash;')+'</span></div>'+
+    '</div>'+
+    '<div class="dsec"><div class="dsectitle">Movement</div>'+
+    '<div class="drow"><span class="dlbl">Total received</span><span class="dval">'+(p.received||0).toLocaleString()+' units</span></div>'+
+    '<div class="drow"><span class="dlbl">Total sold / issued</span><span class="dval">'+(p.sold||0).toLocaleString()+' units</span></div>'+
+    '<div class="drow"><span class="dlbl">Current stock</span><span class="dval" style="color:'+sc+'">'+(s!==null?s.toLocaleString()+' units':'&mdash;')+'</span></div>'+
+    '</div>';
+  $('overlay').classList.add('open');
+  $('drawer').classList.add('open');
+}
+function closeDrawer(){$('overlay').classList.remove('open');$('drawer').classList.remove('open');}
+
+/* ── EXPORT ── */
+function exportCSV(){
+  const h=['SKU','Name','Line','Category','Bin','Batch','Expiry','Price','Received','Sold','Stock','Status'];
+  const rows=DATA.map(p=>{const s=stk(p);return[p.sku,p.name,p.line,p.category,p.bin,p.batch,p.expiry,p.price??'',p.received,p.sold,s??'',statusOf(s).l].map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',');});
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent([h.join(','),...rows].join('\n'));
+  a.download='healthspan_inventory_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+}
+
+/* ── INIT ── */
+refreshSidebar();
+renderDashboard();
+$('sf-foot').innerHTML='Cached data &middot; <a href="#" onclick="syncNow();return false" style="color:var(--ac)">sync now</a>';
+setTimeout(syncNow, 600);
+
+</script>
+</body>
+</html>
