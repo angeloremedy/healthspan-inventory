@@ -288,8 +288,10 @@ async function syncNow(){
     if(currentView==='dashboard') renderDashboard(); else renderTable();
   } catch(e){
     btn.className='sync-btn err'; lbl.textContent='Sync failed \u2014 click to retry';
-    $('sf-foot').textContent='Error: '+e.message.slice(0,80);
+    const msg=e.message||'Unknown error';
+    $('sf-foot').textContent='Sync error: '+msg.slice(0,120);
     console.error('Sync error:',e);
+    alert('Sync error details: '+msg);
   }
 }
 
