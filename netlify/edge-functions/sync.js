@@ -103,11 +103,16 @@ export default async function handler(request, context) {
       if (typeof rawStock === 'string' && rawStock.toLowerCase().includes('inventory level')) continue;
       const stockVal = parseInteger(rawStock);
       const m = master[sku] || {};
+      const line     = clean(row[2]);
+      const category = clean(row[3]) || line || 'Other';  // fall back to line if category blank
+      const normCat  = category === 'MKT Samples' ? 'MKT SAMPLES'       // normalise case variants
+                     : category === 'SKINPEN  MKT' ? 'SKINPEN MKT'
+                     : category;
       products.push({
         sku,
         name:     clean(row[1]),
-        line:     clean(row[2]),
-        category: clean(row[3]),
+        line,
+        category: normCat,
         received: parseInteger(row[4]),
         sold:     parseInteger(row[5]),
         stock:    stockVal,
