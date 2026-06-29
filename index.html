@@ -289,6 +289,7 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
     <div id="lnav"></div>
   </nav>
   <div class="sf-foot" id="sf-foot">Loading...</div>
+  <div style="padding:6px 14px 10px;border-top:1px solid var(--bd);font-size:10px;color:var(--tx3)">Data refreshed automatically every 15 min</div>
 </aside>
 <div class="main">
   <header class="topbar">
@@ -444,7 +445,7 @@ async function syncNow(){
     const prog=$('syncProgress');
     if(prog){setTimeout(()=>prog.classList.remove('show'),1500);}
   }
-  setProgress(5,'Connecting to Google Sheets...',1);
+  setProgress(50,'Loading cached inventory data...',3);
   // Load cached data from localStorage immediately
   try {
     const cached = localStorage.getItem('hs_inv_cache');
@@ -460,26 +461,9 @@ async function syncNow(){
   btn.className='sync-btn spin';lbl.textContent='Syncing...';
   updateMobileSync('spin','Syncing...');
   try{
-    setProgress(15,'Fetching prices and product database...',1);
-    // Small artificial step markers since we have 2 parallel batches
-    const progressTimer = setInterval(()=>{
-      const fill=$('spFill');
-      if(!fill) return;
-      const cur=parseFloat(fill.style.width)||15;
-      if(cur<85){
-        const next=Math.min(cur+2,85);
-        fill.style.width=next+'%';
-        if($('spPct')) $('spPct').textContent=Math.round(next)+'%';
-        // Update step labels based on progress
-        if(next>25&&next<=40){setProgress(next,'Fetching batch and expiry data...',2);}
-        else if(next>40&&next<=55){setProgress(next,'Loading live stock levels...',3);}
-        else if(next>55&&next<=70){setProgress(next,'Reading movement history (2025+)...',4);}
-        else if(next>70&&next<=82){setProgress(next,'Processing branch transfers...',5);}
-        else if(next>82){setProgress(next,'Almost there — computing analytics...',6);}
-      }
-    },400);
+    setProgress(70,'Retrieving pre-processed data...',4);
     const r=await fetch('/api/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
-    clearInterval(progressTimer);
+    setProgress(90,'Applying data...',5);
     const data=await r.json();
     if(data.error) throw new Error(data.error);
     if(!data.products||data.products.length<5) throw new Error('Too few products returned');
@@ -1041,8 +1025,8 @@ function exportCSV(){
 /* ── INIT ── */
 refreshSidebar();
 renderDashboard();
-$('sf-foot').innerHTML='Cached data &middot; <a href="#" onclick="syncNow();return false" style="color:var(--ac)">sync now</a>';
-setTimeout(syncNow,600);
+$('sf-foot').innerHTML='Loading... <a href="#" onclick="syncNow();return false" style="color:var(--ac)">load data</a>';
+setTimeout(syncNow,300);
 
 </script>
 
