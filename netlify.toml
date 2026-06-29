@@ -1,0 +1,9 @@
+[build]
+  publish = "."
+
+[[edge_functions]]
+  path = "/api/sync"
+  function = "sync"
+
+[functions]
+  node_bundler = "esbuild"
