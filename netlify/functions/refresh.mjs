@@ -1,14 +1,11 @@
-// Scheduled function: runs every 15 minutes
-// Fetches from Google Sheets, processes everything, saves to Netlify Blobs
-// No timeout concern — Netlify Background Functions can run up to 15 minutes
-import { getStore } from "@netlify/blobs";
+// Background function — no timeout limit, can run for minutes
+// Called directly from the app HTML via POST /api/refresh
+// Returns the full processed inventory JSON
 
 const SHEET_ID = '1tgedHZhpaMkHZqKElL13jBm9f90HRzsW5EkoL8QaW24';
-const OUT_START = 4410;
-const OUT_END   = 15100;
-const IN_START  = 650;
-const IN_END    = 1210;
-const PO_END    = 3910;
+const OUT_START = 4410, OUT_END = 15100;
+const IN_START = 650, IN_END = 1210;
+const PO_END = 3910;
 
 function pNum(v){if(v==null||v===''||v==='-')return null;const n=parseFloat(String(v).replace(/[₱,\s]/g,''));return isNaN(n)?null:n;}
 function pInt(v){if(v==null||v===''||v==='-')return 0;const n=parseInt(String(v).replace(/[^-0-9]/g,''),10);return isNaN(n)?0:n;}
@@ -32,7 +29,7 @@ function serialExp(s){
 }
 function encR(tab,r){return encodeURIComponent(`'${tab}'!${r}`);}
 
-async function batchFetch(KEY, ranges, formatted){
+async function batchFetch(KEY,ranges,formatted){
   const params=ranges.map(r=>`ranges=${encR(r.t,r.r)}`).join('&');
   const render=formatted?'FORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING':'UNFORMATTED_VALUE';
   const url=`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values:batchGet?key=${KEY}&${params}&valueRenderOption=${render}`;
@@ -42,51 +39,49 @@ async function batchFetch(KEY, ranges, formatted){
 }
 
 export default async function handler(req) {
-  const KEY = process.env.GOOGLE_API_KEY || '';
-  if (!KEY) {
-    console.error('GOOGLE_API_KEY not set');
-    return new Response('GOOGLE_API_KEY not set', { status: 500 });
-  }
+  // CORS
+  const headers={
+    'Access-Control-Allow-Origin':'*',
+    'Access-Control-Allow-Methods':'POST,GET,OPTIONS',
+    'Access-Control-Allow-Headers':'Content-Type',
+    'Content-Type':'application/json',
+  };
+  if(req.method==='OPTIONS')return new Response(null,{status:204,headers});
 
-  console.log('Starting inventory refresh...');
-  const startTime = Date.now();
+  const KEY=process.env.GOOGLE_API_KEY||'';
+  if(!KEY)return new Response(JSON.stringify({error:'GOOGLE_API_KEY not set'}),{status:500,headers});
 
+  const t0=Date.now();
   try {
-    // Fetch in parallel — no timeout concern in background functions
-    const [fmtResults, rawResults] = await Promise.all([
-      batchFetch(KEY, [
-        {t:'Product Database', r:'A1:K300'},
-        {t:'Shelf Life',       r:'A1:L700'},
-        {t:'Price',            r:'A1:E300'},
-      ], true),
-      batchFetch(KEY, [
-        {t:'Inventory Overview',         r:'A1:J1100'},
-        {t:'Sending Inventory (OUT)',    r:`A${OUT_START}:A${OUT_END}`},
-        {t:'Sending Inventory (OUT)',    r:`D${OUT_START}:D${OUT_END}`},
-        {t:'Sending Inventory (OUT)',    r:`G${OUT_START}:H${OUT_END}`},
-        {t:'Receiving Inventory (IN)',   r:`A${IN_START}:G${IN_END}`},
-        {t:'Pull-out Orders (INTERNAL)', r:`A2:C${PO_END}`},
-      ], false),
+    const [fmtResults,rawResults]=await Promise.all([
+      batchFetch(KEY,[
+        {t:'Product Database',r:'A1:K300'},
+        {t:'Shelf Life',r:'A1:L700'},
+        {t:'Price',r:'A1:E300'},
+      ],true),
+      batchFetch(KEY,[
+        {t:'Inventory Overview',r:'A1:J1100'},
+        {t:'Sending Inventory (OUT)',r:`A${OUT_START}:A${OUT_END}`},
+        {t:'Sending Inventory (OUT)',r:`D${OUT_START}:D${OUT_END}`},
+        {t:'Sending Inventory (OUT)',r:`G${OUT_START}:H${OUT_END}`},
+        {t:'Receiving Inventory (IN)',r:`A${IN_START}:G${IN_END}`},
+        {t:'Pull-out Orders (INTERNAL)',r:`A2:C${PO_END}`},
+      ],false),
     ]);
 
-    const [dbRows, shelfRows, priceRows] = fmtResults;
-    const [ovRows, outSKU, outQTY, outDateCust, inRows, poRows] = rawResults;
+    const [dbRows,shelfRows,priceRows]=fmtResults;
+    const [ovRows,outSKU,outQTY,outDateCust,inRows,poRows]=rawResults;
 
-    console.log(`Fetched: ${dbRows.length} db, ${ovRows.length} ov, ${outSKU.length} out rows`);
-
-    // ── Prices ──
     const prices={};
     for(const row of dbRows.slice(1)){const sku=clean(row[0]);const p=pNum(row[5]);if(sku&&p>0)prices[sku]=p;}
     for(const row of priceRows.slice(1)){const sku=clean(row[0]);const p=pNum(row[4]);if(sku&&p>0&&!prices[sku])prices[sku]=p;}
 
-    // ── Master ──
     const master={};
     for(const row of dbRows.slice(1)){
       const sku=clean(row[0]);if(!sku||sku==='SKU')continue;
       master[sku]={batch:clean(row[6]),expiry:fmtExp(row[7]),bin:clean(row[9])};
     }
 
-    // ── Products ──
     const products=[];
     for(const row of ovRows.slice(1)){
       const sku=clean(row[0]);if(!sku||sku==='SKU')continue;
@@ -97,12 +92,10 @@ export default async function handler(req) {
       const category=rawCat==='MKT Samples'?'MKT SAMPLES':rawCat==='SKINPEN  MKT'?'SKINPEN MKT':rawCat||line||'Other';
       const m=master[sku]||{};
       products.push({sku,name:clean(row[1]),line,category,
-        received:pInt(row[4]),sold:pInt(row[5]),stock,
-        price:prices[sku]??null,
+        received:pInt(row[4]),sold:pInt(row[5]),stock,price:prices[sku]??null,
         batch:m.batch||'',expiry:m.expiry||serialExp(row[9]),bin:m.bin||''});
     }
 
-    // ── Shelf Life batches ──
     const batches=[];
     for(const row of shelfRows.slice(2)){
       const name=clean(row[2]);const expiry=fmtExp(clean(row[5]));
@@ -115,16 +108,13 @@ export default async function handler(req) {
       return(pa?new Date(+pa[2],+pa[1]-1,1):new Date(9999,0,1))-(pb?new Date(+pb[2],+pb[1]-1,1):new Date(9999,0,1));
     });
 
-    // ── Monthly movement ──
     const now=new Date();
     const months=[];
-    let mdate=new Date(now.getFullYear(),now.getMonth(),1);
-    for(let i=0;i<13;i++){months.unshift(mdate.getFullYear()+'-'+String(mdate.getMonth()+1).padStart(2,'0'));mdate=new Date(mdate.getFullYear(),mdate.getMonth()-1,1);}
+    let md=new Date(now.getFullYear(),now.getMonth(),1);
+    for(let i=0;i<13;i++){months.unshift(md.getFullYear()+'-'+String(md.getMonth()+1).padStart(2,'0'));md=new Date(md.getFullYear(),md.getMonth()-1,1);}
     const monthlyIn=Object.fromEntries(months.map(m=>[m,0]));
     const monthlyOut=Object.fromEntries(months.map(m=>[m,0]));
-    const skuMO={};
-    const lastSaleSerial={};
-    const branchTransfers=[];
+    const skuMO={},lastSaleSerial={},branchTransfers=[];
 
     const BMAP={
       'APRIL GERALDEZ':'BGC','APRIL':'BGC','REMEDY BGC':'BGC','ANGELA DACONES':'BGC','ANGELA':'BGC',
@@ -162,12 +152,8 @@ export default async function handler(req) {
     }
 
     const pulloutTotal={};
-    for(const row of poRows){
-      const sku=clean(row[0]);const qty=pInt(row[2]);
-      if(sku&&qty>0)pulloutTotal[sku]=(pulloutTotal[sku]||0)+qty;
-    }
+    for(const row of poRows){const sku=clean(row[0]);const qty=pInt(row[2]);if(sku&&qty>0)pulloutTotal[sku]=(pulloutTotal[sku]||0)+qty;}
 
-    // ── Enrich products ──
     const last6=months.slice(-6);
     for(const p of products){
       const mo=skuMO[p.sku]||{};
@@ -212,27 +198,16 @@ export default async function handler(req) {
       });
     }
 
-    const payload = {
-      products, batches, monthlyIn, monthlyOut, months, valueByLine,
-      cashExpiring, expiringItems: expiringItems.slice(0,100),
-      branchTransfers: branchTransfers.slice(0,300),
-      branchExpirySummary, synced: new Date().toISOString(),
-    };
+    const elapsed=((Date.now()-t0)/1000).toFixed(1);
+    return new Response(JSON.stringify({
+      products,batches,monthlyIn,monthlyOut,months,valueByLine,
+      cashExpiring,expiringItems:expiringItems.slice(0,100),
+      branchTransfers:branchTransfers.slice(0,300),
+      branchExpirySummary,synced:new Date().toISOString(),
+      elapsed,
+    }),{status:200,headers});
 
-    // Save to Netlify Blobs
-    const store = getStore('inventory');
-    await store.setJSON('latest', payload);
-
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`Refresh complete in ${elapsed}s — ${products.length} products, ${batches.length} batches`);
-    return new Response(`OK — ${products.length} products refreshed in ${elapsed}s`, { status: 200 });
-
-  } catch(err) {
-    console.error('Refresh error:', err.message);
-    return new Response('Error: ' + err.message, { status: 500 });
+  }catch(err){
+    return new Response(JSON.stringify({error:err.message}),{status:500,headers});
   }
 }
-
-export const config = {
-  schedule: '*/15 * * * *',  // every 15 minutes
-};
