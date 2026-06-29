@@ -372,7 +372,46 @@ function refreshSidebar(){
 }
 
 /* ── SYNC ── */
+
+function applySync(data){
+  DATA=data.products||DATA;
+  BATCHES=data.batches||[];
+  MONTHLY_IN=data.monthlyIn||{};
+  MONTHLY_OUT=data.monthlyOut||{};
+  MONTHS=data.months||[];
+  VALUE_BY_LINE=data.valueByLine||{};
+  CASH_EXPIRING=data.cashExpiring||{};
+  EXPIRING_ITEMS=data.expiringItems||[];
+  BRANCH_TRANSFERS=data.branchTransfers||[];
+  BRANCH_EXPIRY=data.branchExpirySummary||{};
+  $('psub').textContent='Healthspan Global, Inc. \u00b7 '+DATA.length+' SKUs \u00b7 '+BATCHES.length+' batches';
+  updateMobileBadges();
+  refreshSidebar();
+  if(currentView==='dashboard') renderDashboard();
+  else if(currentView==='expiry') renderExpiry();
+  else if(currentView==='value') renderValue();
+  else if(currentView==='movement') renderMovement();
+  else if(currentView==='batches') renderBatches();
+  else if(currentView==='aged') renderAged();
+  else if(currentView==='shrinkage') renderShrinkage();
+  else if(currentView==='cashexpiry') renderCashExpiry();
+  else if(currentView==='branchtransfer') renderBranchTransfer();
+  else if(currentView==='branchexpiry') renderBranchExpiry();
+  else renderTable();
+}
+
 async function syncNow(){
+  // Load cached data from localStorage immediately
+  try {
+    const cached = localStorage.getItem('hs_inv_cache');
+    if (cached) {
+      const c = JSON.parse(cached);
+      applySync(c);
+      const ts = new Date(c.synced).toLocaleString('en-PH',{timeZone:'Asia/Manila',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+      $('sf-foot').innerHTML='<span style="color:var(--tx3)">Cached</span> &middot; '+ts+' &middot; <a href="#" onclick="syncNow();return false" style="color:var(--ac)">refresh</a>';
+    }
+  } catch(e) {}
+  // Then fetch fresh
   const btn=$('syncBtn'),lbl=$('slbl');
   btn.className='sync-btn spin';lbl.textContent='Syncing...';
   updateMobileSync('spin','Syncing...');
@@ -381,28 +420,13 @@ async function syncNow(){
     const data=await r.json();
     if(data.error) throw new Error(data.error);
     if(!data.products||data.products.length<5) throw new Error('Too few products returned');
-    DATA=data.products;
-    BATCHES=data.batches||[];
-    MONTHLY_IN=data.monthlyIn||{};
-    MONTHLY_OUT=data.monthlyOut||{};
-    MONTHS=data.months||[];
-    VALUE_BY_LINE=data.valueByLine||{};
-    CASH_EXPIRING=data.cashExpiring||{};
-    EXPIRING_ITEMS=data.expiringItems||[];
-    BRANCH_TRANSFERS=data.branchTransfers||[];
-    BRANCH_EXPIRY=data.branchExpirySummary||{};
+    // Save to localStorage for instant load next time
+    try { localStorage.setItem('hs_inv_cache', JSON.stringify(data)); } catch(e) {}
+    applySync(data);
     const ts=new Date(data.synced).toLocaleString('en-PH',{timeZone:'Asia/Manila',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
     $('sf-foot').innerHTML='<span style="color:var(--gr);font-weight:600">Live</span> &middot; Synced '+ts;
-    $('psub').textContent='Healthspan Global, Inc. \u00b7 '+DATA.length+' SKUs \u00b7 '+BATCHES.length+' batches';
     btn.className='sync-btn ok';lbl.textContent='Synced '+ts;
     updateMobileSync('ok','Synced '+ts);
-    updateMobileBadges();
-    refreshSidebar();
-    if(currentView==='dashboard') renderDashboard();
-    else if(currentView==='expiry') renderExpiry();
-    else if(currentView==='value') renderValue();
-    else if(currentView==='movement') renderMovement();
-    else renderTable();
   }catch(e){
     btn.className='sync-btn err';lbl.textContent='Sync failed \u2014 retry';
     $('sf-foot').textContent='Error: '+e.message.slice(0,100);
