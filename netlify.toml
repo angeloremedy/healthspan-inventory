@@ -1,5 +1,0 @@
-
-[[edge_functions]]
-  path = "/api/sync"
-  function = "sync"
- 
