@@ -176,6 +176,31 @@ export const handler=async(event,context)=>{
       }
       p.velAdj=p.fcM[0];
 
+      // Demand variability (coefficient of variation) over complete-month history.
+      // Trim leading zeros so a SKU launched mid-history isn't penalised for months it didn't exist.
+      const compVals=comp.map(m=>mo[m]||0);
+      const fi=compVals.findIndex(v=>v>0);
+      const series=fi<0?[]:compVals.slice(fi);
+      const dn=series.length;
+      let dmean=null,dstd=null,dcv=null,dzero=null,dclass='insufficient';
+      if(dn>=1){
+        dmean=series.reduce((a,v)=>a+v,0)/dn;
+        dstd=dn>=2?Math.sqrt(series.reduce((a,v)=>a+(v-dmean)*(v-dmean),0)/(dn-1)):0;
+        dzero=series.filter(v=>v===0).length/dn;
+        if(dmean>0)dcv=dstd/dmean;
+        if(dn<3||dmean<=0)dclass='insufficient';
+        else if(dzero>=0.5)dclass='lumpy';       // intermittent / spiky demand
+        else if(dcv<0.5)dclass='steady';
+        else if(dcv<=1.0)dclass='variable';
+        else dclass='lumpy';
+      }
+      p.demandN=dn;
+      p.demandMean=dmean!=null?Math.round(dmean*10)/10:null;   // units/mo
+      p.demandStd=dstd!=null?Math.round(dstd*100)/100:null;    // units/mo std dev
+      p.cv=dcv!=null?Math.round(dcv*100)/100:null;
+      p.zeroShare=dzero!=null?Math.round(dzero*100)/100:null;
+      p.demandClass=dclass;
+
       // Stockout projection
       p.daysToStockout=simStockout(p.stock,p.fcM);
       p.stockoutDate=p.daysToStockout!=null?new Date(now.getTime()+p.daysToStockout*864e5).toISOString().slice(0,10):null;
