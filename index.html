@@ -281,7 +281,12 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
     <div class="ni" onclick="showView('variability',this)"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l3-4 3 3 4-6"/></svg>Demand variability</div>
     <div class="ni" onclick="showView('abc',this)"><svg viewBox="0 0 24 24"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>ABC analysis</div>
     <div class="ni" onclick="showView('writeoff',this)"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r="1" fill="currentColor"/></svg>Write-off forecast<span class="nbadge" id="b-wo">0</span></div>
+    <div class="nlbl">Simulators</div>
     <div class="ni" onclick="showView('whatif',this)"><svg viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>What-if simulator</div>
+    <div class="ni" onclick="showView('simpromo',this)"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Promo rescue</div>
+    <div class="ni" onclick="showView('simbudget',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Budget optimizer</div>
+    <div class="ni" onclick="showView('simservice',this)"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10"/><polyline points="12 12 16 8"/></svg>Service level</div>
+    <div class="ni" onclick="showView('simsurge',this)"><svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>Campaign surge</div>
     <div class="nlbl">Analytics</div>
     <div class="ni" onclick="showView('movement',this)"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Monthly movement</div>
     <div class="ni" onclick="showView('value',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Inventory value</div>
@@ -359,6 +364,10 @@ function cvBadge(p){
   return '<span class="pill '+c+'" title="CV = std dev ÷ mean of monthly demand">'+lbl+' '+p.cv.toFixed(2)+'</span>';
 }
 let WHATIF = {mult:1, delay:0};
+let SIMPROMO = {lift:30, disc:20};
+let SIMBUDGET = {budget:2000000};
+let SIMSVC = {level:PLAN.service};
+let SIMSURGE = {group:'', lift:100, weeks:6};
 let sortCol='stock', sortDir=-1;
 let currentView='dashboard';
 let fLine='',fCat='',fSearch='',fTab='all',fBin='';
@@ -499,6 +508,10 @@ function applySync(data){
   else if(currentView==='abc') renderABC();
   else if(currentView==='writeoff') renderWriteoff();
   else if(currentView==='whatif') renderWhatIf();
+  else if(currentView==='simpromo') renderPromoSim();
+  else if(currentView==='simbudget') renderBudgetSim();
+  else if(currentView==='simservice') renderServiceSim();
+  else if(currentView==='simsurge') renderSurgeSim();
   else renderTable();
 }
 
@@ -576,7 +589,8 @@ function showView(v,el){
   if(el) el.classList.add('active');
   const T={dashboard:'Dashboard',all:'All SKUs',oos:'Out of stock',low:'Low stock',neg:'Negative stock',
            expiry:'Expiry tracker',value:'Inventory value',movement:'Monthly movement',reorder:'Reorder alerts',batches:'Batch view',
-           forecast:'Stockout forecast',reorderplan:'Reorder plan',ropoint:'Reorder point',variability:'Demand variability',abc:'ABC analysis',writeoff:'Write-off forecast',whatif:'What-if simulator'};
+           forecast:'Stockout forecast',reorderplan:'Reorder plan',ropoint:'Reorder point',variability:'Demand variability',abc:'ABC analysis',writeoff:'Write-off forecast',whatif:'What-if simulator',
+           simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator'};
   $('ptitle').textContent=T[v]||v;
   if(v==='dashboard') renderDashboard();
   else if(v==='expiry') renderExpiry();
@@ -595,6 +609,10 @@ function showView(v,el){
   else if(v==='abc') renderABC();
   else if(v==='writeoff') renderWriteoff();
   else if(v==='whatif') renderWhatIf();
+  else if(v==='simpromo') renderPromoSim();
+  else if(v==='simbudget') renderBudgetSim();
+  else if(v==='simservice') renderServiceSim();
+  else if(v==='simsurge') renderSurgeSim();
   else renderTable(v);
 }
 function fltLine(line,el){
@@ -1538,6 +1556,195 @@ function updateWhatIf(){
   $('wi-wolist').innerHTML=changes.length?changes.slice(0,8).map(x=>
     '<div class="arow"><div class="adot '+(x.d>0?'rd':'gr')+'"></div><div class="aname">'+esc(x.c.name)+' <span style="color:var(--tx3);font-size:9px">'+esc(x.c.batch||'')+'</span></div><div class="ameta" style="color:'+(x.d>0?'var(--rd)':'var(--gr)')+'">'+(x.d>0?'+':'\u2212')+fmtK(Math.abs(x.d))+'</div></div>'
   ).join(''):'<div class="empty">Write-off exposure unchanged in this scenario</div>';
+}
+
+/* ── SIMULATOR: PROMO / MARKDOWN RESCUE ── */
+function renderPromoSim(){
+  $('content').innerHTML=
+    '<div class="panel" style="margin-bottom:14px"><div style="display:flex;flex-direction:column;gap:16px">'+
+    '<div><div style="display:flex;justify-content:space-between;font-size:11px;font-weight:500;color:var(--tx2);margin-bottom:5px"><span>Promo velocity lift</span><span id="pr-lift-lbl" style="font-weight:700;color:var(--ac)">+30%</span></div>'+
+    '<input type="range" id="pr-lift" min="0" max="150" step="5" value="'+SIMPROMO.lift+'" style="width:100%" oninput="updatePromoSim()"></div>'+
+    '<div><div style="display:flex;justify-content:space-between;font-size:11px;font-weight:500;color:var(--tx2);margin-bottom:5px"><span>Discount offered</span><span id="pr-disc-lbl" style="font-weight:700;color:var(--ac)">20%</span></div>'+
+    '<input type="range" id="pr-disc" min="0" max="60" step="5" value="'+SIMPROMO.disc+'" style="width:100%" oninput="updatePromoSim()"></div>'+
+    '</div></div>'+
+    '<div class="metrics" style="margin-bottom:14px" id="pr-metrics"></div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Product</th><th>Batch</th><th>Expiry</th><th style="text-align:right">To expiry</th><th style="text-align:right">SOH</th><th style="text-align:right">Expire now</th><th style="text-align:right">With promo</th><th style="text-align:right">Rescued</th><th style="text-align:right">Write-off saved</th><th style="text-align:right">Discount cost</th><th style="text-align:right">Net</th></tr></thead><tbody id="pr-tbody"></tbody></table></div><div class="tfooter"><span>Promo lift raises sell-through on at-risk batches &middot; discount cost = discount &times; unit price &times; units sold during promo &middot; net = write-off saved &minus; discount cost</span></div></div>';
+  updatePromoSim();
+}
+function updatePromoSim(){
+  const liftEl=$('pr-lift'); if(!liftEl)return;
+  SIMPROMO.lift=parseInt(liftEl.value)||0;
+  SIMPROMO.disc=parseInt($('pr-disc').value)||0;
+  $('pr-lift-lbl').textContent='+'+SIMPROMO.lift+'%';
+  $('pr-disc-lbl').textContent=SIMPROMO.disc+'%';
+  const mult=1+SIMPROMO.lift/100;
+  const base=collisionRows(1), promo=collisionRows(mult);
+  const pMap={}; promo.forEach(c=>pMap[c.sku+'|'+c.batch]=c);
+  const rows=base.map(b=>{
+    const p=pMap[b.sku+'|'+b.batch];
+    const promoExpired=p?p.projExpired:0, promoWO=p?p.writeOff:0;
+    const rescued=Math.max(0,b.projExpired-promoExpired);
+    const woSaved=Math.max(0,b.writeOff-promoWO);
+    const soldUnderPromo=Math.max(0,b.soh-promoExpired);
+    const discCost=Math.round(SIMPROMO.disc/100*(b.price||0)*soldUnderPromo);
+    return {b,promoExpired,rescued,woSaved,discCost,net:woSaved-discCost};
+  }).sort((a,b)=>b.woSaved-a.woSaved);
+  const totWO=rows.reduce((a,r)=>a+r.woSaved,0), totDisc=rows.reduce((a,r)=>a+r.discCost,0), totNet=totWO-totDisc;
+  const rescuedBatches=rows.filter(r=>r.rescued>0).length;
+  $('pr-metrics').innerHTML=
+    '<div class="met gr"><div class="met-lbl">Write-off avoided</div><div class="met-val" style="font-size:17px">'+fmtK(totWO)+'</div><div class="met-sub">value kept from expiring</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Discount given up</div><div class="met-val" style="font-size:17px">'+fmtK(totDisc)+'</div><div class="met-sub">markdown on units sold</div><div class="met-bar"></div></div>'+
+    '<div class="met '+(totNet>=0?'gr':'rd')+'"><div class="met-lbl">Net benefit</div><div class="met-val" style="font-size:17px">'+(totNet<0?'−':'')+fmtK(Math.abs(totNet))+'</div><div class="met-sub">saved minus discount</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Batches rescued</div><div class="met-val">'+rescuedBatches+'</div><div class="met-sub">of '+rows.length+' at risk</div><div class="met-bar"></div></div>';
+  $('pr-tbody').innerHTML=rows.length?rows.slice(0,200).map(r=>{
+    const b=r.b;
+    return '<tr onclick="openDrawer(\''+esc(b.sku)+'\')" style="cursor:pointer"><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">'+esc(b.name)+'</td>'+
+    '<td class="mo mu">'+esc(b.batch||'—')+'</td><td style="font-size:11px">'+esc(b.expiry||'—')+'</td>'+
+    '<td class="r mu">'+b.daysToExpiry+'d</td><td class="r">'+b.soh.toLocaleString()+'</td>'+
+    '<td class="r" style="color:var(--rd)">'+b.projExpired.toLocaleString()+'</td><td class="r">'+r.promoExpired.toLocaleString()+'</td>'+
+    '<td class="r" style="color:var(--gr);font-weight:600">'+r.rescued.toLocaleString()+'</td>'+
+    '<td class="r" style="color:var(--gr)">'+fmtK(r.woSaved)+'</td><td class="r mu">'+fmtK(r.discCost)+'</td>'+
+    '<td class="r" style="font-weight:700;color:'+(r.net>=0?'var(--gr)':'var(--rd)')+'">'+(r.net<0?'−':'')+fmtK(Math.abs(r.net))+'</td></tr>';
+  }).join(''):'<tr><td colspan="11"><div class="empty">No batches at risk of expiring</div></td></tr>';
+}
+
+/* ── SIMULATOR: REORDER BUDGET OPTIMIZER ── */
+function renderBudgetSim(){
+  $('content').innerHTML=
+    '<div class="panel" style="margin-bottom:14px"><div style="display:flex;flex-wrap:wrap;gap:18px;align-items:flex-end">'+
+    '<div style="display:flex;flex-direction:column;gap:3px"><label style="font-size:10px;color:var(--tx3);font-weight:500">Purchasing budget</label><div style="display:flex;align-items:center;gap:6px"><span style="font-size:12px;color:var(--tx3)">₱</span><input type="number" id="bg-budget" value="'+SIMBUDGET.budget+'" min="0" step="50000" oninput="updateBudgetSim()" style="width:140px;padding:5px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--sf);color:var(--tx1);font-size:12px"></div></div>'+
+    '<div style="font-size:10.5px;color:var(--tx3);max-width:380px">Funds reorders in priority order: items running out before the next shipment lands, A-items first. Lead time & coverage come from your Reorder plan settings.</div>'+
+    '</div></div>'+
+    '<div class="metrics" style="margin-bottom:14px" id="bg-metrics"></div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>SKU</th><th>Product</th><th>ABC</th><th>Stock out in</th><th style="text-align:right">Order qty</th><th style="text-align:right">Cost</th><th style="text-align:right">Cumulative</th><th>Funded</th></tr></thead><tbody id="bg-tbody"></tbody></table></div><div class="tfooter"><span>Greedy allocation under the budget &middot; green rows are funded within the cap, dimmed rows would need more budget</span></div></div>';
+  updateBudgetSim();
+}
+function updateBudgetSim(){
+  const el=$('bg-budget'); if(!el)return;
+  SIMBUDGET.budget=Math.max(0,parseInt(el.value)||0);
+  const rows=reorderRows(PLAN.lead,PLAN.cover,PLAN.safety,1);
+  const rank=p=>p.abc==='A'?0:p.abc==='B'?1:2;
+  rows.sort((a,b)=>((b.runsOutInLead?1:0)-(a.runsOutInLead?1:0))||(rank(a.p)-rank(b.p))||((a.p.daysToStockout??9999)-(b.p.daysToStockout??9999)));
+  let spent=0, funded=0, aFunded=0;
+  const aTot=rows.filter(r=>r.p.abc==='A').length;
+  const out=rows.map(r=>{
+    const fit=spent+r.cost<=SIMBUDGET.budget;
+    if(fit){spent+=r.cost;funded++;if(r.p.abc==='A')aFunded++;}
+    return {r,funded:fit,cum:spent};
+  });
+  $('bg-metrics').innerHTML=
+    '<div class="met gr"><div class="met-lbl">Budget</div><div class="met-val" style="font-size:17px">'+fmtK(SIMBUDGET.budget)+'</div><div class="met-sub">'+fmtK(Math.max(0,SIMBUDGET.budget-spent))+' unspent</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">SKUs funded</div><div class="met-val">'+funded+'</div><div class="met-sub">of '+rows.length+' needing reorder</div><div class="met-bar"></div></div>'+
+    '<div class="met rd"><div class="met-lbl">Left exposed</div><div class="met-val">'+(rows.length-funded)+'</div><div class="met-sub">unfunded at this budget</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">A-items covered</div><div class="met-val">'+aFunded+'/'+aTot+'</div><div class="met-sub">high-value SKUs funded</div><div class="met-bar"></div></div>';
+  $('bg-tbody').innerHTML=out.length?out.slice(0,250).map(o=>{
+    const p=o.r.p, abcC=p.abc==='A'?'prd':p.abc==='B'?'pam':'pgy';
+    return '<tr onclick="openDrawer(\''+esc(p.sku)+'\')" style="cursor:pointer'+(o.funded?'':';opacity:.5')+'"><td class="mo">'+esc(p.sku)+'</td>'+
+    '<td style="max-width:190px;overflow:hidden;text-overflow:ellipsis">'+esc(p.name)+'</td>'+
+    '<td><span class="pill '+abcC+'">'+(p.abc||'—')+'</span></td><td>'+soPill(p.daysToStockout)+'</td>'+
+    '<td class="r" style="font-weight:600">'+o.r.qty.toLocaleString()+'</td><td class="r">'+fmtP(o.r.cost)+'</td>'+
+    '<td class="r mu">'+(o.funded?fmtK(o.cum):'—')+'</td>'+
+    '<td>'+(o.funded?'<span class="pill pgr">Funded</span>':'<span class="pill pgy">Skipped</span>')+'</td></tr>';
+  }).join(''):'<tr><td colspan="8"><div class="empty">Nothing needs reordering under current settings</div></td></tr>';
+}
+
+/* ── SIMULATOR: SERVICE-LEVEL TRADE-OFF ── */
+function safetyAt(p,service){
+  const dbar=(p.velAdj!=null?p.velAdj:(p.velocity||0));
+  if(dbar<=0)return 0;
+  const leadMo=leadFor(p.line)/30.44;
+  const sdLead=(p.demandStd!=null?p.demandStd:0)*Math.sqrt(Math.max(0,leadMo));
+  return Math.ceil(zFor(service)*sdLead);
+}
+function svcCash(service){
+  let units=0,cash=0,aCash=0;
+  for(const p of DATA){const s=safetyAt(p,service);if(s<=0)continue;units+=s;const c=s*(p.price||0);cash+=c;if(p.abc==='A')aCash+=c;}
+  return {units,cash,aCash};
+}
+function renderServiceSim(){
+  $('content').innerHTML=
+    '<div class="panel" style="margin-bottom:14px"><div style="display:flex;flex-direction:column;gap:16px">'+
+    '<div><div style="display:flex;justify-content:space-between;font-size:11px;font-weight:500;color:var(--tx2);margin-bottom:5px"><span>Service level target</span><span id="sv-lbl" style="font-weight:700;color:var(--ac)">95% &middot; z=1.65</span></div>'+
+    '<input type="range" id="sv-level" min="80" max="99.5" step="0.5" value="'+SIMSVC.level+'" style="width:100%" oninput="updateServiceSim()"></div>'+
+    '<div style="display:flex;gap:10px;align-items:center"><button class="btn" onclick="applyServiceLevel()">Apply to Reorder point view</button><span id="sv-applied" style="font-size:10.5px;color:var(--tx3)"></span></div>'+
+    '</div></div>'+
+    '<div class="metrics" style="margin-bottom:14px" id="sv-metrics"></div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Service level</th><th style="text-align:right">z-score</th><th style="text-align:right">Safety stock units</th><th style="text-align:right">Cash tied up</th><th style="text-align:right">vs 95%</th></tr></thead><tbody id="sv-tbody"></tbody></table></div><div class="tfooter"><span>Higher service level = fewer stockouts but more cash parked in safety stock &middot; cash = safety units &times; unit price across all SKUs</span></div></div>';
+  updateServiceSim();
+}
+function updateServiceSim(){
+  const el=$('sv-level'); if(!el)return;
+  SIMSVC.level=parseFloat(el.value)||95;
+  const z=zFor(SIMSVC.level);
+  $('sv-lbl').textContent=SIMSVC.level+'% · z='+z.toFixed(2);
+  const cur=svcCash(SIMSVC.level), base=svcCash(95), d=cur.cash-base.cash;
+  $('sv-metrics').innerHTML=
+    '<div class="met pu"><div class="met-lbl">Safety-stock cash</div><div class="met-val" style="font-size:17px">'+fmtK(cur.cash)+'</div><div class="met-sub">at '+SIMSVC.level+'% service</div><div class="met-bar"></div></div>'+
+    '<div class="met '+(d>0?'rd':'gr')+'"><div class="met-lbl">vs 95% baseline</div><div class="met-val" style="font-size:17px">'+(d===0?'—':(d>0?'+':'−')+fmtK(Math.abs(d)))+'</div><div class="met-sub">'+(d>0?'more':'less')+' cash parked</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Safety units</div><div class="met-val">'+cur.units.toLocaleString()+'</div><div class="met-sub">buffer units held</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">On A-items</div><div class="met-val" style="font-size:17px">'+fmtK(cur.aCash)+'</div><div class="met-sub">cash in A-item buffers</div><div class="met-bar"></div></div>';
+  const levels=[80,90,95,97.5,99];
+  $('sv-tbody').innerHTML=levels.map(l=>{
+    const c=svcCash(l), dd=c.cash-base.cash;
+    return '<tr'+(Math.abs(l-SIMSVC.level)<0.01?' style="background:var(--sf2)"':'')+'><td style="font-weight:600">'+l+'%</td><td class="r mu">'+zFor(l).toFixed(2)+'</td><td class="r">'+c.units.toLocaleString()+'</td><td class="r" style="font-weight:600">'+fmtK(c.cash)+'</td><td class="r" style="color:'+(dd>0?'var(--rd)':dd<0?'var(--gr)':'var(--tx3)')+'">'+(dd===0?'—':(dd>0?'+':'−')+fmtK(Math.abs(dd)))+'</td></tr>';
+  }).join('');
+}
+function applyServiceLevel(){
+  PLAN.service=SIMSVC.level;
+  try{localStorage.setItem('hs_plan',JSON.stringify(PLAN));}catch(e){}
+  if($('sv-applied'))$('sv-applied').textContent='Applied — Reorder point now uses '+SIMSVC.level+'%';
+  refreshSidebar();
+}
+
+/* ── SIMULATOR: CAMPAIGN SURGE ── */
+function renderSurgeSim(){
+  const lines=[...new Set(DATA.map(p=>p.line).filter(Boolean))].sort();
+  const opts='<option value="">All lines</option>'+lines.map(l=>'<option value="'+esc(l)+'"'+(SIMSURGE.group===l?' selected':'')+'>'+esc(l)+'</option>').join('');
+  $('content').innerHTML=
+    '<div class="panel" style="margin-bottom:14px"><div style="display:flex;flex-direction:column;gap:16px">'+
+    '<div style="display:flex;flex-direction:column;gap:3px"><label style="font-size:10px;color:var(--tx3);font-weight:500">Campaign scope (product line)</label><select id="sg-group" onchange="updateSurgeSim()" style="max-width:280px;padding:6px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--sf);color:var(--tx1);font-size:12px">'+opts+'</select></div>'+
+    '<div><div style="display:flex;justify-content:space-between;font-size:11px;font-weight:500;color:var(--tx2);margin-bottom:5px"><span>Demand lift during campaign</span><span id="sg-lift-lbl" style="font-weight:700;color:var(--ac)">+100%</span></div>'+
+    '<input type="range" id="sg-lift" min="0" max="300" step="10" value="'+SIMSURGE.lift+'" style="width:100%" oninput="updateSurgeSim()"></div>'+
+    '<div><div style="display:flex;justify-content:space-between;font-size:11px;font-weight:500;color:var(--tx2);margin-bottom:5px"><span>Campaign length</span><span id="sg-weeks-lbl" style="font-weight:700;color:var(--ac)">6 weeks</span></div>'+
+    '<input type="range" id="sg-weeks" min="1" max="12" step="1" value="'+SIMSURGE.weeks+'" style="width:100%" oninput="updateSurgeSim()"></div>'+
+    '</div></div>'+
+    '<div class="metrics" style="margin-bottom:14px" id="sg-metrics"></div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>SKU</th><th>Product</th><th>Line</th><th style="text-align:right">Stock</th><th style="text-align:right">Normal /mo</th><th style="text-align:right">Campaign need</th><th>Stock out in</th><th style="text-align:right">Pre-buy</th><th style="text-align:right">Cost</th></tr></thead><tbody id="sg-tbody"></tbody></table></div><div class="tfooter"><span>Campaign need = forecast demand over the window &times; (1 + lift) &middot; pre-buy covers the shortfall so the line doesn’t run dry mid-campaign</span></div></div>';
+  updateSurgeSim();
+}
+function updateSurgeSim(){
+  const gEl=$('sg-group'); if(!gEl)return;
+  SIMSURGE.group=gEl.value;
+  SIMSURGE.lift=parseInt($('sg-lift').value)||0;
+  SIMSURGE.weeks=parseInt($('sg-weeks').value)||1;
+  $('sg-lift-lbl').textContent='+'+SIMSURGE.lift+'%';
+  $('sg-weeks-lbl').textContent=SIMSURGE.weeks+' week'+(SIMSURGE.weeks>1?'s':'');
+  const mult=1+SIMSURGE.lift/100, days=SIMSURGE.weeks*7;
+  const group=DATA.filter(p=>(!SIMSURGE.group||p.line===SIMSURGE.group)&&stk(p)!==null&&((p.velAdj||0)>0||(p.velocity||0)>0));
+  const rows=group.map(p=>{
+    const demand=unitsOverDays(p,days,mult), s=Math.max(0,stk(p));
+    return {p,demand:Math.round(demand),prebuy:Math.max(0,Math.ceil(demand-s)),dts:simDaysToStockout(p,mult)};
+  }).map(r=>Object.assign(r,{cost:r.prebuy*(r.p.price||0)}));
+  const stockouts=rows.filter(r=>r.dts!=null&&r.dts<=days).length;
+  const totPre=rows.reduce((a,r)=>a+r.prebuy,0), totCost=rows.reduce((a,r)=>a+r.cost,0);
+  rows.sort((a,b)=>(a.dts??9999)-(b.dts??9999)||b.prebuy-a.prebuy);
+  $('sg-metrics').innerHTML=
+    '<div class="met bl"><div class="met-lbl">SKUs in scope</div><div class="met-val">'+group.length+'</div><div class="met-sub">'+esc(SIMSURGE.group||'all lines')+'</div><div class="met-bar"></div></div>'+
+    '<div class="met rd"><div class="met-lbl">Stock out in campaign</div><div class="met-val">'+stockouts+'</div><div class="met-sub">run dry within '+SIMSURGE.weeks+'w</div><div class="met-bar"></div></div>'+
+    '<div class="met pu"><div class="met-lbl">Pre-buy units</div><div class="met-val">'+totPre.toLocaleString()+'</div><div class="met-sub">to cover the surge</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Pre-buy cost</div><div class="met-val" style="font-size:17px">'+fmtK(totCost)+'</div><div class="met-sub">stock-up investment</div><div class="met-bar"></div></div>';
+  $('sg-tbody').innerHTML=rows.length?rows.slice(0,250).map(r=>{
+    const p=r.p;
+    return '<tr onclick="openDrawer(\''+esc(p.sku)+'\')" style="cursor:pointer"><td class="mo">'+esc(p.sku)+'</td>'+
+    '<td style="max-width:170px;overflow:hidden;text-overflow:ellipsis">'+esc(p.name)+'</td>'+
+    '<td class="mu" style="max-width:90px;overflow:hidden;text-overflow:ellipsis">'+esc(p.line||'')+'</td>'+
+    '<td class="r stk">'+Math.max(0,stk(p)).toLocaleString()+'</td>'+
+    '<td class="r mu">'+(p.velAdj!=null?p.velAdj:(p.velocity||0))+'</td>'+
+    '<td class="r" style="font-weight:600">'+r.demand.toLocaleString()+'</td>'+
+    '<td>'+soPill(r.dts)+'</td>'+
+    '<td class="r" style="font-weight:700;color:var(--ac)">'+r.prebuy.toLocaleString()+'</td>'+
+    '<td class="r">'+fmtP(r.cost)+'</td></tr>';
+  }).join(''):'<tr><td colspan="9"><div class="empty">No SKUs with demand in this scope</div></td></tr>';
 }
 
 function exportCSV(){
