@@ -299,7 +299,7 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
 </aside>
 <div class="main">
   <header class="topbar">
-    <div><div class="ptitle" id="ptitle">Dashboard</div><div class="psub" id="psub">Healthspan Global, Inc. &mdash; warehouse inventory</div></div>
+    <div><div class="ptitle" id="ptitle">Dashboard</div><div class="psub" id="psub">Healthspan Global, Inc. — warehouse inventory</div></div>
     <div class="tbr">
       <button class="btn" onclick="exportCSV()"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV</button>
     </div>
@@ -347,8 +347,8 @@ function statusOf(s){
   if(s<10)     return {l:'Low',c:'pam'};
   return              {l:'In stock',c:'pgr'};
 }
-function fmtP(v){return v!=null&&v>0?'&#8369;'+v.toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2}):'&mdash;';}
-function fmtK(v){return v!=null&&v>0?'&#8369;'+(v/1000).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,',')+'K':'&mdash;';}
+function fmtP(v){return v!=null&&v>0?'₱'+v.toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';}
+function fmtK(v){return v!=null&&v>0?'₱'+(v/1000).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,',')+'K':'—';}
 function expSoon(e){
   if(!e||e==='-') return false;
   const parts=e.match(/([0-9]{1,2})[\/\-]([0-9]{4})/);
@@ -597,13 +597,13 @@ function renderDashboard(){
     '<div class="met rd"><div class="met-lbl">Out of stock</div><div class="met-val">'+oos.length+'</div><div class="met-sub">'+Math.round(oos.length/DATA.length*100)+'% of SKUs</div><div class="met-bar"></div></div>'+
     '<div class="met am"><div class="met-lbl">Stockout &le;30d</div><div class="met-val">'+so30.length+'</div><div class="met-sub">forecast to run out</div><div class="met-bar"></div></div>'+
     '<div class="met rd"><div class="met-lbl">Expiring soon</div><div class="met-val">'+expAlerts.length+'</div><div class="met-sub">batches &le;3 months</div><div class="met-bar"></div></div>'+
-    '<div class="met gr"><div class="met-lbl">Inventory value</div><div class="met-val" style="font-size:17px">&#8369;'+Math.round(val/1000).toLocaleString()+'K</div><div class="met-sub">VAT-exclusive</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Inventory value</div><div class="met-val" style="font-size:17px">₱'+Math.round(val/1000).toLocaleString()+'K</div><div class="met-sub">VAT-exclusive</div><div class="met-bar"></div></div>'+
     '</div>'+
     '<div class="g2">'+
     '<div class="panel"><div class="phd"><svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>Running out within 30 days</div><div class="alist" id="solist"></div></div>'+
     '<div class="panel"><div class="phd"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Stock by product line</div><div class="hbars" id="hbars"></div></div>'+
     '<div class="panel"><div class="phd"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>Category split</div><div class="cw" style="height:140px"><canvas id="cc" role="img" aria-label="Category donut">Category breakdown</canvas></div><div id="cat-legend" style="display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:8px"></div></div>'+
-    '<div class="panel"><div class="phd"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg>Out of stock &mdash; commercial</div><div class="alist" id="ooslist"></div></div>'+
+    '<div class="panel"><div class="phd"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg>Out of stock — commercial</div><div class="alist" id="ooslist"></div></div>'+
     '<div class="panel"><div class="phd"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>Expiring within 3 months</div><div class="alist" id="explist"></div></div>'+
     '</div>';
 
@@ -674,9 +674,9 @@ function renderExpiry(){
   $('content').innerHTML=
     '<div class="exp-section"><div class="exp-section-hd red"><svg viewBox="0 0 24 24" width="12" height="12" style="stroke:currentColor;fill:none;stroke-width:2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg>Expired ('+expired.length+' batches)</div><div class="tcard" style="margin-bottom:0">'+batchTable(expired)+'</div></div>'+
     '<div class="exp-section"><div class="exp-section-hd red">Expiring within 1 month ('+exp1m.length+' batches)</div><div class="tcard" style="margin-bottom:0">'+batchTable(exp1m)+'</div></div>'+
-    '<div class="exp-section"><div class="exp-section-hd amber">Expiring 1&ndash;3 months ('+exp3m.length+' batches)</div><div class="tcard" style="margin-bottom:0">'+batchTable(exp3m)+'</div></div>'+
-    '<div class="exp-section"><div class="exp-section-hd amber">Expiring 3&ndash;6 months ('+exp6m.length+' batches)</div><div class="tcard" style="margin-bottom:0">'+batchTable(exp6m)+'</div></div>'+
-    '<div class="exp-section"><div class="exp-section-hd green">Safe &mdash; 6+ months ('+safe.length+' batches)</div><div class="tcard" style="margin-bottom:0">'+batchTable(safe)+'</div></div>';
+    '<div class="exp-section"><div class="exp-section-hd amber">Expiring 1–3 months ('+exp3m.length+' batches)</div><div class="tcard" style="margin-bottom:0">'+batchTable(exp3m)+'</div></div>'+
+    '<div class="exp-section"><div class="exp-section-hd amber">Expiring 3–6 months ('+exp6m.length+' batches)</div><div class="tcard" style="margin-bottom:0">'+batchTable(exp6m)+'</div></div>'+
+    '<div class="exp-section"><div class="exp-section-hd green">Safe — 6+ months ('+safe.length+' batches)</div><div class="tcard" style="margin-bottom:0">'+batchTable(safe)+'</div></div>';
 }
 
 /* ── BATCH VIEW (FEFO) ── */
@@ -684,28 +684,28 @@ function renderBatches(){
   const q=(fSearch||'').toLowerCase();
   let rows=BATCHES.filter(b=>!q||(b.name||'').toLowerCase().includes(q)||(b.skuCode||'').toLowerCase().includes(q)||(b.batch||'').toLowerCase().includes(q));
   $('content').innerHTML=
-    '<div class="toolbar"><div class="sw"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="bsi" placeholder="Search product or batch..." value="'+esc(q)+'" oninput="fSearch=this.value;renderBatches()"></div><span style="font-size:12px;color:var(--tx3)">Sorted FEFO &mdash; earliest expiry first</span></div>'+
+    '<div class="toolbar"><div class="sw"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="bsi" placeholder="Search product or batch..." value="'+esc(q)+'" oninput="fSearch=this.value;renderBatches()"></div><span style="font-size:12px;color:var(--tx3)">Sorted FEFO — earliest expiry first</span></div>'+
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Product</th><th>SKU</th><th>Line</th><th>Batch</th><th>Expiry</th><th style="text-align:right">Days left</th><th style="text-align:right">Qty received</th><th style="text-align:right">SOH</th><th>Status</th></tr></thead><tbody>'+
     (rows.length?rows.map(b=>{
       const d=expDaysLeft(b.expiry);const c=expColor(d);
       return '<tr><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis" title="'+esc(b.name)+'"><span style="font-weight:500">'+esc(b.name)+'</span></td>'+
         '<td class="mo">'+esc(b.skuCode)+'</td>'+
         '<td class="mu">'+esc(b.line||'')+'</td>'+
-        '<td class="mo">'+esc(b.batch||'&mdash;')+'</td>'+
-        '<td style="font-size:11px">'+esc(b.expiry||'&mdash;')+'</td>'+
-        '<td class="r" style="font-weight:600;color:var(--'+(d===null?'tx3':d<0?'rd':d<=31?'rd':d<=92?'am':'gr')+')">'+( d===null?'&mdash;':d<0?Math.abs(d)+' ago':d)+'</td>'+
+        '<td class="mo">'+esc(b.batch||'—')+'</td>'+
+        '<td style="font-size:11px">'+esc(b.expiry||'—')+'</td>'+
+        '<td class="r" style="font-weight:600;color:var(--'+(d===null?'tx3':d<0?'rd':d<=31?'rd':d<=92?'am':'gr')+')">'+( d===null?'—':d<0?Math.abs(d)+' ago':d)+'</td>'+
         '<td class="r mu">'+b.qty+'</td>'+
         '<td class="stk r">'+b.soh+'</td>'+
         '<td><span class="pill '+c+'">'+expLabel(d)+'</span></td></tr>';
     }).join(''):'<tr><td colspan="9"><div class="empty">No batches match</div></td></tr>')+
-    '</tbody></table></div><div class="tfooter"><span>'+rows.length+' batches</span><span>FEFO order &mdash; pull earliest expiry first</span></div></div>';
+    '</tbody></table></div><div class="tfooter"><span>'+rows.length+' batches</span><span>FEFO order — pull earliest expiry first</span></div></div>';
 }
 
 /* ── MONTHLY MOVEMENT CHART ── */
 function renderMovement(){
   const last12=MONTHS.slice(-12);
   $('content').innerHTML=
-    '<div class="panel full" style="margin-bottom:14px"><div class="phd"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Units received vs. sold &mdash; last 12 months</div><div class="cw" style="height:280px"><canvas id="movChart" role="img" aria-label="Monthly movement chart">Monthly IN vs OUT</canvas></div></div>'+
+    '<div class="panel full" style="margin-bottom:14px"><div class="phd"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Units received vs. sold — last 12 months</div><div class="cw" style="height:280px"><canvas id="movChart" role="img" aria-label="Monthly movement chart">Monthly IN vs OUT</canvas></div></div>'+
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Month</th><th style="text-align:right">Received (IN)</th><th style="text-align:right">Sold / Issued (OUT)</th><th style="text-align:right">Net</th></tr></thead><tbody>'+
     last12.slice().reverse().map(m=>{
       const inn=MONTHLY_IN[m]||0;const out=MONTHLY_OUT[m]||0;const net=inn-out;
@@ -734,7 +734,7 @@ function renderValue(){
   const max=entries[0]?entries[0][1]:1;
   $('content').innerHTML=
     '<div class="metrics" style="margin-bottom:16px">'+
-    '<div class="met gr"><div class="met-lbl">Total inventory value</div><div class="met-val" style="font-size:20px">&#8369;'+Math.round(total).toLocaleString()+'</div><div class="met-sub">VAT-exclusive, positive stock only</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Total inventory value</div><div class="met-val" style="font-size:20px">₱'+Math.round(total).toLocaleString()+'</div><div class="met-sub">VAT-exclusive, positive stock only</div><div class="met-bar"></div></div>'+
     '<div class="met bl"><div class="met-lbl">Product lines</div><div class="met-val">'+entries.length+'</div><div class="met-sub">with positive stock value</div><div class="met-bar"></div></div>'+
     '</div>'+
     '<div class="panel" style="margin-bottom:14px"><div class="phd"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Value by product line</div>'+
@@ -742,12 +742,12 @@ function renderValue(){
       const pct=Math.round(v/total*100);
       return '<div class="vrow"><div class="vlbl">'+esc(l)+'</div>'+
         '<div class="vbar-wrap"><div class="vbar-track"><div class="vbar-fill" style="width:'+Math.round(v/max*100)+'%;background:'+COLORS[i%COLORS.length]+'"></div></div></div>'+
-        '<div class="vval">&#8369;'+(v/1000).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,',')+' K <span style="color:var(--tx3);font-size:10px">'+pct+'%</span></div></div>';
+        '<div class="vval">₱'+(v/1000).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,',')+' K <span style="color:var(--tx3);font-size:10px">'+pct+'%</span></div></div>';
     }).join('')+'</div>'+
     '<div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button class="btn" onclick="exportValueCSV()"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export value report</button></div>'+
-    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Product line</th><th style="text-align:right">Stock value (&#8369;)</th><th style="text-align:right">% of total</th></tr></thead><tbody>'+
-    entries.map(([l,v])=>'<tr><td>'+esc(l)+'</td><td class="r" style="font-weight:600">&#8369;'+Math.round(v).toLocaleString()+'</td><td class="r mu">'+Math.round(v/total*100)+'%</td></tr>').join('')+
-    '<tr style="font-weight:700;background:var(--sf2)"><td>TOTAL</td><td class="r">&#8369;'+Math.round(total).toLocaleString()+'</td><td class="r">100%</td></tr>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Product line</th><th style="text-align:right">Stock value (₱)</th><th style="text-align:right">% of total</th></tr></thead><tbody>'+
+    entries.map(([l,v])=>'<tr><td>'+esc(l)+'</td><td class="r" style="font-weight:600">₱'+Math.round(v).toLocaleString()+'</td><td class="r mu">'+Math.round(v/total*100)+'%</td></tr>').join('')+
+    '<tr style="font-weight:700;background:var(--sf2)"><td>TOTAL</td><td class="r">₱'+Math.round(total).toLocaleString()+'</td><td class="r">100%</td></tr>'+
     '</tbody></table></div></div>';
 }
 function exportValueCSV(){
@@ -840,14 +840,14 @@ function drawRows(){
         '<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis" title="'+esc(p.name)+'">'+esc(p.name)+reorderFlag+'</td>'+
         '<td class="mu" style="max-width:90px;overflow:hidden;text-overflow:ellipsis">'+esc(p.line||'')+'</td>'+
         '<td class="mu">'+esc(p.category||'')+'</td>'+
-        '<td class="mo mu">'+esc(p.bin||'&mdash;')+'</td>'+
-        '<td style="font-size:11px;'+ew+'">'+esc(p.expiry||'&mdash;')+'</td>'+
+        '<td class="mo mu">'+esc(p.bin||'—')+'</td>'+
+        '<td style="font-size:11px;'+ew+'">'+esc(p.expiry||'—')+'</td>'+
         '<td class="r mu" style="font-size:11px">'+fmtP(p.price)+'</td>'+
         '<td class="r"><span class="vel-badge '+velC+'">'+vel+'</span></td>'+
-        '<td class="r mu" style="font-size:11px">'+(mos!==null?mos+'mo':'&mdash;')+'</td>'+
+        '<td class="r mu" style="font-size:11px">'+(mos!==null?mos+'mo':'—')+'</td>'+
         '<td class="r mu">'+(p.received||0).toLocaleString()+'</td>'+
         '<td class="r mu">'+(p.sold||0).toLocaleString()+'</td>'+
-        '<td class="stk r" style="'+sc+'">'+(s!==null?s.toLocaleString():'&mdash;')+'</td>'+
+        '<td class="stk r" style="'+sc+'">'+(s!==null?s.toLocaleString():'—')+'</td>'+
         '<td><span class="pill '+st.c+'">'+st.l+'</span></td>'+
         '</tr>';
     }).join('');
@@ -875,28 +875,28 @@ function openDrawer(sku){
     '<div class="dsku">'+esc(sku)+'</div>'+
     '<div class="dname">'+esc(p.name)+'</div>'+
     '<span class="pill '+st.c+'">'+st.l+'</span>'+
-    '<div class="dstk" style="color:'+sc+'">'+(s!==null?s.toLocaleString():'&mdash;')+'</div>'+
+    '<div class="dstk" style="color:'+sc+'">'+(s!==null?s.toLocaleString():'—')+'</div>'+
     '<div class="dsub">units on hand</div>'+
     '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'+
     '<span class="vel-badge '+velC+'">'+(vel>0?vel+' units/mo avg':'No recent sales')+'</span>'+
     (mos!==null?'<span class="vel-badge '+(mos<2?'vel-hot':mos<6?'vel-med':'vel-slow')+'">'+mos+' months of stock</span>':'')+'</div>'+
     '<div class="dvel"><div class="dvhd"><span>Sell-through</span><span>'+sellThru+'%</span></div><div class="dvtrack"><div class="dvfill" style="width:'+sellThru+'%"></div></div></div>'+
     '<div class="dsec"><div class="dsectitle">Product</div>'+
-    '<div class="drow"><span class="dlbl">Line</span><span class="dval">'+esc(p.line||'&mdash;')+'</span></div>'+
-    '<div class="drow"><span class="dlbl">Category</span><span class="dval">'+esc(p.category||'&mdash;')+'</span></div>'+
+    '<div class="drow"><span class="dlbl">Line</span><span class="dval">'+esc(p.line||'—')+'</span></div>'+
+    '<div class="drow"><span class="dlbl">Category</span><span class="dval">'+esc(p.category||'—')+'</span></div>'+
     '<div class="drow"><span class="dlbl">Price (VATex)</span><span class="dval">'+fmtP(p.price)+'</span></div>'+
-    '<div class="drow"><span class="dlbl">Stock value</span><span class="dval">'+(s>0&&p.price?fmtP(s*p.price):'&mdash;')+'</span></div>'+
+    '<div class="drow"><span class="dlbl">Stock value</span><span class="dval">'+(s>0&&p.price?fmtP(s*p.price):'—')+'</span></div>'+
     '</div>'+
     '<div class="dsec"><div class="dsectitle">Warehouse</div>'+
-    '<div class="drow"><span class="dlbl">Bin location</span><span class="dval">'+esc(p.bin||'&mdash;')+'</span></div>'+
-    '<div class="drow"><span class="dlbl">Batch</span><span class="dval">'+esc(p.batch||'&mdash;')+'</span></div>'+
-    '<div class="drow"><span class="dlbl">Expiry</span><span class="dval" style="'+(expSoon(p.expiry)?'color:var(--am);font-weight:600':'')+'">'+esc(p.expiry||'&mdash;')+'</span></div>'+
+    '<div class="drow"><span class="dlbl">Bin location</span><span class="dval">'+esc(p.bin||'—')+'</span></div>'+
+    '<div class="drow"><span class="dlbl">Batch</span><span class="dval">'+esc(p.batch||'—')+'</span></div>'+
+    '<div class="drow"><span class="dlbl">Expiry</span><span class="dval" style="'+(expSoon(p.expiry)?'color:var(--am);font-weight:600':'')+'">'+esc(p.expiry||'—')+'</span></div>'+
     '</div>'+
     '<div class="dsec"><div class="dsectitle">Movement</div>'+
     '<div class="drow"><span class="dlbl">Total received</span><span class="dval">'+(p.received||0).toLocaleString()+' units</span></div>'+
     '<div class="drow"><span class="dlbl">Total sold/issued</span><span class="dval">'+(p.sold||0).toLocaleString()+' units</span></div>'+
     '<div class="drow"><span class="dlbl">Avg velocity</span><span class="dval">'+vel+' units/mo</span></div>'+
-    '<div class="drow"><span class="dlbl">Months of stock</span><span class="dval">'+(mos!==null?mos+' months':'&mdash;')+'</span></div>'+
+    '<div class="drow"><span class="dlbl">Months of stock</span><span class="dval">'+(mos!==null?mos+' months':'—')+'</span></div>'+
     '</div>'+
     batchHTML+
     '<div class="dsec"><div class="dsectitle">Reorder threshold</div>'+
@@ -945,13 +945,13 @@ function renderAged(){
   $('content').innerHTML=
     '<div class="metrics" style="margin-bottom:16px">'+
     '<div class="met rd"><div class="met-lbl">Dead stock (&gt;180d)</div><div class="met-val">'+buckets.dead.length+'</div><div class="met-sub">'+fmtK(deadVal)+' tied up</div><div class="met-bar"></div></div>'+
-    '<div class="met am"><div class="met-lbl">Slow moving (90&ndash;180d)</div><div class="met-val">'+buckets.slow.length+'</div><div class="met-sub">'+fmtK(slowVal)+' tied up</div><div class="met-bar"></div></div>'+
-    '<div class="met am"><div class="met-lbl">Aging (30&ndash;90d)</div><div class="met-val">'+buckets.aging.length+'</div><div class="met-sub">'+fmtK(agingVal)+' tied up</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Slow moving (90–180d)</div><div class="met-val">'+buckets.slow.length+'</div><div class="met-sub">'+fmtK(slowVal)+' tied up</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Aging (30–90d)</div><div class="met-val">'+buckets.aging.length+'</div><div class="met-sub">'+fmtK(agingVal)+' tied up</div><div class="met-bar"></div></div>'+
     '<div class="met gr"><div class="met-lbl">Active (&lt;30d)</div><div class="met-val">'+buckets.active.length+'</div><div class="met-sub">moved recently</div><div class="met-bar"></div></div>'+
     '</div>'+
-    '<div class="exp-section"><div class="exp-section-hd red">Dead stock &mdash; no sale in 180+ days ('+buckets.dead.length+' SKUs)</div><div class="tcard" style="margin-bottom:0">'+agedTable(buckets.dead)+'</div></div>'+
-    '<div class="exp-section"><div class="exp-section-hd amber">Slow moving &mdash; 90&ndash;180 days ('+buckets.slow.length+' SKUs)</div><div class="tcard" style="margin-bottom:0">'+agedTable(buckets.slow)+'</div></div>'+
-    '<div class="exp-section"><div class="exp-section-hd amber">Aging &mdash; 30&ndash;90 days ('+buckets.aging.length+' SKUs)</div><div class="tcard" style="margin-bottom:0">'+agedTable(buckets.aging)+'</div></div>';
+    '<div class="exp-section"><div class="exp-section-hd red">Dead stock — no sale in 180+ days ('+buckets.dead.length+' SKUs)</div><div class="tcard" style="margin-bottom:0">'+agedTable(buckets.dead)+'</div></div>'+
+    '<div class="exp-section"><div class="exp-section-hd amber">Slow moving — 90–180 days ('+buckets.slow.length+' SKUs)</div><div class="tcard" style="margin-bottom:0">'+agedTable(buckets.slow)+'</div></div>'+
+    '<div class="exp-section"><div class="exp-section-hd amber">Aging — 30–90 days ('+buckets.aging.length+' SKUs)</div><div class="tcard" style="margin-bottom:0">'+agedTable(buckets.aging)+'</div></div>';
 }
 
 /* ── SHRINKAGE TRACKER ── */
@@ -996,7 +996,7 @@ function renderCashExpiry(){
     return '<div class="tscroll"><table><thead><tr><th>Product</th><th>Batch</th><th>Expiry</th><th style="text-align:right">Days</th><th style="text-align:right">SOH</th><th style="text-align:right">Unit price</th><th style="text-align:right">Value at risk</th></tr></thead><tbody>'+
       items.map(i=>{
         const dc=i.days<0?'color:var(--rd);font-weight:700':i.days<=30?'color:var(--rd)':i.days<=92?'color:var(--am)':'';
-        return '<tr><td>'+esc(i.name)+'</td><td class="mo mu">'+esc(i.batch||'&mdash;')+'</td>'+
+        return '<tr><td>'+esc(i.name)+'</td><td class="mo mu">'+esc(i.batch||'—')+'</td>'+
           '<td style="font-size:11px">'+esc(i.expiry)+'</td>'+
           '<td class="r" style="'+dc+'">'+( i.days<0?Math.abs(i.days)+' ago':i.days)+'</td>'+
           '<td class="r mu">'+i.soh+'</td>'+
@@ -1008,15 +1008,15 @@ function renderCashExpiry(){
   (EXPIRING_ITEMS||[]).forEach(i=>{ if(byBucket[i.bucket]) byBucket[i.bucket].push(i); });
   $('content').innerHTML=
     '<div class="metrics" style="margin-bottom:16px">'+
-    '<div class="met rd"><div class="met-lbl">Expired &mdash; write-off risk</div><div class="met-val" style="font-size:18px">'+fmtP(totalExpired)+'</div><div class="met-sub">stock past expiry date</div><div class="met-bar"></div></div>'+
+    '<div class="met rd"><div class="met-lbl">Expired — write-off risk</div><div class="met-val" style="font-size:18px">'+fmtP(totalExpired)+'</div><div class="met-sub">stock past expiry date</div><div class="met-bar"></div></div>'+
     '<div class="met rd"><div class="met-lbl">Expiring &lt;30 days</div><div class="met-val" style="font-size:18px">'+fmtP(exp.lt30||0)+'</div><div class="met-sub">urgent action needed</div><div class="met-bar"></div></div>'+
-    '<div class="met am"><div class="met-lbl">Expiring 1&ndash;3 months</div><div class="met-val" style="font-size:18px">'+fmtP(exp.lt90||0)+'</div><div class="met-sub">monitor closely</div><div class="met-bar"></div></div>'+
-    '<div class="met am"><div class="met-lbl">Expiring 3&ndash;6 months</div><div class="met-val" style="font-size:18px">'+fmtP(exp.lt180||0)+'</div><div class="met-sub">plan ahead</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Expiring 1–3 months</div><div class="met-val" style="font-size:18px">'+fmtP(exp.lt90||0)+'</div><div class="met-sub">monitor closely</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Expiring 3–6 months</div><div class="met-val" style="font-size:18px">'+fmtP(exp.lt180||0)+'</div><div class="met-sub">plan ahead</div><div class="met-bar"></div></div>'+
     '</div>'+
     '<div class="exp-section"><div class="exp-section-hd red">Expired ('+byBucket.expired.length+' batches)</div><div class="tcard" style="margin-bottom:0">'+expTable(byBucket.expired)+'</div></div>'+
     '<div class="exp-section"><div class="exp-section-hd red">Expiring within 30 days ('+byBucket.lt30.length+' batches)</div><div class="tcard" style="margin-bottom:0">'+expTable(byBucket.lt30)+'</div></div>'+
-    '<div class="exp-section"><div class="exp-section-hd amber">Expiring 1&ndash;3 months ('+byBucket.lt90.length+' batches)</div><div class="tcard" style="margin-bottom:0">'+expTable(byBucket.lt90)+'</div></div>'+
-    '<div class="exp-section"><div class="exp-section-hd amber">Expiring 3&ndash;6 months ('+byBucket.lt180.length+' batches)</div><div class="tcard" style="margin-bottom:0">'+expTable(byBucket.lt180)+'</div></div>';
+    '<div class="exp-section"><div class="exp-section-hd amber">Expiring 1–3 months ('+byBucket.lt90.length+' batches)</div><div class="tcard" style="margin-bottom:0">'+expTable(byBucket.lt90)+'</div></div>'+
+    '<div class="exp-section"><div class="exp-section-hd amber">Expiring 3–6 months ('+byBucket.lt180.length+' batches)</div><div class="tcard" style="margin-bottom:0">'+expTable(byBucket.lt180)+'</div></div>';
 }
 
 /* ── BRANCH TRANSFER LOG ── */
@@ -1046,9 +1046,9 @@ function renderBranchTransfer(){
         '<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis">'+esc(t.name)+'</td>'+
         '<td class="mu">'+esc(t.line||'')+'</td>'+
         '<td class="r stk">'+t.qty+'</td>'+
-        '<td class="mo mu">'+esc(t.batch||'&mdash;')+'</td>'+
-        '<td style="font-size:11px">'+esc(t.expiry||'&mdash;')+'</td>'+
-        '<td class="mo mu">'+esc(t.order||'&mdash;')+'</td></tr>';
+        '<td class="mo mu">'+esc(t.batch||'—')+'</td>'+
+        '<td style="font-size:11px">'+esc(t.expiry||'—')+'</td>'+
+        '<td class="mo mu">'+esc(t.order||'—')+'</td></tr>';
     }).join(''):'<tr><td colspan="8"><div class="empty">No transfers found</div></td></tr>')+
     '</tbody></table></div><div class="tfooter"><span>Showing '+Math.min(rows.length,200)+' of '+rows.length+' transfers (2025+, newest first)</span></div></div>';
 }
@@ -1062,7 +1062,7 @@ function renderBranchExpiry(){
       const items=(BRANCH_EXPIRY[branch]||[]);
       const now=new Date();
       const urgent=items.filter(i=>{const pm=i.expiry.match(/^(\d{1,2})\/(\d{4})$/);if(!pm)return false;return (new Date(+pm[2],+pm[1]-1,1)-now)/864e5<=92;}).length;
-      return '<div class="exp-section"><div class="exp-section-hd '+(urgent>0?'red':'green')+'">'+branch+(urgent?' &mdash; '+urgent+' items expiring within 3 months':'')+'</div>'+
+      return '<div class="exp-section"><div class="exp-section-hd '+(urgent>0?'red':'green')+'">'+branch+(urgent?' — '+urgent+' items expiring within 3 months':'')+'</div>'+
         (items.length?'<div class="tcard" style="margin-bottom:0"><div class="tscroll"><table><thead><tr><th>Product</th><th>SKU</th><th>Batch</th><th>Expiry</th><th style="text-align:right">Days left</th><th style="text-align:right">Qty sent</th><th>Status</th></tr></thead><tbody>'+
         items.slice(0,30).map(i=>{
           const pm=i.expiry.match(/^(\d{1,2})\/(\d{4})$/);
@@ -1072,9 +1072,9 @@ function renderBranchExpiry(){
           const lbl=d===null?'No date':d<0?Math.abs(d)+'d ago expired':d+'d left';
           return '<tr><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">'+esc(i.name)+'</td>'+
             '<td class="mo mu">'+esc(i.sku)+'</td>'+
-            '<td class="mo mu">'+esc(i.batch||'&mdash;')+'</td>'+
+            '<td class="mo mu">'+esc(i.batch||'—')+'</td>'+
             '<td style="font-size:11px">'+esc(i.expiry)+'</td>'+
-            '<td class="r" style="font-weight:700;color:'+(d===null?'var(--tx3)':d<0?'var(--rd)':d<=92?'var(--am)':'var(--gr)')+'">'+( d===null?'&mdash;':d<0?Math.abs(d)+'d ago':d+'d')+'</td>'+
+            '<td class="r" style="font-weight:700;color:'+(d===null?'var(--tx3)':d<0?'var(--rd)':d<=92?'var(--am)':'var(--gr)')+'">'+( d===null?'—':d<0?Math.abs(d)+'d ago':d+'d')+'</td>'+
             '<td class="r mu">'+i.qty+'</td>'+
             '<td><span class="pill '+c+'">'+lbl+'</span></td></tr>';
         }).join('')+'</tbody></table></div></div>':
@@ -1130,7 +1130,7 @@ function soPill(d){
   return '<span class="pill pgr">'+d+'d</span>';
 }
 function soDateFmt(iso){
-  if(!iso)return '&mdash;';
+  if(!iso)return '—';
   return new Date(iso).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'});
 }
 function reorderRows(lead,cover,safety,mult){
@@ -1172,7 +1172,7 @@ function renderForecast(){
   $('content').innerHTML=
     '<div class="metrics" style="margin-bottom:14px">'+
     '<div class="met rd"><div class="met-lbl">Stockout &le;30 days</div><div class="met-val">'+so30.length+'</div><div class="met-sub">order now</div><div class="met-bar"></div></div>'+
-    '<div class="met am"><div class="met-lbl">Stockout 31&ndash;60 days</div><div class="met-val">'+so60.length+'</div><div class="met-sub">order soon</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Stockout 31–60 days</div><div class="met-val">'+so60.length+'</div><div class="met-sub">order soon</div><div class="met-bar"></div></div>'+
     '<div class="met rd"><div class="met-lbl">Accelerating</div><div class="met-val">'+acc.length+'</div><div class="met-sub">demand up &ge;15% (3mo vs prior 3mo)</div><div class="met-bar"></div></div>'+
     '<div class="met bl"><div class="met-lbl">Decelerating</div><div class="met-val">'+dec.length+'</div><div class="met-sub">demand down &ge;15%</div><div class="met-bar"></div></div>'+
     '<div class="met gr"><div class="met-lbl">Seasonality applied</div><div class="met-val">'+seasonalN+'</div><div class="met-sub">SKUs with month-of-year weighting</div><div class="met-bar"></div></div>'+
@@ -1184,7 +1184,7 @@ function renderForecast(){
       const s=stk(p);
       return '<tr onclick="openDrawer(\''+esc(p.sku)+'\')" style="cursor:pointer"><td class="mo">'+esc(p.sku)+'</td>'+
       '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">'+esc(p.name)+'</td>'+
-      '<td class="r stk">'+(s??'&mdash;')+'</td>'+
+      '<td class="r stk">'+(s??'—')+'</td>'+
       '<td class="r">'+(p.velAdj!=null?p.velAdj:(p.velocity||0))+'</td>'+
       '<td>'+trendBadge(p)+'</td>'+
       '<td>'+soPill(p.daysToStockout)+'</td>'+
@@ -1230,8 +1230,8 @@ function renderReorderPlan(){
       const abcC=p.abc==='A'?'prd':p.abc==='B'?'pam':'pgy';
       return '<tr'+(r.runsOutInLead?' style="background:var(--rd-bg)"':'')+'><td class="mo">'+esc(p.sku)+'</td>'+
       '<td style="max-width:190px;overflow:hidden;text-overflow:ellipsis">'+esc(p.name)+'</td>'+
-      '<td><span class="pill '+abcC+'">'+(p.abc||'&mdash;')+'</span></td>'+
-      '<td class="r stk">'+(stk(p)??'&mdash;')+'</td>'+
+      '<td><span class="pill '+abcC+'">'+(p.abc||'—')+'</span></td>'+
+      '<td class="r stk">'+(stk(p)??'—')+'</td>'+
       '<td class="r">'+(p.velAdj!=null?p.velAdj:(p.velocity||0))+'</td>'+
       '<td>'+soPill(p.daysToStockout)+'</td>'+
       '<td class="r" style="font-weight:700;color:var(--ac)">'+r.qty.toLocaleString()+'</td>'+
@@ -1281,7 +1281,7 @@ function renderABC(){
       '<td class="mo">'+esc(p.sku)+'</td>'+
       '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">'+esc(p.name)+'</td>'+
       '<td class="mu">'+esc(p.line||'')+'</td>'+
-      '<td class="mo mu">'+esc(p.bin||'&mdash;')+'</td>'+
+      '<td class="mo mu">'+esc(p.bin||'—')+'</td>'+
       '<td class="r">'+(p.velAdj!=null?p.velAdj:(p.velocity||0))+'</td>'+
       '<td class="r mu" style="font-size:11px">'+fmtP(p.price)+'</td>'+
       '<td class="r">'+(p.abcShare||0).toFixed(1)+'%</td>'+
@@ -1307,12 +1307,12 @@ function renderWriteoff(){
   const in90=rows.filter(c=>c.daysToExpiry<=92);
   const in90Val=in90.reduce((a,c)=>a+c.writeOff,0);
   const top=rows.find(c=>c.writeOff>0);
-  const headline=top?('At current pace, <b>'+top.projExpired.toLocaleString()+' units</b> of '+esc(top.name)+' (batch '+esc(top.batch||'?')+') will expire unsold &mdash; <b style="color:var(--rd)">'+fmtP(top.writeOff)+'</b> write-off risk. '+rows.length+' batches at risk in total.'):'No projected write-offs at current sales pace.';
+  const headline=top?('At current pace, <b>'+top.projExpired.toLocaleString()+' units</b> of '+esc(top.name)+' (batch '+esc(top.batch||'?')+') will expire unsold — <b style="color:var(--rd)">'+fmtP(top.writeOff)+'</b> write-off risk. '+rows.length+' batches at risk in total.'):'No projected write-offs at current sales pace.';
   $('content').innerHTML=
     '<div class="panel" style="margin-bottom:14px;border-left:3px solid var(--rd)"><div style="font-size:12.5px;line-height:1.5;color:var(--tx2)">'+headline+'</div></div>'+
     '<div class="metrics" style="margin-bottom:14px">'+
     '<div class="met rd"><div class="met-lbl">Projected write-off</div><div class="met-val" style="font-size:17px">'+fmtK(totVal)+'</div><div class="met-sub">'+totUnits.toLocaleString()+' units across '+rows.length+' batches</div><div class="met-bar"></div></div>'+
-    '<div class="met rd"><div class="met-lbl">Within 3 months</div><div class="met-val" style="font-size:17px">'+fmtK(in90Val)+'</div><div class="met-sub">'+in90.length+' batches &mdash; act now</div><div class="met-bar"></div></div>'+
+    '<div class="met rd"><div class="met-lbl">Within 3 months</div><div class="met-val" style="font-size:17px">'+fmtK(in90Val)+'</div><div class="met-sub">'+in90.length+' batches — act now</div><div class="met-bar"></div></div>'+
     '<div class="met am"><div class="met-lbl">Levers</div><div class="met-val" style="font-size:13px;line-height:1.4">Promo / transfer / return</div><div class="met-sub">push to branches or run clinic promos</div><div class="met-bar"></div></div>'+
     '</div>'+
     '<div class="tcard"><div class="tscroll"><table><thead><tr>'+
@@ -1321,7 +1321,7 @@ function renderWriteoff(){
       const sold=c.soh-c.projExpired;
       const dc=c.daysToExpiry<=31?'color:var(--rd);font-weight:600':c.daysToExpiry<=92?'color:var(--am)':'';
       return '<tr><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis"><span style="font-weight:500">'+esc(c.name)+'</span><div style="font-size:10px;color:var(--tx3);font-family:monospace">'+esc(c.sku)+'</div></td>'+
-      '<td class="mo mu">'+esc(c.batch||'&mdash;')+'</td>'+
+      '<td class="mo mu">'+esc(c.batch||'—')+'</td>'+
       '<td style="font-size:11px">'+esc(c.expiry)+'</td>'+
       '<td class="r" style="'+dc+'">'+c.daysToExpiry+'</td>'+
       '<td class="r stk">'+c.soh.toLocaleString()+'</td>'+
