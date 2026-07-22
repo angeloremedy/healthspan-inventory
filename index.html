@@ -287,6 +287,11 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
     <div class="ni" onclick="showView('simbudget',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Budget optimizer</div>
     <div class="ni" onclick="showView('simservice',this)"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10"/><polyline points="12 12 16 8"/></svg>Service level</div>
     <div class="ni" onclick="showView('simsurge',this)"><svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>Campaign surge</div>
+    <div class="ni" onclick="showView('simmonte',this)"><svg viewBox="0 0 24 24"><circle cx="8" cy="8" r="1.5" fill="currentColor"/><circle cx="16" cy="8" r="1.5" fill="currentColor"/><circle cx="8" cy="16" r="1.5" fill="currentColor"/><circle cx="16" cy="16" r="1.5" fill="currentColor"/><rect x="3" y="3" width="18" height="18" rx="3"/></svg>Monte Carlo risk</div>
+    <div class="ni" onclick="showView('simproject',this)"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><polyline points="19 7 13 13 9 9 5 13"/></svg>12-month projection</div>
+    <div class="ni" onclick="showView('simcash',this)"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>Cash-flow timeline</div>
+    <div class="ni" onclick="showView('simbulk',this)"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>Bulk-buy trade-off</div>
+    <div class="ni" onclick="showView('simbranch',this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><path d="M10 6.5h4a3 3 0 0 1 3 3v4.5"/></svg>Branch rebalancing</div>
     <div class="nlbl">Analytics</div>
     <div class="ni" onclick="showView('movement',this)"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Monthly movement</div>
     <div class="ni" onclick="showView('value',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Inventory value</div>
@@ -368,6 +373,18 @@ let SIMPROMO = {lift:30, disc:20};
 let SIMBUDGET = {budget:2000000};
 let SIMSVC = {level:PLAN.service};
 let SIMSURGE = {group:'', lift:100, weeks:6};
+let SIMMONTE = {horizon:60};
+let SIMPROJ = {sku:''};
+let SIMBULK = {disc:10, hold:2, shelf:18, months:6};
+let SIMBRANCH = {minMove:10};
+let projInst=null, cashInst=null;
+let _randSpare=null;
+function randn(){ // standard normal (Box-Muller with cached spare)
+  if(_randSpare!=null){const s=_randSpare;_randSpare=null;return s;}
+  let u=0,v=0,s=0;
+  do{u=Math.random()*2-1;v=Math.random()*2-1;s=u*u+v*v;}while(s>=1||s===0);
+  const m=Math.sqrt(-2*Math.log(s)/s);_randSpare=v*m;return u*m;
+}
 let sortCol='stock', sortDir=-1;
 let currentView='dashboard';
 let fLine='',fCat='',fSearch='',fTab='all',fBin='';
@@ -512,6 +529,11 @@ function applySync(data){
   else if(currentView==='simbudget') renderBudgetSim();
   else if(currentView==='simservice') renderServiceSim();
   else if(currentView==='simsurge') renderSurgeSim();
+  else if(currentView==='simmonte') renderMonteSim();
+  else if(currentView==='simproject') renderProjectSim();
+  else if(currentView==='simcash') renderCashSim();
+  else if(currentView==='simbulk') renderBulkSim();
+  else if(currentView==='simbranch') renderBranchSim();
   else renderTable();
 }
 
@@ -590,7 +612,8 @@ function showView(v,el){
   const T={dashboard:'Dashboard',all:'All SKUs',oos:'Out of stock',low:'Low stock',neg:'Negative stock',
            expiry:'Expiry tracker',value:'Inventory value',movement:'Monthly movement',reorder:'Reorder alerts',batches:'Batch view',
            forecast:'Stockout forecast',reorderplan:'Reorder plan',ropoint:'Reorder point',variability:'Demand variability',abc:'ABC analysis',writeoff:'Write-off forecast',whatif:'What-if simulator',
-           simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator'};
+           simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator',
+           simmonte:'Monte Carlo stockout risk',simproject:'12-month projection',simcash:'Cash-flow timeline',simbulk:'Bulk-buy trade-off',simbranch:'Branch rebalancing'};
   $('ptitle').textContent=T[v]||v;
   if(v==='dashboard') renderDashboard();
   else if(v==='expiry') renderExpiry();
@@ -613,6 +636,11 @@ function showView(v,el){
   else if(v==='simbudget') renderBudgetSim();
   else if(v==='simservice') renderServiceSim();
   else if(v==='simsurge') renderSurgeSim();
+  else if(v==='simmonte') renderMonteSim();
+  else if(v==='simproject') renderProjectSim();
+  else if(v==='simcash') renderCashSim();
+  else if(v==='simbulk') renderBulkSim();
+  else if(v==='simbranch') renderBranchSim();
   else renderTable(v);
 }
 function fltLine(line,el){
@@ -1745,6 +1773,253 @@ function updateSurgeSim(){
     '<td class="r" style="font-weight:700;color:var(--ac)">'+r.prebuy.toLocaleString()+'</td>'+
     '<td class="r">'+fmtP(r.cost)+'</td></tr>';
   }).join(''):'<tr><td colspan="9"><div class="empty">No SKUs with demand in this scope</div></td></tr>';
+}
+
+/* ── SIMULATOR: MONTE CARLO STOCKOUT RISK ── */
+function mcRisk(p,horizonDays){
+  const runs=500, mean0=(p.velAdj!=null?p.velAdj:(p.velocity||0));
+  const s0=stk(p);
+  if(mean0<=0||s0===null)return null;
+  const fallback=!(p.demandStd>0);
+  const sd=fallback?mean0*0.35:p.demandStd;
+  if(s0<=0)return {p,prob:1,expDay:0,fallback};
+  let outCount=0,sumDay=0;
+  for(let r=0;r<runs;r++){
+    let rem=s0,day=0;
+    for(let k=0;k<8&&day<horizonDays;k++){
+      let dem=fcRate(p,k)+sd*randn(); if(dem<0)dem=0;
+      const daily=dem/30.44;
+      if(daily>0&&rem<=dem){const d=day+rem/daily;if(d<=horizonDays){outCount++;sumDay+=d;}break;}
+      rem-=dem; day+=30.44;
+    }
+  }
+  return {p,prob:outCount/runs,expDay:outCount>0?Math.round(sumDay/outCount):null,fallback};
+}
+function riskBar(prob){
+  const pct=Math.round(prob*100), col=prob>=0.7?'var(--rd)':prob>=0.3?'var(--am)':'var(--gr)';
+  return '<div style="display:flex;align-items:center;gap:7px"><div style="flex:0 0 90px;height:6px;background:var(--sf2);border-radius:3px;overflow:hidden"><div style="width:'+pct+'%;height:100%;background:'+col+'"></div></div><span style="font-weight:600;color:'+col+'">'+pct+'%</span></div>';
+}
+function renderMonteSim(){
+  $('content').innerHTML=
+    '<div class="panel" style="margin-bottom:14px"><div style="display:flex;flex-direction:column;gap:6px">'+
+    '<div style="display:flex;justify-content:space-between;font-size:11px;font-weight:500;color:var(--tx2)"><span>Risk horizon</span><span id="mc-h-lbl" style="font-weight:700;color:var(--ac)">60 days</span></div>'+
+    '<input type="range" id="mc-h" min="14" max="120" step="7" value="'+SIMMONTE.horizon+'" style="width:100%" oninput="updateMonteSim()">'+
+    '<div style="font-size:10.5px;color:var(--tx3)">Each SKU’s demand is simulated 500 times using its average and its variability (CV). The probability is the share of runs that stock out before the horizon.</div>'+
+    '</div></div>'+
+    '<div class="metrics" style="margin-bottom:14px" id="mc-metrics"></div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>SKU</th><th>Product</th><th>Line</th><th style="text-align:right">Stock</th><th style="text-align:right">Fcst /mo</th><th>Variability</th><th>Stockout probability</th><th style="text-align:right">Expected day</th></tr></thead><tbody id="mc-tbody"></tbody></table></div><div class="tfooter"><span>Probabilistic forecast (Monte Carlo, 500 runs) &middot; lumpier demand widens the odds &middot; SKUs marked * use an assumed spread from too little history</span></div></div>';
+  updateMonteSim();
+}
+function updateMonteSim(){
+  const el=$('mc-h'); if(!el)return;
+  SIMMONTE.horizon=parseInt(el.value)||60;
+  $('mc-h-lbl').textContent=SIMMONTE.horizon+' days';
+  const rows=DATA.filter(p=>stk(p)!==null&&((p.velAdj||0)>0||(p.velocity||0)>0)).map(p=>mcRisk(p,SIMMONTE.horizon)).filter(Boolean).sort((a,b)=>b.prob-a.prob);
+  const high=rows.filter(r=>r.prob>=0.7).length, med=rows.filter(r=>r.prob>=0.3&&r.prob<0.7).length;
+  const expected=Math.round(rows.reduce((a,r)=>a+r.prob,0));
+  $('mc-metrics').innerHTML=
+    '<div class="met rd"><div class="met-lbl">High risk</div><div class="met-val">'+high+'</div><div class="met-sub">&ge;70% chance of stockout</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Medium risk</div><div class="met-val">'+med+'</div><div class="met-sub">30–70% chance</div><div class="met-bar"></div></div>'+
+    '<div class="met pu"><div class="met-lbl">Expected stockouts</div><div class="met-val">'+expected+'</div><div class="met-sub">within '+SIMMONTE.horizon+' days</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">SKUs modelled</div><div class="met-val">'+rows.length+'</div><div class="met-sub">with demand history</div><div class="met-bar"></div></div>';
+  $('mc-tbody').innerHTML=rows.length?rows.slice(0,300).map(r=>{
+    const p=r.p;
+    return '<tr onclick="openDrawer(\''+esc(p.sku)+'\')" style="cursor:pointer"><td class="mo">'+esc(p.sku)+(r.fallback?' <span style="color:var(--tx3)">*</span>':'')+'</td>'+
+    '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">'+esc(p.name)+'</td>'+
+    '<td class="mu" style="max-width:90px;overflow:hidden;text-overflow:ellipsis">'+esc(p.line||'')+'</td>'+
+    '<td class="r stk">'+Math.max(0,stk(p)).toLocaleString()+'</td>'+
+    '<td class="r mu">'+(p.velAdj!=null?p.velAdj:(p.velocity||0))+'</td>'+
+    '<td>'+cvBadge(p)+'</td><td style="min-width:150px">'+riskBar(r.prob)+'</td>'+
+    '<td class="r mu">'+(r.expDay!=null?'day '+r.expDay:'—')+'</td></tr>';
+  }).join(''):'<tr><td colspan="8"><div class="empty">No SKUs with demand to model</div></td></tr>';
+}
+
+/* ── SIMULATOR: 12-MONTH DEMAND & STOCK PROJECTION ── */
+function renderProjectSim(){
+  const cands=DATA.filter(p=>stk(p)!==null&&((p.velAdj||0)>0||(p.velocity||0)>0)).sort((a,b)=>(b.velAdj||b.velocity||0)-(a.velAdj||a.velocity||0));
+  if(!cands.length){$('content').innerHTML='<div class="empty" style="margin-top:40px">No SKUs with demand history to project</div>';return;}
+  if(!SIMPROJ.sku||!cands.find(p=>p.sku===SIMPROJ.sku))SIMPROJ.sku=cands[0].sku;
+  const opts=cands.map(p=>'<option value="'+esc(p.sku)+'"'+(SIMPROJ.sku===p.sku?' selected':'')+'>'+esc(p.sku)+' — '+esc(p.name)+'</option>').join('');
+  $('content').innerHTML=
+    '<div class="panel" style="margin-bottom:14px"><div style="display:flex;flex-direction:column;gap:3px"><label style="font-size:10px;color:var(--tx3);font-weight:500">Product</label><select id="pj-sku" onchange="updateProjectSim()" style="max-width:360px;padding:6px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--sf);color:var(--tx1);font-size:12px">'+opts+'</select></div></div>'+
+    '<div class="metrics" style="margin-bottom:14px" id="pj-metrics"></div>'+
+    '<div class="panel"><div class="phd">12-month demand & stock projection</div><div class="cw" style="height:340px"><canvas id="pj-canvas"></canvas></div><div style="font-size:10.5px;color:var(--tx3);margin-top:8px">Shaded band = 80% confidence from demand variability &middot; beyond month 6 assumes steady demand &middot; dashed line = reorder point</div></div>';
+  updateProjectSim();
+}
+function updateProjectSim(){
+  const sel=$('pj-sku'); if(!sel)return;
+  SIMPROJ.sku=sel.value;
+  const p=DATA.find(x=>x.sku===SIMPROJ.sku); if(!p)return;
+  const s0=Math.max(0,stk(p)||0), sd=(p.demandStd>0?p.demandStd:(p.velAdj||p.velocity||0)*0.35);
+  const now=new Date(), labels=[], demand=[], stockRem=[], upper=[], lower=[], rop=ropCalc(p).rop, ropArr=[];
+  let cum=0;
+  for(let k=0;k<12;k++){
+    const d=new Date(now.getFullYear(),now.getMonth()+k,1);
+    labels.push(d.toLocaleDateString('en-PH',{month:'short',year:'2-digit'}));
+    const dem=fcRate(p,k); demand.push(Math.round(dem)); cum+=dem;
+    const cumSd=sd*Math.sqrt(k+1), z=1.28;
+    stockRem.push(Math.round(s0-cum));
+    upper.push(Math.round(s0-(cum-z*cumSd)));
+    lower.push(Math.round(s0-(cum+z*cumSd)));
+    ropArr.push(rop);
+  }
+  let soM=stockRem.findIndex(v=>v<=0);
+  const totDem=Math.round(demand.reduce((a,v)=>a+v,0));
+  const cover=(p.velAdj||p.velocity)>0?Math.round(s0/((p.velAdj||p.velocity))*10)/10:null;
+  $('pj-metrics').innerHTML=
+    '<div class="met '+(soM>=0?'rd':'gr')+'"><div class="met-lbl">Projected stockout</div><div class="met-val" style="font-size:17px">'+(soM>=0?labels[soM]:'>12 mo')+'</div><div class="met-sub">on current stock</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Current stock</div><div class="met-val">'+s0.toLocaleString()+'</div><div class="met-sub">'+(cover!=null?cover+' months cover':'—')+'</div><div class="met-bar"></div></div>'+
+    '<div class="met pu"><div class="met-lbl">12-mo demand</div><div class="met-val">'+totDem.toLocaleString()+'</div><div class="met-sub">projected units</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Reorder point</div><div class="met-val">'+rop.toLocaleString()+'</div><div class="met-sub">buy-again level</div><div class="met-bar"></div></div>';
+  if(projInst){projInst.destroy();projInst=null;}
+  projInst=new Chart($('pj-canvas'),{data:{labels,datasets:[
+    {type:'line',label:'band-low',data:lower,borderWidth:0,pointRadius:0,fill:false,backgroundColor:'rgba(29,158,117,0.12)'},
+    {type:'line',label:'band-high',data:upper,borderWidth:0,pointRadius:0,fill:'-1',backgroundColor:'rgba(29,158,117,0.12)'},
+    {type:'line',label:'Projected stock',data:stockRem,borderColor:'#1D9E75',borderWidth:2,pointRadius:2,tension:.2,fill:false},
+    {type:'line',label:'Reorder point',data:ropArr,borderColor:'#D85A30',borderDash:[5,4],borderWidth:1.5,pointRadius:0,fill:false},
+    {type:'bar',label:'Monthly demand',data:demand,backgroundColor:'rgba(55,138,221,0.35)',yAxisID:'y1'}
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{intersect:false,mode:'index'},
+    scales:{y:{title:{display:true,text:'Units in stock'},grid:{color:'rgba(128,128,128,0.12)'}},y1:{position:'right',title:{display:true,text:'Demand/mo'},grid:{drawOnChartArea:false},beginAtZero:true}},
+    plugins:{legend:{labels:{boxWidth:10,font:{size:10},filter:i=>!/^band-/.test(i.text)}}}}});
+}
+
+/* ── SIMULATOR: CASH-FLOW / WORKING CAPITAL ── */
+function renderCashSim(){
+  $('content').innerHTML=
+    '<div style="font-size:12px;color:var(--tx3);margin-bottom:14px">Six-month projection of purchasing outflow, sales at list price, and inventory value on hand. Month 1 includes the current reorder need; later months replenish to demand. Lead & coverage from Reorder plan settings.</div>'+
+    '<div class="metrics" style="margin-bottom:14px" id="cf-metrics"></div>'+
+    '<div class="panel"><div class="phd">Purchasing vs sales vs inventory value</div><div class="cw" style="height:340px"><canvas id="cf-canvas"></canvas></div></div>';
+  updateCashSim();
+}
+function updateCashSim(){
+  if(!$('cf-metrics'))return;
+  const rr=reorderRows(PLAN.lead,PLAN.cover,PLAN.safety,1);
+  const restock=rr.reduce((a,r)=>a+r.cost,0);
+  let inv=DATA.reduce((a,p)=>{const s=stk(p);return a+(s>0&&p.price?s*p.price:0);},0);
+  const now=new Date(), labels=[], purch=[], sales=[], invLine=[];
+  for(let k=0;k<6;k++){
+    const d=new Date(now.getFullYear(),now.getMonth()+k,1);
+    labels.push(d.toLocaleDateString('en-PH',{month:'short',year:'2-digit'}));
+    let sv=0; for(const p of DATA){if(p.price>0)sv+=fcRate(p,k)*p.price;}
+    const po=k===0?restock:sv;
+    inv=inv-sv+po;
+    purch.push(Math.round(po)); sales.push(Math.round(sv)); invLine.push(Math.round(Math.max(0,inv)));
+  }
+  const totPurch=purch.reduce((a,v)=>a+v,0), totSales=sales.reduce((a,v)=>a+v,0), peak=Math.max(...invLine);
+  $('cf-metrics').innerHTML=
+    '<div class="met rd"><div class="met-lbl">6-mo purchasing</div><div class="met-val" style="font-size:17px">'+fmtK(totPurch)+'</div><div class="met-sub">cash out on stock</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">6-mo sales</div><div class="met-val" style="font-size:17px">'+fmtK(totSales)+'</div><div class="met-sub">revenue at list price</div><div class="met-bar"></div></div>'+
+    '<div class="met pu"><div class="met-lbl">Peak inventory value</div><div class="met-val" style="font-size:17px">'+fmtK(peak)+'</div><div class="met-sub">max cash tied up</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Month 1 restock</div><div class="met-val" style="font-size:17px">'+fmtK(restock)+'</div><div class="met-sub">current reorder need</div><div class="met-bar"></div></div>';
+  if(cashInst){cashInst.destroy();cashInst=null;}
+  cashInst=new Chart($('cf-canvas'),{data:{labels,datasets:[
+    {type:'bar',label:'Purchases',data:purch,backgroundColor:'rgba(216,90,48,0.55)'},
+    {type:'bar',label:'Sales',data:sales,backgroundColor:'rgba(55,138,221,0.45)'},
+    {type:'line',label:'Inventory value',data:invLine,borderColor:'#7F77DD',borderWidth:2,pointRadius:2,tension:.2,fill:false}
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{intersect:false,mode:'index'},
+    scales:{y:{ticks:{callback:v=>'₱'+Math.round(v/1000).toLocaleString()+'K'},grid:{color:'rgba(128,128,128,0.12)'}}},
+    plugins:{legend:{labels:{boxWidth:10,font:{size:10}}}}}});
+}
+
+/* ── SIMULATOR: BULK-BUY / MOQ TRADE-OFF ── */
+function renderBulkSim(){
+  const sl=(id,val,lbl,min,max,step,unit)=>'<div style="display:flex;flex-direction:column;gap:5px;min-width:150px;flex:1"><div style="display:flex;justify-content:space-between;font-size:11px;font-weight:500;color:var(--tx2)"><span>'+lbl+'</span><span id="'+id+'-lbl" style="font-weight:700;color:var(--ac)">'+val+unit+'</span></div><input type="range" id="'+id+'" min="'+min+'" max="'+max+'" step="'+step+'" value="'+val+'" style="width:100%" oninput="updateBulkSim()"></div>';
+  $('content').innerHTML=
+    '<div class="panel" style="margin-bottom:14px"><div style="display:flex;flex-wrap:wrap;gap:22px">'+
+    sl('bk-disc',SIMBULK.disc,'Bulk discount',0,30,1,'%')+
+    sl('bk-months',SIMBULK.months,'Months of supply',1,12,1,'mo')+
+    sl('bk-hold',SIMBULK.hold,'Holding cost /mo',0,5,0.5,'%')+
+    sl('bk-shelf',SIMBULK.shelf,'Assumed shelf life',3,36,1,'mo')+
+    '</div></div>'+
+    '<div class="metrics" style="margin-bottom:14px" id="bk-metrics"></div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>SKU</th><th>Product</th><th style="text-align:right">Fcst /mo</th><th style="text-align:right">Bulk qty</th><th style="text-align:right">Discount saved</th><th style="text-align:right">Holding cost</th><th style="text-align:right">Expiry risk</th><th style="text-align:right">Net benefit</th></tr></thead><tbody id="bk-tbody"></tbody></table></div><div class="tfooter"><span>Net = discount saved &minus; holding cost &minus; expiry write-off risk &middot; expiry risk = units that can’t sell within the shelf life &middot; positive net = worth bulk-buying</span></div></div>';
+  updateBulkSim();
+}
+function updateBulkSim(){
+  const el=$('bk-disc'); if(!el)return;
+  SIMBULK.disc=parseFloat(el.value)||0; SIMBULK.months=parseInt($('bk-months').value)||1;
+  SIMBULK.hold=parseFloat($('bk-hold').value)||0; SIMBULK.shelf=parseInt($('bk-shelf').value)||1;
+  $('bk-disc-lbl').textContent=SIMBULK.disc+'%'; $('bk-months-lbl').textContent=SIMBULK.months+'mo';
+  $('bk-hold-lbl').textContent=SIMBULK.hold+'%'; $('bk-shelf-lbl').textContent=SIMBULK.shelf+'mo';
+  const rows=[];
+  for(const p of DATA){
+    const monthly=(p.velAdj!=null?p.velAdj:(p.velocity||0));
+    if(monthly<=0||!(p.price>0))continue;
+    const bulkQty=Math.ceil(monthly*SIMBULK.months), bulkVal=bulkQty*p.price;
+    const discSaved=SIMBULK.disc/100*bulkVal;
+    const holding=SIMBULK.hold/100*p.price*(bulkQty/2)*SIMBULK.months;
+    const sellable=monthly*SIMBULK.shelf;
+    const expired=Math.max(0,bulkQty-sellable), expiryRisk=expired*p.price;
+    rows.push({p,monthly,bulkQty,discSaved,holding,expiryRisk,net:discSaved-holding-expiryRisk});
+  }
+  rows.sort((a,b)=>b.net-a.net);
+  const worth=rows.filter(r=>r.net>0), totNet=worth.reduce((a,r)=>a+r.net,0);
+  const totDisc=rows.reduce((a,r)=>a+r.discSaved,0), totExp=rows.reduce((a,r)=>a+r.expiryRisk,0);
+  $('bk-metrics').innerHTML=
+    '<div class="met gr"><div class="met-lbl">Worth bulk-buying</div><div class="met-val">'+worth.length+'</div><div class="met-sub">SKUs with positive net</div><div class="met-bar"></div></div>'+
+    '<div class="met pu"><div class="met-lbl">Net opportunity</div><div class="met-val" style="font-size:17px">'+fmtK(totNet)+'</div><div class="met-sub">total upside on those SKUs</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Discount captured</div><div class="met-val" style="font-size:17px">'+fmtK(totDisc)+'</div><div class="met-sub">across all SKUs</div><div class="met-bar"></div></div>'+
+    '<div class="met rd"><div class="met-lbl">Expiry risk</div><div class="met-val" style="font-size:17px">'+fmtK(totExp)+'</div><div class="met-sub">value that could expire</div><div class="met-bar"></div></div>';
+  $('bk-tbody').innerHTML=rows.length?rows.slice(0,300).map(r=>{
+    const p=r.p;
+    return '<tr onclick="openDrawer(\''+esc(p.sku)+'\')" style="cursor:pointer"><td class="mo">'+esc(p.sku)+'</td>'+
+    '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">'+esc(p.name)+'</td>'+
+    '<td class="r mu">'+r.monthly+'</td><td class="r">'+r.bulkQty.toLocaleString()+'</td>'+
+    '<td class="r" style="color:var(--gr)">'+fmtK(r.discSaved)+'</td><td class="r mu">'+fmtK(r.holding)+'</td>'+
+    '<td class="r" style="color:'+(r.expiryRisk>0?'var(--rd)':'var(--tx3)')+'">'+fmtK(r.expiryRisk)+'</td>'+
+    '<td class="r" style="font-weight:700;color:'+(r.net>=0?'var(--gr)':'var(--rd)')+'">'+(r.net<0?'−':'')+fmtK(Math.abs(r.net))+'</td></tr>';
+  }).join(''):'<tr><td colspan="8"><div class="empty">No SKUs with demand and price</div></td></tr>';
+}
+
+/* ── SIMULATOR: BRANCH REBALANCING ── */
+function renderBranchSim(){
+  $('content').innerHTML=
+    '<div class="panel" style="margin-bottom:14px"><div style="display:flex;flex-direction:column;gap:6px">'+
+    '<div style="display:flex;justify-content:space-between;font-size:11px;font-weight:500;color:var(--tx2)"><span>Minimum move to flag</span><span id="br-min-lbl" style="font-weight:700;color:var(--ac)">10 units</span></div>'+
+    '<input type="range" id="br-min" min="0" max="50" step="5" value="'+SIMBRANCH.minMove+'" style="width:100%" oninput="updateBranchSim()">'+
+    '<div style="font-size:10.5px;color:var(--tx3)">Target allocation assumes each clinic should hold a SKU in proportion to its overall transfer volume. Based on 2025+ transfer history as a demand proxy (live per-branch on-hand isn’t in the data feed). Expiry-driven moves are always shown.</div>'+
+    '</div></div>'+
+    '<div class="metrics" style="margin-bottom:14px" id="br-metrics"></div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>SKU</th><th>Product</th><th style="text-align:right">BGC</th><th style="text-align:right">Vertis</th><th style="text-align:right">GH Mall</th><th>Suggested move</th><th>Reason</th></tr></thead><tbody id="br-tbody"></tbody></table></div><div class="tfooter"><span>Move quantity balances a SKU toward each clinic’s demand-proportional share &middot; expiry-flagged rows have near-expiry stock at a clinic that a busier clinic could use first</span></div></div>';
+  updateBranchSim();
+}
+function updateBranchSim(){
+  const el=$('br-min'); if(!el)return;
+  SIMBRANCH.minMove=parseInt(el.value)||0;
+  const branches=['BGC','Vertis North','GH Mall'];
+  const total={}; let grand=0;
+  branches.forEach(b=>{total[b]=(BRANCH_TRANSFERS||[]).filter(t=>t.branch===b).reduce((a,t)=>a+t.qty,0);grand+=total[b];});
+  const weight={}; branches.forEach(b=>weight[b]=grand>0?total[b]/grand:1/3);
+  const bySku={};
+  (BRANCH_TRANSFERS||[]).forEach(t=>{if(!bySku[t.sku])bySku[t.sku]={name:t.name,line:t.line,b:{'BGC':0,'Vertis North':0,'GH Mall':0}};bySku[t.sku].b[t.branch]=(bySku[t.sku].b[t.branch]||0)+t.qty;});
+  const urgent={}; branches.forEach(b=>{(BRANCH_EXPIRY[b]||[]).forEach(i=>{const pm=i.expiry&&i.expiry.match(/^(\d{1,2})\/(\d{4})$/);if(pm&&(new Date(+pm[2],+pm[1]-1,1)-new Date())/864e5<=92)urgent[i.sku+'|'+b]=true;});});
+  const rows=[];
+  for(const sku in bySku){
+    const o=bySku[sku], tot=branches.reduce((a,b)=>a+o.b[b],0); if(tot<=0)continue;
+    const surplus={}; branches.forEach(b=>surplus[b]=o.b[b]-tot*weight[b]);
+    let from=branches[0],to=branches[0];
+    branches.forEach(b=>{if(surplus[b]>surplus[from])from=b;if(surplus[b]<surplus[to])to=b;});
+    const move=Math.max(0,Math.round(Math.min(surplus[from],-surplus[to])));
+    const exp=branches.filter(b=>urgent[sku+'|'+b]);
+    if(move>=SIMBRANCH.minMove||exp.length)rows.push({sku,name:o.name,b:o.b,from,to,move,exp:exp.length>0});
+  }
+  rows.sort((a,b)=>((b.exp?1:0)-(a.exp?1:0))||(b.move-a.move));
+  const totMove=rows.reduce((a,r)=>a+r.move,0), expDriven=rows.filter(r=>r.exp).length;
+  $('br-metrics').innerHTML=
+    '<div class="met bl"><div class="met-lbl">SKUs to rebalance</div><div class="met-val">'+rows.length+'</div><div class="met-sub">across 3 clinics</div><div class="met-bar"></div></div>'+
+    '<div class="met pu"><div class="met-lbl">Units to move</div><div class="met-val">'+totMove.toLocaleString()+'</div><div class="met-sub">suggested transfers</div><div class="met-bar"></div></div>'+
+    '<div class="met rd"><div class="met-lbl">Expiry-driven</div><div class="met-val">'+expDriven+'</div><div class="met-sub">near-expiry at a clinic</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Branch split</div><div class="met-val" style="font-size:15px">'+branches.map(b=>Math.round(weight[b]*100)+'%').join(' / ')+'</div><div class="met-sub">BGC / Vertis / GH share</div><div class="met-bar"></div></div>';
+  $('br-tbody').innerHTML=rows.length?rows.slice(0,300).map(r=>{
+    const fromShort=r.from==='Vertis North'?'Vertis':r.from==='GH Mall'?'GH':r.from;
+    const toShort=r.to==='Vertis North'?'Vertis':r.to==='GH Mall'?'GH':r.to;
+    const moveTxt=r.move>0?('<span class="pill pbl">'+fromShort+' → '+toShort+' '+r.move+'</span>'):'<span class="pill pgy">balanced</span>';
+    return '<tr><td class="mo">'+esc(r.sku)+'</td>'+
+    '<td style="max-width:190px;overflow:hidden;text-overflow:ellipsis">'+esc(r.name)+'</td>'+
+    '<td class="r">'+r.b['BGC'].toLocaleString()+'</td><td class="r">'+r.b['Vertis North'].toLocaleString()+'</td><td class="r">'+r.b['GH Mall'].toLocaleString()+'</td>'+
+    '<td>'+moveTxt+'</td>'+
+    '<td>'+(r.exp?'<span class="pill prd">Expiry</span>':'<span class="pill pgy">Rebalance</span>')+'</td></tr>';
+  }).join(''):'<tr><td colspan="7"><div class="empty">No branch transfer data, or nothing to rebalance at this threshold</div></td></tr>';
 }
 
 function exportCSV(){
