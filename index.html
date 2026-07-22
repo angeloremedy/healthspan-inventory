@@ -274,6 +274,12 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
     <div class="ni" onclick="showView('neg',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg>Negative stock<span class="nbadge" id="b-neg">0</span></div>
     <div class="ni" onclick="showView('expiry',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Expiry tracker<span class="nbadge w" id="b-exp">0</span></div>
     <div class="ni" onclick="showView('reorder',this)"><svg viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>Reorder alerts<span class="nbadge" id="b-reorder">0</span></div>
+    <div class="nlbl">Planning</div>
+    <div class="ni" onclick="showView('forecast',this)"><svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>Stockout forecast<span class="nbadge" id="b-so30">0</span></div>
+    <div class="ni" onclick="showView('reorderplan',this)"><svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1" fill="currentColor"/><circle cx="20" cy="21" r="1" fill="currentColor"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>Reorder plan</div>
+    <div class="ni" onclick="showView('abc',this)"><svg viewBox="0 0 24 24"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>ABC analysis</div>
+    <div class="ni" onclick="showView('writeoff',this)"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r="1" fill="currentColor"/></svg>Write-off forecast<span class="nbadge" id="b-wo">0</span></div>
+    <div class="ni" onclick="showView('whatif',this)"><svg viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>What-if simulator</div>
     <div class="nlbl">Analytics</div>
     <div class="ni" onclick="showView('movement',this)"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Monthly movement</div>
     <div class="ni" onclick="showView('value',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Inventory value</div>
@@ -323,6 +329,9 @@ let CASH_EXPIRING = {};
 let EXPIRING_ITEMS = [];
 let BRANCH_TRANSFERS = [];
 let BRANCH_EXPIRY = {};
+let COLLISIONS = [];
+let PLAN = (()=>{try{return Object.assign({lead:30,cover:3,safety:14},JSON.parse(localStorage.getItem('hs_plan')||'{}'));}catch(e){return {lead:30,cover:3,safety:14};}})();
+let WHATIF = {mult:1, delay:0};
 let sortCol='stock', sortDir=-1;
 let currentView='dashboard';
 let fLine='',fCat='',fSearch='',fTab='all',fBin='';
@@ -373,6 +382,13 @@ function isReorderAlert(p){
   return t && typeof t==='number' && stk(p)!==null && stk(p)<t;
 }
 
+function mobileNav(v,el){
+  document.querySelectorAll('.mni').forEach(x=>x.classList.remove('active'));
+  if(el) el.classList.add('active');
+  const mt=$('mptitle');
+  showView(v,null);
+  if(mt) mt.textContent=$('ptitle').textContent;
+}
 function updateMobileSync(state,label){
   const b=document.getElementById('mobileSyncBtn'),l=document.getElementById('mslbl');
   if(b) b.className='mobile-sync'+(state?' '+state:'');
@@ -384,6 +400,9 @@ function updateMobileBadges(){
   const exp=BATCHES.filter(b=>{if(!b.expiry)return false;const d=expDaysLeft(b.expiry);return d!==null&&d<=92&&b.soh>0;}).length;
   const set=(id,v)=>{const el=document.getElementById(id);if(el){el.textContent=v;el.style.display=v>0?'':'none';}};
   set('mb-oos',oos);set('mb-low',low);set('mb-exp',exp);
+  const so30=DATA.filter(p=>p.daysToStockout!=null&&p.daysToStockout>0&&p.daysToStockout<=30&&(p.velAdj||0)>0).length;
+  const wo=(COLLISIONS||[]).filter(c=>c.projExpired>0).length;
+  set('mb-so30',so30);set('mb-wo',wo);
 }
 
 function refreshSidebar(){
@@ -403,6 +422,10 @@ function refreshSidebar(){
   $('b-neg').textContent=neg;
   $('b-exp').textContent=expAlerts;
   $('b-reorder').textContent=reorderCount;
+  const so30=DATA.filter(p=>p.daysToStockout!=null&&p.daysToStockout>0&&p.daysToStockout<=30&&(p.velAdj||0)>0).length;
+  const woCnt=(COLLISIONS||[]).filter(c=>c.projExpired>0).length;
+  if($('b-so30'))$('b-so30').textContent=so30;
+  if($('b-wo'))$('b-wo').textContent=woCnt;
   const lines=[...new Set(DATA.map(p=>p.line).filter(Boolean))].sort();
   $('lnav').innerHTML=lines.map(l=>{
     const n=DATA.filter(p=>p.line===l).length;
@@ -424,6 +447,7 @@ function applySync(data){
   EXPIRING_ITEMS=data.expiringItems||[];
   BRANCH_TRANSFERS=data.branchTransfers||[];
   BRANCH_EXPIRY=data.branchExpirySummary||{};
+  COLLISIONS=data.collisions||[];
   $('psub').textContent='Healthspan Global, Inc. \u00b7 '+DATA.length+' SKUs \u00b7 '+BATCHES.length+' batches';
   updateMobileBadges();
   refreshSidebar();
@@ -437,6 +461,11 @@ function applySync(data){
   else if(currentView==='cashexpiry') renderCashExpiry();
   else if(currentView==='branchtransfer') renderBranchTransfer();
   else if(currentView==='branchexpiry') renderBranchExpiry();
+  else if(currentView==='forecast') renderForecast();
+  else if(currentView==='reorderplan') renderReorderPlan();
+  else if(currentView==='abc') renderABC();
+  else if(currentView==='writeoff') renderWriteoff();
+  else if(currentView==='whatif') renderWhatIf();
   else renderTable();
 }
 
@@ -461,7 +490,7 @@ async function syncNow(){
   setProgress(50,'Loading cached inventory data...',3);
   // Load cached data from localStorage immediately
   try {
-    const cached = localStorage.getItem('hs_inv_cache');
+    const cached = localStorage.getItem('hs_inv_cache_v2');
     if (cached) {
       const c = JSON.parse(cached);
       applySync(c);
@@ -487,7 +516,7 @@ async function syncNow(){
     if(!data.products||data.products.length<5) throw new Error('Too few products returned');
     setProgress(100,'Sync complete!',6);
     // Save to localStorage for instant load next time
-    try { localStorage.setItem('hs_inv_cache', JSON.stringify(data)); } catch(e) {}
+    try { localStorage.setItem('hs_inv_cache_v2', JSON.stringify(data)); } catch(e) {}
     applySync(data);
     const ts=new Date(data.synced).toLocaleString('en-PH',{timeZone:'Asia/Manila',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
     $('sf-foot').innerHTML='<span style="color:var(--gr);font-weight:600">Live</span> &middot; Synced '+ts;
@@ -513,7 +542,8 @@ function showView(v,el){
   document.querySelectorAll('.ni').forEach(x=>x.classList.remove('active'));
   if(el) el.classList.add('active');
   const T={dashboard:'Dashboard',all:'All SKUs',oos:'Out of stock',low:'Low stock',neg:'Negative stock',
-           expiry:'Expiry tracker',value:'Inventory value',movement:'Monthly movement',reorder:'Reorder alerts',batches:'Batch view'};
+           expiry:'Expiry tracker',value:'Inventory value',movement:'Monthly movement',reorder:'Reorder alerts',batches:'Batch view',
+           forecast:'Stockout forecast',reorderplan:'Reorder plan',abc:'ABC analysis',writeoff:'Write-off forecast',whatif:'What-if simulator'};
   $('ptitle').textContent=T[v]||v;
   if(v==='dashboard') renderDashboard();
   else if(v==='expiry') renderExpiry();
@@ -525,6 +555,11 @@ function showView(v,el){
   else if(v==='cashexpiry') renderCashExpiry();
   else if(v==='branchtransfer') renderBranchTransfer();
   else if(v==='branchexpiry') renderBranchExpiry();
+  else if(v==='forecast') renderForecast();
+  else if(v==='reorderplan') renderReorderPlan();
+  else if(v==='abc') renderABC();
+  else if(v==='writeoff') renderWriteoff();
+  else if(v==='whatif') renderWhatIf();
   else renderTable(v);
 }
 function fltLine(line,el){
@@ -552,21 +587,32 @@ function renderDashboard(){
   DATA.forEach(p=>{const c=p.category||'Other';const s=stk(p)||0;byC[c]=(byC[c]||0)+Math.max(0,s);});
   const cE=Object.entries(byC).sort((a,b)=>b[1]-a[1]);
 
+  const so30=DATA.filter(p=>p.daysToStockout!=null&&p.daysToStockout>0&&p.daysToStockout<=30&&(p.velAdj||0)>0)
+    .sort((a,b)=>a.daysToStockout-b.daysToStockout);
+
   $('content').innerHTML=
     '<div class="metrics">'+
     '<div class="met pu"><div class="met-lbl">Total SKUs</div><div class="met-val">'+DATA.length+'</div><div class="met-sub">all product lines</div><div class="met-bar"></div></div>'+
     '<div class="met bl"><div class="met-lbl">Units in stock</div><div class="met-val">'+tot.toLocaleString()+'</div><div class="met-sub">positive stock</div><div class="met-bar"></div></div>'+
     '<div class="met rd"><div class="met-lbl">Out of stock</div><div class="met-val">'+oos.length+'</div><div class="met-sub">'+Math.round(oos.length/DATA.length*100)+'% of SKUs</div><div class="met-bar"></div></div>'+
-    '<div class="met am"><div class="met-lbl">Low stock</div><div class="met-val">'+low.length+'</div><div class="met-sub">1&ndash;9 units</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Stockout &le;30d</div><div class="met-val">'+so30.length+'</div><div class="met-sub">forecast to run out</div><div class="met-bar"></div></div>'+
     '<div class="met rd"><div class="met-lbl">Expiring soon</div><div class="met-val">'+expAlerts.length+'</div><div class="met-sub">batches &le;3 months</div><div class="met-bar"></div></div>'+
     '<div class="met gr"><div class="met-lbl">Inventory value</div><div class="met-val" style="font-size:17px">&#8369;'+Math.round(val/1000).toLocaleString()+'K</div><div class="met-sub">VAT-exclusive</div><div class="met-bar"></div></div>'+
     '</div>'+
     '<div class="g2">'+
+    '<div class="panel"><div class="phd"><svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>Running out within 30 days</div><div class="alist" id="solist"></div></div>'+
     '<div class="panel"><div class="phd"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Stock by product line</div><div class="hbars" id="hbars"></div></div>'+
     '<div class="panel"><div class="phd"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>Category split</div><div class="cw" style="height:140px"><canvas id="cc" role="img" aria-label="Category donut">Category breakdown</canvas></div><div id="cat-legend" style="display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:8px"></div></div>'+
     '<div class="panel"><div class="phd"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg>Out of stock &mdash; commercial</div><div class="alist" id="ooslist"></div></div>'+
     '<div class="panel"><div class="phd"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>Expiring within 3 months</div><div class="alist" id="explist"></div></div>'+
     '</div>';
+
+  $('solist').innerHTML=so30.length?so30.slice(0,7).map(p=>{
+    const d=new Date(p.stockoutDate).toLocaleDateString('en-PH',{month:'short',day:'numeric'});
+    const tArrow=p.trendFlag==='up'?' <span style="color:var(--rd);font-size:9px">\u25b2</span>':'';
+    return '<div class="arow" onclick="openDrawer(\''+esc(p.sku)+'\')"><div class="adot '+(p.daysToStockout<=14?'rd':'am')+'"></div><div class="aname">'+esc(p.name)+tArrow+'</div><div class="ameta">'+p.daysToStockout+'d &middot; '+d+'</div></div>';
+  }).join('')+(so30.length>7?'<div class="arow" onclick="showView(\'forecast\',null)" style="justify-content:center;color:var(--ac);font-size:11px">View all '+so30.length+' &rarr;</div>':'')
+  :'<div class="empty">Nothing forecast to run out within 30 days</div>';
 
   $('hbars').innerHTML=lE.map(([l,v],i)=>
     '<div class="hbrow"><div class="hblbl" title="'+esc(l)+'" onclick="fltLine(\''+l.replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\',null)">'+esc(l)+'</div>'+
@@ -1037,6 +1083,317 @@ function renderBranchExpiry(){
 }
 
 /* ── EXPORT ── */
+/* ── FORECAST HELPERS (shared by planning views) ── */
+function fcRate(p,k){
+  const f=p.fcM;
+  if(!f||!f.length) return p.velAdj!=null?p.velAdj:(p.velocity||0);
+  return k<f.length?f[k]:f[f.length-1];
+}
+function unitsOverDays(p,days,mult){
+  // Integrate the monthly forecast curve over the next `days` days
+  let rem=days,total=0,d=new Date(),k=0;
+  while(rem>0&&k<24){
+    const y=d.getFullYear(),m=d.getMonth();
+    const dim=new Date(y,m+1,0).getDate();
+    const avail=k===0?dim-d.getDate()+1:dim;
+    const take=Math.min(avail,rem);
+    total+=fcRate(p,k)/dim*take;
+    rem-=take;d=new Date(y,m+1,1);k++;
+  }
+  return total*(mult||1);
+}
+function simDaysToStockout(p,mult){
+  const s=stk(p);
+  if(s===null)return null;
+  if(s<=0)return 0;
+  let rem=s,days=0,d=new Date();
+  for(let k=0;k<18;k++){
+    const y=d.getFullYear(),m=d.getMonth();
+    const dim=new Date(y,m+1,0).getDate();
+    const daily=fcRate(p,k)*(mult||1)/dim;
+    const dRem=k===0?dim-d.getDate()+1:dim;
+    if(daily>0&&rem<=daily*dRem){return days+Math.ceil(rem/daily);}
+    rem-=daily*dRem;days+=dRem;d=new Date(y,m+1,1);
+  }
+  return null;
+}
+function trendBadge(p){
+  if(p.trendFlag==='up')return '<span class="pill prd" title="Last 3mo vs prior 3mo">\u25b2 +'+Math.round((p.trend-1)*100)+'%</span>';
+  if(p.trendFlag==='down')return '<span class="pill pbl" title="Last 3mo vs prior 3mo">\u25bc '+Math.round((p.trend-1)*100)+'%</span>';
+  return '<span class="pill pgy">flat</span>';
+}
+function soPill(d){
+  if(d===null)return '<span class="pill pgr">&gt;12 mo</span>';
+  if(d===0)return '<span class="pill prd">Out now</span>';
+  if(d<=30)return '<span class="pill prd">'+d+'d</span>';
+  if(d<=60)return '<span class="pill pam">'+d+'d</span>';
+  return '<span class="pill pgr">'+d+'d</span>';
+}
+function soDateFmt(iso){
+  if(!iso)return '&mdash;';
+  return new Date(iso).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'});
+}
+function reorderRows(lead,cover,safety,mult){
+  // Suggested PO per SKU: demand over lead time + coverage window + safety buffer, minus stock on hand
+  mult=mult||1;
+  const horizon=lead+cover*30.44+safety;
+  const out=[];
+  for(const p of DATA){
+    const s=stk(p);
+    if(s===null)continue;
+    if((p.velAdj||0)<=0&&(p.velocity||0)<=0)continue;
+    const need=unitsOverDays(p,horizon,mult);
+    const qty=Math.max(0,Math.ceil(need-Math.max(0,s)));
+    if(qty<=0)continue;
+    const dLead=unitsOverDays(p,lead,mult);
+    const runsOutInLead=s<=dLead;
+    out.push({p,qty,cost:qty*(p.price||0),runsOutInLead,dLead:Math.round(dLead)});
+  }
+  out.sort((a,b)=>(a.p.daysToStockout??9999)-(b.p.daysToStockout??9999)||b.cost-a.cost);
+  return out;
+}
+
+/* ── STOCKOUT FORECAST ── */
+function renderForecast(){
+  const f=window._fcFilter||'all';
+  const cands=DATA.filter(p=>((p.velAdj||0)>0||(p.velocity||0)>0)&&stk(p)!==null);
+  const so30=cands.filter(p=>p.daysToStockout!=null&&p.daysToStockout>0&&p.daysToStockout<=30);
+  const so60=cands.filter(p=>p.daysToStockout!=null&&p.daysToStockout>30&&p.daysToStockout<=60);
+  const acc=cands.filter(p=>p.trendFlag==='up');
+  const dec=cands.filter(p=>p.trendFlag==='down');
+  const seasonalN=cands.filter(p=>p.seasonal).length;
+  let rows=cands.slice();
+  if(f==='so30')rows=so30;
+  else if(f==='so60')rows=so60;
+  else if(f==='up')rows=acc;
+  else if(f==='down')rows=dec;
+  rows.sort((a,b)=>(a.daysToStockout??9999)-(b.daysToStockout??9999));
+  const tabs=[['all','All ('+cands.length+')'],['so30','\u226430 days ('+so30.length+')'],['so60','31\u201360 days ('+so60.length+')'],['up','Accelerating ('+acc.length+')'],['down','Decelerating ('+dec.length+')']];
+  $('content').innerHTML=
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met rd"><div class="met-lbl">Stockout &le;30 days</div><div class="met-val">'+so30.length+'</div><div class="met-sub">order now</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Stockout 31&ndash;60 days</div><div class="met-val">'+so60.length+'</div><div class="met-sub">order soon</div><div class="met-bar"></div></div>'+
+    '<div class="met rd"><div class="met-lbl">Accelerating</div><div class="met-val">'+acc.length+'</div><div class="met-sub">demand up &ge;15% (3mo vs prior 3mo)</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Decelerating</div><div class="met-val">'+dec.length+'</div><div class="met-sub">demand down &ge;15%</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Seasonality applied</div><div class="met-val">'+seasonalN+'</div><div class="met-sub">SKUs with month-of-year weighting</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="tabs" style="margin-bottom:12px">'+tabs.map(([k,l])=>'<div class="tab'+(f===k?' active':'')+'" onclick="window._fcFilter=\''+k+'\';renderForecast()">'+l+'</div>').join('')+'</div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr>'+
+    '<th>SKU</th><th>Product</th><th style="text-align:right">Stock</th><th style="text-align:right">Fcst /mo</th><th>Trend</th><th>Stockout in</th><th>Projected date</th><th>Basis</th></tr></thead><tbody>'+
+    (rows.length?rows.slice(0,250).map(p=>{
+      const s=stk(p);
+      return '<tr onclick="openDrawer(\''+esc(p.sku)+'\')" style="cursor:pointer"><td class="mo">'+esc(p.sku)+'</td>'+
+      '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">'+esc(p.name)+'</td>'+
+      '<td class="r stk">'+(s??'&mdash;')+'</td>'+
+      '<td class="r">'+(p.velAdj!=null?p.velAdj:(p.velocity||0))+'</td>'+
+      '<td>'+trendBadge(p)+'</td>'+
+      '<td>'+soPill(p.daysToStockout)+'</td>'+
+      '<td style="font-size:11px">'+soDateFmt(p.stockoutDate)+'</td>'+
+      '<td style="font-size:10px;color:var(--tx3)">'+(p.seasonal?'seasonal + trend':'trend only')+'</td></tr>';
+    }).join(''):'<tr><td colspan="8"><div class="empty">No SKUs match this filter</div></td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>Forecast = deseasonalized 6-mo base &times; month-of-year index &times; trend growth &middot; stockout simulated month by month</span></div></div>';
+}
+
+/* ── REORDER PLAN + BUDGET ── */
+function renderReorderPlan(){
+  const rows=reorderRows(PLAN.lead,PLAN.cover,PLAN.safety,1);
+  const totCost=rows.reduce((a,r)=>a+r.cost,0);
+  const totUnits=rows.reduce((a,r)=>a+r.qty,0);
+  const urgent=rows.filter(r=>r.runsOutInLead);
+  const aCost=rows.filter(r=>r.p.abc==='A').reduce((a,r)=>a+r.cost,0);
+  // Budget forecast: purchases needed to cover next-quarter demand
+  let q90=0;
+  for(const p of DATA){
+    const s=stk(p);
+    if(s===null||!(p.price>0))continue;
+    if((p.velAdj||0)<=0&&(p.velocity||0)<=0)continue;
+    q90+=Math.max(0,unitsOverDays(p,90+PLAN.safety,1)-Math.max(0,s))*p.price;
+  }
+  const inp=(id,val,lbl,min,max,step,unit)=>'<div style="display:flex;flex-direction:column;gap:3px"><label style="font-size:10px;color:var(--tx3);font-weight:500">'+lbl+'</label><div style="display:flex;align-items:center;gap:6px"><input type="number" id="'+id+'" value="'+val+'" min="'+min+'" max="'+max+'" step="'+step+'" style="width:70px;padding:5px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--sf);color:var(--tx1);font-size:12px" onchange="updatePlan()"><span style="font-size:10.5px;color:var(--tx3)">'+unit+'</span></div></div>';
+  $('content').innerHTML=
+    '<div class="panel" style="margin-bottom:14px"><div style="display:flex;flex-wrap:wrap;gap:18px;align-items:flex-end">'+
+    inp('pl-lead',PLAN.lead,'Supplier lead time',7,180,1,'days')+
+    inp('pl-cover',PLAN.cover,'Coverage target',1,12,0.5,'months')+
+    inp('pl-safety',PLAN.safety,'Safety stock',0,60,1,'days of demand')+
+    '<button class="btn" onclick="exportReorderCSV()" style="margin-left:auto"><svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export PO draft (CSV)</button>'+
+    '</div></div>'+
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met bl"><div class="met-lbl">SKUs to order</div><div class="met-val">'+rows.length+'</div><div class="met-sub">'+urgent.length+' run out within lead time</div><div class="met-bar"></div></div>'+
+    '<div class="met pu"><div class="met-lbl">Total units</div><div class="met-val">'+totUnits.toLocaleString()+'</div><div class="met-sub">suggested draft quantities</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Draft PO value</div><div class="met-val" style="font-size:17px">'+fmtK(totCost)+'</div><div class="met-sub">'+fmtK(aCost)+' on A-items</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Next-quarter budget</div><div class="met-val" style="font-size:17px">'+fmtK(q90)+'</div><div class="met-sub">projected purchasing spend, 90 days</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr>'+
+    '<th>SKU</th><th>Product</th><th>ABC</th><th style="text-align:right">Stock</th><th style="text-align:right">Fcst /mo</th><th>Stockout in</th><th style="text-align:right">Order qty</th><th style="text-align:right">Unit price</th><th style="text-align:right">Est. cost</th></tr></thead><tbody>'+
+    (rows.length?rows.slice(0,250).map(r=>{
+      const p=r.p;
+      const abcC=p.abc==='A'?'prd':p.abc==='B'?'pam':'pgy';
+      return '<tr'+(r.runsOutInLead?' style="background:var(--rd-bg)"':'')+'><td class="mo">'+esc(p.sku)+'</td>'+
+      '<td style="max-width:190px;overflow:hidden;text-overflow:ellipsis">'+esc(p.name)+'</td>'+
+      '<td><span class="pill '+abcC+'">'+(p.abc||'&mdash;')+'</span></td>'+
+      '<td class="r stk">'+(stk(p)??'&mdash;')+'</td>'+
+      '<td class="r">'+(p.velAdj!=null?p.velAdj:(p.velocity||0))+'</td>'+
+      '<td>'+soPill(p.daysToStockout)+'</td>'+
+      '<td class="r" style="font-weight:700;color:var(--ac)">'+r.qty.toLocaleString()+'</td>'+
+      '<td class="r mu" style="font-size:11px">'+fmtP(p.price)+'</td>'+
+      '<td class="r" style="font-weight:600">'+fmtP(r.cost)+'</td></tr>';
+    }).join(''):'<tr><td colspan="9"><div class="empty">Nothing needs reordering under these settings</div></td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>Order qty = forecast demand over lead time + '+PLAN.cover+' months coverage + '+PLAN.safety+'d safety, minus stock on hand &middot; highlighted rows run out before the shipment arrives</span></div></div>';
+}
+function updatePlan(){
+  PLAN.lead=Math.max(1,parseInt($('pl-lead').value)||30);
+  PLAN.cover=Math.max(0.5,parseFloat($('pl-cover').value)||3);
+  PLAN.safety=Math.max(0,parseInt($('pl-safety').value)||0);
+  try{localStorage.setItem('hs_plan',JSON.stringify(PLAN));}catch(e){}
+  renderReorderPlan();
+}
+function exportReorderCSV(){
+  const rows=reorderRows(PLAN.lead,PLAN.cover,PLAN.safety,1);
+  const h=['SKU','Product','Line','ABC','Stock on hand','Forecast units/mo','Days to stockout','Projected stockout date','Suggested order qty','Unit price (PHP)','Est cost (PHP)','Runs out within lead time'];
+  const csv=rows.map(r=>{const p=r.p;return[p.sku,p.name,p.line,p.abc||'',stk(p)??'',p.velAdj!=null?p.velAdj:(p.velocity||0),p.daysToStockout??'>365',p.stockoutDate||'',r.qty,p.price??'',Math.round(r.cost),r.runsOutInLead?'YES':''].map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',');});
+  const meta='"Healthspan Global Inc. - Draft reorder plan","Generated '+new Date().toLocaleString('en-PH',{timeZone:'Asia/Manila'})+'","Lead time: '+PLAN.lead+'d","Coverage: '+PLAN.cover+'mo","Safety: '+PLAN.safety+'d"';
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent([meta,h.join(','),...csv].join('\n'));
+  a.download='healthspan_reorder_plan_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+}
+
+/* ── ABC ANALYSIS ── */
+function renderABC(){
+  const ranked=DATA.filter(p=>p.abc).slice().sort((a,b)=>(b.abcShare||0)-(a.abcShare||0));
+  const cls=c=>ranked.filter(p=>p.abc===c);
+  const A=cls('A'),B=cls('B'),C=cls('C');
+  const shr=arr=>arr.reduce((a,p)=>a+(p.abcShare||0),0);
+  let cum=0;
+  $('content').innerHTML=
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met rd"><div class="met-lbl">A-items</div><div class="met-val">'+A.length+'</div><div class="met-sub">'+Math.round(shr(A))+'% of movement value &middot; count weekly, prime bins</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">B-items</div><div class="met-val">'+B.length+'</div><div class="met-sub">'+Math.round(shr(B))+'% of movement value &middot; count monthly</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">C-items</div><div class="met-val">'+C.length+'</div><div class="met-sub">'+Math.round(shr(C))+'% of movement value &middot; count quarterly</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr>'+
+    '<th>#</th><th>Class</th><th>SKU</th><th>Product</th><th>Line</th><th>Bin</th><th style="text-align:right">Fcst /mo</th><th style="text-align:right">Unit price</th><th style="text-align:right">Share</th><th style="text-align:right">Cumulative</th></tr></thead><tbody>'+
+    ranked.slice(0,250).map((p,i)=>{
+      cum+=p.abcShare||0;
+      const abcC=p.abc==='A'?'prd':p.abc==='B'?'pam':'pgy';
+      return '<tr onclick="openDrawer(\''+esc(p.sku)+'\')" style="cursor:pointer"><td class="mu">'+(i+1)+'</td>'+
+      '<td><span class="pill '+abcC+'">'+p.abc+'</span></td>'+
+      '<td class="mo">'+esc(p.sku)+'</td>'+
+      '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">'+esc(p.name)+'</td>'+
+      '<td class="mu">'+esc(p.line||'')+'</td>'+
+      '<td class="mo mu">'+esc(p.bin||'&mdash;')+'</td>'+
+      '<td class="r">'+(p.velAdj!=null?p.velAdj:(p.velocity||0))+'</td>'+
+      '<td class="r mu" style="font-size:11px">'+fmtP(p.price)+'</td>'+
+      '<td class="r">'+(p.abcShare||0).toFixed(1)+'%</td>'+
+      '<td class="r mu">'+Math.min(100,cum).toFixed(1)+'%</td></tr>';
+    }).join('')+
+    '</tbody></table></div><div class="tfooter"><span>Pareto classification by 6-month consumption value (units moved &times; unit price) &middot; A &le;80% cumulative, B &le;95%, C remainder</span></div></div>';
+}
+
+/* ── WRITE-OFF FORECAST (expiry vs demand collision) ── */
+function collisionRows(mult){
+  mult=mult||1;
+  return (COLLISIONS||[]).map(c=>{
+    const sellable=Math.max(0,c.daily*mult*c.daysToExpiry-c.stockAhead);
+    const projSold=Math.min(c.soh,sellable);
+    const projExpired=Math.round(c.soh-projSold);
+    return Object.assign({},c,{projExpired,writeOff:Math.round(projExpired*(c.price||0))});
+  }).filter(c=>c.projExpired>0).sort((a,b)=>b.writeOff-a.writeOff||b.projExpired-a.projExpired);
+}
+function renderWriteoff(){
+  const rows=collisionRows(1);
+  const totVal=rows.reduce((a,c)=>a+c.writeOff,0);
+  const totUnits=rows.reduce((a,c)=>a+c.projExpired,0);
+  const in90=rows.filter(c=>c.daysToExpiry<=92);
+  const in90Val=in90.reduce((a,c)=>a+c.writeOff,0);
+  const top=rows.find(c=>c.writeOff>0);
+  const headline=top?('At current pace, <b>'+top.projExpired.toLocaleString()+' units</b> of '+esc(top.name)+' (batch '+esc(top.batch||'?')+') will expire unsold &mdash; <b style="color:var(--rd)">'+fmtP(top.writeOff)+'</b> write-off risk. '+rows.length+' batches at risk in total.'):'No projected write-offs at current sales pace.';
+  $('content').innerHTML=
+    '<div class="panel" style="margin-bottom:14px;border-left:3px solid var(--rd)"><div style="font-size:12.5px;line-height:1.5;color:var(--tx2)">'+headline+'</div></div>'+
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met rd"><div class="met-lbl">Projected write-off</div><div class="met-val" style="font-size:17px">'+fmtK(totVal)+'</div><div class="met-sub">'+totUnits.toLocaleString()+' units across '+rows.length+' batches</div><div class="met-bar"></div></div>'+
+    '<div class="met rd"><div class="met-lbl">Within 3 months</div><div class="met-val" style="font-size:17px">'+fmtK(in90Val)+'</div><div class="met-sub">'+in90.length+' batches &mdash; act now</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Levers</div><div class="met-val" style="font-size:13px;line-height:1.4">Promo / transfer / return</div><div class="met-sub">push to branches or run clinic promos</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr>'+
+    '<th>Product</th><th>Batch</th><th>Expiry</th><th style="text-align:right">Days left</th><th style="text-align:right">SOH</th><th style="text-align:right">Pace /day</th><th style="text-align:right">Will sell</th><th style="text-align:right">Will expire</th><th style="text-align:right">Write-off</th></tr></thead><tbody>'+
+    (rows.length?rows.slice(0,150).map(c=>{
+      const sold=c.soh-c.projExpired;
+      const dc=c.daysToExpiry<=31?'color:var(--rd);font-weight:600':c.daysToExpiry<=92?'color:var(--am)':'';
+      return '<tr><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis"><span style="font-weight:500">'+esc(c.name)+'</span><div style="font-size:10px;color:var(--tx3);font-family:monospace">'+esc(c.sku)+'</div></td>'+
+      '<td class="mo mu">'+esc(c.batch||'&mdash;')+'</td>'+
+      '<td style="font-size:11px">'+esc(c.expiry)+'</td>'+
+      '<td class="r" style="'+dc+'">'+c.daysToExpiry+'</td>'+
+      '<td class="r stk">'+c.soh.toLocaleString()+'</td>'+
+      '<td class="r mu">'+c.daily+'</td>'+
+      '<td class="r" style="color:var(--gr)">'+Math.round(sold).toLocaleString()+'</td>'+
+      '<td class="r" style="font-weight:600;color:var(--rd)">'+c.projExpired.toLocaleString()+'</td>'+
+      '<td class="r" style="font-weight:700;color:var(--rd)">'+fmtP(c.writeOff)+'</td></tr>';
+    }).join(''):'<tr><td colspan="9"><div class="empty">Current velocity clears all batches before expiry</div></td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>FEFO assumed: demand consumes earliest-expiring batches first &middot; pace = seasonality/trend-adjusted daily velocity</span></div></div>';
+}
+
+/* ── WHAT-IF SIMULATOR ── */
+function renderWhatIf(){
+  $('content').innerHTML=
+    '<div class="panel" style="margin-bottom:14px">'+
+    '<div style="display:flex;flex-direction:column;gap:16px">'+
+    '<div><div style="display:flex;justify-content:space-between;font-size:11px;font-weight:500;color:var(--tx2);margin-bottom:5px"><span>Demand change</span><span id="wi-mult-lbl" style="font-weight:700;color:var(--ac)">+0%</span></div>'+
+    '<input type="range" id="wi-mult" min="-50" max="100" step="5" value="'+Math.round((WHATIF.mult-1)*100)+'" style="width:100%" oninput="updateWhatIf()"></div>'+
+    '<div><div style="display:flex;justify-content:space-between;font-size:11px;font-weight:500;color:var(--tx2);margin-bottom:5px"><span>Next shipment delayed by</span><span id="wi-delay-lbl" style="font-weight:700;color:var(--ac)">0 weeks</span></div>'+
+    '<input type="range" id="wi-delay" min="0" max="42" step="7" value="'+WHATIF.delay+'" style="width:100%" oninput="updateWhatIf()"></div>'+
+    '</div></div>'+
+    '<div class="metrics" style="margin-bottom:14px" id="wi-metrics"></div>'+
+    '<div class="g2">'+
+    '<div class="panel"><div class="phd"><svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>Stockouts before shipment arrives</div><div class="alist" id="wi-solist"></div></div>'+
+    '<div class="panel"><div class="phd"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>Biggest write-off changes</div><div class="alist" id="wi-wolist"></div></div>'+
+    '</div>';
+  updateWhatIf();
+}
+function updateWhatIf(){
+  const multEl=$('wi-mult'),delayEl=$('wi-delay');
+  if(!multEl)return;
+  const pct=parseInt(multEl.value)||0;
+  WHATIF.mult=1+pct/100;
+  WHATIF.delay=parseInt(delayEl.value)||0;
+  $('wi-mult-lbl').textContent=(pct>=0?'+':'')+pct+'%';
+  $('wi-delay-lbl').textContent=WHATIF.delay===0?'0 weeks':(WHATIF.delay/7)+' week'+(WHATIF.delay>7?'s':'');
+  const mult=WHATIF.mult;
+  const arrival=PLAN.lead+WHATIF.delay;
+  const cands=DATA.filter(p=>((p.velAdj||0)>0||(p.velocity||0)>0)&&stk(p)!==null);
+  const base30=cands.filter(p=>{const d=simDaysToStockout(p,1);return d!=null&&d<=30;}).length;
+  const scen=cands.map(p=>({p,d:simDaysToStockout(p,mult)}));
+  const scen30=scen.filter(x=>x.d!=null&&x.d<=30).length;
+  const gap=scen.filter(x=>x.d!=null&&x.d<=arrival&&stk(x.p)>0).sort((a,b)=>a.d-b.d);
+  const woBaseRows=collisionRows(1);
+  const woBase=woBaseRows.reduce((a,c)=>a+c.writeOff,0);
+  const woRows=collisionRows(mult);
+  const woScen=woRows.reduce((a,c)=>a+c.writeOff,0);
+  let bud=0;
+  for(const p of DATA){
+    const s=stk(p);
+    if(s===null||!(p.price>0))continue;
+    if((p.velAdj||0)<=0&&(p.velocity||0)<=0)continue;
+    bud+=Math.max(0,unitsOverDays(p,90+PLAN.safety,mult)-Math.max(0,s))*p.price;
+  }
+  const deltaN=(a,b)=>{const d=a-b;if(d===0)return '<span style="color:var(--tx3)">no change vs today</span>';return '<span style="color:'+(d>0?'var(--rd)':'var(--gr)')+'">'+(d>0?'+':'')+d.toLocaleString()+' vs today</span>';};
+  const deltaV=(a,b)=>{const d=a-b;if(Math.abs(d)<1000)return '<span style="color:var(--tx3)">no change vs today</span>';return '<span style="color:'+(d>0?'var(--rd)':'var(--gr)')+'">'+(d>0?'+':'\u2212')+fmtK(Math.abs(d))+' vs today</span>';};
+  $('wi-metrics').innerHTML=
+    '<div class="met rd"><div class="met-lbl">Stockouts &le;30d</div><div class="met-val">'+scen30+'</div><div class="met-sub">'+deltaN(scen30,base30)+'</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Gap before shipment</div><div class="met-val">'+gap.length+'</div><div class="met-sub">SKUs empty before day '+arrival+' arrival</div><div class="met-bar"></div></div>'+
+    '<div class="met rd"><div class="met-lbl">Projected write-off</div><div class="met-val" style="font-size:17px">'+fmtK(woScen)+'</div><div class="met-sub">'+deltaV(woScen,woBase)+'</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Quarter budget</div><div class="met-val" style="font-size:17px">'+fmtK(bud)+'</div><div class="met-sub">purchasing spend at this demand</div><div class="met-bar"></div></div>';
+  $('wi-solist').innerHTML=gap.length?gap.slice(0,8).map(x=>
+    '<div class="arow" onclick="openDrawer(\''+esc(x.p.sku)+'\')"><div class="adot rd"></div><div class="aname">'+esc(x.p.name)+'</div><div class="ameta">day '+x.d+'</div></div>'
+  ).join(''):'<div class="empty">No stockouts before shipment arrival</div>';
+  const woBaseMap={};
+  woBaseRows.forEach(c=>{woBaseMap[c.sku+'|'+c.batch]=c.writeOff;});
+  const changes=woRows.map(c=>({c,d:c.writeOff-(woBaseMap[c.sku+'|'+c.batch]||0)})).filter(x=>Math.abs(x.d)>1000).sort((a,b)=>Math.abs(b.d)-Math.abs(a.d));
+  $('wi-wolist').innerHTML=changes.length?changes.slice(0,8).map(x=>
+    '<div class="arow"><div class="adot '+(x.d>0?'rd':'gr')+'"></div><div class="aname">'+esc(x.c.name)+' <span style="color:var(--tx3);font-size:9px">'+esc(x.c.batch||'')+'</span></div><div class="ameta" style="color:'+(x.d>0?'var(--rd)':'var(--gr)')+'">'+(x.d>0?'+':'\u2212')+fmtK(Math.abs(x.d))+'</div></div>'
+  ).join(''):'<div class="empty">Write-off exposure unchanged in this scenario</div>';
+}
+
 function exportCSV(){
   const h=['SKU','Name','Line','Category','Bin','Batch','Expiry','Price','Velocity/mo','Months of stock','Received','Sold','Stock','Status'];
   const rows=DATA.map(p=>{const s=stk(p);return[p.sku,p.name,p.line,p.category,p.bin,p.batch,p.expiry,p.price??'',p.velocity??'',p.monthsOfStock??'',p.received,p.sold,s??'',statusOf(s).l].map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',');});
@@ -1059,6 +1416,28 @@ setTimeout(syncNow,300);
     <div class="mni active" id="mni-dashboard" onclick="mobileNav('dashboard',this)">
       <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
       Dashboard
+    </div>
+    <div class="mni" id="mni-forecast" onclick="mobileNav('forecast',this)">
+      <svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+      Forecast
+      <span class="mni-badge" id="mb-so30">0</span>
+    </div>
+    <div class="mni" id="mni-reorderplan" onclick="mobileNav('reorderplan',this)">
+      <svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1" fill="currentColor"/><circle cx="20" cy="21" r="1" fill="currentColor"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+      Reorder
+    </div>
+    <div class="mni" id="mni-writeoff" onclick="mobileNav('writeoff',this)">
+      <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r="1" fill="currentColor"/></svg>
+      Write-off
+      <span class="mni-badge" id="mb-wo">0</span>
+    </div>
+    <div class="mni" id="mni-abc" onclick="mobileNav('abc',this)">
+      <svg viewBox="0 0 24 24"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+      ABC
+    </div>
+    <div class="mni" id="mni-whatif" onclick="mobileNav('whatif',this)">
+      <svg viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+      What-if
     </div>
     <div class="mni" id="mni-all" onclick="mobileNav('all',this)">
       <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="1" fill="currentColor"/><circle cx="3" cy="12" r="1" fill="currentColor"/><circle cx="3" cy="18" r="1" fill="currentColor"/></svg>
