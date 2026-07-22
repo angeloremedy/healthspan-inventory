@@ -576,7 +576,7 @@ function showView(v,el){
   if(el) el.classList.add('active');
   const T={dashboard:'Dashboard',all:'All SKUs',oos:'Out of stock',low:'Low stock',neg:'Negative stock',
            expiry:'Expiry tracker',value:'Inventory value',movement:'Monthly movement',reorder:'Reorder alerts',batches:'Batch view',
-           forecast:'Stockout forecast',reorderplan:'Reorder plan',abc:'ABC analysis',writeoff:'Write-off forecast',whatif:'What-if simulator'};
+           forecast:'Stockout forecast',reorderplan:'Reorder plan',ropoint:'Reorder point',variability:'Demand variability',abc:'ABC analysis',writeoff:'Write-off forecast',whatif:'What-if simulator'};
   $('ptitle').textContent=T[v]||v;
   if(v==='dashboard') renderDashboard();
   else if(v==='expiry') renderExpiry();
@@ -590,6 +590,8 @@ function showView(v,el){
   else if(v==='branchexpiry') renderBranchExpiry();
   else if(v==='forecast') renderForecast();
   else if(v==='reorderplan') renderReorderPlan();
+  else if(v==='ropoint') renderReorderPoint();
+  else if(v==='variability') renderVariability();
   else if(v==='abc') renderABC();
   else if(v==='writeoff') renderWriteoff();
   else if(v==='whatif') renderWhatIf();
