@@ -277,6 +277,8 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
     <div class="nlbl">Planning</div>
     <div class="ni" onclick="showView('forecast',this)"><svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>Stockout forecast<span class="nbadge" id="b-so30">0</span></div>
     <div class="ni" onclick="showView('reorderplan',this)"><svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1" fill="currentColor"/><circle cx="20" cy="21" r="1" fill="currentColor"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>Reorder plan</div>
+    <div class="ni" onclick="showView('ropoint',this)"><svg viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M2 12h20"/><circle cx="12" cy="12" r="4"/></svg>Reorder point<span class="nbadge" id="b-rop">0</span></div>
+    <div class="ni" onclick="showView('variability',this)"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l3-4 3 3 4-6"/></svg>Demand variability</div>
     <div class="ni" onclick="showView('abc',this)"><svg viewBox="0 0 24 24"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>ABC analysis</div>
     <div class="ni" onclick="showView('writeoff',this)"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r="1" fill="currentColor"/></svg>Write-off forecast<span class="nbadge" id="b-wo">0</span></div>
     <div class="ni" onclick="showView('whatif',this)"><svg viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>What-if simulator</div>
@@ -330,7 +332,32 @@ let EXPIRING_ITEMS = [];
 let BRANCH_TRANSFERS = [];
 let BRANCH_EXPIRY = {};
 let COLLISIONS = [];
-let PLAN = (()=>{try{return Object.assign({lead:30,cover:3,safety:14},JSON.parse(localStorage.getItem('hs_plan')||'{}'));}catch(e){return {lead:30,cover:3,safety:14};}})();
+let PLAN = (()=>{try{return Object.assign({lead:30,cover:3,safety:14,service:95},JSON.parse(localStorage.getItem('hs_plan')||'{}'));}catch(e){return {lead:30,cover:3,safety:14,service:95};}})();
+/* Per-line supplier lead times (days). Imported brands ship longer than local/marketing items. All editable in the Reorder point view. */
+const LEAD_DEFAULTS={'Inno Derma':60,'Inno TDS':60,'INNO-CE':60,'INNO CE':60,'INNO-EXFO':60,'INNO-EXFO LI':60,'INNO-EPIGEN':60,'INNO-EXOMA':60,'Inno Mkt':60,'Meline':60,'Meline MKT':60,'Meso':60,'TERMOSALUD':60,'TERMOSALUD MKT':60,'BioJuve':45,'BioJuve Mkt':45,'SKINPEN':45,'SKINPEN MKT':45,'LHALA':45,'HYALURONIDA':45,'GTG':90};
+let LEADMAP=(()=>{try{return Object.assign({},JSON.parse(localStorage.getItem('hs_leadmap')||'{}'));}catch(e){return {};}})();
+function leadFor(line){if(LEADMAP[line]!=null)return LEADMAP[line];if(LEAD_DEFAULTS[line]!=null)return LEAD_DEFAULTS[line];return PLAN.lead||45;}
+function zFor(s){return s>=99?2.33:s>=97.5?1.96:s>=95?1.645:s>=90?1.28:1.04;}
+function dtsBaseline(p){const s=stk(p);const dbar=(p.velAdj!=null?p.velAdj:(p.velocity||0));if(s===null||dbar<=0)return null;if(s<=0)return 0;return Math.round(s/(dbar/30.44));}
+function ropCalc(p){
+  const dbar=(p.velAdj!=null?p.velAdj:(p.velocity||0)); // expected monthly demand
+  const lead=leadFor(p.line);
+  const leadMo=lead/30.44;
+  const demandLead=dbar*leadMo;
+  const sdMo=(p.demandStd!=null?p.demandStd:0);
+  const sdLead=sdMo*Math.sqrt(Math.max(0,leadMo)); // demand-over-lead std dev (independence assumption)
+  const z=zFor(PLAN.service);
+  const safety=Math.ceil(z*sdLead);
+  const rop=Math.ceil(demandLead+safety);
+  const s=stk(p);
+  return {dbar,lead,leadMo,demandLead,sdLead,z,safety,rop,s,below:(s!=null&&dbar>0&&s<=rop),dts:dtsBaseline(p)};
+}
+function cvBadge(p){
+  if(p.cv==null||p.demandClass==='insufficient')return '<span class="pill pgy" title="Not enough sales history">n/a</span>';
+  const c=p.demandClass==='steady'?'pgr':p.demandClass==='variable'?'pam':'prd';
+  const lbl=p.demandClass==='steady'?'Steady':p.demandClass==='variable'?'Variable':'Lumpy';
+  return '<span class="pill '+c+'" title="CV = std dev ÷ mean of monthly demand">'+lbl+' '+p.cv.toFixed(2)+'</span>';
+}
 let WHATIF = {mult:1, delay:0};
 let sortCol='stock', sortDir=-1;
 let currentView='dashboard';
@@ -379,7 +406,8 @@ function expLabel(days){
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function isReorderAlert(p){
   const t=REORDER[p.sku];
-  return t && typeof t==='number' && stk(p)!==null && stk(p)<t;
+  if(t && typeof t==='number') return stk(p)!==null && stk(p)<t; // manual threshold overrides
+  return ropCalc(p).below; // else use computed reorder point
 }
 
 function mobileNav(v,el){
@@ -426,6 +454,8 @@ function refreshSidebar(){
   const woCnt=(COLLISIONS||[]).filter(c=>c.projExpired>0).length;
   if($('b-so30'))$('b-so30').textContent=so30;
   if($('b-wo'))$('b-wo').textContent=woCnt;
+  const belowRop=DATA.filter(p=>stk(p)!==null&&((p.velAdj||0)>0||(p.velocity||0)>0)&&ropCalc(p).below).length;
+  if($('b-rop'))$('b-rop').textContent=belowRop;
   const lines=[...new Set(DATA.map(p=>p.line).filter(Boolean))].sort();
   $('lnav').innerHTML=lines.map(l=>{
     const n=DATA.filter(p=>p.line===l).length;
@@ -438,6 +468,7 @@ function refreshSidebar(){
 
 function applySync(data){
   DATA=data.products||DATA;
+  DATA.forEach(p=>{p.dtsBaseline=dtsBaseline(p);}); // precompute for sortable All-SKUs column
   BATCHES=data.batches||[];
   MONTHLY_IN=data.monthlyIn||{};
   MONTHLY_OUT=data.monthlyOut||{};
@@ -463,6 +494,8 @@ function applySync(data){
   else if(currentView==='branchexpiry') renderBranchExpiry();
   else if(currentView==='forecast') renderForecast();
   else if(currentView==='reorderplan') renderReorderPlan();
+  else if(currentView==='ropoint') renderReorderPoint();
+  else if(currentView==='variability') renderVariability();
   else if(currentView==='abc') renderABC();
   else if(currentView==='writeoff') renderWriteoff();
   else if(currentView==='whatif') renderWhatIf();
@@ -787,7 +820,7 @@ function renderTable(pre){
     '<div class="tcard"><div class="tscroll"><table><thead><tr>'+
     mkTh('sku','SKU')+mkTh('name','Product name')+mkTh('line','Line')+mkTh('category','Category')+
     mkTh('bin','Bin')+mkTh('expiry','Expiry')+mkTh('price','Price','r')+
-    mkTh('velocity','Vel/mo','r')+mkTh('monthsOfStock','Mos stock','r')+
+    mkTh('velocity','Vel/mo','r')+mkTh('monthsOfStock','Mos stock','r')+mkTh('dtsBaseline','Days→out','r')+
     mkTh('received','Rcvd','r')+mkTh('sold','Sold','r')+mkTh('stock','Stock','r')+'<th>Status</th></tr></thead>'+
     '<tbody id="tbody"></tbody></table></div>'+
     '<div class="tfooter"><span id="tc"></span><span>Click row for details &middot; Vel = avg units/mo sold</span></div></div>';
@@ -825,7 +858,7 @@ function drawRows(){
   });
   const tbody=$('tbody');
   if(!rows.length){
-    tbody.innerHTML='<tr><td colspan="13"><div class="empty">No products match</div></td></tr>';
+    tbody.innerHTML='<tr><td colspan="14"><div class="empty">No products match</div></td></tr>';
   } else {
     tbody.innerHTML=rows.map(p=>{
       const s=stk(p);const st=statusOf(s);
@@ -845,6 +878,7 @@ function drawRows(){
         '<td class="r mu" style="font-size:11px">'+fmtP(p.price)+'</td>'+
         '<td class="r"><span class="vel-badge '+velC+'">'+vel+'</span></td>'+
         '<td class="r mu" style="font-size:11px">'+(mos!==null?mos+'mo':'—')+'</td>'+
+        '<td class="r" style="font-size:11px">'+(p.dtsBaseline!=null?(p.dtsBaseline===0?'<span style="color:var(--rd);font-weight:600">Out</span>':p.dtsBaseline+'d'):'—')+'</td>'+
         '<td class="r mu">'+(p.received||0).toLocaleString()+'</td>'+
         '<td class="r mu">'+(p.sold||0).toLocaleString()+'</td>'+
         '<td class="stk r" style="'+sc+'">'+(s!==null?s.toLocaleString():'—')+'</td>'+
@@ -899,6 +933,15 @@ function openDrawer(sku){
     '<div class="drow"><span class="dlbl">Months of stock</span><span class="dval">'+(mos!==null?mos+' months':'—')+'</span></div>'+
     '</div>'+
     batchHTML+
+    (()=>{const c=ropCalc(p);const dts=dtsBaseline(p);
+      return '<div class="dsec"><div class="dsectitle">Reorder intelligence</div>'+
+      '<div class="drow"><span class="dlbl">Days to stockout</span><span class="dval">'+(dts!=null?(dts===0?'<span style="color:var(--rd);font-weight:600">Out now</span>':dts+' days'):'—')+'</span></div>'+
+      '<div class="drow"><span class="dlbl">Demand variability</span><span class="dval">'+cvBadge(p)+'</span></div>'+
+      '<div class="drow"><span class="dlbl">Supplier lead time</span><span class="dval">'+c.lead+' days</span></div>'+
+      '<div class="drow"><span class="dlbl">Safety stock</span><span class="dval">'+((p.velAdj||0)>0?c.safety.toLocaleString()+' units':'—')+'</span></div>'+
+      '<div class="drow"><span class="dlbl">Reorder point</span><span class="dval" style="font-weight:700;color:var(--ac)">'+((p.velAdj||0)>0?c.rop.toLocaleString()+' units':'—')+'</span></div>'+
+      '<div class="drow"><span class="dlbl">Status</span><span class="dval">'+(c.below?'<span class="pill prd">Below reorder point</span>':((p.velAdj||0)>0?'<span class="pill pgr">Above reorder point</span>':'<span class="pill pgy">No demand</span>'))+'</span></div>'+
+      '</div>';})()+
     '<div class="dsec"><div class="dsectitle">Reorder threshold</div>'+
     '<div class="reorder-row"><label>Alert me when stock falls below:</label><input type="number" min="0" id="reorder-inp" value="'+esc(reorderT)+'" placeholder="e.g. 20"><button class="btn" style="flex-shrink:0" onclick="saveReorder(\''+esc(sku)+'\')">Save</button></div>'+
     '<div style="font-size:10.5px;color:var(--tx3);margin-top:5px">Reorder alerts are session-based (not persisted)</div>'+
@@ -1256,6 +1299,107 @@ function exportReorderCSV(){
   a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent([meta,h.join(','),...csv].join('\n'));
   a.download='healthspan_reorder_plan_'+new Date().toISOString().slice(0,10)+'.csv';
   a.click();
+}
+
+/* ── REORDER POINT + SAFETY STOCK ── */
+function renderReorderPoint(){
+  const cands=DATA.filter(p=>stk(p)!==null&&((p.velAdj||0)>0||(p.velocity||0)>0));
+  const rows=cands.map(p=>({p,c:ropCalc(p)}));
+  const below=rows.filter(r=>r.c.below);
+  const aBelow=below.filter(r=>r.p.abc==='A');
+  const totSafety=rows.reduce((a,r)=>a+r.c.safety,0);
+  rows.sort((a,b)=>(a.c.below===b.c.below?((a.c.dts??1e9)-(b.c.dts??1e9)):(a.c.below?-1:1)));
+  const z=zFor(PLAN.service);
+  const lines=[...new Set(DATA.map(p=>p.line).filter(Boolean))].sort();
+  const leadEditor=window._leadEdit?
+    '<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--bd)"><div style="font-size:10px;color:var(--tx3);font-weight:600;letter-spacing:.04em;margin-bottom:9px">SUPPLIER LEAD TIME BY PRODUCT LINE (days)</div><div style="display:flex;flex-wrap:wrap;gap:12px">'+
+    lines.map(l=>'<div style="display:flex;flex-direction:column;gap:3px"><label style="font-size:10px;color:var(--tx3);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(l)+'">'+esc(l)+'</label><input type="number" min="1" max="365" value="'+leadFor(l)+'" data-line="'+esc(l)+'" onchange="setLead(this.dataset.line,this.value)" style="width:66px;padding:5px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--sf);color:var(--tx1);font-size:12px"></div>').join('')+
+    '</div></div>':'';
+  $('content').innerHTML=
+    '<div class="panel" style="margin-bottom:14px"><div style="display:flex;flex-wrap:wrap;gap:18px;align-items:flex-end">'+
+    '<div style="display:flex;flex-direction:column;gap:3px"><label style="font-size:10px;color:var(--tx3);font-weight:500">Service level</label><div style="display:flex;align-items:center;gap:6px"><input type="number" id="rop-service" value="'+PLAN.service+'" min="50" max="99.9" step="0.5" onchange="updateService()" style="width:70px;padding:5px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--sf);color:var(--tx1);font-size:12px"><span style="font-size:10.5px;color:var(--tx3)">% &middot; z='+z.toFixed(2)+'</span></div></div>'+
+    '<button class="btn" onclick="toggleLeadEdit()"><svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> '+(window._leadEdit?'Hide lead times':'Edit lead times')+'</button>'+
+    '<button class="btn" onclick="exportROPCSV()" style="margin-left:auto"><svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export (CSV)</button>'+
+    leadEditor+
+    '</div>'+
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met rd"><div class="met-lbl">Below reorder point</div><div class="met-val">'+below.length+'</div><div class="met-sub">order now</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">A-items below ROP</div><div class="met-val">'+aBelow.length+'</div><div class="met-sub">high-value, prioritise</div><div class="met-bar"></div></div>'+
+    '<div class="met pu"><div class="met-lbl">Total safety stock</div><div class="met-val">'+Math.round(totSafety).toLocaleString()+'</div><div class="met-sub">buffer units across '+rows.length+' SKUs</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Service level</div><div class="met-val">'+PLAN.service+'%</div><div class="met-sub">z = '+z.toFixed(2)+' &middot; per-line lead times</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr>'+
+    '<th>SKU</th><th>Product</th><th>Line</th><th style="text-align:right">Lead</th><th>Variability</th><th style="text-align:right">Stock</th><th style="text-align:right">Fcst /mo</th><th style="text-align:right">Safety</th><th style="text-align:right">Reorder pt</th><th>Stock out in</th><th>Status</th></tr></thead><tbody>'+
+    (rows.length?rows.slice(0,300).map(r=>{
+      const p=r.p,c=r.c;
+      return '<tr onclick="openDrawer(\''+esc(p.sku)+'\')" style="cursor:pointer'+(c.below?';background:var(--rd-bg)':'')+'">'+
+      '<td class="mo">'+esc(p.sku)+'</td>'+
+      '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">'+esc(p.name)+'</td>'+
+      '<td class="mu" style="max-width:90px;overflow:hidden;text-overflow:ellipsis">'+esc(p.line||'')+'</td>'+
+      '<td class="r mu">'+c.lead+'d</td>'+
+      '<td>'+cvBadge(p)+'</td>'+
+      '<td class="r stk">'+(c.s!=null?c.s.toLocaleString():'—')+'</td>'+
+      '<td class="r">'+(p.velAdj!=null?p.velAdj:(p.velocity||0))+'</td>'+
+      '<td class="r" style="color:var(--pu);font-weight:600">'+c.safety.toLocaleString()+'</td>'+
+      '<td class="r" style="font-weight:700;color:var(--ac)">'+c.rop.toLocaleString()+'</td>'+
+      '<td>'+soPill(c.dts)+'</td>'+
+      '<td>'+(c.below?'<span class="pill prd">Order now</span>':'<span class="pill pgr">OK</span>')+'</td></tr>';
+    }).join(''):'<tr><td colspan="11"><div class="empty">No SKUs with demand history</div></td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>Reorder point = (forecast demand/mo &times; lead&nbsp;months) + safety stock &middot; safety = z('+PLAN.service+'%) &times; &sigma;<sub>demand</sub> &times; &radic;lead &middot; lumpier demand (higher CV) earns a bigger buffer</span></div></div>';
+}
+function updateService(){const v=parseFloat($('rop-service').value);if(!isNaN(v))PLAN.service=Math.min(99.9,Math.max(50,v));try{localStorage.setItem('hs_plan',JSON.stringify(PLAN));}catch(e){}refreshSidebar();renderReorderPoint();}
+function setLead(line,val){const v=parseInt(val);if(!isNaN(v)&&v>0)LEADMAP[line]=Math.min(365,v);try{localStorage.setItem('hs_leadmap',JSON.stringify(LEADMAP));}catch(e){}refreshSidebar();renderReorderPoint();}
+function toggleLeadEdit(){window._leadEdit=!window._leadEdit;renderReorderPoint();}
+function exportROPCSV(){
+  const rows=DATA.filter(p=>stk(p)!==null&&((p.velAdj||0)>0||(p.velocity||0)>0)).map(p=>({p,c:ropCalc(p)}));
+  rows.sort((a,b)=>(a.c.below===b.c.below?((a.c.dts??1e9)-(b.c.dts??1e9)):(a.c.below?-1:1)));
+  const h=['SKU','Product','Line','ABC','Lead time (d)','Demand variability','CV','Stock on hand','Forecast units/mo','Safety stock','Reorder point','Days to stockout','Below reorder point'];
+  const csv=rows.map(r=>{const p=r.p,c=r.c;return[p.sku,p.name,p.line,p.abc||'',c.lead,p.demandClass||'',p.cv??'',c.s??'',p.velAdj!=null?p.velAdj:(p.velocity||0),c.safety,c.rop,c.dts??'>365',c.below?'YES':''].map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',');});
+  const meta='"Healthspan Global Inc. - Reorder points & safety stock","Generated '+new Date().toLocaleString('en-PH',{timeZone:'Asia/Manila'})+'","Service level: '+PLAN.service+'% (z='+zFor(PLAN.service).toFixed(2)+')"';
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,﻿'+encodeURIComponent([meta,h.join(','),...csv].join('\n'));
+  a.download='healthspan_reorder_points_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+}
+
+/* ── DEMAND VARIABILITY (CV) ── */
+function renderVariability(){
+  const f=window._cvFilter||'all';
+  const scored=DATA.filter(p=>((p.velAdj||0)>0||(p.velocity||0)>0||(p.sold||0)>0));
+  const cls=c=>scored.filter(p=>p.demandClass===c);
+  const steady=cls('steady'),variable=cls('variable'),lumpy=cls('lumpy'),insuf=cls('insufficient');
+  let rows=scored.slice();
+  if(f==='steady')rows=steady;else if(f==='variable')rows=variable;else if(f==='lumpy')rows=lumpy;else if(f==='insufficient')rows=insuf;
+  rows.sort((a,b)=>{const av=a.cv==null?-1:a.cv,bv=b.cv==null?-1:b.cv;return bv-av;});
+  const tabs=[['all','All ('+scored.length+')'],['steady','Steady ('+steady.length+')'],['variable','Variable ('+variable.length+')'],['lumpy','Lumpy ('+lumpy.length+')'],['insufficient','Insufficient ('+insuf.length+')']];
+  const trust=p=>{
+    if(p.demandClass==='insufficient')return '<span style="color:var(--tx3)">Too little history — judge manually</span>';
+    if(p.demandClass==='steady')return '<span style="color:var(--gr)">High — safe to automate</span>';
+    if(p.demandClass==='variable')return '<span style="color:var(--am)">Moderate — review before ordering</span>';
+    return '<span style="color:var(--rd)">Low — needs human judgment</span>';
+  };
+  $('content').innerHTML=
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met gr"><div class="met-lbl">Steady movers</div><div class="met-val">'+steady.length+'</div><div class="met-sub">CV &lt; 0.5 &middot; forecasts reliable</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Variable</div><div class="met-val">'+variable.length+'</div><div class="met-sub">CV 0.5–1.0 &middot; review orders</div><div class="met-bar"></div></div>'+
+    '<div class="met rd"><div class="met-lbl">Lumpy / spiky</div><div class="met-val">'+lumpy.length+'</div><div class="met-sub">CV &gt; 1.0 or intermittent</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Insufficient history</div><div class="met-val">'+insuf.length+'</div><div class="met-sub">&lt; 3 months of sales</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="tabs" style="margin-bottom:12px">'+tabs.map(([k,l])=>'<div class="tab'+(f===k?' active':'')+'" onclick="window._cvFilter=\''+k+'\';renderVariability()">'+l+'</div>').join('')+'</div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr>'+
+    '<th>SKU</th><th>Product</th><th>Line</th><th style="text-align:right">Months</th><th style="text-align:right">Avg /mo</th><th style="text-align:right">Std dev</th><th style="text-align:right">CV</th><th>Class</th><th>Forecast trust</th></tr></thead><tbody>'+
+    (rows.length?rows.slice(0,300).map(p=>{
+      return '<tr onclick="openDrawer(\''+esc(p.sku)+'\')" style="cursor:pointer"><td class="mo">'+esc(p.sku)+'</td>'+
+      '<td style="max-width:190px;overflow:hidden;text-overflow:ellipsis">'+esc(p.name)+'</td>'+
+      '<td class="mu" style="max-width:90px;overflow:hidden;text-overflow:ellipsis">'+esc(p.line||'')+'</td>'+
+      '<td class="r mu">'+(p.demandN!=null?p.demandN:'—')+'</td>'+
+      '<td class="r">'+(p.demandMean!=null?p.demandMean:'—')+'</td>'+
+      '<td class="r mu">'+(p.demandStd!=null?p.demandStd:'—')+'</td>'+
+      '<td class="r" style="font-weight:600">'+(p.cv!=null?p.cv.toFixed(2):'—')+'</td>'+
+      '<td>'+cvBadge(p)+'</td>'+
+      '<td style="font-size:11px">'+trust(p)+'</td></tr>';
+    }).join(''):'<tr><td colspan="9"><div class="empty">No SKUs match this filter</div></td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>CV = coefficient of variation (std dev &divide; mean of monthly demand) &middot; low CV = predictable, high CV = erratic &middot; drives safety-stock size on the Reorder point view</span></div></div>';
 }
 
 /* ── ABC ANALYSIS ── */
