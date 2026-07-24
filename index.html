@@ -301,6 +301,7 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
     <div class="ni" onclick="showView('simbulk',this)"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>Bulk-buy trade-off</div>
     <div class="ni" onclick="showView('simbranch',this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><path d="M10 6.5h4a3 3 0 0 1 3 3v4.5"/></svg>Remedy rebalancing</div>
     <div class="nlbl">Analytics</div>
+    <div class="ni" onclick="showView('health',this)"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Data health<span class="nbadge" id="b-health">0</span></div>
     <div class="ni" onclick="showView('movement',this)"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Monthly movement</div>
     <div class="ni" onclick="showView('value',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Inventory value</div>
     <div class="ni" onclick="showView('batches',this)"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>Batch view (FEFO)</div>
@@ -405,6 +406,7 @@ const COLORS=['#1D9E75','#378ADD','#7F77DD','#D85A30','#BA7517','#D4537E','#0F6E
 const DESC={
   dashboard:'Your at-a-glance overview — total stock, what’s running out, what’s expiring, and value by product line. A good place to start each day.',
   action:'Your daily to-do in one place — what to <b>order now</b>, what to <b>promo or move</b> before it expires, what to <b>review</b>, and dead stock to clear. Pulls together the whole app so nobody has to hunt across tabs.',
+  health:'A completeness check on the data behind every forecast — SKUs missing a <b>price, expiry, batch, or bin</b>, negative stock, and items with too little sales history. Fixing these in the source sheet sharpens the whole app. Higher score = cleaner data.',
   customers:'Who Healthspan sells to — accounts ranked by value, order cadence, and whether they’re <b>growing, declining, or dormant</b>. Also shows how concentrated you are on Remedy. Built from the destination column of the OUT sheet; Remedy’s branches are grouped as one account.',
   all:'Every product in one searchable table. Filter by line or category and click any row for full detail. <b>Days→out</b> is how long stock lasts at the current sales pace.',
   oos:'Products that have hit zero stock — these need reordering now.',
@@ -550,6 +552,7 @@ function refreshSidebar(){
   const belowRop=DATA.filter(p=>stk(p)!==null&&((p.velAdj||0)>0||(p.velocity||0)>0)&&ropCalc(p).below).length;
   if($('b-rop'))$('b-rop').textContent=belowRop;
   if($('b-action'))$('b-action').textContent=belowRop;
+  if($('b-health')){const hIssues=DATA.filter(p=>{const s=stk(p);const act=(s!==null&&s>0)||p.sold>0;return (s!==null&&s<0)||(act&&(!(p.price>0)||(s>0&&!p.expiry)));}).length;$('b-health').textContent=hIssues;}
   const lines=[...new Set(DATA.map(p=>p.line).filter(Boolean))].sort();
   $('lnav').innerHTML=lines.map(l=>{
     const n=DATA.filter(p=>p.line===l).length;
@@ -579,6 +582,7 @@ function applySync(data){
   refreshSidebar();
   if(currentView==='action') renderActionCenter();
   else if(currentView==='customers') renderCustomers();
+  else if(currentView==='health') renderDataHealth();
   else if(currentView==='dashboard') renderDashboard();
   else if(currentView==='expiry') renderExpiry();
   else if(currentView==='value') renderValue();
@@ -681,7 +685,7 @@ function showView(v,el){
   currentView=v;fLine='';fSearch='';fTab='all';fBin='';
   document.querySelectorAll('.ni').forEach(x=>x.classList.remove('active'));
   if(el) el.classList.add('active');
-  const T={dashboard:'Dashboard',action:'Action center',customers:'Customers',all:'All SKUs',oos:'Out of stock',low:'Low stock',neg:'Negative stock',
+  const T={dashboard:'Dashboard',action:'Action center',customers:'Customers',health:'Data health',all:'All SKUs',oos:'Out of stock',low:'Low stock',neg:'Negative stock',
            expiry:'Expiry tracker',value:'Inventory value',movement:'Monthly movement',reorder:'Reorder alerts',batches:'Batch view',
            forecast:'Stockout forecast',reorderplan:'Reorder plan',ropoint:'Reorder point',variability:'Demand variability',abc:'ABC analysis',writeoff:'Write-off forecast',whatif:'What-if simulator',
            simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator',
@@ -691,6 +695,7 @@ function showView(v,el){
   if(v==='dashboard') renderDashboard();
   else if(v==='action') renderActionCenter();
   else if(v==='customers') renderCustomers();
+  else if(v==='health') renderDataHealth();
   else if(v==='expiry') renderExpiry();
   else if(v==='value') renderValue();
   else if(v==='movement') renderMovement();
@@ -725,6 +730,47 @@ function fltLine(line,el){
   if(el) el.classList.add('active');
   $('ptitle').textContent=line;
   renderTable();
+}
+
+/* ── DATA HEALTH ── */
+function renderDataHealth(){
+  const active=DATA.filter(p=>{const s=stk(p);return (s!==null&&s>0)||p.sold>0;});
+  const n=active.length||1;
+  const missPrice=active.filter(p=>!(p.price>0));
+  const missExp=active.filter(p=>stk(p)>0&&!p.expiry);
+  const missBatch=active.filter(p=>stk(p)>0&&!p.batch);
+  const missBin=active.filter(p=>stk(p)>0&&!p.bin);
+  const negStk=DATA.filter(p=>{const s=stk(p);return s!==null&&s<0;});
+  const lowHist=DATA.filter(p=>p.demandClass==='insufficient'&&p.sold>0);
+  const score=Math.round(((n-missPrice.length)/n+(n-missExp.length)/n+(n-missBatch.length)/n+(n-missBin.length)/n)/4*100);
+  const scoreC=score>=90?'gr':score>=75?'am':'rd';
+  const issues={};
+  const add=(p,tag)=>{const k=p.sku;(issues[k]=issues[k]||{p,tags:[]}).tags.push(tag);};
+  missPrice.forEach(p=>add(p,'price')); missExp.forEach(p=>add(p,'expiry')); missBatch.forEach(p=>add(p,'batch')); missBin.forEach(p=>add(p,'bin')); negStk.forEach(p=>add(p,'neg')); lowHist.forEach(p=>add(p,'hist'));
+  const f=window._healthFilter||'all';
+  let list=Object.values(issues);
+  if(f!=='all')list=list.filter(x=>x.tags.includes(f));
+  list.sort((a,b)=>b.tags.length-a.tags.length||String(a.p.name).localeCompare(String(b.p.name)));
+  const tags=[['all','All ('+Object.keys(issues).length+')'],['price','No price ('+missPrice.length+')'],['expiry','No expiry ('+missExp.length+')'],['batch','No batch ('+missBatch.length+')'],['neg','Negative ('+negStk.length+')'],['hist','Low history ('+lowHist.length+')']];
+  const tagPill={price:'<span class="pill prd">No price</span>',expiry:'<span class="pill pam">No expiry</span>',batch:'<span class="pill pgy">No batch</span>',bin:'<span class="pill pgy">No bin</span>',neg:'<span class="pill prd">Negative stock</span>',hist:'<span class="pill pbl">Low history</span>'};
+  $('content').innerHTML=
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met '+scoreC+'"><div class="met-lbl">Data health score</div><div class="met-val">'+score+'%</div><div class="met-sub">completeness of active SKUs</div><div class="met-bar"></div></div>'+
+    '<div class="met rd"><div class="met-lbl">Missing price</div><div class="met-val">'+missPrice.length+'</div><div class="met-sub">'+Math.round(missPrice.length/n*100)+'% of active SKUs</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Missing expiry</div><div class="met-val">'+missExp.length+'</div><div class="met-sub">in-stock SKUs, no date</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Other flags</div><div class="met-val">'+(negStk.length+lowHist.length)+'</div><div class="met-sub">'+negStk.length+' negative · '+lowHist.length+' low history</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="tabs" style="margin-bottom:12px">'+tags.map(([k,l])=>'<div class="tab'+(f===k?' active':'')+'" onclick="window._healthFilter=\''+k+'\';renderDataHealth()">'+l+'</div>').join('')+'</div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>SKU</th><th>Product</th><th>Line</th><th style="text-align:right">Stock</th><th style="text-align:right">Price</th><th>Data issues</th></tr></thead><tbody>'+
+    (list.length?list.slice(0,400).map(x=>{const p=x.p,s=stk(p);
+      return '<tr onclick="openDrawer(\''+esc(p.sku)+'\')" style="cursor:pointer"><td class="mo">'+esc(p.sku)+'</td>'+
+      '<td style="max-width:210px;overflow:hidden;text-overflow:ellipsis">'+esc(p.name)+'</td>'+
+      '<td class="mu" style="max-width:100px;overflow:hidden;text-overflow:ellipsis">'+esc(p.line||'')+'</td>'+
+      '<td class="r stk" style="'+(s!=null&&s<0?'color:var(--rd)':'')+'">'+(s!=null?s.toLocaleString():'—')+'</td>'+
+      '<td class="r mu" style="font-size:11px">'+fmtP(p.price)+'</td>'+
+      '<td style="display:flex;flex-wrap:wrap;gap:4px">'+x.tags.map(t=>tagPill[t]).join('')+'</td></tr>';
+    }).join(''):'<tr><td colspan="6"><div class="empty">No data issues in this filter — clean!</div></td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>Fix these in the source Google Sheet · score = average completeness of price, expiry, batch and bin across '+n+' active SKUs</span></div></div>';
 }
 
 /* ── CUSTOMERS / ACCOUNTS ── */
@@ -2204,6 +2250,7 @@ function exportCurrentView(){
     case 'simbulk': return exportBulk();
     case 'simbranch': return exportBranch();
     case 'customers': return exportCustomers();
+    case 'health': return exportHealth();
     default: return exportCSV();
   }
 }
@@ -2280,6 +2327,18 @@ function exportBulk(){
   for(const p of DATA){const m=(p.velAdj!=null?p.velAdj:p.velocity||0);if(m<=0||!(p.price>0))continue;const q=Math.ceil(m*SIMBULK.months);const dv=SIMBULK.disc/100*q*p.price;const h=SIMBULK.hold/100*p.price*(q/2)*SIMBULK.months;const ex=Math.max(0,q-m*SIMBULK.shelf)*p.price;rows.push([p.sku,p.name,m,q,Math.round(dv),Math.round(h),Math.round(ex),Math.round(dv-h-ex)]);}
   rows.sort((a,b)=>b[7]-a[7]);
   downloadCSV('bulk_buy',['SKU','Product','Forecast/mo','Bulk qty','Discount saved','Holding cost','Expiry risk','Net benefit'],rows);
+}
+function exportHealth(){
+  const active=DATA.filter(p=>{const s=stk(p);return (s!==null&&s>0)||p.sold>0;});
+  const issues={}; const add=(p,t)=>{(issues[p.sku]=issues[p.sku]||{p,tags:[]}).tags.push(t);};
+  active.filter(p=>!(p.price>0)).forEach(p=>add(p,'no price'));
+  active.filter(p=>stk(p)>0&&!p.expiry).forEach(p=>add(p,'no expiry'));
+  active.filter(p=>stk(p)>0&&!p.batch).forEach(p=>add(p,'no batch'));
+  active.filter(p=>stk(p)>0&&!p.bin).forEach(p=>add(p,'no bin'));
+  DATA.filter(p=>{const s=stk(p);return s!==null&&s<0;}).forEach(p=>add(p,'negative stock'));
+  DATA.filter(p=>p.demandClass==='insufficient'&&p.sold>0).forEach(p=>add(p,'low history'));
+  downloadCSV('data_health',['SKU','Product','Line','Stock','Price','Issues'],
+    Object.values(issues).map(x=>[x.p.sku,x.p.name,x.p.line,stk(x.p)??'',x.p.price??'',x.tags.join('; ')]));
 }
 function exportCustomers(){
   const all=CUSTOMERS||[]; const tot=all.reduce((a,x)=>a+x.value,0);
