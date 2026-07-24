@@ -297,7 +297,7 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
     <div class="ni" onclick="showView('simproject',this)"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><polyline points="19 7 13 13 9 9 5 13"/></svg>12-month projection</div>
     <div class="ni" onclick="showView('simcash',this)"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>Cash-flow timeline</div>
     <div class="ni" onclick="showView('simbulk',this)"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>Bulk-buy trade-off</div>
-    <div class="ni" onclick="showView('simbranch',this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><path d="M10 6.5h4a3 3 0 0 1 3 3v4.5"/></svg>Branch rebalancing</div>
+    <div class="ni" onclick="showView('simbranch',this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><path d="M10 6.5h4a3 3 0 0 1 3 3v4.5"/></svg>Remedy rebalancing</div>
     <div class="nlbl">Analytics</div>
     <div class="ni" onclick="showView('movement',this)"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Monthly movement</div>
     <div class="ni" onclick="showView('value',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Inventory value</div>
@@ -307,8 +307,8 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
     <div class="ni" onclick="showView('shrinkage',this)"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r="1" fill="currentColor"/></svg>Shrinkage tracker</div>
     <div class="ni" onclick="showView('cashexpiry',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Cash in expiring stock</div>
     <div class="nlbl">Logistics</div>
-    <div class="ni" onclick="showView('branchtransfer',this)"><svg viewBox="0 0 24 24"><path d="M5 17H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v3"/><rect x="9" y="11" width="14" height="10" rx="2"/><line x1="13" y1="16" x2="19" y2="16"/><line x1="16" y1="13" x2="16" y2="19"/></svg>Branch transfer log</div>
-    <div class="ni" onclick="showView('branchexpiry',this)"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Branch expiry watch</div>
+    <div class="ni" onclick="showView('branchtransfer',this)"><svg viewBox="0 0 24 24"><path d="M5 17H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v3"/><rect x="9" y="11" width="14" height="10" rx="2"/><line x1="13" y1="16" x2="19" y2="16"/><line x1="16" y1="13" x2="16" y2="19"/></svg>Remedy shipments</div>
+    <div class="ni" onclick="showView('branchexpiry',this)"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Remedy expiry watch</div>
     <div class="nlbl">Product lines</div>
     <div id="lnav"></div>
   </nav>
@@ -422,15 +422,15 @@ const DESC={
   simproject:'A 12-month forecast for one product: projected demand, a declining stock line showing when it runs out, and a confidence band around it.',
   simcash:'Projects inventory cash over six months — restocking spend versus sales coming in — so you can see when cash is most tied up.',
   simbulk:'Checks whether a volume discount is worth it: weighs the savings against extra holding cost and the risk of stock expiring before it sells.',
-  simbranch:'Suggests moving stock between BGC, Vertis, and Greenhills to balance each clinic’s share and use up near-expiry stock. Based on transfer history.',
+  simbranch:'Suggests moving stock between <b>Remedy’s</b> branches (BGC, Vertis North, Greenhills) to balance each site’s share and use up near-expiry stock. Remedy is a sister company and a customer; this is based on what Healthspan has shipped to them.',
   movement:'Units received versus sold each month over the past year — the pulse of what’s coming in and going out.',
   value:'Where your inventory money sits, broken down by product line.',
   batches:'Every batch in FEFO order (first to expire, first out) — the sequence to pull stock in.',
   aged:'Products that haven’t sold in a while, grouped into aging, slow, and dead stock — candidates for a promo or clear-out.',
   shrinkage:'Flags gaps between what was received/sold and what’s actually on hand — possible loss, miscounts, or unrecorded movement.',
   cashexpiry:'The peso value tied up in stock that’s expiring soon, bucketed by urgency.',
-  branchtransfer:'A log of stock sent to each clinic from 2025 onward.',
-  branchexpiry:'For each clinic, the products it holds sorted by expiry — so every branch knows what to use first.'
+  branchtransfer:'A log of product Healthspan has shipped to <b>Remedy’s</b> clinic branches — BGC, Vertis North, Greenhills — from 2025 onward. Remedy is a sister company and a customer.',
+  branchexpiry:'For each <b>Remedy</b> branch, the stock Healthspan shipped there sorted by expiry — so each clinic can see what to use up first.'
 };
 let TIPS_ON = localStorage.getItem('hs_tips')!=='off';
 let TIP_SEEN = (()=>{try{return JSON.parse(localStorage.getItem('hs_tipseen')||'{}');}catch(e){return {};}})();
@@ -676,7 +676,8 @@ function showView(v,el){
            expiry:'Expiry tracker',value:'Inventory value',movement:'Monthly movement',reorder:'Reorder alerts',batches:'Batch view',
            forecast:'Stockout forecast',reorderplan:'Reorder plan',ropoint:'Reorder point',variability:'Demand variability',abc:'ABC analysis',writeoff:'Write-off forecast',whatif:'What-if simulator',
            simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator',
-           simmonte:'Monte Carlo stockout risk',simproject:'12-month projection',simcash:'Cash-flow timeline',simbulk:'Bulk-buy trade-off',simbranch:'Branch rebalancing'};
+           simmonte:'Monte Carlo stockout risk',simproject:'12-month projection',simcash:'Cash-flow timeline',simbulk:'Bulk-buy trade-off',simbranch:'Remedy branch rebalancing',
+           aged:'Aged inventory',shrinkage:'Shrinkage tracker',cashexpiry:'Cash in expiring stock',branchtransfer:'Remedy branch shipments',branchexpiry:'Remedy branch expiry watch'};
   $('ptitle').textContent=T[v]||v;
   if(v==='dashboard') renderDashboard();
   else if(v==='expiry') renderExpiry();
@@ -1187,7 +1188,7 @@ function renderBranchTransfer(){
   });
   $('content').innerHTML=
     '<div class="metrics" style="margin-bottom:14px">'+
-    branches.map(b=>'<div class="met bl"><div class="met-lbl">'+b+'</div><div class="met-val">'+( stats[b]?stats[b].qty.toLocaleString():0)+'</div><div class="met-sub">'+(stats[b]?stats[b].orders:0)+' transfers (2025+)</div><div class="met-bar"></div></div>').join('')+
+    branches.map(b=>'<div class="met bl"><div class="met-lbl">'+b+'</div><div class="met-val">'+( stats[b]?stats[b].qty.toLocaleString():0)+'</div><div class="met-sub">'+(stats[b]?stats[b].orders:0)+' shipments (2025+)</div><div class="met-bar"></div></div>').join('')+
     '</div>'+
     '<div class="tabs" style="margin-bottom:12px">'+
     ['all',...branches].map(b=>'<div class="tab'+(branchFilter===b?' active':'')+'" onclick="window._branchFilter=\''+b+'\';renderBranchTransfer()">'+( b==='all'?'All branches':b)+'</div>').join('')+
@@ -1205,14 +1206,14 @@ function renderBranchTransfer(){
         '<td style="font-size:11px">'+esc(t.expiry||'—')+'</td>'+
         '<td class="mo mu">'+esc(t.order||'—')+'</td></tr>';
     }).join(''):'<tr><td colspan="8"><div class="empty">No transfers found</div></td></tr>')+
-    '</tbody></table></div><div class="tfooter"><span>Showing '+Math.min(rows.length,200)+' of '+rows.length+' transfers (2025+, newest first)</span></div></div>';
+    '</tbody></table></div><div class="tfooter"><span>Showing '+Math.min(rows.length,200)+' of '+rows.length+' shipments to Remedy branches (2025+, newest first)</span></div></div>';
 }
 
 /* ── BRANCH EXPIRY WATCH ── */
 function renderBranchExpiry(){
   const branches=['BGC','Vertis North','GH Mall'];
   $('content').innerHTML=
-    '<div style="font-size:12px;color:var(--tx3);margin-bottom:14px">Products sent to each branch in 2025+, sorted by earliest expiry. Use this to prioritize which items each clinic should use first.</div>'+
+    '<div style="font-size:12px;color:var(--tx3);margin-bottom:14px">Product Healthspan has shipped to each <b>Remedy</b> branch (2025+), sorted by earliest expiry — so each clinic can see what to use up first.</div>'+
     branches.map(branch=>{
       const items=(BRANCH_EXPIRY[branch]||[]);
       const now=new Date();
@@ -2070,7 +2071,7 @@ function updateBranchSim(){
   rows.sort((a,b)=>((b.exp?1:0)-(a.exp?1:0))||(b.move-a.move));
   const totMove=rows.reduce((a,r)=>a+r.move,0), expDriven=rows.filter(r=>r.exp).length;
   $('br-metrics').innerHTML=
-    '<div class="met bl"><div class="met-lbl">SKUs to rebalance</div><div class="met-val">'+rows.length+'</div><div class="met-sub">across 3 clinics</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">SKUs to rebalance</div><div class="met-val">'+rows.length+'</div><div class="met-sub">across Remedy’s 3 branches</div><div class="met-bar"></div></div>'+
     '<div class="met pu"><div class="met-lbl">Units to move</div><div class="met-val">'+totMove.toLocaleString()+'</div><div class="met-sub">suggested transfers</div><div class="met-bar"></div></div>'+
     '<div class="met rd"><div class="met-lbl">Expiry-driven</div><div class="met-val">'+expDriven+'</div><div class="met-sub">near-expiry at a clinic</div><div class="met-bar"></div></div>'+
     '<div class="met gr"><div class="met-lbl">Branch split</div><div class="met-val" style="font-size:15px">'+branches.map(b=>Math.round(weight[b]*100)+'%').join(' / ')+'</div><div class="met-sub">BGC / Vertis / GH share</div><div class="met-bar"></div></div>';
