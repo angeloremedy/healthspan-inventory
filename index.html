@@ -320,7 +320,7 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
     <div><div class="ptitle" id="ptitle">Dashboard</div><div class="psub" id="psub">Healthspan Global, Inc. — warehouse inventory</div></div>
     <div class="tbr">
       <button class="btn" id="tipsBtn" onclick="toggleTips()" title="Show or hide the plain-language explanation on each tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><circle cx="12" cy="8" r="1" fill="currentColor"/></svg>Tips</button>
-      <button class="btn" onclick="exportCSV()"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV</button>
+      <button class="btn" onclick="exportCurrentView()" title="Export the data on the current tab as a CSV"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV</button>
     </div>
   </header>
   <div class="content" id="content"><div class="empty">Loading...</div></div>
@@ -2086,6 +2086,120 @@ function updateBranchSim(){
   }).join(''):'<tr><td colspan="7"><div class="empty">No branch transfer data, or nothing to rebalance at this threshold</div></td></tr>';
 }
 
+/* ── CONTEXT-AWARE CSV EXPORT ── */
+function downloadCSV(name,headers,rows){
+  const esc=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const csv=[headers.map(esc).join(','),...rows.map(r=>r.map(esc).join(','))].join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,﻿'+encodeURIComponent(csv);
+  a.download='healthspan_'+name+'_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+}
+function exportCurrentView(){
+  switch(currentView){
+    case 'reorderplan': return exportReorderCSV();
+    case 'ropoint': return exportROPCSV();
+    case 'forecast': return exportForecast();
+    case 'variability': return exportVariability();
+    case 'abc': return exportABC();
+    case 'writeoff': return exportWriteoff();
+    case 'whatif': return exportWhatif();
+    case 'simpromo': return exportPromo();
+    case 'simbudget': return exportBudget();
+    case 'simservice': return exportService();
+    case 'simsurge': return exportSurge();
+    case 'simmonte': return exportMonte();
+    case 'simproject': return exportProject();
+    case 'simcash': return exportCash();
+    case 'simbulk': return exportBulk();
+    case 'simbranch': return exportBranch();
+    default: return exportCSV();
+  }
+}
+function exportForecast(){
+  const rows=DATA.filter(p=>((p.velAdj||0)>0||(p.velocity||0)>0)&&stk(p)!==null).sort((a,b)=>(a.daysToStockout??9999)-(b.daysToStockout??9999));
+  downloadCSV('stockout_forecast',['SKU','Product','Line','Stock','Forecast/mo','Trend','Days to stockout','Projected date','Basis'],
+    rows.map(p=>[p.sku,p.name,p.line,stk(p),(p.velAdj!=null?p.velAdj:p.velocity||0),p.trendFlag,p.daysToStockout??'>365',p.stockoutDate||'',p.seasonal?'seasonal+trend':'trend']));
+}
+function exportVariability(){
+  const rows=DATA.filter(p=>((p.velAdj||0)>0||(p.velocity||0)>0||(p.sold||0)>0)).sort((a,b)=>((b.cv==null?-1:b.cv)-(a.cv==null?-1:a.cv)));
+  downloadCSV('demand_variability',['SKU','Product','Line','Months history','Avg/mo','Std dev','CV','Class'],
+    rows.map(p=>[p.sku,p.name,p.line,p.demandN??'',p.demandMean??'',p.demandStd??'',p.cv??'',p.demandClass||'']));
+}
+function exportABC(){
+  const ranked=DATA.filter(p=>p.abc).slice().sort((a,b)=>(b.abcShare||0)-(a.abcShare||0));
+  let cum=0;
+  downloadCSV('abc_analysis',['Rank','Class','SKU','Product','Line','Forecast/mo','Unit price','Share %','Cumulative %'],
+    ranked.map((p,i)=>{cum+=p.abcShare||0;return [i+1,p.abc,p.sku,p.name,p.line,(p.velAdj!=null?p.velAdj:p.velocity||0),p.price??'',(p.abcShare||0).toFixed(1),Math.min(100,cum).toFixed(1)];}));
+}
+function exportWriteoff(){
+  downloadCSV('writeoff_forecast',['SKU','Product','Batch','Expiry','Days to expiry','SOH','Projected expired','Write-off value'],
+    collisionRows(1).map(c=>[c.sku,c.name,c.batch,c.expiry,c.daysToExpiry,c.soh,c.projExpired,Math.round(c.writeOff)]));
+}
+function exportWhatif(){
+  const mult=WHATIF.mult, arrival=PLAN.lead+WHATIF.delay;
+  const rows=DATA.filter(p=>((p.velAdj||0)>0||(p.velocity||0)>0)&&stk(p)!==null).map(p=>({p,d:simDaysToStockout(p,mult)})).sort((a,b)=>(a.d??9999)-(b.d??9999));
+  downloadCSV('whatif_scenario',['SKU','Product','Line','Stock','Days to stockout (scenario)','Runs out before day '+arrival],
+    rows.map(x=>[x.p.sku,x.p.name,x.p.line,stk(x.p),x.d??'>365',(x.d!=null&&x.d<=arrival&&stk(x.p)>0)?'YES':'']));
+}
+function exportPromo(){
+  const mult=1+SIMPROMO.lift/100, base=collisionRows(1), promo=collisionRows(mult);
+  const pMap={}; promo.forEach(c=>pMap[c.sku+'|'+c.batch]=c);
+  const rows=base.map(b=>{const p=pMap[b.sku+'|'+b.batch];const pe=p?p.projExpired:0,pw=p?p.writeOff:0;const sold=Math.max(0,b.soh-pe);const dc=Math.round(SIMPROMO.disc/100*(b.price||0)*sold);const ws=Math.round(Math.max(0,b.writeOff-pw));return [b.sku,b.name,b.batch,b.expiry,b.daysToExpiry,b.soh,b.projExpired,pe,Math.max(0,b.projExpired-pe),ws,dc,ws-dc];}).sort((a,b)=>b[9]-a[9]);
+  downloadCSV('promo_rescue',['SKU','Product','Batch','Expiry','Days to expiry','SOH','Expire now','Expire w/ promo','Rescued','Write-off saved','Discount cost','Net'],rows);
+}
+function exportBudget(){
+  const rr=reorderRows(PLAN.lead,PLAN.cover,PLAN.safety,1), rank=p=>p.abc==='A'?0:p.abc==='B'?1:2;
+  rr.sort((a,b)=>((b.runsOutInLead?1:0)-(a.runsOutInLead?1:0))||(rank(a.p)-rank(b.p))||((a.p.daysToStockout??9999)-(b.p.daysToStockout??9999)));
+  let spent=0;
+  const rows=rr.map(r=>{const fit=spent+r.cost<=SIMBUDGET.budget;if(fit)spent+=r.cost;return [r.p.sku,r.p.name,r.p.abc||'',r.p.daysToStockout??'>365',r.qty,Math.round(r.cost),fit?'YES':'',fit?Math.round(spent):''];});
+  downloadCSV('budget_plan',['SKU','Product','ABC','Days to stockout','Order qty','Cost','Funded','Cumulative spend'],rows);
+}
+function exportService(){
+  downloadCSV('service_level',['Service level %','z-score','Safety stock units','Cash tied up'],
+    [80,90,95,97.5,99].map(l=>{const c=svcCash(l);return [l,zFor(l).toFixed(2),c.units,Math.round(c.cash)];}));
+}
+function exportSurge(){
+  const mult=1+SIMSURGE.lift/100, days=SIMSURGE.weeks*7;
+  const group=DATA.filter(p=>(!SIMSURGE.group||p.line===SIMSURGE.group)&&stk(p)!==null&&((p.velAdj||0)>0||(p.velocity||0)>0));
+  const rows=group.map(p=>{const dem=Math.round(unitsOverDays(p,days,mult));const s=Math.max(0,stk(p));const pre=Math.max(0,Math.ceil(dem-s));return [p.sku,p.name,p.line,s,(p.velAdj!=null?p.velAdj:p.velocity||0),dem,simDaysToStockout(p,mult)??'>365',pre,Math.round(pre*(p.price||0))];}).sort((a,b)=>b[7]-a[7]);
+  downloadCSV('campaign_surge',['SKU','Product','Line','Stock','Normal/mo','Campaign need','Days to stockout','Pre-buy','Cost'],rows);
+}
+function exportMonte(){
+  const rows=DATA.filter(p=>stk(p)!==null&&((p.velAdj||0)>0||(p.velocity||0)>0)).map(p=>mcRisk(p,SIMMONTE.horizon)).filter(Boolean).sort((a,b)=>b.prob-a.prob);
+  downloadCSV('monte_carlo_risk',['SKU','Product','Line','Stock','Forecast/mo','CV','Stockout probability %','Expected day','Horizon days'],
+    rows.map(r=>[r.p.sku,r.p.name,r.p.line,Math.max(0,stk(r.p)),(r.p.velAdj!=null?r.p.velAdj:r.p.velocity||0),r.p.cv??'',Math.round(r.prob*100),r.expDay??'',SIMMONTE.horizon]));
+}
+function exportProject(){
+  const p=DATA.find(x=>x.sku===SIMPROJ.sku); if(!p){return exportCSV();}
+  const s0=Math.max(0,stk(p)||0), sd=(p.demandStd>0?p.demandStd:(p.velAdj||p.velocity||0)*0.35), now=new Date();
+  let cum=0; const rows=[];
+  for(let k=0;k<12;k++){const d=new Date(now.getFullYear(),now.getMonth()+k,1);const dem=fcRate(p,k);cum+=dem;const cs=sd*Math.sqrt(k+1);rows.push([d.toLocaleDateString('en-PH',{month:'short',year:'2-digit'}),Math.round(dem),Math.round(s0-cum),Math.round(s0-(cum-1.28*cs)),Math.round(s0-(cum+1.28*cs))]);}
+  downloadCSV('projection_'+p.sku,['Month','Projected demand','Projected stock','Stock (high)','Stock (low)'],rows);
+}
+function exportCash(){
+  const rr=reorderRows(PLAN.lead,PLAN.cover,PLAN.safety,1), restock=rr.reduce((a,r)=>a+r.cost,0), now=new Date();
+  let inv=DATA.reduce((a,p)=>{const s=stk(p);return a+(s>0&&p.price?s*p.price:0);},0);
+  const rows=[];
+  for(let k=0;k<6;k++){const d=new Date(now.getFullYear(),now.getMonth()+k,1);let sv=0;for(const p of DATA){if(p.price>0)sv+=fcRate(p,k)*p.price;}const po=k===0?restock:sv;inv=inv-sv+po;rows.push([d.toLocaleDateString('en-PH',{month:'short',year:'2-digit'}),Math.round(po),Math.round(sv),Math.round(Math.max(0,inv))]);}
+  downloadCSV('cash_flow',['Month','Purchases','Sales','Inventory value'],rows);
+}
+function exportBulk(){
+  const rows=[];
+  for(const p of DATA){const m=(p.velAdj!=null?p.velAdj:p.velocity||0);if(m<=0||!(p.price>0))continue;const q=Math.ceil(m*SIMBULK.months);const dv=SIMBULK.disc/100*q*p.price;const h=SIMBULK.hold/100*p.price*(q/2)*SIMBULK.months;const ex=Math.max(0,q-m*SIMBULK.shelf)*p.price;rows.push([p.sku,p.name,m,q,Math.round(dv),Math.round(h),Math.round(ex),Math.round(dv-h-ex)]);}
+  rows.sort((a,b)=>b[7]-a[7]);
+  downloadCSV('bulk_buy',['SKU','Product','Forecast/mo','Bulk qty','Discount saved','Holding cost','Expiry risk','Net benefit'],rows);
+}
+function exportBranch(){
+  const branches=['BGC','Vertis North','GH Mall'], total={}; let grand=0;
+  branches.forEach(b=>{total[b]=(BRANCH_TRANSFERS||[]).filter(t=>t.branch===b).reduce((a,t)=>a+t.qty,0);grand+=total[b];});
+  const weight={}; branches.forEach(b=>weight[b]=grand>0?total[b]/grand:1/3);
+  const bySku={}; (BRANCH_TRANSFERS||[]).forEach(t=>{if(!bySku[t.sku])bySku[t.sku]={name:t.name,b:{'BGC':0,'Vertis North':0,'GH Mall':0}};bySku[t.sku].b[t.branch]=(bySku[t.sku].b[t.branch]||0)+t.qty;});
+  const rows=[];
+  for(const sku in bySku){const o=bySku[sku],tot=branches.reduce((a,b)=>a+o.b[b],0);if(tot<=0)continue;const surplus={};branches.forEach(b=>surplus[b]=o.b[b]-tot*weight[b]);let from=branches[0],to=branches[0];branches.forEach(b=>{if(surplus[b]>surplus[from])from=b;if(surplus[b]<surplus[to])to=b;});const move=Math.max(0,Math.round(Math.min(surplus[from],-surplus[to])));if(move<SIMBRANCH.minMove)continue;rows.push([sku,o.name,o.b['BGC'],o.b['Vertis North'],o.b['GH Mall'],from,to,move]);}
+  rows.sort((a,b)=>b[7]-a[7]);
+  downloadCSV('branch_rebalancing',['SKU','Product','BGC','Vertis North','GH Mall','Move from','Move to','Units'],rows);
+}
 function exportCSV(){
   const h=['SKU','Name','Line','Category','Bin','Batch','Expiry','Price','Velocity/mo','Months of stock','Received','Sold','Stock','Status'];
   const rows=DATA.map(p=>{const s=stk(p);return[p.sku,p.name,p.line,p.category,p.bin,p.batch,p.expiry,p.price??'',p.velocity??'',p.monthsOfStock??'',p.received,p.sold,s??'',statusOf(s).l].map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',');});
