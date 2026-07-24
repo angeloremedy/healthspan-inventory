@@ -273,6 +273,7 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
   <nav class="nav">
     <div class="nlbl">Views</div>
     <div class="ni active" onclick="showView('dashboard',this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>Dashboard</div>
+    <div class="ni" onclick="showView('action',this)"><svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Action center<span class="nbadge" id="b-action">0</span></div>
     <div class="ni" onclick="showView('all',this)"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="1" fill="currentColor"/><circle cx="3" cy="12" r="1" fill="currentColor"/><circle cx="3" cy="18" r="1" fill="currentColor"/></svg>All SKUs</div>
     <div class="nlbl">Alerts</div>
     <div class="ni" onclick="showView('oos',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg>Out of stock<span class="nbadge" id="b-oos">0</span></div>
@@ -401,6 +402,7 @@ const COLORS=['#1D9E75','#378ADD','#7F77DD','#D85A30','#BA7517','#D4537E','#0F6E
 /* Plain-language explanation shown at the top of each tab (toggle with the Tips button). */
 const DESC={
   dashboard:'Your at-a-glance overview — total stock, what’s running out, what’s expiring, and value by product line. A good place to start each day.',
+  action:'Your daily to-do in one place — what to <b>order now</b>, what to <b>promo or move</b> before it expires, what to <b>review</b>, and dead stock to clear. Pulls together the whole app so nobody has to hunt across tabs.',
   all:'Every product in one searchable table. Filter by line or category and click any row for full detail. <b>Days→out</b> is how long stock lasts at the current sales pace.',
   oos:'Products that have hit zero stock — these need reordering now.',
   low:'Products with fewer than 10 units left — running thin.',
@@ -544,6 +546,7 @@ function refreshSidebar(){
   if($('b-wo'))$('b-wo').textContent=woCnt;
   const belowRop=DATA.filter(p=>stk(p)!==null&&((p.velAdj||0)>0||(p.velocity||0)>0)&&ropCalc(p).below).length;
   if($('b-rop'))$('b-rop').textContent=belowRop;
+  if($('b-action'))$('b-action').textContent=belowRop;
   const lines=[...new Set(DATA.map(p=>p.line).filter(Boolean))].sort();
   $('lnav').innerHTML=lines.map(l=>{
     const n=DATA.filter(p=>p.line===l).length;
@@ -570,7 +573,8 @@ function applySync(data){
   $('psub').textContent='Healthspan Global, Inc. \u00b7 '+DATA.length+' SKUs \u00b7 '+BATCHES.length+' batches';
   updateMobileBadges();
   refreshSidebar();
-  if(currentView==='dashboard') renderDashboard();
+  if(currentView==='action') renderActionCenter();
+  else if(currentView==='dashboard') renderDashboard();
   else if(currentView==='expiry') renderExpiry();
   else if(currentView==='value') renderValue();
   else if(currentView==='movement') renderMovement();
@@ -672,7 +676,7 @@ function showView(v,el){
   currentView=v;fLine='';fSearch='';fTab='all';fBin='';
   document.querySelectorAll('.ni').forEach(x=>x.classList.remove('active'));
   if(el) el.classList.add('active');
-  const T={dashboard:'Dashboard',all:'All SKUs',oos:'Out of stock',low:'Low stock',neg:'Negative stock',
+  const T={dashboard:'Dashboard',action:'Action center',all:'All SKUs',oos:'Out of stock',low:'Low stock',neg:'Negative stock',
            expiry:'Expiry tracker',value:'Inventory value',movement:'Monthly movement',reorder:'Reorder alerts',batches:'Batch view',
            forecast:'Stockout forecast',reorderplan:'Reorder plan',ropoint:'Reorder point',variability:'Demand variability',abc:'ABC analysis',writeoff:'Write-off forecast',whatif:'What-if simulator',
            simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator',
@@ -680,6 +684,7 @@ function showView(v,el){
            aged:'Aged inventory',shrinkage:'Shrinkage tracker',cashexpiry:'Cash in expiring stock',branchtransfer:'Remedy branch shipments',branchexpiry:'Remedy branch expiry watch'};
   $('ptitle').textContent=T[v]||v;
   if(v==='dashboard') renderDashboard();
+  else if(v==='action') renderActionCenter();
   else if(v==='expiry') renderExpiry();
   else if(v==='value') renderValue();
   else if(v==='movement') renderMovement();
@@ -714,6 +719,45 @@ function fltLine(line,el){
   if(el) el.classList.add('active');
   $('ptitle').textContent=line;
   renderTable();
+}
+
+/* ── ACTION CENTER ── */
+function renderActionCenter(){
+  const orders=reorderRows(PLAN.lead,PLAN.cover,PLAN.safety,1);
+  const rank=p=>p.abc==='A'?0:p.abc==='B'?1:2;
+  orders.sort((a,b)=>((b.runsOutInLead?1:0)-(a.runsOutInLead?1:0))||(rank(a.p)-rank(b.p))||((a.p.daysToStockout??9999)-(b.p.daysToStockout??9999)));
+  const orderCost=orders.reduce((a,r)=>a+r.cost,0);
+  const expiry=collisionRows(1);
+  const woTotal=expiry.reduce((a,c)=>a+c.writeOff,0);
+  const neg=DATA.filter(p=>{const s=stk(p);return s!==null&&s<0;});
+  const negSet=new Set(neg.map(p=>p.sku));
+  const lumpyLow=DATA.filter(p=>p.demandClass==='lumpy'&&stk(p)>0&&p.daysToStockout!=null&&p.daysToStockout<=30&&!negSet.has(p.sku));
+  const review=[...neg.map(p=>({p,reason:'Negative stock — check count',c:'rd'})),...lumpyLow.map(p=>({p,reason:'Lumpy demand, low stock',c:'am'}))];
+  const dead=DATA.filter(p=>p.agedBucket==='dead'&&stk(p)>0&&p.price>0).map(p=>({p,val:stk(p)*p.price})).sort((a,b)=>b.val-a.val);
+  const deadVal=dead.reduce((a,x)=>a+x.val,0);
+  const arow=(sku,dot,name,meta)=>'<div class="arow" onclick="openDrawer(\''+esc(sku)+'\')"><div class="adot '+dot+'"></div><div class="aname">'+name+'</div><div class="ameta">'+meta+'</div></div>';
+  const sect=(icon,title,count,sub,link,linkLabel,body)=>'<div class="panel"><div class="phd">'+icon+title+' <span style="color:var(--tx3);font-weight:500;margin-left:4px">'+count+'</span></div><div style="font-size:11px;color:var(--tx3);margin:-2px 0 8px">'+sub+'</div><div class="alist">'+body+'</div><div style="margin-top:9px"><a href="#" onclick="showView(\''+link+'\',null);return false" style="font-size:11px;color:var(--ac);font-weight:600;text-decoration:none">'+linkLabel+' →</a></div></div>';
+  const iCart='<svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1" fill="currentColor"/><circle cx="20" cy="21" r="1" fill="currentColor"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>';
+  const iWarn='<svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r="1" fill="currentColor"/></svg>';
+  const iEye='<svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+  const iClock='<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+  $('content').innerHTML=
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met rd"><div class="met-lbl">Order now</div><div class="met-val">'+orders.length+'</div><div class="met-sub">'+fmtK(orderCost)+' to restock</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Write-off risk</div><div class="met-val" style="font-size:17px">'+fmtK(woTotal)+'</div><div class="met-sub">'+expiry.length+' batches expiring</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">To review</div><div class="met-val">'+review.length+'</div><div class="met-sub">data issues / unreliable</div><div class="met-bar"></div></div>'+
+    '<div class="met pu"><div class="met-lbl">Dead stock</div><div class="met-val" style="font-size:17px">'+fmtK(deadVal)+'</div><div class="met-sub">'+dead.length+' SKUs idle 180d+</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="g2">'+
+    sect(iCart,'Order now',orders.length,'Below reorder point or running out — buy these.','reorderplan','Open reorder plan',
+      orders.length?orders.slice(0,7).map(r=>arow(r.p.sku,((r.p.daysToStockout!=null&&r.p.daysToStockout<=14)||r.runsOutInLead)?'rd':'am',(r.p.abc?'<b>'+r.p.abc+'</b> ':'')+esc(r.p.name),r.qty.toLocaleString()+' units · '+fmtP(r.cost))).join('')+(orders.length>7?'<div class="arow" style="justify-content:center;color:var(--ac);font-size:11px" onclick="showView(\'reorderplan\',null)">+ '+(orders.length-7)+' more</div>':''):'<div class="empty">Nothing to order right now</div>')+
+    sect(iWarn,'Act on expiry',expiry.length,'Expiring unsold — promo or move to a faster site.','writeoff','Open write-off forecast',
+      expiry.length?expiry.slice(0,7).map(c=>arow(c.sku,'rd',esc(c.name)+' <span style="color:var(--tx3);font-size:9px">'+esc(c.batch||'')+'</span>',fmtK(c.writeOff)+' · '+c.daysToExpiry+'d')).join('')+(expiry.length>7?'<div class="arow" style="justify-content:center;color:var(--ac);font-size:11px" onclick="showView(\'writeoff\',null)">+ '+(expiry.length-7)+' more</div>':''):'<div class="empty">No expiry write-off risk</div>')+
+    sect(iEye,'Review',review.length,'Data issues or forecasts to judge by hand.','variability','Open demand variability',
+      review.length?review.slice(0,7).map(x=>arow(x.p.sku,x.c,esc(x.p.name),x.reason)).join('')+(review.length>7?'<div class="arow" style="justify-content:center;color:var(--ac);font-size:11px" onclick="showView(\'neg\',null)">+ '+(review.length-7)+' more</div>':''):'<div class="empty">Nothing to review</div>')+
+    sect(iClock,'Clear dead stock',dead.length,'No sale in 180+ days — clearance or promo.','aged','Open aged inventory',
+      dead.length?dead.slice(0,7).map(x=>arow(x.p.sku,'',esc(x.p.name),fmtP(x.val)+(x.p.daysSinceLastSale?' · '+x.p.daysSinceLastSale+'d idle':''))).join('')+(dead.length>7?'<div class="arow" style="justify-content:center;color:var(--ac);font-size:11px" onclick="showView(\'aged\',null)">+ '+(dead.length-7)+' more</div>':''):'<div class="empty">No dead stock</div>')+
+    '</div>';
 }
 
 /* ── DASHBOARD ── */
