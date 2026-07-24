@@ -275,6 +275,7 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
     <div class="ni active" onclick="showView('dashboard',this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>Dashboard</div>
     <div class="ni" onclick="showView('action',this)"><svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Action center<span class="nbadge" id="b-action">0</span></div>
     <div class="ni" onclick="showView('all',this)"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="1" fill="currentColor"/><circle cx="3" cy="12" r="1" fill="currentColor"/><circle cx="3" cy="18" r="1" fill="currentColor"/></svg>All SKUs</div>
+    <div class="ni" onclick="showView('customers',this)"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Customers</div>
     <div class="nlbl">Alerts</div>
     <div class="ni" onclick="showView('oos',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg>Out of stock<span class="nbadge" id="b-oos">0</span></div>
     <div class="ni" onclick="showView('low',this)"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>Low stock<span class="nbadge w" id="b-low">0</span></div>
@@ -349,6 +350,7 @@ let CASH_EXPIRING = {};
 let EXPIRING_ITEMS = [];
 let BRANCH_TRANSFERS = [];
 let BRANCH_EXPIRY = {};
+let CUSTOMERS = [];
 let COLLISIONS = [];
 let PLAN = (()=>{try{return Object.assign({lead:30,cover:3,safety:14,service:95},JSON.parse(localStorage.getItem('hs_plan')||'{}'));}catch(e){return {lead:30,cover:3,safety:14,service:95};}})();
 /* Per-line supplier lead times (days). Imported brands ship longer than local/marketing items. All editable in the Reorder point view. */
@@ -403,6 +405,7 @@ const COLORS=['#1D9E75','#378ADD','#7F77DD','#D85A30','#BA7517','#D4537E','#0F6E
 const DESC={
   dashboard:'Your at-a-glance overview — total stock, what’s running out, what’s expiring, and value by product line. A good place to start each day.',
   action:'Your daily to-do in one place — what to <b>order now</b>, what to <b>promo or move</b> before it expires, what to <b>review</b>, and dead stock to clear. Pulls together the whole app so nobody has to hunt across tabs.',
+  customers:'Who Healthspan sells to — accounts ranked by value, order cadence, and whether they’re <b>growing, declining, or dormant</b>. Also shows how concentrated you are on Remedy. Built from the destination column of the OUT sheet; Remedy’s branches are grouped as one account.',
   all:'Every product in one searchable table. Filter by line or category and click any row for full detail. <b>Days→out</b> is how long stock lasts at the current sales pace.',
   oos:'Products that have hit zero stock — these need reordering now.',
   low:'Products with fewer than 10 units left — running thin.',
@@ -569,11 +572,13 @@ function applySync(data){
   EXPIRING_ITEMS=data.expiringItems||[];
   BRANCH_TRANSFERS=data.branchTransfers||[];
   BRANCH_EXPIRY=data.branchExpirySummary||{};
+  CUSTOMERS=data.customers||[];
   COLLISIONS=data.collisions||[];
   $('psub').textContent='Healthspan Global, Inc. \u00b7 '+DATA.length+' SKUs \u00b7 '+BATCHES.length+' batches';
   updateMobileBadges();
   refreshSidebar();
   if(currentView==='action') renderActionCenter();
+  else if(currentView==='customers') renderCustomers();
   else if(currentView==='dashboard') renderDashboard();
   else if(currentView==='expiry') renderExpiry();
   else if(currentView==='value') renderValue();
@@ -676,7 +681,7 @@ function showView(v,el){
   currentView=v;fLine='';fSearch='';fTab='all';fBin='';
   document.querySelectorAll('.ni').forEach(x=>x.classList.remove('active'));
   if(el) el.classList.add('active');
-  const T={dashboard:'Dashboard',action:'Action center',all:'All SKUs',oos:'Out of stock',low:'Low stock',neg:'Negative stock',
+  const T={dashboard:'Dashboard',action:'Action center',customers:'Customers',all:'All SKUs',oos:'Out of stock',low:'Low stock',neg:'Negative stock',
            expiry:'Expiry tracker',value:'Inventory value',movement:'Monthly movement',reorder:'Reorder alerts',batches:'Batch view',
            forecast:'Stockout forecast',reorderplan:'Reorder plan',ropoint:'Reorder point',variability:'Demand variability',abc:'ABC analysis',writeoff:'Write-off forecast',whatif:'What-if simulator',
            simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator',
@@ -685,6 +690,7 @@ function showView(v,el){
   $('ptitle').textContent=T[v]||v;
   if(v==='dashboard') renderDashboard();
   else if(v==='action') renderActionCenter();
+  else if(v==='customers') renderCustomers();
   else if(v==='expiry') renderExpiry();
   else if(v==='value') renderValue();
   else if(v==='movement') renderMovement();
@@ -719,6 +725,45 @@ function fltLine(line,el){
   if(el) el.classList.add('active');
   $('ptitle').textContent=line;
   renderTable();
+}
+
+/* ── CUSTOMERS / ACCOUNTS ── */
+function renderCustomers(){
+  const all=CUSTOMERS||[];
+  if(!all.length){$('content').innerHTML='<div class="empty" style="margin-top:40px">No customer data in the current sync yet — it appears after the next Google Sheets sync.</div>';return;}
+  const f=window._custFilter||'all';
+  const totVal=all.reduce((a,c)=>a+c.value,0);
+  const remedy=all.filter(c=>c.isRemedy).reduce((a,c)=>a+c.value,0);
+  const remedyPct=totVal>0?Math.round(remedy/totVal*100):0;
+  const dormant=all.filter(c=>c.daysSince!=null&&c.daysSince>90);
+  const declining=all.filter(c=>c.trend==='down');
+  const growing=all.filter(c=>c.trend==='up'||c.trend==='new');
+  const atRisk=new Set([...declining,...dormant].map(c=>c.name)).size;
+  let rows=all.slice();
+  if(f==='growing')rows=growing;else if(f==='declining')rows=declining;else if(f==='dormant')rows=dormant;
+  const tabs=[['all','All ('+all.length+')'],['growing','Growing ('+growing.length+')'],['declining','Declining ('+declining.length+')'],['dormant','Dormant ('+dormant.length+')']];
+  const tb=c=>c.trend==='up'?'<span class="pill pgr">▲ growing</span>':c.trend==='new'?'<span class="pill pbl">new</span>':c.trend==='down'?'<span class="pill prd">▼ declining</span>':'<span class="pill pgy">flat</span>';
+  $('content').innerHTML=
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met bl"><div class="met-lbl">Accounts</div><div class="met-val">'+all.length+'</div><div class="met-sub">customers shipped to</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Shipped value</div><div class="met-val" style="font-size:17px">'+fmtK(totVal)+'</div><div class="met-sub">total across accounts</div><div class="met-bar"></div></div>'+
+    '<div class="met pu"><div class="met-lbl">Remedy concentration</div><div class="met-val">'+remedyPct+'%</div><div class="met-sub">of shipped value</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">At-risk accounts</div><div class="met-val">'+atRisk+'</div><div class="met-sub">declining or dormant 90d+</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    (remedyPct>=50?'<div class="viewdesc" style="border-left-color:var(--am)"><svg class="vd-i" viewBox="0 0 24 24" style="stroke:var(--am)"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r="1" fill="currentColor"/></svg><div class="vd-t"><b>Concentration risk:</b> Remedy is '+remedyPct+'% of shipped value. A large share riding on one customer is worth watching.</div></div>':'')+
+    '<div class="tabs" style="margin-bottom:12px">'+tabs.map(([k,l])=>'<div class="tab'+(f===k?' active':'')+'" onclick="window._custFilter=\''+k+'\';renderCustomers()">'+l+'</div>').join('')+'</div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>#</th><th>Customer</th><th style="text-align:right">Orders</th><th style="text-align:right">SKUs</th><th style="text-align:right">Units</th><th style="text-align:right">Shipped value</th><th style="text-align:right">Share</th><th style="text-align:right">Last order</th><th>Trend</th></tr></thead><tbody>'+
+    (rows.length?rows.map((c,i)=>{
+      const share=totVal>0?(c.value/totVal*100):0;
+      const last=c.daysSince!=null?(c.daysSince<=0?'today':c.daysSince+'d ago'):'—';
+      const lastC=c.daysSince!=null&&c.daysSince>90?'color:var(--rd)':'';
+      return '<tr'+(c.isRemedy?' style="background:var(--sf2)"':'')+'><td class="mu">'+(i+1)+'</td>'+
+      '<td style="font-weight:600;max-width:240px;overflow:hidden;text-overflow:ellipsis">'+esc(c.name)+(c.isRemedy?' <span class="pill pbl" style="font-weight:500">sister co.</span>':'')+'</td>'+
+      '<td class="r mu">'+c.orders.toLocaleString()+'</td><td class="r mu">'+c.skuCount+'</td><td class="r mu">'+c.qty.toLocaleString()+'</td>'+
+      '<td class="r" style="font-weight:600">'+fmtK(c.value)+'</td><td class="r">'+share.toFixed(1)+'%</td>'+
+      '<td class="r mu" style="font-size:11px;'+lastC+'">'+last+'</td><td>'+tb(c)+'</td></tr>';
+    }).join(''):'<tr><td colspan="9"><div class="empty">No accounts in this filter</div></td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>Accounts from the OUT sheet destination column · Remedy’s branches grouped as one · trend = last 90 days vs the 90 before</span></div></div>';
 }
 
 /* ── ACTION CENTER ── */
@@ -2158,6 +2203,7 @@ function exportCurrentView(){
     case 'simcash': return exportCash();
     case 'simbulk': return exportBulk();
     case 'simbranch': return exportBranch();
+    case 'customers': return exportCustomers();
     default: return exportCSV();
   }
 }
@@ -2234,6 +2280,11 @@ function exportBulk(){
   for(const p of DATA){const m=(p.velAdj!=null?p.velAdj:p.velocity||0);if(m<=0||!(p.price>0))continue;const q=Math.ceil(m*SIMBULK.months);const dv=SIMBULK.disc/100*q*p.price;const h=SIMBULK.hold/100*p.price*(q/2)*SIMBULK.months;const ex=Math.max(0,q-m*SIMBULK.shelf)*p.price;rows.push([p.sku,p.name,m,q,Math.round(dv),Math.round(h),Math.round(ex),Math.round(dv-h-ex)]);}
   rows.sort((a,b)=>b[7]-a[7]);
   downloadCSV('bulk_buy',['SKU','Product','Forecast/mo','Bulk qty','Discount saved','Holding cost','Expiry risk','Net benefit'],rows);
+}
+function exportCustomers(){
+  const all=CUSTOMERS||[]; const tot=all.reduce((a,x)=>a+x.value,0);
+  downloadCSV('customers',['Customer','Is Remedy','Orders','SKUs','Units','Shipped value','Share %','Last order (days ago)','Trend'],
+    all.map(c=>[c.name,c.isRemedy?'YES':'',c.orders,c.skuCount,c.qty,c.value,tot>0?(c.value/tot*100).toFixed(1):'',c.daysSince??'',c.trend]));
 }
 function exportBranch(){
   const branches=['BGC','Vertis North','GH Mall'], total={}; let grand=0;
