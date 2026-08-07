@@ -62,6 +62,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .viewdesc .vd-t b{color:var(--tx1);font-weight:600}
 .viewdesc .vd-x{flex-shrink:0;background:none;border:none;color:var(--tx3);font-size:17px;cursor:pointer;line-height:1;padding:0 2px}
 .viewdesc .vd-x:hover{color:var(--tx1)}
+.calcbox{border:1px solid var(--bd);border-radius:8px;background:var(--sf);margin-bottom:14px;overflow:hidden}
+.calchd{display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;font-size:11.5px;font-weight:600;color:var(--tx2);user-select:none}
+.calchd:hover{background:var(--sf2)}
+.calchd svg{width:14px;height:14px;stroke:var(--tx3);fill:none;stroke-width:2;flex-shrink:0}
+.calchd .cx{margin-left:auto;transition:transform .15s}
+.calcbox.open .calchd .cx{transform:rotate(90deg)}
+.calcbody{display:none;padding:2px 14px 13px 34px;font-size:12px;color:var(--tx2);line-height:1.65}
+.calcbox.open .calcbody{display:block}
+.calcbody .fx{display:block;background:var(--sf2);border-left:3px solid var(--ac);border-radius:5px;padding:7px 10px;margin:7px 0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--tx1);white-space:pre-wrap}
+.calcbody ol{margin:6px 0 6px 16px;padding:0}
+.calcbody li{margin:3px 0}
+.calcbody b{color:var(--tx1)}
+.calcbody .note{color:var(--tx3);font-size:11px;margin-top:8px}
 .topbar{background:var(--sf);border-bottom:1px solid var(--bd);padding:10px 22px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:12px}
 .ptitle{font-size:15px;font-weight:700;letter-spacing:-.01em}.psub{font-size:11px;color:var(--tx3);margin-top:1px}
 .tbr{display:flex;gap:7px;align-items:center;flex-shrink:0}
@@ -441,6 +454,70 @@ const DESC={
   branchtransfer:'A log of product Healthspan has shipped to <b>Remedy’s</b> clinic branches — BGC, Vertis North, Greenhills — from 2025 onward. Remedy is a sister company and a customer.',
   branchexpiry:'For each <b>Remedy</b> branch, the stock Healthspan shipped there sorted by expiry — so each clinic can see what to use up first.'
 };
+/* "How is this calculated" methodology, shown as a collapsible panel on planning/forecast tabs. */
+const VELOCITY_BASIS='<b>Forecast monthly demand</b> is built from actual outbound movement — not opening balances:<ol>'+
+  '<li><b>Base velocity</b> — average units shipped out per month over the last 6 complete months (from the Sending Inventory OUT sheet).</li>'+
+  '<li><b>Trend</b> — the last 3 months are compared with the 3 before; a rising or falling SKU bends the forecast up or down (capped so one odd month can’t distort it).</li>'+
+  '<li><b>Seasonality</b> — if a SKU has a repeating month-of-year pattern, that month’s index is applied.</li></ol>'+
+  'SKUs without enough history fall back to the plain 6-month average.';
+const CALC={
+  coverage:{t:'How stock coverage is calculated',b:
+    '<span class="fx">Coverage (months) = stock on hand ÷ forecast monthly demand\nCoverage (weeks)  = months × 4.345</span>'+
+    VELOCITY_BASIS+
+    '<div style="margin-top:9px"><b>Bands:</b> under 2 weeks = Critical · 2–4 weeks = Low · 1–2 months = OK · 2–4 months = Healthy · over 4 months = Overstock.</div>'+
+    '<div class="note">Example: 2,200 units on hand ÷ 190 per month = 11.6 months ≈ 50 weeks → Overstock. SKUs with no stock or no recent sales are excluded — runway can’t be computed without movement.</div>'},
+  forecast:{t:'How the stockout forecast is calculated',b:
+    VELOCITY_BASIS+
+    '<div style="margin-top:9px">Stock is then run down <b>month by month</b> against that forecast until it hits zero; the day it crosses is the projected stockout date.</div>'+
+    '<span class="fx">days to stockout = simulate( stock − forecast demand, month by month )</span>'+
+    '<div class="note">Because it steps through each month, seasonal and trending SKUs run out at different speeds than a flat average would suggest. Beyond 12 months it simply reports “>12 mo”.</div>'},
+  reorderplan:{t:'How order quantities are calculated',b:
+    '<span class="fx">order qty = demand over (lead time + coverage + safety) − stock on hand</span>'+
+    'Demand is integrated across the forecast curve for that whole window, so seasonality is respected.'+
+    '<div style="margin-top:9px"><b>Your three controls:</b> <b>lead time</b> (how long the supplier takes), <b>coverage</b> (how many months you want to hold after it lands), <b>safety</b> (extra days of buffer).</div>'+
+    '<div class="note">Highlighted rows run out <i>before</i> the shipment can arrive — those are already late. Est. cost = qty × unit price, so SKUs missing a price show blank (see Data health).</div>'},
+  ropoint:{t:'How the reorder point is calculated',b:
+    '<span class="fx">reorder point = (forecast demand/mo × lead months) + safety stock\nsafety stock  = z × σ(demand) × √lead months</span>'+
+    '<b>In plain terms:</b> cover the demand you expect while waiting for the supplier, plus a cushion sized to how <i>unpredictable</i> that SKU is.'+
+    '<ol><li><b>z</b> comes from your service level (95% → 1.65). Higher service = bigger cushion.</li>'+
+    '<li><b>σ (sigma)</b> is the standard deviation of monthly demand — steady SKUs get a small buffer, lumpy ones a large one.</li>'+
+    '<li><b>Lead time</b> is per product line, editable on that tab.</li></ol>'+
+    '<div class="note">Stock at or below the reorder point means it’s time to order. This also drives the Reorder alerts badge unless you set a manual threshold on a SKU.</div>'},
+  variability:{t:'How demand variability (CV) is calculated',b:
+    '<span class="fx">CV = standard deviation of monthly demand ÷ average monthly demand</span>'+
+    'A unitless measure of how erratic a product’s sales are, so a slow SKU and a fast SKU can be compared fairly.'+
+    '<div style="margin-top:9px"><b>Steady</b> CV &lt; 0.5 · <b>Variable</b> 0.5–1.0 · <b>Lumpy</b> &gt; 1.0 or mostly zero-sale months · <b>Insufficient</b> under 3 months of history.</div>'+
+    '<div class="note">Leading months with no sales are trimmed so newly launched SKUs aren’t unfairly penalised. CV feeds the safety-stock cushion on the Reorder point tab.</div>'},
+  abc:{t:'How ABC classes are assigned',b:
+    '<span class="fx">consumption value = units moved (6 months) × unit price</span>'+
+    'SKUs are ranked by that value, then split on cumulative share: <b>A</b> = top 80%, <b>B</b> = next 15%, <b>C</b> = the rest.'+
+    '<div class="note">Classic Pareto: A-items are the vital few that deserve tight control, frequent counts and priority when budget is short. SKUs with no price can’t be valued — fix those in Data health.</div>'},
+  writeoff:{t:'How write-off risk is calculated',b:
+    'Each batch is checked against how fast that SKU actually sells, in <b>FEFO order</b> (earliest expiry first):'+
+    '<span class="fx">sellable before expiry = daily demand × days to expiry − stock ahead in the queue\nprojected expired = batch stock on hand − sellable\nwrite-off value   = projected expired × unit price</span>'+
+    '<div class="note">“Stock ahead” matters: batches queued in front consume the demand first, so a later batch can expire even when the SKU sells well. Sort by write-off value to find the costliest exposure.</div>'}
+};
+function calcPanel(v){
+  const c=CALC[v]; if(!c)return '';
+  const open=localStorage.getItem('hs_calc_'+v)==='1';
+  return '<div class="calcbox'+(open?' open':'')+'" id="calc-'+v+'"><div class="calchd" onclick="toggleCalc(\''+v+'\')">'+
+    '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><circle cx="12" cy="8" r="1" fill="currentColor"/></svg>'+
+    c.t+'<svg class="cx" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>'+
+    '<div class="calcbody">'+c.b+'</div></div>';
+}
+function toggleCalc(v){
+  const el=document.getElementById('calc-'+v); if(!el)return;
+  el.classList.toggle('open');
+  try{localStorage.setItem('hs_calc_'+v,el.classList.contains('open')?'1':'0');}catch(e){}
+}
+function injectCalc(v){
+  if(!CALC[v])return;
+  const c=document.getElementById('content'); if(!c||c.querySelector('.calcbox'))return;
+  const d=c.querySelector('.viewdesc');
+  const tmp=document.createElement('div'); tmp.innerHTML=calcPanel(v);
+  const box=tmp.firstChild;
+  if(d&&d.nextSibling)c.insertBefore(box,d.nextSibling); else if(d)c.appendChild(box); else c.insertBefore(box,c.firstChild);
+}
 let TIPS_ON = localStorage.getItem('hs_tips')!=='off';
 let TIP_SEEN = (()=>{try{return JSON.parse(localStorage.getItem('hs_tipseen')||'{}');}catch(e){return {};}})();
 function injectDesc(v){
@@ -614,6 +691,7 @@ function applySync(data){
   else if(currentView==='simbranch') renderBranchSim();
   else renderTable();
   injectDesc(currentView);
+  injectCalc(currentView);
 }
 
 async function syncNow(){
@@ -727,6 +805,7 @@ function showView(v,el){
   else if(v==='simbranch') renderBranchSim();
   else renderTable(v);
   injectDesc(v);
+  injectCalc(v);
 }
 function fltLine(line,el){
   currentView='line';fLine=line;fSearch='';fTab='all';fBin='';
