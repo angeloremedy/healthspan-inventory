@@ -284,6 +284,7 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
     <div class="ni" onclick="showView('reorder',this)"><svg viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>Reorder alerts<span class="nbadge" id="b-reorder">0</span></div>
     <div class="nlbl">Planning</div>
     <div class="ni" onclick="showView('forecast',this)"><svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>Stockout forecast<span class="nbadge" id="b-so30">0</span></div>
+    <div class="ni" onclick="showView('coverage',this)"><svg viewBox="0 0 24 24"><rect x="3" y="12" width="4" height="9"/><rect x="10" y="7" width="4" height="14"/><rect x="17" y="3" width="4" height="18"/></svg>Stock coverage</div>
     <div class="ni" onclick="showView('reorderplan',this)"><svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1" fill="currentColor"/><circle cx="20" cy="21" r="1" fill="currentColor"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>Reorder plan</div>
     <div class="ni" onclick="showView('ropoint',this)"><svg viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M2 12h20"/><circle cx="12" cy="12" r="4"/></svg>Reorder point<span class="nbadge" id="b-rop">0</span></div>
     <div class="ni" onclick="showView('variability',this)"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l3-4 3 3 4-6"/></svg>Demand variability</div>
@@ -388,7 +389,7 @@ let SIMMONTE = {horizon:60};
 let SIMPROJ = {sku:''};
 let SIMBULK = {disc:10, hold:2, shelf:18, months:6};
 let SIMBRANCH = {minMove:10};
-let projInst=null, cashInst=null;
+let projInst=null, cashInst=null, covInst=null;
 let _randSpare=null;
 function randn(){ // standard normal (Box-Muller with cached spare)
   if(_randSpare!=null){const s=_randSpare;_randSpare=null;return s;}
@@ -415,6 +416,7 @@ const DESC={
   expiry:'Batches sorted by expiry date, soonest first. Use it to decide what to sell or use up before it expires.',
   reorder:'Products that have dropped below their reorder point (or a threshold you set) and should be reordered.',
   forecast:'Predicts when each product will run out, using recent sales trend and seasonality. Order the red ones first.',
+  coverage:'How much runway you have — <b>weeks or months of stock left</b> at the current sales pace, per product. The chart groups SKUs from critically low to overstocked; the list ranks them lowest-cover first. Toggle weeks/months up top.',
   reorderplan:'Turns the forecast into a shopping list — how much to order of each item and the estimated cost. Adjust lead time and coverage up top, then export a draft PO.',
   ropoint:'The “buy-again” level for each product, based on how fast it sells and how erratic demand is. Stock at or below the reorder point means it’s time to order.',
   variability:'Sorts products into <b>steady</b>, <b>variable</b>, and <b>lumpy</b> by how consistent their sales are — so you know which forecasts to trust and which need a human eye.',
@@ -594,6 +596,7 @@ function applySync(data){
   else if(currentView==='branchtransfer') renderBranchTransfer();
   else if(currentView==='branchexpiry') renderBranchExpiry();
   else if(currentView==='forecast') renderForecast();
+  else if(currentView==='coverage') renderCoverage();
   else if(currentView==='reorderplan') renderReorderPlan();
   else if(currentView==='ropoint') renderReorderPoint();
   else if(currentView==='variability') renderVariability();
@@ -687,7 +690,7 @@ function showView(v,el){
   if(el) el.classList.add('active');
   const T={dashboard:'Dashboard',action:'Action center',customers:'Customers',health:'Data health',all:'All SKUs',oos:'Out of stock',low:'Low stock',neg:'Negative stock',
            expiry:'Expiry tracker',value:'Inventory value',movement:'Monthly movement',reorder:'Reorder alerts',batches:'Batch view',
-           forecast:'Stockout forecast',reorderplan:'Reorder plan',ropoint:'Reorder point',variability:'Demand variability',abc:'ABC analysis',writeoff:'Write-off forecast',whatif:'What-if simulator',
+           forecast:'Stockout forecast',coverage:'Stock coverage',reorderplan:'Reorder plan',ropoint:'Reorder point',variability:'Demand variability',abc:'ABC analysis',writeoff:'Write-off forecast',whatif:'What-if simulator',
            simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator',
            simmonte:'Monte Carlo stockout risk',simproject:'12-month projection',simcash:'Cash-flow timeline',simbulk:'Bulk-buy trade-off',simbranch:'Remedy branch rebalancing',
            aged:'Aged inventory',shrinkage:'Shrinkage tracker',cashexpiry:'Cash in expiring stock',branchtransfer:'Remedy branch shipments',branchexpiry:'Remedy branch expiry watch'};
@@ -706,6 +709,7 @@ function showView(v,el){
   else if(v==='branchtransfer') renderBranchTransfer();
   else if(v==='branchexpiry') renderBranchExpiry();
   else if(v==='forecast') renderForecast();
+  else if(v==='coverage') renderCoverage();
   else if(v==='reorderplan') renderReorderPlan();
   else if(v==='ropoint') renderReorderPoint();
   else if(v==='variability') renderVariability();
@@ -730,6 +734,52 @@ function fltLine(line,el){
   if(el) el.classList.add('active');
   $('ptitle').textContent=line;
   renderTable();
+}
+
+/* ── STOCK COVERAGE (weeks/months of runway) ── */
+function renderCoverage(){
+  const unit=window._covUnit||'weeks';
+  const cands=DATA.filter(p=>{const s=stk(p);return s>0&&((p.velAdj||0)>0||(p.velocity||0)>0);})
+    .map(p=>{const rate=(p.velAdj!=null&&p.velAdj>0)?p.velAdj:p.velocity;const m=stk(p)/rate;return {p,rate,mo:m,wk:m*4.345};})
+    .sort((a,b)=>a.wk-b.wk);
+  const B=[
+    {k:'crit',label:'Under 2 weeks',color:'#D85A30',cls:'prd',status:'Critical',test:x=>x.wk<2},
+    {k:'low',label:'2–4 weeks',color:'#BA7517',cls:'pam',status:'Low',test:x=>x.wk>=2&&x.wk<4},
+    {k:'ok',label:'1–2 months',color:'#378ADD',cls:'pbl',status:'OK',test:x=>x.wk>=4&&x.wk<8.7},
+    {k:'healthy',label:'2–4 months',color:'#1D9E75',cls:'pgr',status:'Healthy',test:x=>x.wk>=8.7&&x.wk<17.4},
+    {k:'over',label:'Over 4 months',color:'#7F77DD',cls:'',status:'Overstock',test:x=>x.wk>=17.4}
+  ];
+  const bIdx=x=>{for(let i=0;i<B.length;i++)if(B[i].test(x))return i;return 4;};
+  const counts=B.map(b=>cands.filter(b.test).length);
+  const med=cands.length?cands[Math.floor(cands.length/2)]:null;
+  const medTxt=med?(unit==='weeks'?Math.round(med.wk*10)/10+' wk':Math.round(med.mo*10)/10+' mo'):'—';
+  const cap=unit==='weeks'?26:6;
+  const fmtCov=x=>unit==='weeks'?(x.wk<1?'<1 wk':Math.round(x.wk*10)/10+' wk'):(x.mo<0.1?'<0.1 mo':Math.round(x.mo*10)/10+' mo');
+  const pill=b=>b.k==='over'?'<span class="pill" style="background:var(--pu-bg);color:var(--pu)">Overstock</span>':'<span class="pill '+b.cls+'">'+b.status+'</span>';
+  $('content').innerHTML=
+    '<div class="tabs" style="margin-bottom:14px"><div class="tab'+(unit==='weeks'?' active':'')+'" onclick="window._covUnit=\'weeks\';renderCoverage()">Weeks</div><div class="tab'+(unit==='months'?' active':'')+'" onclick="window._covUnit=\'months\';renderCoverage()">Months</div></div>'+
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met rd"><div class="met-lbl">Critical</div><div class="met-val">'+counts[0]+'</div><div class="met-sub">under 2 weeks left</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Low</div><div class="met-val">'+counts[1]+'</div><div class="met-sub">2–4 weeks left</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Median cover</div><div class="met-val" style="font-size:19px">'+medTxt+'</div><div class="met-sub">typical runway</div><div class="met-bar"></div></div>'+
+    '<div class="met pu"><div class="met-lbl">Overstock</div><div class="met-val">'+counts[4]+'</div><div class="met-sub">over 4 months on hand</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="panel" style="margin-bottom:14px"><div class="phd">SKUs by coverage band</div><div class="cw" style="height:220px"><canvas id="cov-canvas"></canvas></div></div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>SKU</th><th>Product</th><th>Line</th><th style="text-align:right">Stock</th><th style="text-align:right">Fcst /mo</th><th style="min-width:170px">Cover left</th><th>Status</th></tr></thead><tbody>'+
+    (cands.length?cands.slice(0,400).map(x=>{
+      const b=B[bIdx(x)];
+      const pct=Math.max(3,Math.min(100,Math.round((unit==='weeks'?x.wk:x.mo)/cap*100)));
+      return '<tr onclick="openDrawer(\''+esc(x.p.sku)+'\')" style="cursor:pointer"><td class="mo">'+esc(x.p.sku)+'</td>'+
+      '<td style="max-width:190px;overflow:hidden;text-overflow:ellipsis">'+esc(x.p.name)+'</td>'+
+      '<td class="mu" style="max-width:90px;overflow:hidden;text-overflow:ellipsis">'+esc(x.p.line||'')+'</td>'+
+      '<td class="r stk">'+stk(x.p).toLocaleString()+'</td>'+
+      '<td class="r mu">'+(x.p.velAdj!=null?x.p.velAdj:x.p.velocity)+'</td>'+
+      '<td><div style="display:flex;align-items:center;gap:8px"><div style="flex:0 0 90px;height:6px;background:var(--sf2);border-radius:3px;overflow:hidden"><div style="width:'+pct+'%;height:100%;background:'+b.color+'"></div></div><span style="font-size:11px;font-weight:600">'+fmtCov(x)+'</span></div></td>'+
+      '<td>'+pill(b)+'</td></tr>';
+    }).join(''):'<tr><td colspan="7"><div class="empty">No SKUs with stock and sales velocity</div></td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>Cover = current stock ÷ forecast monthly demand · '+cands.length+' active SKUs · items with no stock or no recent sales are excluded</span></div></div>';
+  if(covInst){covInst.destroy();covInst=null;}
+  covInst=new Chart($('cov-canvas'),{type:'bar',data:{labels:B.map(b=>b.label),datasets:[{label:'SKUs',data:counts,backgroundColor:B.map(b=>b.color)}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,title:{display:true,text:'SKUs'},grid:{color:'rgba(128,128,128,0.12)'}}}}});
 }
 
 /* ── DATA HEALTH ── */
@@ -2251,6 +2301,7 @@ function exportCurrentView(){
     case 'simbranch': return exportBranch();
     case 'customers': return exportCustomers();
     case 'health': return exportHealth();
+    case 'coverage': return exportCoverage();
     default: return exportCSV();
   }
 }
@@ -2327,6 +2378,13 @@ function exportBulk(){
   for(const p of DATA){const m=(p.velAdj!=null?p.velAdj:p.velocity||0);if(m<=0||!(p.price>0))continue;const q=Math.ceil(m*SIMBULK.months);const dv=SIMBULK.disc/100*q*p.price;const h=SIMBULK.hold/100*p.price*(q/2)*SIMBULK.months;const ex=Math.max(0,q-m*SIMBULK.shelf)*p.price;rows.push([p.sku,p.name,m,q,Math.round(dv),Math.round(h),Math.round(ex),Math.round(dv-h-ex)]);}
   rows.sort((a,b)=>b[7]-a[7]);
   downloadCSV('bulk_buy',['SKU','Product','Forecast/mo','Bulk qty','Discount saved','Holding cost','Expiry risk','Net benefit'],rows);
+}
+function exportCoverage(){
+  const cands=DATA.filter(p=>{const s=stk(p);return s>0&&((p.velAdj||0)>0||(p.velocity||0)>0);})
+    .map(p=>{const rate=(p.velAdj!=null&&p.velAdj>0)?p.velAdj:p.velocity;const m=stk(p)/rate;return {p,mo:m,wk:m*4.345};})
+    .sort((a,b)=>a.wk-b.wk);
+  downloadCSV('stock_coverage',['SKU','Product','Line','Stock','Forecast/mo','Weeks of cover','Months of cover'],
+    cands.map(x=>[x.p.sku,x.p.name,x.p.line,stk(x.p),(x.p.velAdj!=null?x.p.velAdj:x.p.velocity),Math.round(x.wk*10)/10,Math.round(x.mo*10)/10]));
 }
 function exportHealth(){
   const active=DATA.filter(p=>{const s=stk(p);return (s!==null&&s>0)||p.sold>0;});
