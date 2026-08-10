@@ -887,17 +887,21 @@ function renderDataHealth(){
   const missBin=active.filter(p=>stk(p)>0&&!p.bin);
   const negStk=DATA.filter(p=>{const s=stk(p);return s!==null&&s<0;});
   const lowHist=DATA.filter(p=>p.demandClass==='insufficient'&&p.sold>0);
+  const batchSet=new Set((BATCHES||[]).filter(b=>b.soh>0).map(b=>b.skuCode));
+  const noShelf=active.filter(p=>stk(p)>0&&p.expiry&&!batchSet.has(p.sku));
+  const maxYr=new Date().getFullYear()+10;
+  const oddExp=active.filter(p=>{const m=String(p.expiry||'').match(/\d{4}/g);if(!m)return false;return Math.max(...m.map(Number))>maxYr;});
   const score=Math.round(((n-missPrice.length)/n+(n-missExp.length)/n+(n-missBatch.length)/n+(n-missBin.length)/n)/4*100);
   const scoreC=score>=90?'gr':score>=75?'am':'rd';
   const issues={};
   const add=(p,tag)=>{const k=p.sku;(issues[k]=issues[k]||{p,tags:[]}).tags.push(tag);};
-  missPrice.forEach(p=>add(p,'price')); missExp.forEach(p=>add(p,'expiry')); missBatch.forEach(p=>add(p,'batch')); missBin.forEach(p=>add(p,'bin')); negStk.forEach(p=>add(p,'neg')); lowHist.forEach(p=>add(p,'hist'));
+  missPrice.forEach(p=>add(p,'price')); missExp.forEach(p=>add(p,'expiry')); missBatch.forEach(p=>add(p,'batch')); missBin.forEach(p=>add(p,'bin')); negStk.forEach(p=>add(p,'neg')); lowHist.forEach(p=>add(p,'hist')); noShelf.forEach(p=>add(p,'shelf')); oddExp.forEach(p=>add(p,'oddexp'));
   const f=window._healthFilter||'all';
   let list=Object.values(issues);
   if(f!=='all')list=list.filter(x=>x.tags.includes(f));
   list.sort((a,b)=>b.tags.length-a.tags.length||String(a.p.name).localeCompare(String(b.p.name)));
-  const tags=[['all','All ('+Object.keys(issues).length+')'],['price','No price ('+missPrice.length+')'],['expiry','No expiry ('+missExp.length+')'],['batch','No batch ('+missBatch.length+')'],['neg','Negative ('+negStk.length+')'],['hist','Low history ('+lowHist.length+')']];
-  const tagPill={price:'<span class="pill prd">No price</span>',expiry:'<span class="pill pam">No expiry</span>',batch:'<span class="pill pgy">No batch</span>',bin:'<span class="pill pgy">No bin</span>',neg:'<span class="pill prd">Negative stock</span>',hist:'<span class="pill pbl">Low history</span>'};
+  const tags=[['all','All ('+Object.keys(issues).length+')'],['price','No price ('+missPrice.length+')'],['expiry','No expiry ('+missExp.length+')'],['batch','No batch ('+missBatch.length+')'],['neg','Negative ('+negStk.length+')'],['hist','Low history ('+lowHist.length+')'],['shelf','No shelf-life rec ('+noShelf.length+')'],['oddexp','Odd expiry ('+oddExp.length+')']];
+  const tagPill={price:'<span class="pill prd">No price</span>',expiry:'<span class="pill pam">No expiry</span>',batch:'<span class="pill pgy">No batch</span>',bin:'<span class="pill pgy">No bin</span>',neg:'<span class="pill prd">Negative stock</span>',hist:'<span class="pill pbl">Low history</span>',shelf:'<span class="pill pam">No shelf-life rec</span>',oddexp:'<span class="pill prd">Odd expiry</span>'};
   $('content').innerHTML=
     '<div class="metrics" style="margin-bottom:14px">'+
     '<div class="met '+scoreC+'"><div class="met-lbl">Data health score</div><div class="met-val">'+score+'%</div><div class="met-sub">completeness of active SKUs</div><div class="met-bar"></div></div>'+
@@ -2490,6 +2494,10 @@ function exportHealth(){
   active.filter(p=>stk(p)>0&&!p.bin).forEach(p=>add(p,'no bin'));
   DATA.filter(p=>{const s=stk(p);return s!==null&&s<0;}).forEach(p=>add(p,'negative stock'));
   DATA.filter(p=>p.demandClass==='insufficient'&&p.sold>0).forEach(p=>add(p,'low history'));
+  const bset=new Set((BATCHES||[]).filter(b=>b.soh>0).map(b=>b.skuCode));
+  active.filter(p=>stk(p)>0&&p.expiry&&!bset.has(p.sku)).forEach(p=>add(p,'no shelf-life record'));
+  const myr=new Date().getFullYear()+10;
+  active.filter(p=>{const m=String(p.expiry||'').match(/\d{4}/g);return m&&Math.max(...m.map(Number))>myr;}).forEach(p=>add(p,'implausible expiry'));
   downloadCSV('data_health',['SKU','Product','Line','Stock','Price','Issues'],
     Object.values(issues).map(x=>[x.p.sku,x.p.name,x.p.line,stk(x.p)??'',x.p.price??'',x.tags.join('; ')]));
 }
@@ -2514,13 +2522,23 @@ function toggleAsk(){
   d.classList.toggle('open');
   if(d.classList.contains('open')){const i=document.getElementById('askinput'); if(i)setTimeout(()=>i.focus(),150);}
 }
+let ASKHIST=[];
 function askCatalog(){
   const prods=DATA.map(p=>[p.sku,p.name,p.line||'',(typeof p.stock==='number'?p.stock:''),
     (p.price!=null?p.price:''),(p.velAdj!=null?p.velAdj:(p.velocity!=null?p.velocity:'')),
-    (p.monthsOfStock!=null?p.monthsOfStock:''),p.expiry||'',p.batch||''].join('|')).join('\n');
+    (p.monthsOfStock!=null?p.monthsOfStock:''),p.expiry||'',p.batch||'',
+    (p.daysToStockout!=null?p.daysToStockout:''),p.stockoutDate||''].join('|')).join('\n');
   const batches=(BATCHES||[]).filter(b=>b.soh>0).map(b=>[b.skuCode||'',b.name,b.batch||'',b.expiry||'',b.soh].join('|')).join('\n');
-  return 'PRODUCTS (sku|name|line|stock|price_php|forecast_per_month|months_of_cover|expiry|batch):\n'+prods+
-    '\n\nBATCHES with stock, FEFO order — earliest expiry first (sku|name|batch|expiry_MM/YYYY|units_on_hand):\n'+batches;
+  const custs=(CUSTOMERS||[]).slice(0,150).map(c=>[c.name,c.qty,c.value,c.orders,c.skuCount,c.lastOrder||'',c.daysSince!=null?c.daysSince:'',c.trend,c.isRemedy?'REMEDY':''].join('|')).join('\n');
+  const ships=(BRANCH_TRANSFERS||[]).slice(0,80).map(t=>[t.branch,t.sku,t.name,t.qty,t.dateSerial?new Date((t.dateSerial-25569)*864e5).toISOString().slice(0,10):''].join('|')).join('\n');
+  const wo=collisionRows(1).slice(0,50).map(c=>[c.sku,c.name,c.batch||'',c.expiry||'',c.projExpired,c.writeOff].join('|')).join('\n');
+  const mo=(MONTHS||[]).map(m=>m+'='+((MONTHLY_OUT||{})[m]||0)).join(', ');
+  return 'PRODUCTS (sku|name|line|stock|price_php|forecast_per_month|months_of_cover|expiry|batch|days_to_stockout|stockout_date):\n'+prods+
+    '\n\nBATCHES with stock, FEFO order — earliest expiry first (sku|name|batch|expiry_MM/YYYY|units_on_hand):\n'+batches+
+    '\n\nCUSTOMERS (name|units|value_php|orders|sku_count|last_order|days_since_order|trend|remedy_flag):\n'+custs+
+    '\n\nREMEDY SHIPMENTS — recent shipments to Remedy branches (branch|sku|name|qty|date):\n'+ships+
+    '\n\nWRITE-OFF RISK — projected to expire unsold (sku|name|batch|expiry|units_at_risk|writeoff_value_php):\n'+wo+
+    '\n\nMONTHLY UNITS OUT (month=units): '+mo;
 }
 function askFmt(t){
   return esc(t).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>');
@@ -2528,6 +2546,7 @@ function askFmt(t){
 async function sendAsk(){
   const inp=document.getElementById('askinput'), log=document.getElementById('asklog'), btn=document.getElementById('askbtn');
   if(!inp||!log)return;
+  if(btn&&btn.disabled)return; // a question is already in flight (guards Enter-key double submit)
   const q=inp.value.trim(); if(!q)return;
   const empty=log.querySelector('.askempty'); if(empty)empty.remove();
   inp.value='';
@@ -2537,10 +2556,11 @@ async function sendAsk(){
   btn.disabled=true;
   try{
     const r=await fetch('/.netlify/functions/ask',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({question:q,catalog:askCatalog()})});
+      body:JSON.stringify({question:q,catalog:askCatalog(),history:ASKHIST.slice(-3)})});
     const out=await r.json();
     const p=document.getElementById('ask-pending');
     if(p){p.removeAttribute('id');p.innerHTML=out.answer?askFmt(out.answer):'<span style="color:var(--rd)">'+esc(out.error||'No answer')+'</span>';}
+    if(out.answer){ASKHIST.push({q:q,a:out.answer});if(ASKHIST.length>10)ASKHIST.shift();}
   }catch(err){
     const p=document.getElementById('ask-pending');
     if(p){p.removeAttribute('id');p.innerHTML='<span style="color:var(--rd)">Could not reach the AI: '+esc(err.message)+'</span>';}
