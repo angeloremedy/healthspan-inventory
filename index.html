@@ -2515,9 +2515,12 @@ function toggleAsk(){
   if(d.classList.contains('open')){const i=document.getElementById('askinput'); if(i)setTimeout(()=>i.focus(),150);}
 }
 function askCatalog(){
-  return DATA.map(p=>[p.sku,p.name,p.line||'',(typeof p.stock==='number'?p.stock:''),
+  const prods=DATA.map(p=>[p.sku,p.name,p.line||'',(typeof p.stock==='number'?p.stock:''),
     (p.price!=null?p.price:''),(p.velAdj!=null?p.velAdj:(p.velocity!=null?p.velocity:'')),
-    (p.monthsOfStock!=null?p.monthsOfStock:'')].join('|')).join('\n');
+    (p.monthsOfStock!=null?p.monthsOfStock:''),p.expiry||'',p.batch||''].join('|')).join('\n');
+  const batches=(BATCHES||[]).filter(b=>b.soh>0).map(b=>[b.skuCode||'',b.name,b.batch||'',b.expiry||'',b.soh].join('|')).join('\n');
+  return 'PRODUCTS (sku|name|line|stock|price_php|forecast_per_month|months_of_cover|expiry|batch):\n'+prods+
+    '\n\nBATCHES with stock, FEFO order — earliest expiry first (sku|name|batch|expiry_MM/YYYY|units_on_hand):\n'+batches;
 }
 function askFmt(t){
   return esc(t).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>');
