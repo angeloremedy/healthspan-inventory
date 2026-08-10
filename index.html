@@ -952,13 +952,43 @@ function renderCustomers(){
       const share=totVal>0?(c.value/totVal*100):0;
       const last=c.daysSince!=null?(c.daysSince<=0?'today':c.daysSince+'d ago'):'—';
       const lastC=c.daysSince!=null&&c.daysSince>90?'color:var(--rd)':'';
-      return '<tr'+(c.isRemedy?' style="background:var(--sf2)"':'')+'><td class="mu">'+(i+1)+'</td>'+
+      return '<tr onclick="openCustDrawer('+CUSTOMERS.indexOf(c)+')" style="cursor:pointer'+(c.isRemedy?';background:var(--sf2)':'')+'"><td class="mu">'+(i+1)+'</td>'+
       '<td style="font-weight:600;max-width:240px;overflow:hidden;text-overflow:ellipsis">'+esc(c.name)+(c.isRemedy?' <span class="pill pbl" style="font-weight:500">sister co.</span>':'')+'</td>'+
       '<td class="r mu">'+c.orders.toLocaleString()+'</td><td class="r mu">'+c.skuCount+'</td><td class="r mu">'+c.qty.toLocaleString()+'</td>'+
       '<td class="r" style="font-weight:600">'+fmtK(c.value)+'</td><td class="r">'+share.toFixed(1)+'%</td>'+
       '<td class="r mu" style="font-size:11px;'+lastC+'">'+last+'</td><td>'+tb(c)+'</td></tr>';
     }).join(''):'<tr><td colspan="9"><div class="empty">No accounts in this filter</div></td></tr>')+
     '</tbody></table></div><div class="tfooter"><span>Accounts from the OUT sheet destination column · Remedy’s branches grouped as one · trend = last 90 days vs the 90 before</span></div></div>';
+}
+
+/* ── CUSTOMER DETAIL DRAWER ── */
+function openCustDrawer(idx){
+  const c=(CUSTOMERS||[])[idx]; if(!c)return;
+  const totVal=(CUSTOMERS||[]).reduce((a,x)=>a+x.value,0);
+  const share=totVal>0?(c.value/totVal*100).toFixed(1):'0';
+  const tb=c.trend==='up'?'<span class="pill pgr">▲ growing</span>':c.trend==='new'?'<span class="pill pbl">new</span>':c.trend==='down'?'<span class="pill prd">▼ declining</span>':'<span class="pill pgy">flat</span>';
+  const last=c.daysSince!=null?(c.daysSince<=0?'today':c.daysSince+' days ago'):'—';
+  const topHTML=(c.topProducts&&c.topProducts.length)?'<div class="dsec"><div class="dsectitle">What they buy (top products)</div>'+
+    c.topProducts.map(t=>'<div class="drow" onclick="openDrawer(\''+esc(t.sku)+'\')" style="cursor:pointer"><span class="dlbl" style="max-width:180px;overflow:hidden;text-overflow:ellipsis">'+esc(t.name)+'</span><span class="dval">'+t.qty.toLocaleString()+' u'+(t.value>0?' · '+fmtK(t.value):'')+'</span></div>').join('')+'</div>':'';
+  const recHTML=(c.recent&&c.recent.length)?'<div class="dsec"><div class="dsectitle">Recent shipments</div>'+
+    c.recent.map(r=>'<div class="drow"><span class="dlbl">'+esc(r.date)+'</span><span class="dval" style="max-width:190px;overflow:hidden;text-overflow:ellipsis;text-align:right">'+r.qty+' × '+esc(r.name)+'</span></div>').join('')+'</div>':'';
+  $('dbody').innerHTML=
+    '<div class="dsku">CUSTOMER</div>'+
+    '<div class="dname">'+esc(c.name)+'</div>'+
+    tb+(c.isRemedy?' <span class="pill pbl">sister co.</span>':'')+
+    '<div class="dstk" style="color:var(--gr)">'+fmtK(c.value)+'</div>'+
+    '<div class="dsub">total shipped value · '+share+'% of all accounts</div>'+
+    '<div class="dsec"><div class="dsectitle">Account</div>'+
+    '<div class="drow"><span class="dlbl">Units shipped</span><span class="dval">'+c.qty.toLocaleString()+'</span></div>'+
+    '<div class="drow"><span class="dlbl">Orders</span><span class="dval">'+c.orders.toLocaleString()+'</span></div>'+
+    '<div class="drow"><span class="dlbl">Distinct products</span><span class="dval">'+c.skuCount+'</span></div>'+
+    '<div class="drow"><span class="dlbl">Last order</span><span class="dval"'+(c.daysSince!=null&&c.daysSince>90?' style="color:var(--rd);font-weight:600"':'')+'>'+last+'</span></div>'+
+    '<div class="drow"><span class="dlbl">Last 90d value</span><span class="dval">'+fmtK(c.recentVal)+'</span></div>'+
+    '<div class="drow"><span class="dlbl">Prior 90d value</span><span class="dval">'+fmtK(c.priorVal)+'</span></div>'+
+    '</div>'+topHTML+recHTML+
+    '<div style="font-size:10.5px;color:var(--tx3);margin-top:10px">From the OUT sheet destination column · tap a product to open its detail</div>';
+  $('overlay').classList.add('open');
+  $('drawer').classList.add('open');
 }
 
 /* ── ACTION CENTER ── */
