@@ -113,9 +113,11 @@ export const handler=async(event,context)=>{
       if(cuName){
         const key=br?'REMEDY':cuName.toUpperCase();
         let c=custAgg[key];
-        if(!c)c=custAgg[key]={name:br?'Remedy':cuName,qty:0,value:0,lines:0,skus:new Set(),orders:new Set(),lastDs:0,recentVal:0,priorVal:0,isRemedy:!!br};
+        if(!c)c=custAgg[key]={name:br?'Remedy':cuName,qty:0,value:0,lines:0,skus:new Set(),orders:new Set(),lastDs:0,recentVal:0,priorVal:0,isRemedy:!!br,skuQty:{},items:[]};
         const val=q*(prices[s]||0);
         c.qty+=q; c.value+=val; c.lines+=1; c.skus.add(s);
+        c.skuQty[s]=(c.skuQty[s]||0)+q;
+        if(ds)c.items.push({ds,s,q});
         const ordRef=clean((oIK[i]||[])[2]); if(ordRef)c.orders.add(ordRef);
         if(ds&&ds>c.lastDs)c.lastDs=ds;
         if(ds){ if(ds>=nowSerial-90)c.recentVal+=val; else if(ds>=nowSerial-180)c.priorVal+=val; }
@@ -129,7 +131,11 @@ export const handler=async(event,context)=>{
       const daysSince=c.lastDs?Math.round(nowSerial-c.lastDs):null;
       let trend='flat';
       if(c.recentVal>0||c.priorVal>0){ if(c.priorVal<=0)trend='new'; else if(c.recentVal>=c.priorVal*1.15)trend='up'; else if(c.recentVal<=c.priorVal*0.85)trend='down'; }
-      return {name:c.name,qty:c.qty,value:Math.round(c.value),orders,skuCount:c.skus.size,lastOrder,daysSince,recentVal:Math.round(c.recentVal),priorVal:Math.round(c.priorVal),trend,isRemedy:c.isRemedy};
+      const topProducts=Object.entries(c.skuQty).sort((a,b)=>b[1]-a[1]).slice(0,8)
+        .map(([sku,q])=>({sku,name:(prodMeta[sku]&&prodMeta[sku].name)||sku,qty:q,value:Math.round(q*(prices[sku]||0))}));
+      const recent=c.items.sort((a,b)=>b.ds-a.ds).slice(0,8)
+        .map(x=>({date:new Date((x.ds-25569)*86400000).toISOString().slice(0,10),sku:x.s,name:(prodMeta[x.s]&&prodMeta[x.s].name)||x.s,qty:x.q}));
+      return {name:c.name,qty:c.qty,value:Math.round(c.value),orders,skuCount:c.skus.size,lastOrder,daysSince,recentVal:Math.round(c.recentVal),priorVal:Math.round(c.priorVal),trend,isRemedy:c.isRemedy,topProducts,recent};
     }).sort((a,b)=>b.value-a.value).slice(0,300);
 
     for(const r of inR){const mk=serialMK(r[6]);const q=pInt(r[3]);if(mk&&mIn[mk]!==undefined&&q>0)mIn[mk]+=q;}
