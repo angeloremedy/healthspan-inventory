@@ -24,26 +24,33 @@ export const handler = async (event) => {
     if (!r.ok) throw new Error('inventory feed returned ' + r.status);
     const data = await r.json();
 
-    // 2. Compact catalog: sku|name|line|stock|price|forecast-per-month|months-of-cover
-    const cat = (data.products || []).map(p => [
+    // 2. Compact catalog: products + batch-level expiry (FEFO)
+    const prods = (data.products || []).map(p => [
       p.sku, p.name, p.line || '',
       (typeof p.stock === 'number' ? p.stock : ''),
       (p.price != null ? p.price : ''),
       (p.velAdj != null ? p.velAdj : (p.velocity != null ? p.velocity : '')),
-      (p.monthsOfStock != null ? p.monthsOfStock : '')
+      (p.monthsOfStock != null ? p.monthsOfStock : ''),
+      p.expiry || '', p.batch || ''
     ].join('|')).join('\n');
+    const batches = (data.batches || []).filter(b => b.soh > 0).map(b =>
+      [b.skuCode || '', b.name, b.batch || '', b.expiry || '', b.soh].join('|')).join('\n');
+    const cat = 'PRODUCTS (sku|name|line|stock|price_php|forecast_per_month|months_of_cover|expiry|batch):\n' + prods +
+      '\n\nBATCHES with stock, FEFO order - earliest expiry first (sku|name|batch|expiry_MM/YYYY|units_on_hand):\n' + batches;
 
     const key = process.env.ANTHROPIC_API_KEY;
     if (!key) { await post(':warning: ANTHROPIC_API_KEY is not configured in Netlify.'); return { statusCode: 200, body: 'no key' }; }
 
     const system = [
       'You are Healthspan Global\'s inventory assistant answering questions in Slack.',
-      'You are given the full live warehouse catalog, one product per line:',
-      'sku|name|line|stock|price_php|forecast_units_per_month|months_of_cover',
+      'You are given two live sections:',
+      '1. PRODUCTS - one per line: sku|name|line|stock|price_php|forecast_units_per_month|months_of_cover|expiry|batch',
+      '2. BATCHES - batch-level stock in FEFO order (earliest expiry first): sku|name|batch|expiry_MM/YYYY|units_on_hand',
       '',
       'Rules:',
-      '- Answer ONLY from the catalog. Match product names fuzzily (misspellings, partial names, brand variants).',
-      '- If a product is not in the catalog, say clearly it is not in the system.',
+      '- Answer ONLY from this data. Match product names fuzzily (misspellings, partial names, brand variants).',
+      '- For expiry questions ("what expires soon?"), use the BATCHES section - it is already sorted earliest-first. Give product, batch, expiry month, and units.',
+      '- If a product is not in the data, say clearly it is not in the system.',
       '- Stock figures are WAREHOUSE-level. Per-branch on-hand is not tracked; say so if asked about a specific branch.',
       '- Empty price means no Healthspan price on file. Remedy-side pricing is not in this system at all.',
       '- Answer every part of multi-part questions, in the order asked.',
