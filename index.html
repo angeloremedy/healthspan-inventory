@@ -333,6 +333,7 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
     <div class="ni" onclick="showView('health',this)"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Data health<span class="nbadge" id="b-health">0</span></div>
     <div class="ni" onclick="showView('movement',this)"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Monthly movement</div>
     <div class="ni" onclick="showView('value',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Inventory value</div>
+    <div class="ni" onclick="showView('dealvalue',this)"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/><line x1="13" y1="11" x2="17" y2="15"/></svg>Deal scenarios</div>
     <div class="ni" onclick="showView('batches',this)"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>Batch view (FEFO)</div>
     <div class="nlbl">Finance</div>
     <div class="ni" onclick="showView('aged',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Aged inventory</div>
@@ -463,6 +464,7 @@ const DESC={
   simbranch:'Suggests moving stock between <b>Remedy’s</b> branches (BGC, Vertis North, Greenhills) to balance each site’s share and use up near-expiry stock. Remedy is a sister company and a customer; this is based on what Healthspan has shipped to them.',
   movement:'Units received versus sold each month over the past year — the pulse of what’s coming in and going out.',
   value:'Where your inventory money sits, broken down by product line.',
+  dealvalue:'What the current stock is worth <b>if everything sells à la carte (SRP)</b> versus through the bundle deals (2+1 up to 6+1, where the +1 is free). Shows the revenue given up by each deal structure. Based on SRP only — supplier/landed cost isn’t in the system yet, so this is revenue, not profit.',
   batches:'Every batch in FEFO order (first to expire, first out) — the sequence to pull stock in.',
   aged:'Products that haven’t sold in a while, grouped into aging, slow, and dead stock — candidates for a promo or clear-out.',
   shrinkage:'Flags gaps between what was received/sold and what’s actually on hand — possible loss, miscounts, or unrecorded movement.',
@@ -508,6 +510,11 @@ const CALC={
     '<span class="fx">consumption value = units moved (6 months) × unit price</span>'+
     'SKUs are ranked by that value, then split on cumulative share: <b>A</b> = top 80%, <b>B</b> = next 15%, <b>C</b> = the rest.'+
     '<div class="note">Classic Pareto: A-items are the vital few that deserve tight control, frequent counts and priority when budget is short. SKUs with no price can’t be valued — fix those in Data health.</div>'},
+  dealvalue:{t:'How deal-scenario values are calculated',b:
+    '<span class="fx">à la carte value = stock × SRP\ndeal value (N+1) = (stock − free units) × SRP\nfree units       = ⌊ stock ÷ (N+1) ⌋</span>'+
+    'In an <b>N+1 deal</b>, every full set of N+1 units contains one free unit. Leftover units that don’t complete a set still sell at full SRP — so the math is exact, not a flat percentage.'+
+    '<div style="margin-top:9px">Example: 100 units on a <b>3+1</b> deal → 25 full sets → 25 free units → 75 units paid → value = 75 × SRP (a 25% giveaway).</div>'+
+    '<div class="note">Caveats: prices are the current (outdated) à-la-carte SRP from the sheet — update them there to update this view. Supplier cost and landed cost (forex, fees, taxes, shipping) are not in the system yet, so these figures are potential REVENUE, not profit or margin. SKUs without a price are excluded entirely — see Data health.</div>'},
   writeoff:{t:'How write-off risk is calculated',b:
     'Each batch is checked against how fast that SKU actually sells, in <b>FEFO order</b> (earliest expiry first):'+
     '<span class="fx">sellable before expiry = daily demand × days to expiry − stock ahead in the queue\nprojected expired = batch stock on hand − sellable\nwrite-off value   = projected expired × unit price</span>'+
@@ -681,6 +688,7 @@ function applySync(data){
   else if(currentView==='dashboard') renderDashboard();
   else if(currentView==='expiry') renderExpiry();
   else if(currentView==='value') renderValue();
+  else if(currentView==='dealvalue') renderDealValue();
   else if(currentView==='movement') renderMovement();
   else if(currentView==='batches') renderBatches();
   else if(currentView==='aged') renderAged();
@@ -783,7 +791,7 @@ function showView(v,el){
   document.querySelectorAll('.ni').forEach(x=>x.classList.remove('active'));
   if(el) el.classList.add('active');
   const T={dashboard:'Dashboard',action:'Action center',customers:'Customers',health:'Data health',all:'All SKUs',oos:'Out of stock',low:'Low stock',neg:'Negative stock',
-           expiry:'Expiry tracker',value:'Inventory value',movement:'Monthly movement',reorder:'Reorder alerts',batches:'Batch view',
+           expiry:'Expiry tracker',value:'Inventory value',dealvalue:'Deal scenarios',movement:'Monthly movement',reorder:'Reorder alerts',batches:'Batch view',
            forecast:'Stockout forecast',coverage:'Stock coverage',reorderplan:'Reorder plan',ropoint:'Reorder point',variability:'Demand variability',abc:'ABC analysis',writeoff:'Write-off forecast',whatif:'What-if simulator',
            simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator',
            simmonte:'Monte Carlo stockout risk',simproject:'12-month projection',simcash:'Cash-flow timeline',simbulk:'Bulk-buy trade-off',simbranch:'Remedy branch rebalancing',
@@ -795,6 +803,7 @@ function showView(v,el){
   else if(v==='health') renderDataHealth();
   else if(v==='expiry') renderExpiry();
   else if(v==='value') renderValue();
+  else if(v==='dealvalue') renderDealValue();
   else if(v==='movement') renderMovement();
   else if(v==='batches') renderBatches();
   else if(v==='aged') renderAged();
@@ -875,6 +884,49 @@ function renderCoverage(){
     '</tbody></table></div><div class="tfooter"><span>Cover = current stock ÷ forecast monthly demand · '+cands.length+' active SKUs · items with no stock or no recent sales are excluded</span></div></div>';
   if(covInst){covInst.destroy();covInst=null;}
   covInst=new Chart($('cov-canvas'),{type:'bar',data:{labels:B.map(b=>b.label),datasets:[{label:'SKUs',data:counts,backgroundColor:B.map(b=>b.color)}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,title:{display:true,text:'SKUs'},grid:{color:'rgba(128,128,128,0.12)'}}}}});
+}
+
+/* ── DEAL SCENARIOS (inventory value: ala carte vs bundle deals) ── */
+const DEALS=[['À la carte',0],['2+1',2],['3+1',3],['4+1',4],['5+1',5],['6+1',6]];
+function dealRows(){
+  return DATA.filter(p=>stk(p)>0&&p.price>0).map(p=>{
+    const s=stk(p);
+    const vals=DEALS.map(([,n])=>{if(!n)return s*p.price;const free=Math.floor(s/(n+1));return (s-free)*p.price;});
+    return {p,s,vals};
+  }).sort((a,b)=>b.vals[0]-a.vals[0]);
+}
+function renderDealValue(){
+  const rows=dealRows();
+  const tot=DEALS.map((_,i)=>rows.reduce((a,r)=>a+r.vals[i],0));
+  const excluded=DATA.filter(p=>stk(p)>0&&!(p.price>0)).length;
+  const cardCls=['gr','bl','bl','am','am','pu'];
+  $('content').innerHTML=
+    '<div class="metrics" style="margin-bottom:14px">'+
+    DEALS.map(([lbl],i)=>{
+      const giveaway=tot[0]-tot[i];
+      const sub=i===0?'full SRP, no freebies':('−'+fmtK(giveaway)+' vs à la carte ('+(tot[0]>0?Math.round(giveaway/tot[0]*100):0)+'% given away)');
+      return '<div class="met '+cardCls[i]+'"><div class="met-lbl">'+lbl+'</div><div class="met-val" style="font-size:17px">'+fmtK(tot[i])+'</div><div class="met-sub">'+sub+'</div><div class="met-bar"></div></div>';
+    }).join('')+
+    '</div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr>'+
+    '<th>SKU</th><th>Product</th><th style="text-align:right">Stock</th><th style="text-align:right">SRP</th>'+
+    DEALS.map(([lbl])=>'<th style="text-align:right">'+lbl+'</th>').join('')+
+    '</tr></thead><tbody>'+
+    (rows.length?rows.slice(0,300).map(r=>{
+      const p=r.p;
+      return '<tr onclick="openDrawer(\''+esc(p.sku)+'\')" style="cursor:pointer"><td class="mo">'+esc(p.sku)+'</td>'+
+      '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">'+esc(p.name)+'</td>'+
+      '<td class="r stk">'+r.s.toLocaleString()+'</td>'+
+      '<td class="r mu" style="font-size:11px">'+fmtP(p.price)+'</td>'+
+      r.vals.map((v,i)=>'<td class="r" style="'+(i===0?'font-weight:700':'')+'">'+fmtK(v)+'</td>').join('')+
+      '</tr>';
+    }).join(''):'<tr><td colspan="'+(4+DEALS.length)+'"><div class="empty">No priced SKUs with stock</div></td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>'+rows.length+' priced SKUs valued · '+excluded+' in-stock SKUs excluded for missing SRP (see Data health) · revenue at SRP, not profit — cost data not yet in system</span></div></div>';
+}
+function exportDeals(){
+  const rows=dealRows();
+  downloadCSV('deal_scenarios',['SKU','Product','Line','Stock','SRP',...DEALS.map(([l])=>l+' value')],
+    rows.map(r=>[r.p.sku,r.p.name,r.p.line,r.s,r.p.price,...r.vals.map(v=>Math.round(v))]));
 }
 
 /* ── DATA HEALTH ── */
@@ -2431,6 +2483,7 @@ function exportCurrentView(){
     case 'customers': return exportCustomers();
     case 'health': return exportHealth();
     case 'coverage': return exportCoverage();
+    case 'dealvalue': return exportDeals();
     default: return exportCSV();
   }
 }
