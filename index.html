@@ -886,47 +886,75 @@ function renderCoverage(){
   covInst=new Chart($('cov-canvas'),{type:'bar',data:{labels:B.map(b=>b.label),datasets:[{label:'SKUs',data:counts,backgroundColor:B.map(b=>b.color)}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,title:{display:true,text:'SKUs'},grid:{color:'rgba(128,128,128,0.12)'}}}}});
 }
 
-/* ── DEAL SCENARIOS (inventory value: ala carte vs bundle deals) ── */
+/* ── DEAL SCENARIOS (inventory value: ala carte vs bundle deals, per-product plan) ── */
 const DEALS=[['À la carte',0],['2+1',2],['3+1',3],['4+1',4],['5+1',5],['6+1',6]];
+let DEALPLAN=(()=>{try{return JSON.parse(localStorage.getItem('hs_dealplan')||'{}');}catch(e){return {};}})();
+function dealVal(s,price,n){if(!n)return s*price;const free=Math.floor(s/(n+1));return (s-free)*price;}
 function dealRows(){
   return DATA.filter(p=>stk(p)>0&&p.price>0).map(p=>{
     const s=stk(p);
-    const vals=DEALS.map(([,n])=>{if(!n)return s*p.price;const free=Math.floor(s/(n+1));return (s-free)*p.price;});
-    return {p,s,vals};
+    const assigned=DEALPLAN[p.sku]||0;
+    const vals=DEALS.map(([,n])=>dealVal(s,p.price,n));
+    return {p,s,vals,assigned,planVal:dealVal(s,p.price,assigned)};
   }).sort((a,b)=>b.vals[0]-a.vals[0]);
+}
+function setDeal(sku,n){
+  n=parseInt(n)||0;
+  if(n)DEALPLAN[sku]=n; else delete DEALPLAN[sku];
+  try{localStorage.setItem('hs_dealplan',JSON.stringify(DEALPLAN));}catch(e){}
+  renderDealValue();
+}
+function setAllDeals(n){
+  n=parseInt(n)||0;
+  DEALPLAN={};
+  if(n)for(const p of DATA){if(stk(p)>0&&p.price>0)DEALPLAN[p.sku]=n;}
+  try{localStorage.setItem('hs_dealplan',JSON.stringify(DEALPLAN));}catch(e){}
+  renderDealValue();
 }
 function renderDealValue(){
   const rows=dealRows();
   const tot=DEALS.map((_,i)=>rows.reduce((a,r)=>a+r.vals[i],0));
+  const planTot=rows.reduce((a,r)=>a+r.planVal,0);
+  const assignedCount=rows.filter(r=>r.assigned>0).length;
   const excluded=DATA.filter(p=>stk(p)>0&&!(p.price>0)).length;
   const cardCls=['gr','bl','bl','am','am','pu'];
+  const dealOpts=(sel)=>DEALS.map(([lbl,n])=>'<option value="'+n+'"'+(sel===n?' selected':'')+'>'+lbl+'</option>').join('');
   $('content').innerHTML=
     '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met rd"><div class="met-lbl">Your deal plan</div><div class="met-val" style="font-size:17px">'+fmtK(planTot)+'</div><div class="met-sub">'+assignedCount+' SKUs on deals · −'+fmtK(tot[0]-planTot)+' vs à la carte</div><div class="met-bar"></div></div>'+
     DEALS.map(([lbl],i)=>{
       const giveaway=tot[0]-tot[i];
-      const sub=i===0?'full SRP, no freebies':('−'+fmtK(giveaway)+' vs à la carte ('+(tot[0]>0?Math.round(giveaway/tot[0]*100):0)+'% given away)');
+      const sub=i===0?'full SRP, no freebies':('if ALL stock sold '+lbl+' · −'+fmtK(giveaway));
       return '<div class="met '+cardCls[i]+'"><div class="met-lbl">'+lbl+'</div><div class="met-val" style="font-size:17px">'+fmtK(tot[i])+'</div><div class="met-sub">'+sub+'</div><div class="met-bar"></div></div>';
     }).join('')+
     '</div>'+
+    '<div class="panel" style="margin-bottom:14px"><div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center">'+
+    '<span style="font-size:11px;font-weight:600;color:var(--tx2)">Assign per product below, or set all:</span>'+
+    '<select onchange="setAllDeals(this.value);this.value=\'\'" style="padding:6px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--sf);color:var(--tx1);font-size:12px"><option value="" selected>choose…</option>'+DEALS.map(([lbl,n])=>'<option value="'+n+'">'+lbl+'</option>').join('')+'</select>'+
+    '<button class="btn" onclick="setAllDeals(0)">Reset all to à la carte</button>'+
+    '<span style="font-size:10.5px;color:var(--tx3)">Assignments are saved in this browser only</span>'+
+    '</div></div>'+
     '<div class="tcard"><div class="tscroll"><table><thead><tr>'+
-    '<th>SKU</th><th>Product</th><th style="text-align:right">Stock</th><th style="text-align:right">SRP</th>'+
-    DEALS.map(([lbl])=>'<th style="text-align:right">'+lbl+'</th>').join('')+
+    '<th>SKU</th><th>Product</th><th style="text-align:right">Stock</th><th style="text-align:right">SRP</th><th>Deal</th><th style="text-align:right">Plan value</th>'+
+    DEALS.slice(1).map(([lbl])=>'<th style="text-align:right">'+lbl+'</th>').join('')+
     '</tr></thead><tbody>'+
     (rows.length?rows.slice(0,300).map(r=>{
       const p=r.p;
       return '<tr onclick="openDrawer(\''+esc(p.sku)+'\')" style="cursor:pointer"><td class="mo">'+esc(p.sku)+'</td>'+
-      '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">'+esc(p.name)+'</td>'+
+      '<td style="max-width:170px;overflow:hidden;text-overflow:ellipsis">'+esc(p.name)+'</td>'+
       '<td class="r stk">'+r.s.toLocaleString()+'</td>'+
       '<td class="r mu" style="font-size:11px">'+fmtP(p.price)+'</td>'+
-      r.vals.map((v,i)=>'<td class="r" style="'+(i===0?'font-weight:700':'')+'">'+fmtK(v)+'</td>').join('')+
+      '<td onclick="event.stopPropagation()"><select onchange="setDeal(\''+esc(p.sku)+'\',this.value)" style="padding:4px 6px;border:1px solid var(--bd);border-radius:6px;background:'+(r.assigned?'var(--am-bg)':'var(--sf)')+';color:var(--tx1);font-size:11px">'+dealOpts(r.assigned)+'</select></td>'+
+      '<td class="r" style="font-weight:700;color:'+(r.assigned?'var(--am)':'var(--tx1)')+'">'+fmtK(r.planVal)+'</td>'+
+      r.vals.slice(1).map(v=>'<td class="r mu">'+fmtK(v)+'</td>').join('')+
       '</tr>';
-    }).join(''):'<tr><td colspan="'+(4+DEALS.length)+'"><div class="empty">No priced SKUs with stock</div></td></tr>')+
-    '</tbody></table></div><div class="tfooter"><span>'+rows.length+' priced SKUs valued · '+excluded+' in-stock SKUs excluded for missing SRP (see Data health) · revenue at SRP, not profit — cost data not yet in system</span></div></div>';
+    }).join(''):'<tr><td colspan="'+(6+DEALS.length-1)+'"><div class="empty">No priced SKUs with stock</div></td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>'+rows.length+' priced SKUs · Plan value = value under each product’s assigned deal · '+excluded+' in-stock SKUs excluded for missing SRP · revenue at SRP, not profit</span></div></div>';
 }
 function exportDeals(){
   const rows=dealRows();
-  downloadCSV('deal_scenarios',['SKU','Product','Line','Stock','SRP',...DEALS.map(([l])=>l+' value')],
-    rows.map(r=>[r.p.sku,r.p.name,r.p.line,r.s,r.p.price,...r.vals.map(v=>Math.round(v))]));
+  downloadCSV('deal_scenarios',['SKU','Product','Line','Stock','SRP','Assigned deal','Plan value',...DEALS.map(([l])=>l+' value')],
+    rows.map(r=>[r.p.sku,r.p.name,r.p.line,r.s,r.p.price,(DEALS.find(([,n])=>n===r.assigned)||['À la carte'])[0],Math.round(r.planVal),...r.vals.map(v=>Math.round(v))]));
 }
 
 /* ── DATA HEALTH ── */
@@ -1397,6 +1425,7 @@ function openDrawer(sku){
     '<div class="dsec"><div class="dsectitle">Product</div>'+
     '<div class="drow"><span class="dlbl">Line</span><span class="dval">'+esc(p.line||'—')+'</span></div>'+
     '<div class="drow"><span class="dlbl">Category</span><span class="dval">'+esc(p.category||'—')+'</span></div>'+
+    '<div class="drow"><span class="dlbl">Supplier</span><span class="dval">'+esc(p.supplier||'—')+'</span></div>'+
     '<div class="drow"><span class="dlbl">Price (VATex)</span><span class="dval">'+fmtP(p.price)+'</span></div>'+
     '<div class="drow"><span class="dlbl">Stock value</span><span class="dval">'+(s>0&&p.price?fmtP(s*p.price):'—')+'</span></div>'+
     '</div>'+
@@ -2610,13 +2639,13 @@ function askCatalog(){
   const prods=DATA.map(p=>[p.sku,p.name,p.line||'',(typeof p.stock==='number'?p.stock:''),
     (p.price!=null?p.price:''),(p.velAdj!=null?p.velAdj:(p.velocity!=null?p.velocity:'')),
     (p.monthsOfStock!=null?p.monthsOfStock:''),p.expiry||'',p.batch||'',
-    (p.daysToStockout!=null?p.daysToStockout:''),p.stockoutDate||''].join('|')).join('\n');
+    (p.daysToStockout!=null?p.daysToStockout:''),p.stockoutDate||'',p.supplier||''].join('|')).join('\n');
   const batches=(BATCHES||[]).filter(b=>b.soh>0).map(b=>[b.skuCode||'',b.name,b.batch||'',b.expiry||'',b.soh].join('|')).join('\n');
   const custs=(CUSTOMERS||[]).slice(0,150).map(c=>[c.name,c.qty,c.value,c.orders,c.skuCount,c.lastOrder||'',c.daysSince!=null?c.daysSince:'',c.trend,c.isRemedy?'REMEDY':''].join('|')).join('\n');
   const ships=(BRANCH_TRANSFERS||[]).slice(0,80).map(t=>[t.branch,t.sku,t.name,t.qty,t.dateSerial?new Date((t.dateSerial-25569)*864e5).toISOString().slice(0,10):''].join('|')).join('\n');
   const wo=collisionRows(1).slice(0,50).map(c=>[c.sku,c.name,c.batch||'',c.expiry||'',c.projExpired,c.writeOff].join('|')).join('\n');
   const mo=(MONTHS||[]).map(m=>m+'='+((MONTHLY_OUT||{})[m]||0)).join(', ');
-  return 'PRODUCTS (sku|name|line|stock|price_php|forecast_per_month|months_of_cover|expiry|batch|days_to_stockout|stockout_date):\n'+prods+
+  return 'PRODUCTS (sku|name|line|stock|price_php|forecast_per_month|months_of_cover|expiry|batch|days_to_stockout|stockout_date|supplier):\n'+prods+
     '\n\nBATCHES with stock, FEFO order — earliest expiry first (sku|name|batch|expiry_MM/YYYY|units_on_hand):\n'+batches+
     '\n\nCUSTOMERS (name|units|value_php|orders|sku_count|last_order|days_since_order|trend|remedy_flag):\n'+custs+
     '\n\nREMEDY SHIPMENTS — recent shipments to Remedy branches (branch|sku|name|qty|date):\n'+ships+
