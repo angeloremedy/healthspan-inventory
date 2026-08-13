@@ -1,7 +1,7 @@
 // Background builder: pulls Shopify products (prices, deals, inventory) and
 // 13 months of orders (unit demand), and caches the result in Netlify Blobs.
 // Triggered by /api/shopify when the cache is missing or stale.
-import { getStore } from '@netlify/blobs';
+import { connectLambda, getStore } from '@netlify/blobs';
 
 const STORE_HANDLE = process.env.SHOPIFY_STORE || 'healthspan-global';
 const API = 'https://' + STORE_HANDLE + '.myshopify.com/admin/api/2025-01/graphql.json';
@@ -19,9 +19,12 @@ async function gql(token, query, variables) {
 }
 const sleep = (ms) => new Promise(res => setTimeout(res, ms));
 
-export const handler = async () => {
+export const handler = async (event) => {
+  try { connectLambda(event); } catch (e) {} // wire Blobs context into this handler-style function
   const token = process.env.SHOPIFY_ADMIN_TOKEN;
-  const store = getStore('shopify');
+  let store;
+  try { store = getStore('shopify'); }
+  catch (e) { return { statusCode: 200, body: 'blobs unavailable: ' + e.message }; }
   const t0 = Date.now();
   try {
     if (!token) throw new Error('SHOPIFY_ADMIN_TOKEN not set in Netlify env');

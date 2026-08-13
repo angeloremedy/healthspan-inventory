@@ -1,7 +1,7 @@
 // Background worker for the dashboard's Ask AI box (up to 15 min runtime — no timeouts).
 // Receives { id, question, catalog, history }, asks Claude (smart model with a
 // fast-model safety net), and writes the result to Blobs for ask.mjs to serve.
-import { getStore } from '@netlify/blobs';
+import { connectLambda, getStore } from '@netlify/blobs';
 
 const FAST_MODEL = process.env.STOCKBOT_MODEL || 'claude-haiku-4-5-20251001';
 const SMART_MODEL = process.env.STOCKBOT_SMART_MODEL || 'claude-sonnet-5';
@@ -36,6 +36,8 @@ const SYSTEM = [
 ].join('\n');
 
 export const handler = async (event) => {
+  try { connectLambda(event); } catch (e) {} // wire Blobs context into this handler-style function
+
   let payload = {};
   try { payload = JSON.parse(event.body || '{}'); } catch (e) {}
   const id = String(payload.id || '');

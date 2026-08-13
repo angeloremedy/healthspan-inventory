@@ -3,7 +3,7 @@
 //   (no timeout limits there) and returns { id } immediately.
 // GET ?id=... → returns the finished { answer, model } / { error }, or { pending:true }.
 import crypto from 'node:crypto';
-import { getStore } from '@netlify/blobs';
+import { connectLambda, getStore } from '@netlify/blobs';
 
 const HDRS = {
   'Access-Control-Allow-Origin': '*',
@@ -13,6 +13,10 @@ const HDRS = {
 };
 
 export const handler = async (event) => {
+  // Handler-style functions need the Blobs context wired in explicitly
+  // (v2 functions get it automatically — this is the v1 equivalent).
+  try { connectLambda(event); } catch (e) {}
+
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: HDRS, body: '' };
 
   // ── Poll for a result
