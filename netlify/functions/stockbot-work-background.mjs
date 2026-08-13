@@ -18,6 +18,32 @@ function serialDate(ds) {
   return isNaN(d) ? '' : d.toISOString().slice(0, 10);
 }
 
+function buildShopifySections(data, shop) {
+  if (!shop || !Array.isArray(shop.variants)) return '';
+  const sheetSkus = new Set((data.products || []).map(p => p.sku));
+  const bases = [...sheetSkus].sort((a, b) => b.length - a.length);
+  const byBase = {};
+  for (const v of shop.variants) {
+    if (sheetSkus.has(v.sku)) { (byBase[v.sku] = byBase[v.sku] || { main: null, bundles: [] }).main = v; continue; }
+    const base = bases.find(b => v.sku.startsWith(b) && v.sku.length > b.length);
+    if (base) (byBase[base] = byBase[base] || { main: null, bundles: [] }).bundles.push(v);
+  }
+  const nameOf = {}; for (const p of (data.products || [])) nameOf[p.sku] = p.name;
+  let sales = '', deals = '';
+  for (const [base, g] of Object.entries(byBase)) {
+    const m = {};
+    const add = (mo, mult) => { for (const k in (mo || {})) m[k] = (m[k] || 0) + mo[k] * mult; };
+    if (g.main) add(g.main.monthly, 1);
+    for (const b of g.bundles) { add(b.monthly, b.setSize || 1); if (b.setSize) deals += [base, b.productTitle, b.setSize, b.price].join('|') + '\n'; }
+    const yms = Object.keys(m).sort();
+    if (yms.length) sales += base + '|' + (nameOf[base] || '') + '|' + yms.map(k => k + '=' + m[k]).join(',') + '\n';
+  }
+  let out = '';
+  if (sales) out += '\n\nSHOPIFY UNIT DEMAND - booked store sales, bundles expanded to physical units (sku|name|month=units,...):\n' + sales;
+  if (deals) out += '\n\nLIVE DEALS ON SHOPIFY (sku|deal_title|physical_units_per_set|set_price_php):\n' + deals;
+  return out;
+}
+
 function buildData(data) {
   const prods = (data.products || []).map(p => [
     p.sku, p.name, p.line || '',
@@ -57,6 +83,7 @@ function buildData(data) {
 const SYSTEM = [
   'You are Healthspan Global\'s inventory assistant answering questions in Slack.',
   'You are given live data in named sections; each section header describes its columns.',
+  'When SHOPIFY UNIT DEMAND is present, prefer it as the demand signal for ordering questions (booked store sales, bundles already expanded to physical units); MONTHLY UNITS OUT is warehouse outflow and runs longer historically.',
   '',
   'Rules:',
   '- Answer ONLY from this data. Match product names fuzzily (misspellings, partial names, brand variants).',
@@ -89,34 +116,40 @@ export const handler = async (event) => {
   const t0 = Date.now();
   let ok = false;
 
+  let usedModel = model;
   try {
     const base = process.env.URL;
-    const r = await fetch(base + '/.netlify/functions/refresh', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}'
-    });
+    const [r, rs] = await Promise.all([
+      fetch(base + '/.netlify/functions/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }),
+      fetch(base + '/api/shopify').catch(() => null)
+    ]);
     if (!r.ok) throw new Error('inventory feed returned ' + r.status);
     const data = await r.json();
-    const cat = buildData(data);
+    let shop = null;
+    try { if (rs && rs.ok) shop = await rs.json(); } catch (e) {}
+    const cat = buildData(data) + buildShopifySections(data, shop);
 
     const key = process.env.ANTHROPIC_API_KEY;
     if (!key) { await post(':warning: ANTHROPIC_API_KEY is not configured in Netlify.'); return { statusCode: 200, body: 'no key' }; }
 
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-      body: JSON.stringify({
-        model: model,
-        max_tokens: 1500,
-        system: SYSTEM,
-        messages: [{ role: 'user', content: 'LIVE DATA (synced ' + (data.synced || 'now') + '):\n' + cat + '\n\nQUESTION(S) FROM SLACK:\n' + text }]
-      })
-    });
-    if (!resp.ok) {
-      const errTxt = await resp.text();
-      throw new Error('Claude API ' + resp.status + ': ' + errTxt.slice(0, 200));
-    }
-    const out = await resp.json();
-    const answer = (out.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+    const callModel = async (m, maxTok) => {
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+        body: JSON.stringify({
+          model: m,
+          max_tokens: maxTok, // generous: reasoning models spend output tokens thinking first
+          system: SYSTEM,
+          messages: [{ role: 'user', content: 'LIVE DATA (synced ' + (data.synced || 'now') + '):\n' + cat + '\n\nQUESTION(S) FROM SLACK:\n' + text }]
+        })
+      });
+      if (!resp.ok) throw new Error('Claude API ' + resp.status + ': ' + (await resp.text()).slice(0, 200));
+      const out = await resp.json();
+      return (out.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+    };
+
+    let answer = await callModel(model, model === SMART_MODEL ? 6000 : 2000);
+    if (!answer && model === SMART_MODEL) { usedModel = FAST_MODEL; answer = await callModel(FAST_MODEL, 2000); }
     ok = !!answer;
     await post(answer || ':warning: No answer produced.');
   } catch (err) {
@@ -126,7 +159,7 @@ export const handler = async (event) => {
   try {
     await fetch((process.env.URL || '') + '/api/asklog', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ src: 'slack', q: text, ok, model, ms: Date.now() - t0 })
+      body: JSON.stringify({ src: 'slack', q: text, ok, model: usedModel, ms: Date.now() - t0 })
     });
   } catch (e) {}
 

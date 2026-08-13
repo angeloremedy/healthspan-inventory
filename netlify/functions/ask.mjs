@@ -24,7 +24,8 @@ function pickModel(q) {
 const SYSTEM = [
   'You are Healthspan Global\'s inventory assistant, answering inside their inventory dashboard.',
   'You are given live data in named sections; each section header describes its columns.',
-  'Sections may include: PRODUCTS, BATCHES (FEFO), CUSTOMERS, REMEDY SHIPMENTS, WRITE-OFF RISK, MONTHLY UNITS OUT.',
+  'Sections may include: PRODUCTS, BATCHES (FEFO), CUSTOMERS, REMEDY SHIPMENTS, WRITE-OFF RISK, MONTHLY UNITS OUT, SHOPIFY UNIT DEMAND, LIVE DEALS ON SHOPIFY.',
+  'When SHOPIFY UNIT DEMAND is present, prefer it as the demand signal for ordering questions (it is booked store sales with bundles already expanded to physical units); MONTHLY UNITS OUT is warehouse outflow and runs longer historically.',
   '',
   'Rules:',
   '- Answer ONLY from this data. Match product names fuzzily (misspellings, partial names, brand variants).',
@@ -69,40 +70,50 @@ export const handler = async (event) => {
   }
   msgs.push({ role: 'user', content: question });
 
-  let ok = false, answer = '', errMsg = '';
-  try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-      body: JSON.stringify({
-        model: model,
-        // Smart-model answers are capped tighter: this endpoint is a synchronous
-        // function (~10s platform limit), so long generations must stay brief.
-        max_tokens: model === SMART_MODEL ? 1000 : 1500,
-        system: SYSTEM + '\n\nLIVE DATA:\n' + catalog,
-        messages: msgs
-      })
-    });
-    if (!resp.ok) {
-      const t = await resp.text();
-      errMsg = 'Claude API ' + resp.status + ': ' + t.slice(0, 200);
-    } else {
+  const callModel = async (m, maxTok) => {
+    try {
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+        body: JSON.stringify({
+          model: m,
+          // Generous budget: reasoning models spend output tokens thinking
+          // before writing — too small a cap yields an empty answer.
+          max_tokens: maxTok,
+          system: SYSTEM + '\n\nLIVE DATA:\n' + catalog,
+          messages: msgs
+        })
+      });
+      if (!resp.ok) {
+        const t = await resp.text();
+        return { answer: '', errMsg: 'Claude API ' + resp.status + ': ' + t.slice(0, 200) };
+      }
       const out = await resp.json();
-      answer = (out.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
-      ok = !!answer;
+      return { answer: (out.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim(), errMsg: '' };
+    } catch (err) {
+      return { answer: '', errMsg: String(err.message || err) };
     }
-  } catch (err) {
-    errMsg = String(err.message || err);
+  };
+
+  let usedModel = model;
+  let res = await callModel(model, model === SMART_MODEL ? 6000 : 2000);
+  // Safety net: if the smart model produced no visible text (e.g. budget consumed
+  // by internal reasoning), retry once on the fast model so the user always gets an answer.
+  if (!res.answer && model === SMART_MODEL) {
+    usedModel = FAST_MODEL;
+    res = await callModel(FAST_MODEL, 2000);
   }
+  const answer = res.answer, errMsg = res.errMsg;
+  const ok = !!answer;
 
   // Fire-and-forget question log (never blocks or breaks the answer).
   try {
     await fetch((process.env.URL || '') + '/api/asklog', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ src: 'web', q: question, ok, model, ms: Date.now() - t0 })
+      body: JSON.stringify({ src: 'web', q: question, ok, model: usedModel, ms: Date.now() - t0 })
     });
   } catch (e) {}
 
   if (!ok) return { statusCode: 502, headers: HDRS, body: JSON.stringify({ error: errMsg || 'No answer produced' }) };
-  return { statusCode: 200, headers: HDRS, body: JSON.stringify({ answer, model }) };
+  return { statusCode: 200, headers: HDRS, body: JSON.stringify({ answer, model: usedModel }) };
 };
