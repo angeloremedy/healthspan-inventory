@@ -2783,8 +2783,24 @@ async function sendAsk(){
   try{
     const r=await fetch('/.netlify/functions/ask',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({question:q,catalog:askCatalog(),history:ASKHIST.slice(-3)})});
-    const out=await r.json();
-    const p=document.getElementById('ask-pending');
+    const job=await r.json();
+    if(!job.id)throw new Error(job.error||'could not start');
+    // Poll for the answer — deep questions can take 30s+ on the smart model.
+    let out=null;
+    const pendEl=()=>document.getElementById('ask-pending');
+    for(let i=0;i<60;i++){
+      await new Promise(res=>setTimeout(res,2500));
+      const pe=pendEl();
+      if(pe&&i===4)pe.textContent='Thinking it through…';
+      if(pe&&i===12)pe.textContent='Still working — deep analysis takes a little longer…';
+      try{
+        const rr=await fetch('/.netlify/functions/ask?id='+job.id);
+        const o=await rr.json();
+        if(!o.pending){out=o;break;}
+      }catch(e){}
+    }
+    const p=pendEl();
+    if(!out)out={error:'Timed out waiting for the answer — please try again.'};
     if(p){p.removeAttribute('id');p.innerHTML=out.answer?askFmt(out.answer):'<span style="color:var(--rd)">'+esc(out.error||'No answer')+'</span>';}
     if(out.answer){ASKHIST.push({q:q,a:out.answer});if(ASKHIST.length>10)ASKHIST.shift();}
   }catch(err){
