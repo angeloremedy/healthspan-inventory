@@ -2754,12 +2754,17 @@ function askCatalog(){
   const ships=(BRANCH_TRANSFERS||[]).slice(0,80).map(t=>[t.branch,t.sku,t.name,t.qty,t.dateSerial?new Date((t.dateSerial-25569)*864e5).toISOString().slice(0,10):''].join('|')).join('\n');
   const wo=collisionRows(1).slice(0,50).map(c=>[c.sku,c.name,c.batch||'',c.expiry||'',c.projExpired,c.writeOff].join('|')).join('\n');
   const mo=(MONTHS||[]).map(m=>m+'='+((MONTHLY_OUT||{})[m]||0)).join(', ');
-  return 'PRODUCTS (sku|name|line|stock|price_php|forecast_per_month|months_of_cover|expiry|batch|days_to_stockout|stockout_date|supplier):\n'+prods+
+  let out='PRODUCTS (sku|name|line|stock|price_php|forecast_per_month|months_of_cover|expiry|batch|days_to_stockout|stockout_date|supplier):\n'+prods+
     '\n\nBATCHES with stock, FEFO order — earliest expiry first (sku|name|batch|expiry_MM/YYYY|units_on_hand):\n'+batches+
     '\n\nCUSTOMERS (name|units|value_php|orders|sku_count|last_order|days_since_order|trend|remedy_flag):\n'+custs+
     '\n\nREMEDY SHIPMENTS — recent shipments to Remedy branches (branch|sku|name|qty|date):\n'+ships+
     '\n\nWRITE-OFF RISK — projected to expire unsold (sku|name|batch|expiry|units_at_risk|writeoff_value_php):\n'+wo+
     '\n\nMONTHLY UNITS OUT (month=units): '+mo;
+  const shopSales=DATA.filter(p=>p.shopifySales).map(p=>p.sku+'|'+p.name+'|'+Object.keys(p.shopifySales).sort().map(m=>m+'='+p.shopifySales[m]).join(',')).join('\n');
+  if(shopSales)out+='\n\nSHOPIFY UNIT DEMAND — booked store sales, bundles expanded to physical units (sku|name|month=units,...):\n'+shopSales;
+  const shopDeals=DATA.filter(p=>p.deals&&p.deals.length).map(p=>p.deals.map(d=>[p.sku,d.title,d.setSize,d.price].join('|')).join('\n')).join('\n');
+  if(shopDeals)out+='\n\nLIVE DEALS ON SHOPIFY (sku|deal_title|physical_units_per_set|set_price_php):\n'+shopDeals;
+  return out;
 }
 function askFmt(t){
   return esc(t).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>');
