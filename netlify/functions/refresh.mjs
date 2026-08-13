@@ -37,7 +37,7 @@ export const handler=async(event,context)=>{
         {t:'Price',r:'A1:E300'},
       ],true),
       batchFetch(KEY,[
-        {t:'Inventory Overview',r:'A1:J1100'},
+        {t:'Inventory Overview',r:'A1:N1100'},
         {t:'Sending Inventory (OUT)',r:'A'+OUT_START+':A'+OUT_END},
         {t:'Sending Inventory (OUT)',r:'D'+OUT_START+':D'+OUT_END},
         {t:'Sending Inventory (OUT)',r:'G'+OUT_START+':H'+OUT_END},
@@ -56,14 +56,23 @@ export const handler=async(event,context)=>{
     const master={};
     for(const r of dbR.slice(1)){const s=clean(r[0]);if(!s||s==='SKU')continue;master[s]={batch:clean(r[6]),expiry:fmtExp(r[7]),bin:clean(r[9])};}
 
+    // Column mapping by HEADER NAME so inserted/reordered columns don't break the sync.
+    // Falls back to the historical positions if a header isn't found.
+    const ovHdr=(ovR[0]||[]).map(h=>clean(h).toUpperCase());
+    const ovCol=(names,fb)=>{for(const n of names){const i=ovHdr.findIndex(h=>h===n);if(i>=0)return i;}for(const n of names){const i=ovHdr.findIndex(h=>h.includes(n));if(i>=0)return i;}return fb;};
+    const iSku=ovCol(['SKU'],0), iName=ovCol(['PRODUCT NAME'],1), iSup=ovCol(['SUPPLIER'],-1),
+          iLine=ovCol(['PRODUCT LINE'],2), iCat=ovCol(['CATEGORY'],3),
+          iRcv=ovCol(['RECEIVED QTY','RECEIVED'],4), iSold=ovCol(['SOLD'],5),
+          iStock=ovCol(['INVENTORY','STOCK'],6), iExpS=ovCol(['EXPIRY DATE','EXPIRY'],9);
+
     const products=[];
     for(const r of ovR.slice(1)){
-      const s=clean(r[0]);if(!s||s==='SKU')continue;
-      if(typeof r[6]==='string'&&r[6].toLowerCase().includes('inventory'))continue;
-      const stock=pInt(r[6]);const line=clean(r[2]);const rc=clean(r[3]);
+      const s=clean(r[iSku]);if(!s||s==='SKU')continue;
+      if(typeof r[iStock]==='string'&&r[iStock].toLowerCase().includes('inventory'))continue;
+      const stock=pInt(r[iStock]);const line=clean(r[iLine]);const rc=clean(r[iCat]);
       const cat=rc==='MKT Samples'?'MKT SAMPLES':rc==='SKINPEN  MKT'?'SKINPEN MKT':rc||line||'Other';
       const m=master[s]||{};
-      products.push({sku:s,name:clean(r[1]),line,category:cat,received:pInt(r[4]),sold:pInt(r[5]),stock,price:prices[s]??null,batch:m.batch||'',expiry:m.expiry||serialExp(r[9]),bin:m.bin||''});
+      products.push({sku:s,name:clean(r[iName]),line,category:cat,supplier:iSup>=0?clean(r[iSup]):'',received:pInt(r[iRcv]),sold:pInt(r[iSold]),stock,price:prices[s]??null,batch:m.batch||'',expiry:m.expiry||serialExp(r[iExpS]),bin:m.bin||''});
     }
 
     const batches=[];

@@ -27,7 +27,8 @@ function buildData(data) {
     (p.monthsOfStock != null ? p.monthsOfStock : ''),
     p.expiry || '', p.batch || '',
     (p.daysToStockout != null ? p.daysToStockout : ''),
-    p.stockoutDate || ''
+    p.stockoutDate || '',
+    p.supplier || ''
   ].join('|')).join('\n');
 
   const batches = (data.batches || []).filter(b => b.soh > 0).map(b =>
@@ -45,7 +46,7 @@ function buildData(data) {
 
   const mo = Object.entries(data.monthlyOut || {}).map(([k, v]) => k + '=' + v).join(', ');
 
-  return 'PRODUCTS (sku|name|line|stock|price_php|forecast_per_month|months_of_cover|expiry|batch|days_to_stockout|stockout_date):\n' + prods +
+  return 'PRODUCTS (sku|name|line|stock|price_php|forecast_per_month|months_of_cover|expiry|batch|days_to_stockout|stockout_date|supplier):\n' + prods +
     '\n\nBATCHES with stock, FEFO order - earliest expiry first (sku|name|batch|expiry_MM/YYYY|units_on_hand):\n' + batches +
     '\n\nCUSTOMERS (name|units|value_php|orders|sku_count|last_order|days_since_order|trend|remedy_flag):\n' + custs +
     '\n\nREMEDY SHIPMENTS - recent shipments to Remedy branches (branch|sku|name|qty|date):\n' + ships +
