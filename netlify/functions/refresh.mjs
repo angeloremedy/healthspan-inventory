@@ -185,6 +185,7 @@ export const handler=async(event,context)=>{
 
     for(const p of products){
       const mo=skuMO[p.sku]||{};
+      p.monthly=months.map(m=>mo[m]||0); // 13-month actual outbound history (oldest→newest, last is current partial month)
       const av=l6.reduce((a,m)=>a+(mo[m]||0),0)/6;
       p.velocity=Math.round(av*10)/10;
 
