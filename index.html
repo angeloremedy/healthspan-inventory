@@ -504,7 +504,7 @@ const DESC={
   simbranch:'Suggests moving stock between <b>Remedy’s</b> branches (BGC, Vertis North, Greenhills) to balance each site’s share and use up near-expiry stock. Remedy is a sister company and a customer; this is based on what Healthspan has shipped to them.',
   movement:'Units received versus sold each month over the past year — the pulse of what’s coming in and going out.',
   value:'Where your inventory money sits, broken down by product line.',
-  dealvalue:'What the current stock is worth <b>if everything sells à la carte (SRP)</b> versus through the bundle deals (2+1 up to 6+1, where the +1 is free). Shows the revenue given up by each deal structure. Based on SRP only — supplier/landed cost isn’t in the system yet, so this is revenue, not profit.',
+  dealvalue:'What the current stock is worth <b>if everything sells à la carte</b> versus through the bundle deals (2+1 up to 6+1, where the +1 is free). Prices are live from Shopify where connected (sheet SRP otherwise). Supplier/landed cost isn’t in the system yet, so this is revenue, not profit.',
   batches:'Every batch in FEFO order (first to expire, first out) — the sequence to pull stock in.',
   aged:'Products that haven’t sold in a while, grouped into aging, slow, and dead stock — candidates for a promo or clear-out.',
   shrinkage:'Flags gaps between what was received/sold and what’s actually on hand — possible loss, miscounts, or unrecorded movement.',
@@ -554,7 +554,7 @@ const CALC={
     '<span class="fx">à la carte value = stock × SRP\ndeal value (N+1) = (stock − free units) × SRP\nfree units       = ⌊ stock ÷ (N+1) ⌋</span>'+
     'In an <b>N+1 deal</b>, every full set of N+1 units contains one free unit. Leftover units that don’t complete a set still sell at full SRP — so the math is exact, not a flat percentage.'+
     '<div style="margin-top:9px">Example: 100 units on a <b>3+1</b> deal → 25 full sets → 25 free units → 75 units paid → value = 75 × SRP (a 25% giveaway).</div>'+
-    '<div class="note">Caveats: prices are the current (outdated) à-la-carte SRP from the sheet — update them there to update this view. Supplier cost and landed cost (forex, fees, taxes, shipping) are not in the system yet, so these figures are potential REVENUE, not profit or margin. SKUs without a price are excluded entirely — see Data health.</div>'},
+    '<div class="note">Caveats: prices come live from Shopify where the SKU exists there (green “Shopify” badge in the product drawer), otherwise from the sheet SRP which may be outdated. Supplier cost and landed cost (forex, fees, taxes, shipping) are not in the system yet, so these figures are potential REVENUE, not profit or margin. SKUs without a price are excluded entirely — see Data health.</div>'},
   writeoff:{t:'How write-off risk is calculated',b:
     'Each batch is checked against how fast that SKU actually sells, in <b>FEFO order</b> (earliest expiry first):'+
     '<span class="fx">sellable before expiry = daily demand × days to expiry − stock ahead in the queue\nprojected expired = batch stock on hand − sellable\nwrite-off value   = projected expired × unit price</span>'+
@@ -2691,10 +2691,15 @@ async function copyForAI(){
   const scope=[fLine&&('line '+fLine),fSup&&('supplier '+fSup),fCat&&('category '+fCat),fSearch&&('search "'+fSearch+'"'),fTab!=='all'&&('tab '+fTab)].filter(Boolean).join(' · ')||'all products';
   let t='HEALTHSPAN GLOBAL — INVENTORY + SALES MOVEMENT EXPORT\n';
   t+='As of: '+asOf+' · Scope: '+scope+' · '+rows.length+' SKUs\n';
-  t+='Notes: stock is warehouse-level on-hand. Prices are à-la-carte SRP in PHP, VAT-exclusive, possibly outdated; blank = no price on file. Monthly units = actual outbound movement (sales/issues) from the warehouse. Supplier cost / landed cost are NOT in this data.\n\n';
-  t+='PRODUCTS (sku | name | supplier | line | stock_on_hand | srp_php | forecast_units_per_month | months_of_cover | days_to_stockout | projected_stockout_date | master_expiry | batch):\n';
+  const shopPriced=rows.filter(p=>p.priceSrc==='shopify').length;
+  t+='Notes: stock is warehouse-level on-hand (from the inventory master sheet). ';
+  t+=shopPriced>0
+    ?('Prices in PHP: '+shopPriced+' of '+rows.length+' SKUs carry LIVE Shopify prices (price_source=shopify); the rest use the sheet SRP which may be outdated; blank = no price on file. ')
+    :'Prices are à-la-carte SRP in PHP from the sheet, possibly outdated; blank = no price on file (Shopify prices not loaded in this session). ';
+  t+='Monthly units = actual outbound movement (sales/issues) from the warehouse. Supplier cost / landed cost are NOT in this data.\n\n';
+  t+='PRODUCTS (sku | name | supplier | line | stock_on_hand | price_php | price_source | forecast_units_per_month | months_of_cover | days_to_stockout | projected_stockout_date | master_expiry | batch):\n';
   for(const p of rows){
-    t+=[p.sku,p.name,p.supplier||'',p.line||'',stk(p)??'',p.price??'',(p.velAdj!=null?p.velAdj:p.velocity)??'',p.monthsOfStock??'',p.daysToStockout??'',p.stockoutDate||'',p.expiry||'',p.batch||''].join(' | ')+'\n';
+    t+=[p.sku,p.name,p.supplier||'',p.line||'',stk(p)??'',p.price??'',(p.price!=null?(p.priceSrc||'sheet'):''),(p.velAdj!=null?p.velAdj:p.velocity)??'',p.monthsOfStock??'',p.daysToStockout??'',p.stockoutDate||'',p.expiry||'',p.batch||''].join(' | ')+'\n';
   }
   if((MONTHS||[]).length&&rows.some(p=>Array.isArray(p.monthly))){
     t+='\nMONTHLY UNITS OUT PER SKU (actual movement, '+MONTHS[0]+' → '+MONTHS[MONTHS.length-1]+'; the last month is partial):\n';
