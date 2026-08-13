@@ -1326,6 +1326,7 @@ function renderTable(pre){
     '<select id="li" onchange="fLine=this.value;drawRows()"><option value="">All lines</option>'+lOpts+'</select>'+
     '<select id="ci" onchange="fCat=this.value;drawRows()"><option value="">All categories</option>'+cOpts+'</select>'+
     (sups.length?'<select id="supi" onchange="fSup=this.value;drawRows()"><option value="">All suppliers</option>'+sOpts+'</select>':'')+
+    '<button class="btn" id="aiCopyBtn" onclick="copyForAI()" title="Copy the filtered products with sales history as a prompt-ready text block for AI forecasting"><svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy for AI</button>'+
     '</div>'+
     '<div class="tcard"><div class="tscroll"><table><thead><tr>'+
     mkTh('sku','SKU')+mkTh('name','Product name')+mkTh('line','Line')+mkTh('category','Category')+
@@ -1345,10 +1346,10 @@ function toggleSort(col){
   if(sortCol===col) sortDir*=-1; else{sortCol=col;sortDir=-1;}
   renderTable();
 }
-function drawRows(){
+function currentFilteredRows(){
   const q=fSearch.toLowerCase();
   const bin=fBin.toLowerCase();
-  let rows=DATA.filter(p=>{
+  return DATA.filter(p=>{
     if(q&&!(p.sku.toLowerCase().includes(q)||p.name.toLowerCase().includes(q))) return false;
     if(bin&&!(p.bin||'').toLowerCase().includes(bin)) return false;
     if(fLine&&p.line!==fLine) return false;
@@ -1361,6 +1362,9 @@ function drawRows(){
     if(fTab==='reorder'&&!isReorderAlert(p)) return false;
     return true;
   });
+}
+function drawRows(){
+  let rows=currentFilteredRows();
   rows.sort((a,b)=>{
     let av=a[sortCol],bv=b[sortCol];
     if(av==null)av=''; if(bv==null)bv='';
@@ -2632,6 +2636,43 @@ function exportBranch(){
   rows.sort((a,b)=>b[7]-a[7]);
   downloadCSV('branch_rebalancing',['SKU','Product','BGC','Vertis North','GH Mall','Move from','Move to','Units'],rows);
 }
+/* ── COPY FOR AI (prompt-ready export of the filtered products) ── */
+async function copyForAI(){
+  const rows=currentFilteredRows();
+  const btn=document.getElementById('aiCopyBtn');
+  if(!rows.length){if(btn)btn.textContent='Nothing in filter';setTimeout(()=>renderTable(),1200);return;}
+  const asOf=new Date().toLocaleString('en-PH',{timeZone:'Asia/Manila'});
+  const scope=[fLine&&('line '+fLine),fSup&&('supplier '+fSup),fCat&&('category '+fCat),fSearch&&('search "'+fSearch+'"'),fTab!=='all'&&('tab '+fTab)].filter(Boolean).join(' · ')||'all products';
+  let t='HEALTHSPAN GLOBAL — INVENTORY + SALES MOVEMENT EXPORT\n';
+  t+='As of: '+asOf+' · Scope: '+scope+' · '+rows.length+' SKUs\n';
+  t+='Notes: stock is warehouse-level on-hand. Prices are à-la-carte SRP in PHP, VAT-exclusive, possibly outdated; blank = no price on file. Monthly units = actual outbound movement (sales/issues) from the warehouse. Supplier cost / landed cost are NOT in this data.\n\n';
+  t+='PRODUCTS (sku | name | supplier | line | stock_on_hand | srp_php | forecast_units_per_month | months_of_cover | days_to_stockout | projected_stockout_date | master_expiry | batch):\n';
+  for(const p of rows){
+    t+=[p.sku,p.name,p.supplier||'',p.line||'',stk(p)??'',p.price??'',(p.velAdj!=null?p.velAdj:p.velocity)??'',p.monthsOfStock??'',p.daysToStockout??'',p.stockoutDate||'',p.expiry||'',p.batch||''].join(' | ')+'\n';
+  }
+  if((MONTHS||[]).length&&rows.some(p=>Array.isArray(p.monthly))){
+    t+='\nMONTHLY UNITS OUT PER SKU (actual movement, '+MONTHS[0]+' → '+MONTHS[MONTHS.length-1]+'; the last month is partial):\n';
+    for(const p of rows){
+      if(Array.isArray(p.monthly))t+=p.sku+' '+p.name+': '+MONTHS.map((m,i)=>m+'='+(p.monthly[i]??0)).join(', ')+'\n';
+    }
+  }
+  const skuSet=new Set(rows.map(p=>p.sku));
+  const bs=(BATCHES||[]).filter(b=>skuSet.has(b.skuCode)&&b.soh>0);
+  if(bs.length){
+    t+='\nBATCHES with stock, FEFO order — earliest expiry first (sku | batch | expiry MM/YYYY | units_on_hand):\n';
+    for(const b of bs)t+=[b.skuCode,b.batch||'',b.expiry||'',b.soh].join(' | ')+'\n';
+  }
+  let copied=false;
+  try{await navigator.clipboard.writeText(t);copied=true;}catch(e){}
+  if(!copied){
+    const a=document.createElement('a');
+    a.href='data:text/plain;charset=utf-8,﻿'+encodeURIComponent(t);
+    a.download='healthspan_ai_export_'+new Date().toISOString().slice(0,10)+'.txt';
+    a.click();
+  }
+  if(btn){const old=btn.innerHTML;btn.innerHTML=copied?'✓ Copied '+rows.length+' SKUs':'✓ Downloaded';setTimeout(()=>{btn.innerHTML=old;},1800);}
+}
+
 /* ── ASK AI (in-app chat over the live catalog) ── */
 function toggleAsk(){
   const d=document.getElementById('askdrawer'); if(!d)return;
