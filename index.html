@@ -383,6 +383,46 @@ let EXPIRING_ITEMS = [];
 let BRANCH_TRANSFERS = [];
 let BRANCH_EXPIRY = {};
 let CUSTOMERS = [];
+let SHOPIFY = null;
+
+/* ── SHOPIFY MERGE: prices & deals & demand from the store; stock stays with the sheet ── */
+async function loadShopify(){
+  try{
+    const r=await fetch('/api/shopify');
+    const d=await r.json();
+    if(d&&d.variants){SHOPIFY=d;mergeShopify();refreshSidebar();rerenderCurrent();}
+    else if(d&&d.building)setTimeout(loadShopify,30000);
+  }catch(e){}
+}
+function mergeShopify(){
+  if(!SHOPIFY||!SHOPIFY.variants||!DATA.length)return;
+  const sheetSkus=new Set(DATA.map(p=>p.sku));
+  const bases=[...sheetSkus].sort((a,b)=>b.length-a.length); // longest-prefix wins
+  const byBase={};
+  for(const v of SHOPIFY.variants){
+    if(sheetSkus.has(v.sku)){(byBase[v.sku]=byBase[v.sku]||{main:null,bundles:[]}).main=v;continue;}
+    const base=bases.find(b=>v.sku.startsWith(b)&&v.sku.length>b.length);
+    if(base)(byBase[base]=byBase[base]||{main:null,bundles:[]}).bundles.push(v);
+  }
+  for(const p of DATA){
+    const g=byBase[p.sku]; if(!g)continue;
+    if(p.priceSheet===undefined)p.priceSheet=p.price;         // keep the sheet price for reconciliation
+    if(g.main&&g.main.price>0){p.price=g.main.price;p.priceSrc='shopify';}
+    if(g.main&&g.main.inv!=null)p.shopifyInv=g.main.inv;
+    p.deals=g.bundles.filter(b=>b.setSize).map(b=>({title:b.productTitle,setSize:b.setSize,price:b.price}));
+    const sales={};
+    const addM=(mObj,mult)=>{for(const k in (mObj||{}))sales[k]=(sales[k]||0)+mObj[k]*mult;};
+    if(g.main)addM(g.main.monthly,1);
+    for(const b of g.bundles)addM(b.monthly,b.setSize||1);    // bundle sale = setSize physical units
+    if(Object.keys(sales).length)p.shopifySales=sales;
+  }
+}
+function rerenderCurrent(){
+  const k={l:fLine,c:fCat,s:fSearch,t:fTab,b:fBin,su:fSup};
+  showView(currentView,null);
+  fLine=k.l;fCat=k.c;fSearch=k.s;fTab=k.t;fBin=k.b;fSup=k.su;
+  if(currentView==='all'||currentView==='line')renderTable();
+}
 let COLLISIONS = [];
 let PLAN = (()=>{try{return Object.assign({lead:30,cover:3,safety:14,service:95},JSON.parse(localStorage.getItem('hs_plan')||'{}'));}catch(e){return {lead:30,cover:3,safety:14,service:95};}})();
 /* Per-line supplier lead times (days). Imported brands ship longer than local/marketing items. All editable in the Reorder point view. */
@@ -679,6 +719,7 @@ function applySync(data){
   BRANCH_EXPIRY=data.branchExpirySummary||{};
   CUSTOMERS=data.customers||[];
   COLLISIONS=data.collisions||[];
+  if(SHOPIFY)mergeShopify(); else loadShopify();
   $('psub').textContent='Healthspan Global, Inc. \u00b7 '+DATA.length+' SKUs \u00b7 '+BATCHES.length+' batches';
   updateMobileBadges();
   refreshSidebar();
@@ -971,17 +1012,19 @@ function renderDataHealth(){
   const noShelf=active.filter(p=>stk(p)>0&&p.expiry&&!batchSet.has(p.sku));
   const maxYr=new Date().getFullYear()+10;
   const oddExp=active.filter(p=>{const m=String(p.expiry||'').match(/\d{4}/g);if(!m)return false;return Math.max(...m.map(Number))>maxYr;});
+  const priceMis=active.filter(p=>p.priceSrc==='shopify'&&p.priceSheet>0&&Math.abs(p.priceSheet-p.price)>1);
+  const stockMis=active.filter(p=>p.shopifyInv!=null&&stk(p)!=null&&p.shopifyInv!==stk(p));
   const score=Math.round(((n-missPrice.length)/n+(n-missExp.length)/n+(n-missBatch.length)/n+(n-missBin.length)/n)/4*100);
   const scoreC=score>=90?'gr':score>=75?'am':'rd';
   const issues={};
   const add=(p,tag)=>{const k=p.sku;(issues[k]=issues[k]||{p,tags:[]}).tags.push(tag);};
-  missPrice.forEach(p=>add(p,'price')); missExp.forEach(p=>add(p,'expiry')); missBatch.forEach(p=>add(p,'batch')); missBin.forEach(p=>add(p,'bin')); negStk.forEach(p=>add(p,'neg')); lowHist.forEach(p=>add(p,'hist')); noShelf.forEach(p=>add(p,'shelf')); oddExp.forEach(p=>add(p,'oddexp'));
+  missPrice.forEach(p=>add(p,'price')); missExp.forEach(p=>add(p,'expiry')); missBatch.forEach(p=>add(p,'batch')); missBin.forEach(p=>add(p,'bin')); negStk.forEach(p=>add(p,'neg')); lowHist.forEach(p=>add(p,'hist')); noShelf.forEach(p=>add(p,'shelf')); oddExp.forEach(p=>add(p,'oddexp')); priceMis.forEach(p=>add(p,'pricemis')); stockMis.forEach(p=>add(p,'stockmis'));
   const f=window._healthFilter||'all';
   let list=Object.values(issues);
   if(f!=='all')list=list.filter(x=>x.tags.includes(f));
   list.sort((a,b)=>b.tags.length-a.tags.length||String(a.p.name).localeCompare(String(b.p.name)));
-  const tags=[['all','All ('+Object.keys(issues).length+')'],['price','No price ('+missPrice.length+')'],['expiry','No expiry ('+missExp.length+')'],['batch','No batch ('+missBatch.length+')'],['neg','Negative ('+negStk.length+')'],['hist','Low history ('+lowHist.length+')'],['shelf','No shelf-life rec ('+noShelf.length+')'],['oddexp','Odd expiry ('+oddExp.length+')']];
-  const tagPill={price:'<span class="pill prd">No price</span>',expiry:'<span class="pill pam">No expiry</span>',batch:'<span class="pill pgy">No batch</span>',bin:'<span class="pill pgy">No bin</span>',neg:'<span class="pill prd">Negative stock</span>',hist:'<span class="pill pbl">Low history</span>',shelf:'<span class="pill pam">No shelf-life rec</span>',oddexp:'<span class="pill prd">Odd expiry</span>'};
+  const tags=[['all','All ('+Object.keys(issues).length+')'],['price','No price ('+missPrice.length+')'],['expiry','No expiry ('+missExp.length+')'],['batch','No batch ('+missBatch.length+')'],['neg','Negative ('+negStk.length+')'],['hist','Low history ('+lowHist.length+')'],['shelf','No shelf-life rec ('+noShelf.length+')'],['oddexp','Odd expiry ('+oddExp.length+')'],['pricemis','Price ≠ Shopify ('+priceMis.length+')'],['stockmis','Stock ≠ Shopify ('+stockMis.length+')']];
+  const tagPill={price:'<span class="pill prd">No price</span>',expiry:'<span class="pill pam">No expiry</span>',batch:'<span class="pill pgy">No batch</span>',bin:'<span class="pill pgy">No bin</span>',neg:'<span class="pill prd">Negative stock</span>',hist:'<span class="pill pbl">Low history</span>',shelf:'<span class="pill pam">No shelf-life rec</span>',oddexp:'<span class="pill prd">Odd expiry</span>',pricemis:'<span class="pill pam">Sheet price ≠ Shopify</span>',stockmis:'<span class="pill pbl">Stock ≠ Shopify count</span>'};
   $('content').innerHTML=
     '<div class="metrics" style="margin-bottom:14px">'+
     '<div class="met '+scoreC+'"><div class="met-lbl">Data health score</div><div class="met-val">'+score+'%</div><div class="met-sub">completeness of active SKUs</div><div class="met-bar"></div></div>'+
@@ -1434,7 +1477,8 @@ function openDrawer(sku){
     '<div class="drow"><span class="dlbl">Line</span><span class="dval">'+esc(p.line||'—')+'</span></div>'+
     '<div class="drow"><span class="dlbl">Category</span><span class="dval">'+esc(p.category||'—')+'</span></div>'+
     '<div class="drow"><span class="dlbl">Supplier</span><span class="dval">'+esc(p.supplier||'—')+'</span></div>'+
-    '<div class="drow"><span class="dlbl">Price (VATex)</span><span class="dval">'+fmtP(p.price)+'</span></div>'+
+    '<div class="drow"><span class="dlbl">Price (VATex)</span><span class="dval">'+fmtP(p.price)+(p.priceSrc==='shopify'?' <span class="pill pgr" title="Live price from Shopify">Shopify</span>':'')+'</span></div>'+
+    (p.priceSrc==='shopify'&&p.priceSheet>0&&Math.abs(p.priceSheet-p.price)>1?'<div class="drow"><span class="dlbl">Sheet price (stale)</span><span class="dval" style="color:var(--am)">'+fmtP(p.priceSheet)+'</span></div>':'')+
     '<div class="drow"><span class="dlbl">Stock value</span><span class="dval">'+(s>0&&p.price?fmtP(s*p.price):'—')+'</span></div>'+
     '</div>'+
     '<div class="dsec"><div class="dsectitle">Warehouse</div>'+
@@ -1447,7 +1491,9 @@ function openDrawer(sku){
     '<div class="drow"><span class="dlbl">Total sold/issued</span><span class="dval">'+(p.sold||0).toLocaleString()+' units</span></div>'+
     '<div class="drow"><span class="dlbl">Avg velocity</span><span class="dval">'+vel+' units/mo</span></div>'+
     '<div class="drow"><span class="dlbl">Months of stock</span><span class="dval">'+(mos!==null?mos+' months':'—')+'</span></div>'+
+    (p.shopifySales?(()=>{const yms=Object.keys(p.shopifySales).sort();const last3=yms.slice(-3);return '<div class="drow"><span class="dlbl">Shopify demand (recent)</span><span class="dval">'+last3.map(m=>m.slice(5)+': '+p.shopifySales[m]+'u').join(' · ')+'</span></div>';})():'')+
     '</div>'+
+    (p.deals&&p.deals.length?'<div class="dsec"><div class="dsectitle">Live deals on Shopify</div>'+p.deals.map(d=>'<div class="drow"><span class="dlbl" style="max-width:190px;overflow:hidden;text-overflow:ellipsis">'+esc(d.title)+'</span><span class="dval">'+d.setSize+' units · '+fmtP(d.price)+'</span></div>').join('')+'</div>':'')+
     batchHTML+
     (()=>{const c=ropCalc(p);const dts=dtsBaseline(p);
       return '<div class="dsec"><div class="dsectitle">Reorder intelligence</div>'+
@@ -2655,6 +2701,19 @@ async function copyForAI(){
     for(const p of rows){
       if(Array.isArray(p.monthly))t+=p.sku+' '+p.name+': '+MONTHS.map((m,i)=>m+'='+(p.monthly[i]??0)).join(', ')+'\n';
     }
+  }
+  if(rows.some(p=>p.shopifySales)){
+    t+='\nSHOPIFY UNIT DEMAND PER SKU (booked sales from the store, bundles expanded into physical units, month=units):\n';
+    for(const p of rows){
+      if(!p.shopifySales)continue;
+      const yms=Object.keys(p.shopifySales).sort();
+      t+=p.sku+' '+p.name+': '+yms.map(m=>m+'='+p.shopifySales[m]).join(', ')+'\n';
+    }
+  }
+  const dealRows2=rows.filter(p=>p.deals&&p.deals.length);
+  if(dealRows2.length){
+    t+='\nLIVE DEALS ON SHOPIFY (sku | deal title | physical units per set | set price):\n';
+    for(const p of dealRows2)for(const d of p.deals)t+=[p.sku,d.title,d.setSize,d.price].join(' | ')+'\n';
   }
   const skuSet=new Set(rows.map(p=>p.sku));
   const bs=(BATCHES||[]).filter(b=>skuSet.has(b.skuCode)&&b.soh>0);
