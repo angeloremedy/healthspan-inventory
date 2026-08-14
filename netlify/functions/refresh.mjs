@@ -1,5 +1,8 @@
 const SHEET_ID='1tgedHZhpaMkHZqKElL13jBm9f90HRzsW5EkoL8QaW24';
-const OUT_START=4410,OUT_END=15100,IN_START=650,IN_END=1210,PO_END=3910;
+// Row STARTS skip pre-2025 history; ranges are OPEN-ENDED (no end row) so the
+// feed can never again go blind when a tab outgrows a hardcoded ceiling —
+// which is exactly what happened when the OUT tab crossed row 15,100 in June 2026.
+const OUT_START=4410,IN_START=650;
 
 function pNum(v){if(v==null||v===''||v==='-')return null;const n=parseFloat(String(v).replace(/[₱,\s]/g,''));return isNaN(n)?null:n;}
 function pInt(v){if(v==null||v===''||v==='-')return 0;const n=parseInt(String(v).replace(/[^-0-9]/g,''),10);return isNaN(n)?0:n;}
@@ -32,18 +35,18 @@ export const handler=async(event,context)=>{
   try{
     const [fR,rR]=await Promise.all([
       batchFetch(KEY,[
-        {t:'Product Database',r:'A1:K300'},
-        {t:'Shelf Life',r:'A1:L700'},
-        {t:'Price',r:'A1:E300'},
+        {t:'Product Database',r:'A1:K'},
+        {t:'Shelf Life',r:'A1:L'},
+        {t:'Price',r:'A1:E'},
       ],true),
       batchFetch(KEY,[
-        {t:'Inventory Overview',r:'A1:N1100'},
-        {t:'Sending Inventory (OUT)',r:'A'+OUT_START+':A'+OUT_END},
-        {t:'Sending Inventory (OUT)',r:'D'+OUT_START+':D'+OUT_END},
-        {t:'Sending Inventory (OUT)',r:'G'+OUT_START+':H'+OUT_END},
-        {t:'Sending Inventory (OUT)',r:'I'+OUT_START+':K'+OUT_END},
-        {t:'Receiving Inventory (IN)',r:'A'+IN_START+':G'+IN_END},
-        {t:'Pull-out Orders (INTERNAL)',r:'A2:C'+PO_END},
+        {t:'Inventory Overview',r:'A1:N'},
+        {t:'Sending Inventory (OUT)',r:'A'+OUT_START+':A'},
+        {t:'Sending Inventory (OUT)',r:'D'+OUT_START+':D'},
+        {t:'Sending Inventory (OUT)',r:'G'+OUT_START+':H'},
+        {t:'Sending Inventory (OUT)',r:'I'+OUT_START+':K'},
+        {t:'Receiving Inventory (IN)',r:'A'+IN_START+':G'},
+        {t:'Pull-out Orders (INTERNAL)',r:'A2:C'},
       ],false),
     ]);
     const [dbR,shR,prR]=fR;
