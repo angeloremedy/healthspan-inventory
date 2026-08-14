@@ -104,6 +104,7 @@ export const handler=async(event,context)=>{
 
     const custAgg={};
     const nowSerial=now.getTime()/86400000+25569;
+    let lastOutDs=0; // newest movement date actually read — feed-health indicator
     const ol=Math.min(oSKU.length,oQTY.length,oDC.length);
     for(let i=0;i<ol;i++){
       const s=clean(oSKU[i]?.[0]);const q=pInt(oQTY[i]?.[0]);const ds=oDC[i]?.[0];const cu=String(oDC[i]?.[1]||'');
@@ -129,10 +130,13 @@ export const handler=async(event,context)=>{
         const val=q*(prices[s]||0);
         c.qty+=q; c.value+=val; c.lines+=1; c.skus.add(s);
         c.skuQty[s]=(c.skuQty[s]||0)+q;
-        if(ds)c.items.push({ds,s,q});
+        // Date column can contain text/garbage on footer rows — only trust real serial numbers.
+        const dsNum=(typeof ds==='number'&&isFinite(ds)&&ds>1)?ds:null;
+        if(dsNum&&dsNum>lastOutDs&&dsNum<=nowSerial+31)lastOutDs=dsNum;
+        if(dsNum)c.items.push({ds:dsNum,s,q});
         const ordRef=clean((oIK[i]||[])[2]); if(ordRef)c.orders.add(ordRef);
-        if(ds&&ds>c.lastDs)c.lastDs=ds;
-        if(ds){ if(ds>=nowSerial-90)c.recentVal+=val; else if(ds>=nowSerial-180)c.priorVal+=val; }
+        if(dsNum&&dsNum>c.lastDs)c.lastDs=dsNum;
+        if(dsNum){ if(dsNum>=nowSerial-90)c.recentVal+=val; else if(dsNum>=nowSerial-180)c.priorVal+=val; }
       }
     }
     bT.sort((a,b)=>(b.dateSerial||0)-(a.dateSerial||0));
@@ -322,7 +326,7 @@ export const handler=async(event,context)=>{
     return{
       statusCode:200,
       headers:hdrs,
-      body:JSON.stringify({products,batches,monthlyIn:mIn,monthlyOut:mOut,months,valueByLine:vbl,cashExpiring:ce,expiringItems:ei.slice(0,100),branchTransfers:bT.slice(0,300),branchExpirySummary:bes,collisions:collisions.slice(0,400),customers,synced:new Date().toISOString(),elapsed}),
+      body:JSON.stringify({products,batches,monthlyIn:mIn,monthlyOut:mOut,months,valueByLine:vbl,cashExpiring:ce,expiringItems:ei.slice(0,100),branchTransfers:bT.slice(0,300),branchExpirySummary:bes,collisions:collisions.slice(0,400),customers,lastMovement:lastOutDs>1?new Date((lastOutDs-25569)*86400000).toISOString().slice(0,10):null,synced:new Date().toISOString(),elapsed}),
     };
 
   }catch(err){
