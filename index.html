@@ -393,14 +393,20 @@ let SALESIDX = null;              // base-SKU sales index built from Shopify var
 let TARGETS = [];                 // sales targets from the sheet's optional Targets tab
 let SPERIOD = 'mtd';              // shared period for the Sales views
 let SLINE = null;                 // line filter for Sales views (null = auto-default to Meso)
+let SFROM = '', STO = '';         // custom date range (YYYY-MM-DD) when SPERIOD === 'custom'
 
 /* ── SHOPIFY MERGE: prices & deals & demand from the store; stock stays with the sheet ── */
+let SHOPIFY_ERR=null; // last build error from /api/shopify status, if any
 async function loadShopify(){
   try{
     const r=await fetch('/api/shopify');
     const d=await r.json();
+    SHOPIFY_ERR=(d&&d.status&&d.status.state==='error')?d.status.error:null;
     if(d&&d.variants){SHOPIFY=d;mergeShopify();refreshSidebar();rerenderCurrent();}
-    else if(d&&d.building)setTimeout(loadShopify,30000);
+    else if(d&&d.building){
+      setTimeout(loadShopify,15000);
+      if(String(currentView||'').startsWith('sales'))rerenderCurrent(); // surface build errors on Sales views
+    }
   }catch(e){}
 }
 function mergeShopify(){
@@ -446,6 +452,7 @@ function sumPeriod(S,mode){
   const cutoff=d=>new Date(Date.now()-d*864e5).toISOString().slice(0,10);
   const ymNow=today.slice(0,7);
   if(mode==='today'){const c=(S.daily||{})[today];if(c)add(c);}
+  else if(mode==='custom'){for(const d in (S.daily||{}))if((!SFROM||d>=SFROM)&&(!STO||d<=STO))add((S.daily||{})[d]);}
   else if(mode==='7d'||mode==='30d'){const lim=cutoff(mode==='7d'?7:30);for(const d in (S.daily||{}))if(d>=lim)add((S.daily||{})[d]);}
   else if(mode==='mtd'){const c=(S.monthly||{})[ymNow];if(c)add(c);}
   else if(mode==='3m'){const lim=new Date();lim.setMonth(lim.getMonth()-2);const l=lim.toISOString().slice(0,7);for(const m in (S.monthly||{}))if(m>=l)add((S.monthly||{})[m]);}
@@ -932,6 +939,7 @@ function fltLine(line,el){
 
 /* ── SALES SECTION (Shopify booked sales — for Jojo & Marj) ── */
 const SP_LBL={today:'today',['7d']:'last 7 days',mtd:'this month',['30d']:'last 30 days',['3m']:'last 3 months',all:'last 12 months'};
+function spLbl(){return SPERIOD==='custom'?((SFROM||'start')+' → '+(STO||'today')):SP_LBL[SPERIOD];}
 function salesLines(){return [...new Set(Object.values(SALESIDX||{}).map(S=>S.line).filter(Boolean))].sort();}
 function salesLineCur(){if(SLINE!==null)return SLINE;const ls=salesLines();const meso=ls.find(l=>/meso/i.test(l));SLINE=(meso!==undefined)?meso:'';return SLINE;}
 function salesRows(){
@@ -943,15 +951,24 @@ function salesRows(){
 function salesGuard(){
   if(!DATA.length){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sync from Google Sheets first — product names come from the master sheet.</div>';return false;}
   if(!SHOPIFY||!SALESIDX||!Object.keys(SALESIDX).length){
-    $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading booked sales from Shopify… this fills in automatically once the sales cache is ready (the first build after an update can take a few minutes — try Sync again shortly).</div>';
+    $('content').innerHTML=SHOPIFY_ERR?
+      '<div class="viewdesc" style="border-left-color:var(--rd);margin-top:20px"><svg class="vd-i" viewBox="0 0 24 24" style="stroke:var(--rd)"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg>'+
+      '<div class="vd-t"><b>Shopify connection failed:</b> '+esc(SHOPIFY_ERR)+'<br><span style="color:var(--tx2)">If this mentions an invalid API key or token, the SHOPIFY_ADMIN_TOKEN in Netlify needs to be replaced — in Shopify admin go to Settings → Apps and sales channels → Develop apps, open the custom app, and check the Admin API access token (reinstall the app to get a new one if it was revoked), then update the token in Netlify and reload.</span></div></div>':
+      '<div class="empty" style="margin-top:40px">Building the sales cache from Shopify — one-time after an update, usually 2–4 minutes. This page will fill in by itself; no need to re-sync.</div>';
     try{loadShopify();}catch(e){}return false;}
   return true;}
 function salesToolbar(fn){
-  const periods=[['today','Today'],['7d','7 days'],['mtd','This month'],['30d','30 days'],['3m','3 months'],['all','12 months']];
+  const periods=[['today','Today'],['7d','7 days'],['mtd','This month'],['30d','30 days'],['3m','3 months'],['all','12 months'],['custom','Custom']];
   const lines=salesLines();const cur=salesLineCur();
   const syn=SHOPIFY&&SHOPIFY.synced?new Date(SHOPIFY.synced).toLocaleString('en-PH',{timeZone:'Asia/Manila',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):null;
+  const dMin=(SHOPIFY&&SHOPIFY.dailyFrom)||'';
+  const dInp='style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:5px 8px;font-size:12px"';
   return '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">'+
     '<div class="tabs" style="margin:0">'+periods.map(([k,l])=>'<div class="tab'+(SPERIOD===k?' active':'')+'" onclick="SPERIOD=\''+k+'\';'+fn+'()">'+l+'</div>').join('')+'</div>'+
+    (SPERIOD==='custom'?('<input type="date" value="'+SFROM+'"'+(dMin?' min="'+dMin+'"':'')+' onchange="SFROM=this.value;'+fn+'()" '+dInp+'>'+
+      '<span style="color:var(--tx3);font-size:12px">to</span>'+
+      '<input type="date" value="'+STO+'"'+(dMin?' min="'+dMin+'"':'')+' onchange="STO=this.value;'+fn+'()" '+dInp+'>'+
+      (dMin?'<span style="font-size:11px;color:var(--tx3)">day-level detail covers '+dMin+' onward</span>':'')):'')+
     '<select onchange="SLINE=this.value;'+fn+'()" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:6px 10px;font-size:12px">'+
     '<option value=""'+(cur===''?' selected':'')+'>All product lines</option>'+
     lines.map(l=>'<option value="'+esc(l)+'"'+(cur===l?' selected':'')+'>'+esc(l)+'</option>').join('')+'</select>'+
@@ -970,7 +987,7 @@ function renderSalesOverview(){
   $('content').innerHTML=
     salesToolbar('renderSalesOverview')+
     '<div class="metrics" style="margin-bottom:14px">'+
-    '<div class="met gr"><div class="met-lbl">Revenue ('+SP_LBL[SPERIOD]+')</div><div class="met-val" style="font-size:17px">'+fmtK(tot.v)+'</div><div class="met-sub">booked on Shopify</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Revenue ('+spLbl()+')</div><div class="met-val" style="font-size:17px">'+fmtK(tot.v)+'</div><div class="met-sub">booked on Shopify</div><div class="met-bar"></div></div>'+
     '<div class="met bl"><div class="met-lbl">Units sold</div><div class="met-val">'+tot.u.toLocaleString()+'</div><div class="met-sub">'+Math.max(0,tot.u-tot.f).toLocaleString()+' paid + '+tot.f.toLocaleString()+' free</div><div class="met-bar"></div></div>'+
     '<div class="met pu"><div class="met-lbl">Free units</div><div class="met-val">'+tot.f.toLocaleString()+'</div><div class="met-sub">'+(tot.u>0?(tot.f/tot.u*100).toFixed(0)+'% of units moved':'deal +1 giveaways')+'</div><div class="met-bar"></div></div>'+
     '<div class="met am"><div class="met-lbl">Today</div><div class="met-val">'+td.u.toLocaleString()+' u</div><div class="met-sub">'+fmtK(td.v)+' booked today</div><div class="met-bar"></div></div>'+
@@ -992,7 +1009,7 @@ function renderSalesFree(){
   $('content').innerHTML=
     salesToolbar('renderSalesFree')+
     '<div class="metrics" style="margin-bottom:14px">'+
-    '<div class="met pu"><div class="met-lbl">Free units ('+SP_LBL[SPERIOD]+')</div><div class="met-val">'+totF.toLocaleString()+'</div><div class="met-sub">deal +1 giveaways</div><div class="met-bar"></div></div>'+
+    '<div class="met pu"><div class="met-lbl">Free units ('+spLbl()+')</div><div class="met-val">'+totF.toLocaleString()+'</div><div class="met-sub">deal +1 giveaways</div><div class="met-bar"></div></div>'+
     '<div class="met am"><div class="met-lbl">Giveaway value</div><div class="met-val" style="font-size:17px">'+fmtK(totFV)+'</div><div class="met-sub">at à-la-carte list price</div><div class="met-bar"></div></div>'+
     '<div class="met bl"><div class="met-lbl">Free share</div><div class="met-val">'+(totU>0?(totF/totU*100).toFixed(0)+'%':'—')+'</div><div class="met-sub">of all units moved</div><div class="met-bar"></div></div>'+
     '<div class="met gr"><div class="met-lbl">Paid units</div><div class="met-val">'+Math.max(0,totU-totF).toLocaleString()+'</div><div class="met-sub">customer-paid</div><div class="met-bar"></div></div>'+
@@ -1082,9 +1099,9 @@ function renderSalesSpec(){
   $('content').innerHTML=
     salesToolbar('renderSalesSpec')+
     '<div class="metrics" style="margin-bottom:14px">'+
-    '<div class="met bl"><div class="met-lbl">Specialists</div><div class="met-val">'+rows.length+'</div><div class="met-sub">with sales '+SP_LBL[SPERIOD]+'</div><div class="met-bar"></div></div>'+
-    '<div class="met gr"><div class="met-lbl">Revenue ('+SP_LBL[SPERIOD]+')</div><div class="met-val" style="font-size:17px">'+fmtK(totV)+'</div><div class="met-sub">across specialists</div><div class="met-bar"></div></div>'+
-    '<div class="met pu"><div class="met-lbl">Units</div><div class="met-val">'+totU.toLocaleString()+'</div><div class="met-sub">booked '+SP_LBL[SPERIOD]+'</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Specialists</div><div class="met-val">'+rows.length+'</div><div class="met-sub">with sales '+spLbl()+'</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Revenue ('+spLbl()+')</div><div class="met-val" style="font-size:17px">'+fmtK(totV)+'</div><div class="met-sub">across specialists</div><div class="met-bar"></div></div>'+
+    '<div class="met pu"><div class="met-lbl">Units</div><div class="met-val">'+totU.toLocaleString()+'</div><div class="met-sub">booked '+spLbl()+'</div><div class="met-bar"></div></div>'+
     '<div class="met am"><div class="met-lbl">Top specialist</div><div class="met-val" style="font-size:15px">'+(rows[0]?esc(rows[0].n):'—')+'</div><div class="met-sub">'+(rows[0]?fmtK(rows[0].v):'')+'</div><div class="met-bar"></div></div>'+
     '</div>'+
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>#</th><th>Specialist</th><th style="text-align:right">Units</th><th style="text-align:right">Revenue</th><th style="text-align:right">Share</th>'+(anyTg?'<th style="text-align:right">Target ('+ymNow+')</th><th style="min-width:130px">Attainment (MTD)</th>':'')+'</tr></thead><tbody>'+
