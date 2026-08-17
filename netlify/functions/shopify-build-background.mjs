@@ -11,6 +11,29 @@ import { connectLambda, getStore } from '@netlify/blobs';
 const STORE_HANDLE = process.env.SHOPIFY_STORE || 'healthspan-global';
 const API = 'https://' + STORE_HANDLE + '.myshopify.com/admin/api/2025-01/graphql.json';
 
+// ── Auth. Since Jan 1 2026 Shopify no longer issues permanent shpat_ tokens for
+// new apps: Dev Dashboard apps get a Client ID + Client Secret, exchanged here for
+// a ~24h access token via the client-credentials grant. A legacy shpat_ token in
+// SHOPIFY_ADMIN_TOKEN still works as a fallback if one ever exists again.
+async function getAccessToken() {
+  const legacy = (process.env.SHOPIFY_ADMIN_TOKEN || '').trim();
+  if (legacy.startsWith('shpat_')) return legacy;
+  const id = (process.env.SHOPIFY_CLIENT_ID || '').trim();
+  const secret = (process.env.SHOPIFY_CLIENT_SECRET || (legacy.startsWith('shpss_') ? legacy : '')).trim();
+  if (!id || !secret) throw new Error('Set SHOPIFY_CLIENT_ID and SHOPIFY_CLIENT_SECRET in Netlify env (from the Dev Dashboard app credentials)');
+  const r = await fetch('https://' + STORE_HANDLE + '.myshopify.com/admin/oauth/access_token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ grant_type: 'client_credentials', client_id: id, client_secret: secret })
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.access_token) {
+    const msg = JSON.stringify(j).slice(0, 200) || ('HTTP ' + r.status);
+    throw new Error('Shopify token exchange failed: ' + msg + (String(msg).includes('shop_not_permitted') ? ' — the app and store must belong to the same Shopify organization' : ''));
+  }
+  return j.access_token;
+}
+
 async function gql(token, query, variables) {
   const r = await fetch(API, {
     method: 'POST',
@@ -26,13 +49,12 @@ const sleep = (ms) => new Promise(res => setTimeout(res, ms));
 
 export const handler = async (event) => {
   try { connectLambda(event); } catch (e) {}
-  const token = process.env.SHOPIFY_ADMIN_TOKEN;
   let store;
   try { store = getStore('shopify'); }
   catch (e) { return { statusCode: 200, body: 'blobs unavailable: ' + e.message }; }
   const t0 = Date.now();
   try {
-    if (!token) throw new Error('SHOPIFY_ADMIN_TOKEN not set in Netlify env');
+    const token = await getAccessToken();
 
     // ── 1. Products & variants: price, inventory, bundle set-size from "N+M" titles
     const variants = {}; // sku -> record
