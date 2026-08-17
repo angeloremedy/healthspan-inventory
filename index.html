@@ -403,7 +403,10 @@ async function loadShopify(){
     const r=await fetch('/api/shopify');
     const d=await r.json();
     SHOPIFY_ERR=(d&&d.status&&d.status.state==='error')?d.status.error:null;
-    if(d&&d.variants){SHOPIFY=d;mergeShopify();refreshSidebar();rerenderCurrent();}
+    if(d&&d.variants){
+      SHOPIFY=d;mergeShopify();refreshSidebar();rerenderCurrent();
+      if(d.v!==3)setTimeout(loadShopify,45000); // old format still cached: merge triggered a rebuild — keep polling until the new blob lands
+    }
     else if(d&&d.building){
       setTimeout(loadShopify,15000);
       if(String(currentView||'').startsWith('sales'))rerenderCurrent(); // surface build errors on Sales views
@@ -1023,9 +1026,11 @@ function renderSalesOverview(){
 function renderSalesDeals(){
   if(!salesGuard())return;
   const priceOf={};DATA.forEach(p=>priceOf[p.sku]=p.price||0);
+  const dealTypeOf=sku=>{const S=SALESIDX[sku];if(!S||!S.bundles||!S.bundles.length)return '';
+    return [...new Set(S.bundles.map(b=>{const m=(b.productTitle||'').match(/\d+\s*\+\s*\d+/);return m?m[0].replace(/\s+/g,''):(b.productTitle||'').slice(0,16);}))].sort().join(', ');};
   const rows=salesRows().filter(r=>r.d>0||r.au>0).map(r=>{
     const dPU=r.d>0?r.dealRev/r.d:null, aPU=r.au>0?r.alaRev/r.au:(priceOf[r.sku]||null);
-    return {...r,dPU,aPU,disc:(dPU!=null&&aPU>0)?(1-dPU/aPU)*100:null};
+    return {...r,dPU,aPU,disc:(dPU!=null&&aPU>0)?(1-dPU/aPU)*100:null,dealType:dealTypeOf(r.sku)};
   }).sort((a,b)=>(b.d+b.au)-(a.d+a.au));
   const tot=rows.reduce((a,r)=>({d:a.d+r.d,au:a.au+r.au,dr:a.dr+r.dealRev,ar:a.ar+r.alaRev}),{d:0,au:0,dr:0,ar:0});
   const sold=tot.d+tot.au;
@@ -1037,15 +1042,16 @@ function renderSalesDeals(){
     '<div class="met gr"><div class="met-lbl">Deal revenue</div><div class="met-val" style="font-size:17px">'+fmtK(tot.dr)+'</div><div class="met-sub">'+(tot.d>0?'₱'+Math.round(tot.dr/tot.d).toLocaleString()+' per unit':'')+'</div><div class="met-bar"></div></div>'+
     '<div class="met am"><div class="met-lbl">À-la-carte revenue</div><div class="met-val" style="font-size:17px">'+fmtK(tot.ar)+'</div><div class="met-sub">'+(tot.au>0?'₱'+Math.round(tot.ar/tot.au).toLocaleString()+' per unit':'')+'</div><div class="met-bar"></div></div>'+
     '</div>'+
-    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Product</th><th style="text-align:right">Deal u</th><th style="text-align:right">À-la-carte u</th><th style="text-align:right">Deal share</th><th style="text-align:right">Deal rev</th><th style="text-align:right">₱/u via deal</th><th style="text-align:right">₱/u à la carte</th><th style="text-align:right">Eff. discount</th></tr></thead><tbody>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Product</th><th>Deal type</th><th style="text-align:right">Deal u</th><th style="text-align:right">À-la-carte u</th><th style="text-align:right">Deal share</th><th style="text-align:right">Deal rev</th><th style="text-align:right">₱/u via deal</th><th style="text-align:right">₱/u à la carte</th><th style="text-align:right">Eff. discount</th></tr></thead><tbody>'+
     (rows.length?rows.map(r=>{const sh=(r.d+r.au)>0?r.d/(r.d+r.au)*100:0;
-      return '<tr onclick="openDrawer(\''+esc(r.sku)+'\')" style="cursor:pointer"><td style="font-weight:600;max-width:240px;overflow:hidden;text-overflow:ellipsis">'+esc(r.name)+'</td>'+
+      return '<tr onclick="openDrawer(\''+esc(r.sku)+'\')" style="cursor:pointer"><td style="font-weight:600;max-width:220px;overflow:hidden;text-overflow:ellipsis">'+esc(r.name)+'</td>'+
+      '<td>'+(r.dealType?'<span class="pill pbl">'+esc(r.dealType)+'</span>':'<span class="mu">—</span>')+'</td>'+
       '<td class="r" style="font-weight:600;color:var(--pu)">'+r.d.toLocaleString()+'</td><td class="r">'+r.au.toLocaleString()+'</td>'+
       '<td class="r"'+(sh>=50?' style="color:var(--pu);font-weight:600"':'')+'>'+sh.toFixed(0)+'%</td>'+
       '<td class="r">'+fmtK(r.dealRev)+'</td><td class="r">'+(r.dPU!=null?'₱'+Math.round(r.dPU).toLocaleString():'—')+'</td>'+
       '<td class="r">'+(r.aPU?'₱'+Math.round(r.aPU).toLocaleString():'—')+'</td>'+
       '<td class="r mu">'+(r.disc!=null?r.disc.toFixed(0)+'%':'—')+'</td></tr>';}).join(''):
-      '<tr><td colspan="8"><div class="empty">No sales in this period</div></td></tr>')+
+      '<tr><td colspan="9"><div class="empty">No sales in this period</div></td></tr>')+
     '</tbody></table></div><div class="tfooter"><span>Deal u = units moved through bundle orders (whole deal incl. +1s) · ₱/u via deal = deal revenue ÷ all deal units · eff. discount = how much cheaper a unit effectively is inside a deal vs à la carte</span></div></div>';}
 
 function renderSalesFree(){
@@ -2877,10 +2883,12 @@ function exportSalesOverview(){
 }
 function exportSalesDeals(){
   if(!SALESIDX)return;
-  downloadCSV('deals_vs_alacarte_'+SPERIOD,['SKU','Product','Line','Deal units','A la carte units','Deal share %','Deal revenue PHP','PHP per unit via deal','PHP per unit a la carte','Effective discount %'],
+  const dealTypeOf=sku=>{const S=SALESIDX[sku];if(!S||!S.bundles||!S.bundles.length)return '';
+    return [...new Set(S.bundles.map(b=>{const m=(b.productTitle||'').match(/\d+\s*\+\s*\d+/);return m?m[0].replace(/\s+/g,''):(b.productTitle||'').slice(0,16);}))].sort().join(', ');};
+  downloadCSV('deals_vs_alacarte_'+SPERIOD,['SKU','Product','Line','Deal type','Deal units','A la carte units','Deal share %','Deal revenue PHP','PHP per unit via deal','PHP per unit a la carte','Effective discount %'],
     salesRows().filter(r=>r.d>0||r.au>0).map(r=>{
       const dPU=r.d>0?r.dealRev/r.d:null,aPU=r.au>0?r.alaRev/r.au:null;
-      return [r.sku,r.name,r.line,r.d,r.au,(r.d+r.au)>0?Math.round(r.d/(r.d+r.au)*100):'',Math.round(r.dealRev),dPU!=null?Math.round(dPU):'',aPU!=null?Math.round(aPU):'',(dPU!=null&&aPU>0)?Math.round((1-dPU/aPU)*100):''];}));
+      return [r.sku,r.name,r.line,dealTypeOf(r.sku),r.d,r.au,(r.d+r.au)>0?Math.round(r.d/(r.d+r.au)*100):'',Math.round(r.dealRev),dPU!=null?Math.round(dPU):'',aPU!=null?Math.round(aPU):'',(dPU!=null&&aPU>0)?Math.round((1-dPU/aPU)*100):''];}));
 }
 function exportSalesFree(){
   if(!SALESIDX)return;
