@@ -52,6 +52,29 @@ export const handler=async(event,context)=>{
     const [dbR,shR,prR]=fR;
     const [ovR,oSKU,oQTY,oDC,oIK,inR,poR]=rR;
 
+    // Optional "Targets" tab (sales targets). Fetched separately and tolerated if
+    // missing, so the sheet team can add it whenever ready.
+    // Expected columns: MONTH (YYYY-MM) | SCOPE (TOTAL/PRODUCT/SPECIALIST/LINE) | NAME | TARGET_VALUE_PHP | TARGET_UNITS
+    let targets=[];
+    // Normalize MONTH to YYYY-MM whatever way Sheets formatted it (2026-08, 8/2026, 8/1/2026, Aug 2026, August 2026)
+    const normMonth=s=>{
+      s=String(s||'').trim();
+      let m=s.match(/^(\d{4})-(\d{1,2})$/); if(m)return m[1]+'-'+String(m[2]).padStart(2,'0');
+      m=s.match(/^(\d{1,2})\/(\d{4})$/); if(m)return m[2]+'-'+String(m[1]).padStart(2,'0');
+      m=s.match(/^(\d{1,2})\/\d{1,2}\/(\d{4})$/); if(m)return m[2]+'-'+String(m[1]).padStart(2,'0');
+      m=s.match(/^([A-Za-z]{3,9})\.?\s+(\d{4})$/);
+      if(m){const i=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].indexOf(m[1].slice(0,3).toLowerCase());if(i>=0)return m[2]+'-'+String(i+1).padStart(2,'0');}
+      return null;
+    };
+    try{
+      const [tgR]=await batchFetch(KEY,[{t:'Targets',r:'A1:E'}],true);
+      for(const r of (tgR||[]).slice(1)){
+        const month=normMonth(r[0]),scope=clean(r[1]).toUpperCase(),name=clean(r[2]);
+        const value=pNum(r[3]),units=pInt(r[4]);
+        if(month&&scope)targets.push({month,scope,name,value:value||0,units:units||0});
+      }
+    }catch(e){/* Targets tab not created yet — fine */}
+
     const prices={};
     for(const r of dbR.slice(1)){const s=clean(r[0]);const p=pNum(r[5]);if(s&&p>0)prices[s]=p;}
     for(const r of prR.slice(1)){const s=clean(r[0]);const p=pNum(r[4]);if(s&&p>0&&!prices[s])prices[s]=p;}
@@ -326,7 +349,7 @@ export const handler=async(event,context)=>{
     return{
       statusCode:200,
       headers:hdrs,
-      body:JSON.stringify({products,batches,monthlyIn:mIn,monthlyOut:mOut,months,valueByLine:vbl,cashExpiring:ce,expiringItems:ei.slice(0,100),branchTransfers:bT.slice(0,300),branchExpirySummary:bes,collisions:collisions.slice(0,400),customers,lastMovement:lastOutDs>1?new Date((lastOutDs-25569)*86400000).toISOString().slice(0,10):null,synced:new Date().toISOString(),elapsed}),
+      body:JSON.stringify({products,batches,monthlyIn:mIn,monthlyOut:mOut,months,valueByLine:vbl,cashExpiring:ce,expiringItems:ei.slice(0,100),branchTransfers:bT.slice(0,300),branchExpirySummary:bes,collisions:collisions.slice(0,400),customers,targets,lastMovement:lastOutDs>1?new Date((lastOutDs-25569)*86400000).toISOString().slice(0,10):null,synced:new Date().toISOString(),elapsed}),
     };
 
   }catch(err){

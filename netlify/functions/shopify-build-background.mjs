@@ -1,6 +1,11 @@
-// Background builder: pulls Shopify products (prices, deals, inventory) and
-// 13 months of orders (unit demand), and caches the result in Netlify Blobs.
-// Triggered by /api/shopify when the cache is missing or stale.
+// Background builder: pulls Shopify products and 13 months of orders, and caches
+// per-SKU sales aggregates (units, FREE units, revenue — monthly + 60-day daily),
+// bundle/deal definitions, and per-specialist sales (from order tags).
+//
+// Unit-counting rule (validated against real orders): physical units are itemized
+// as base-SKU line items (free ones at PHP 0). Bundle/deal product lines carry the
+// REVENUE but their physical units arrive via those base-SKU lines — so bundle
+// lines are NOT multiplied into units (that would double count).
 import { connectLambda, getStore } from '@netlify/blobs';
 
 const STORE_HANDLE = process.env.SHOPIFY_STORE || 'healthspan-global';
@@ -14,13 +19,13 @@ async function gql(token, query, variables) {
   });
   if (!r.ok) throw new Error('Shopify HTTP ' + r.status + ': ' + (await r.text()).slice(0, 200));
   const j = await r.json();
-  if (j.errors) throw new Error('Shopify GraphQL: ' + JSON.stringify(j.errors).slice(0, 200));
+  if (j.errors && !j.data) throw new Error('Shopify GraphQL: ' + JSON.stringify(j.errors).slice(0, 200));
   return j.data;
 }
 const sleep = (ms) => new Promise(res => setTimeout(res, ms));
 
 export const handler = async (event) => {
-  try { connectLambda(event); } catch (e) {} // wire Blobs context into this handler-style function
+  try { connectLambda(event); } catch (e) {}
   const token = process.env.SHOPIFY_ADMIN_TOKEN;
   let store;
   try { store = getStore('shopify'); }
@@ -29,8 +34,9 @@ export const handler = async (event) => {
   try {
     if (!token) throw new Error('SHOPIFY_ADMIN_TOKEN not set in Netlify env');
 
-    // ── 1. All products & variants: price, inventory, bundle set-size from "N+M" titles
+    // ── 1. Products & variants: price, inventory, bundle set-size from "N+M" titles
     const variants = {}; // sku -> record
+    const mkVariant = (sku) => ({ sku, productTitle: '', status: '', price: 0, inv: null, setSize: null, monthly: {}, daily: {} });
     let cursor = null;
     for (let page = 0; page < 40; page++) {
       const d = await gql(token,
@@ -39,21 +45,18 @@ export const handler = async (event) => {
       const pr = d.products;
       for (const e of pr.edges) {
         const n = e.node;
-        const m = n.title.match(/(\d+)\s*\+\s*(\d+)/); // "4+1", "7+1", etc.
+        const m = n.title.match(/(\d+)\s*\+\s*(\d+)/);
         const setSize = m ? (parseInt(m[1], 10) + parseInt(m[2], 10)) : null;
         for (const ve of n.variants.edges) {
           const v = ve.node;
           const sku = (v.sku || '').trim();
           if (!sku) continue;
-          variants[sku] = {
-            sku,
-            productTitle: n.title,
-            status: n.status,
-            price: parseFloat(v.price) || 0,
-            inv: (typeof v.inventoryQuantity === 'number' ? v.inventoryQuantity : null),
-            setSize,
-            monthly: {}
-          };
+          const rec = variants[sku] || (variants[sku] = mkVariant(sku));
+          rec.productTitle = n.title;
+          rec.status = n.status;
+          rec.price = parseFloat(v.price) || 0;
+          rec.inv = (typeof v.inventoryQuantity === 'number' ? v.inventoryQuantity : null);
+          rec.setSize = setSize;
         }
       }
       if (!pr.pageInfo.hasNextPage) break;
@@ -61,28 +64,49 @@ export const handler = async (event) => {
       await sleep(150);
     }
 
-    // ── 2. Orders for the last 13 months: units per SKU per month (cancelled excluded)
+    // ── 2. Orders (13 months): per-line units / free units / revenue, plus specialist tags
     const since = new Date();
     since.setMonth(since.getMonth() - 13); since.setDate(1);
+    const dailyFrom = new Date(Date.now() - 60 * 864e5).toISOString().slice(0, 10);
     const q = 'created_at:>=' + since.toISOString().slice(0, 10) + ' status:any';
+    const specialists = {}; // tag -> { monthly: {ym:{u,v}}, daily: {d:{u,v}} }
     cursor = null;
     let orders = 0;
     for (let page = 0; page < 300; page++) {
       const d = await gql(token,
-        'query($c:String,$q:String){orders(first:100,after:$c,query:$q){pageInfo{hasNextPage endCursor}edges{node{createdAt cancelledAt lineItems(first:40){edges{node{sku quantity}}}}}}}',
+        'query($c:String,$q:String){orders(first:100,after:$c,query:$q){pageInfo{hasNextPage endCursor}edges{node{createdAt cancelledAt tags lineItems(first:40){edges{node{sku quantity discountedTotalSet{shopMoney{amount}}}}}}}}}',
         { c: cursor, q });
       const os = d.orders;
       for (const e of os.edges) {
         const o = e.node;
         if (o.cancelledAt) continue;
         const ym = o.createdAt.slice(0, 7);
+        const day = o.createdAt.slice(0, 10);
+        const useDaily = day >= dailyFrom;
         orders++;
+        const spec = (o.tags && o.tags.length ? String(o.tags[0]).trim() : '') || null;
+        let oUnits = 0, oValue = 0;
         for (const le of o.lineItems.edges) {
           const li = le.node;
           const sku = (li.sku || '').trim();
           if (!sku) continue;
-          const v = variants[sku] || (variants[sku] = { sku, productTitle: '', status: '', price: 0, inv: null, setSize: null, monthly: {} });
-          v.monthly[ym] = (v.monthly[ym] || 0) + (li.quantity || 0);
+          const qty = li.quantity || 0;
+          const amt = parseFloat((li.discountedTotalSet && li.discountedTotalSet.shopMoney && li.discountedTotalSet.shopMoney.amount) || '0') || 0;
+          const free = amt <= 0 ? qty : 0;
+          const rec = variants[sku] || (variants[sku] = mkVariant(sku));
+          const bump = (obj, key) => {
+            const s = obj[key] || (obj[key] = { u: 0, f: 0, v: 0 });
+            s.u += qty; s.f += free; s.v += amt;
+          };
+          bump(rec.monthly, ym);
+          if (useDaily) bump(rec.daily, day);
+          oUnits += qty; oValue += amt;
+        }
+        if (spec) {
+          const sp = specialists[spec] || (specialists[spec] = { monthly: {}, daily: {} });
+          const bumpS = (obj, key) => { const s = obj[key] || (obj[key] = { u: 0, v: 0 }); s.u += oUnits; s.v += oValue; };
+          bumpS(sp.monthly, ym);
+          if (useDaily) bumpS(sp.daily, day);
         }
       }
       if (!os.pageInfo.hasNextPage) break;
@@ -91,8 +115,11 @@ export const handler = async (event) => {
     }
 
     await store.setJSON('data', {
+      v: 2, // aggregate format version
       variants: Object.values(variants),
+      specialists,
       orders,
+      dailyFrom,
       synced: new Date().toISOString(),
       elapsed: ((Date.now() - t0) / 1000).toFixed(1)
     });

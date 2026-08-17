@@ -20,6 +20,12 @@ function serialDate(ds) {
 
 function buildShopifySections(data, shop) {
   if (!shop || !Array.isArray(shop.variants)) return '';
+  const isV2 = shop.v === 2;
+  // v2 unit rule (validated on real orders): physical units — including free +1s —
+  // are itemized as base-SKU lines (free at PHP 0); bundle lines carry revenue only,
+  // so bundle quantities are NOT multiplied into units (that would double count).
+  const gU = c => isV2 ? (c ? c.u : 0) : (typeof c === 'number' ? c : 0);
+  const gF = c => isV2 && c ? c.f : 0;
   const sheetSkus = new Set((data.products || []).map(p => p.sku));
   const bases = [...sheetSkus].sort((a, b) => b.length - a.length);
   const byBase = {};
@@ -29,18 +35,28 @@ function buildShopifySections(data, shop) {
     if (base) (byBase[base] = byBase[base] || { main: null, bundles: [] }).bundles.push(v);
   }
   const nameOf = {}; for (const p of (data.products || [])) nameOf[p.sku] = p.name;
-  let sales = '', deals = '';
+  let sales = '', deals = '', specs = '';
   for (const [base, g] of Object.entries(byBase)) {
-    const m = {};
-    const add = (mo, mult) => { for (const k in (mo || {})) m[k] = (m[k] || 0) + mo[k] * mult; };
+    const m = {}, fr = {};
+    const add = (mo, mult) => { for (const k in (mo || {})) { m[k] = (m[k] || 0) + gU(mo[k]) * mult; fr[k] = (fr[k] || 0) + gF(mo[k]) * mult; } };
     if (g.main) add(g.main.monthly, 1);
-    for (const b of g.bundles) { add(b.monthly, b.setSize || 1); if (b.setSize) deals += [base, b.productTitle, b.setSize, b.price].join('|') + '\n'; }
+    for (const b of g.bundles) {
+      if (!isV2) add(b.monthly, b.setSize || 1); // legacy blob: expand bundles (old behavior)
+      if (b.setSize) deals += [base, b.productTitle, b.setSize, b.price].join('|') + '\n';
+    }
     const yms = Object.keys(m).sort();
-    if (yms.length) sales += base + '|' + (nameOf[base] || '') + '|' + yms.map(k => k + '=' + m[k]).join(',') + '\n';
+    if (yms.length) sales += base + '|' + (nameOf[base] || '') + '|' + yms.map(k => k + '=' + m[k] + (fr[k] ? '(' + fr[k] + ' free)' : '')).join(',') + '\n';
+  }
+  if (isV2 && shop.specialists) {
+    for (const [tag, sp] of Object.entries(shop.specialists)) {
+      const yms = Object.keys(sp.monthly || {}).sort();
+      if (yms.length) specs += tag + '|' + yms.map(k => k + '=' + sp.monthly[k].u + 'u/' + Math.round(sp.monthly[k].v) + 'php').join(',') + '\n';
+    }
   }
   let out = '';
-  if (sales) out += '\n\nSHOPIFY UNIT DEMAND - booked store sales, bundles expanded to physical units (sku|name|month=units,...):\n' + sales;
+  if (sales) out += '\n\nSHOPIFY UNIT DEMAND - booked store sales in physical units incl. free +1 giveaways (sku|name|month=units(free),...):\n' + sales;
   if (deals) out += '\n\nLIVE DEALS ON SHOPIFY (sku|deal_title|physical_units_per_set|set_price_php):\n' + deals;
+  if (specs) out += '\n\nSALES PER SPECIALIST - from Shopify order tags (specialist|month=units/revenue,...):\n' + specs;
   return out;
 }
 
@@ -83,7 +99,8 @@ function buildData(data) {
 const SYSTEM = [
   'You are Healthspan Global\'s inventory assistant answering questions in Slack.',
   'You are given live data in named sections; each section header describes its columns.',
-  'When SHOPIFY UNIT DEMAND is present, prefer it as the demand signal for ordering questions (booked store sales, bundles already expanded to physical units); MONTHLY UNITS OUT is warehouse outflow and runs longer historically.',
+  'When SHOPIFY UNIT DEMAND is present, prefer it as the demand signal for ordering questions - it is physical units booked at the store, with free +1 deal units included (shown in parentheses); MONTHLY UNITS OUT is warehouse outflow and runs longer historically.',
+  'SALES PER SPECIALIST shows each product specialist\'s booked units and revenue per month (from Shopify order tags).',
   '',
   'Rules:',
   '- Answer ONLY from this data. Match product names fuzzily (misspellings, partial names, brand variants).',
