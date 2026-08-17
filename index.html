@@ -306,6 +306,7 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
     <div class="ni" onclick="showView('customers',this)"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Customers</div>
     <div class="nlbl">Sales</div>
     <div class="ni" onclick="showView('salesoverview',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Sales overview</div>
+    <div class="ni" onclick="showView('salesdeals',this)"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Deals vs à la carte</div>
     <div class="ni" onclick="showView('salesfree',this)"><svg viewBox="0 0 24 24"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>Free items</div>
     <div class="ni" onclick="showView('salestarget',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>Sales vs target</div>
     <div class="ni" onclick="showView('salesspec',this)"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Specialists</div>
@@ -411,26 +412,32 @@ async function loadShopify(){
 }
 function mergeShopify(){
   if(!SHOPIFY||!SHOPIFY.variants||!DATA.length)return;
-  const isV2=SHOPIFY.v===2;
-  if(!isV2){try{fetch('/api/shopify?refresh=1');}catch(e){}} // old cache format — trigger a rebuild
+  const isNew=SHOPIFY.v>=2;
+  if(SHOPIFY.v!==3){try{fetch('/api/shopify?refresh=1');}catch(e){}} // old cache format — trigger a rebuild
   const sheetSkus=new Set(DATA.map(p=>p.sku));
   const bases=[...sheetSkus].sort((a,b)=>b.length-a.length); // longest-prefix wins
-  // Unit rule (validated on real orders): physical units — including FREE (+1) units —
-  // are itemized as base-SKU lines (free at ₱0). Bundle/deal lines carry revenue only.
-  const gU=c=>isV2?(c?c.u:0):(typeof c==='number'?c:0);
-  const gF=c=>isV2&&c?c.f:0;
-  const gV=c=>isV2&&c?c.v:0;
+  // Unit rules (validated on real orders): physical units are itemized as base-SKU
+  // lines; deal/bundle lines carry the deal REVENUE. A base line in an order that also
+  // has a deal line for it = deal units (deal sold as a whole, +1s are NOT free items);
+  // a ₱0 base line with no deal line = true free giveaway.
+  const gU=c=>isNew?(c?c.u:0):(typeof c==='number'?c:0);
+  const gF=c=>isNew&&c?(c.f||0):0;
+  const gV=c=>isNew&&c?(c.v||0):0;
+  const gD=c=>isNew&&c?(c.d||0):0;
+  const gDV=c=>isNew&&c?(c.dv||0):0;
   SALESIDX={};
   for(const v of SHOPIFY.variants){
     let base=null,isBundle=false;
     if(sheetSkus.has(v.sku))base=v.sku;
     else{base=bases.find(b=>v.sku.startsWith(b)&&v.sku.length>b.length);isBundle=!!base;}
     if(!base)continue;
-    const S=SALESIDX[base]||(SALESIDX[base]={main:null,bundles:[],monthly:{},daily:{}});
+    const S=SALESIDX[base]||(SALESIDX[base]={main:null,bundles:[],monthly:{},daily:{},bmonthly:{},bdaily:{}});
     if(isBundle)S.bundles.push(v);else S.main=v;
-    const addAgg=(dst,src)=>{for(const k in (src||{})){const c=src[k];const d=dst[k]||(dst[k]={u:0,f:0,v:0});if(!isBundle){d.u+=gU(c);d.f+=gF(c);}d.v+=gV(c);}};
-    addAgg(S.monthly,v.monthly);
-    addAgg(S.daily,v.daily);
+    // base lines → monthly/daily (units + revenue); bundle lines → bmonthly/bdaily (deal revenue only)
+    const addAgg=(dst,src)=>{for(const k in (src||{})){const c=src[k];const d=dst[k]||(dst[k]={u:0,f:0,v:0,d:0,dv:0});
+      if(!isBundle){d.u+=gU(c);d.f+=gF(c);d.d+=gD(c);d.dv+=gDV(c);}d.v+=gV(c);}};
+    addAgg(isBundle?S.bmonthly:S.monthly,v.monthly);
+    addAgg(isBundle?S.bdaily:S.daily,v.daily);
   }
   for(const p of DATA){
     const S=SALESIDX[p.sku]; if(!S)continue;
@@ -446,8 +453,8 @@ function mergeShopify(){
 }
 // Sum a {monthly:{ym:{u,f,v}}, daily:{date:{u,f,v}}} aggregate over the selected period.
 function sumPeriod(S,mode){
-  const out={u:0,f:0,v:0};
-  const add=c=>{out.u+=c.u||0;out.f+=c.f||0;out.v+=c.v||0;};
+  const out={u:0,f:0,v:0,d:0,dv:0};
+  const add=c=>{out.u+=c.u||0;out.f+=c.f||0;out.v+=c.v||0;out.d+=c.d||0;out.dv+=c.dv||0;};
   const today=new Date().toISOString().slice(0,10);
   const cutoff=d=>new Date(Date.now()-d*864e5).toISOString().slice(0,10);
   const ymNow=today.slice(0,7);
@@ -553,8 +560,9 @@ const DESC={
   cashexpiry:'The peso value tied up in stock that’s expiring soon, bucketed by urgency.',
   branchtransfer:'A log of product Healthspan has shipped to <b>Remedy’s</b> clinic branches — BGC, Vertis North, Greenhills — from 2025 onward. Remedy is a sister company and a customer.',
   branchexpiry:'For each <b>Remedy</b> branch, the stock Healthspan shipped there sorted by expiry — so each clinic can see what to use up first.',
-  salesoverview:'Booked sales from Shopify (the specialists’ booking POS): units sold and revenue per product, over an adjustable period. <b>Paid</b> units are what customers bought; <b>free</b> units are the +1s given away in deals — both leave the warehouse. Deal/bundle lines carry the revenue; the physical units are counted from the itemized product lines, so nothing is double-counted.',
-  salesfree:'The free (+1) items given away through deals, kept separate from paid sales — how many, what they’d be worth at list price, and how the giveaway rate compares with what’s left in inventory.',
+  salesoverview:'Booked sales from Shopify (the specialists’ booking POS): units sold and revenue per product over an adjustable period, split into <b>via deals</b> (deals count as a whole — +1s are deal units, not freebies), <b>à la carte</b>, and <b>free</b> (true giveaways). The Stock now column puts sales against inventory at a glance.',
+  salesdeals:'Do the bundles outsell single-unit pricing? Per product: units and revenue moved through deals versus à la carte, the effective per-unit price inside a deal (revenue ÷ all units including the +1), and the effective discount versus the à-la-carte price.',
+  salesfree:'Items given away at ₱0 <b>outside any deal</b> — samples, marketing, goodwill — kept separate from sales. Deal +1s are not here; they count as deal units. Shows what the giveaways would be worth at list price and how the rate compares with remaining inventory.',
   salestarget:'Actual booked sales versus the monthly targets set in the sheet’s <b>Targets</b> tab — total, per line, and per product. If the tab doesn’t exist yet, this view shows exactly how to set it up.',
   salesspec:'Each product specialist’s booked sales — revenue and units — over an adjustable period, and against their monthly target if one is set. Specialists are read from the order’s first tag in Shopify (e.g. Rhas, Frank, Ruth, Charmaine).'
 };
@@ -805,6 +813,7 @@ function applySync(data){
   else if(currentView==='salesfree') renderSalesFree();
   else if(currentView==='salestarget') renderSalesTarget();
   else if(currentView==='salesspec') renderSalesSpec();
+  else if(currentView==='salesdeals') renderSalesDeals();
   else renderTable();
   injectDesc(currentView);
   injectCalc(currentView);
@@ -888,7 +897,7 @@ function showView(v,el){
            simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator',
            simmonte:'Monte Carlo stockout risk',simproject:'12-month projection',simcash:'Cash-flow timeline',simbulk:'Bulk-buy trade-off',simbranch:'Remedy branch rebalancing',
            aged:'Aged inventory',shrinkage:'Shrinkage tracker',cashexpiry:'Cash in expiring stock',branchtransfer:'Remedy branch shipments',branchexpiry:'Remedy branch expiry watch',
-           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist'};
+           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte'};
   $('ptitle').textContent=T[v]||v;
   if(v==='dashboard') renderDashboard();
   else if(v==='action') renderActionCenter();
@@ -925,6 +934,7 @@ function showView(v,el){
   else if(v==='salesfree') renderSalesFree();
   else if(v==='salestarget') renderSalesTarget();
   else if(v==='salesspec') renderSalesSpec();
+  else if(v==='salesdeals') renderSalesDeals();
   else renderTable(v);
   injectDesc(v);
   injectCalc(v);
@@ -945,8 +955,14 @@ function salesLineCur(){if(SLINE!==null)return SLINE;const ls=salesLines();const
 function salesRows(){
   const line=salesLineCur();const out=[];
   for(const sku in SALESIDX){const S=SALESIDX[sku];if(line&&S.line!==line)continue;
-    const t=sumPeriod(S,SPERIOD);if(t.u<=0&&t.v<=0&&t.f<=0)continue;
-    out.push({sku,name:S.name||sku,line:S.line||'',u:t.u,f:t.f,paid:Math.max(0,t.u-t.f),v:t.v});}
+    const t=sumPeriod(S,SPERIOD);                                          // base lines: units + à-la-carte revenue
+    const tb=sumPeriod({monthly:S.bmonthly||{},daily:S.bdaily||{}},SPERIOD); // deal/bundle lines: deal revenue
+    const v=t.v+tb.v;
+    if(t.u<=0&&v<=0&&t.f<=0)continue;
+    out.push({sku,name:S.name||sku,line:S.line||'',
+      u:t.u,f:t.f,d:t.d,au:Math.max(0,t.u-t.d-t.f),          // total / free / via-deal / à-la-carte units
+      v,dealRev:tb.v+t.dv,alaRev:Math.max(0,t.v-t.dv),        // total / deal / à-la-carte revenue
+      paid:Math.max(0,t.u-t.f)});}
   out.sort((a,b)=>(b.v-a.v)||(b.u-a.u));return out;}
 function salesGuard(){
   if(!DATA.length){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sync from Google Sheets first — product names come from the master sheet.</div>';return false;}
@@ -980,25 +996,57 @@ function attBar(pct){
 function renderSalesOverview(){
   if(!salesGuard())return;
   const rows=salesRows();
-  const tot=rows.reduce((a,r)=>({u:a.u+r.u,f:a.f+r.f,v:a.v+r.v}),{u:0,f:0,v:0});
+  const stkOf={};DATA.forEach(p=>stkOf[p.sku]=stk(p));
+  const tot=rows.reduce((a,r)=>({u:a.u+r.u,f:a.f+r.f,d:a.d+r.d,v:a.v+r.v}),{u:0,f:0,d:0,v:0});
   const line=salesLineCur();
-  let td={u:0,f:0,v:0};
-  for(const sku in SALESIDX){const S=SALESIDX[sku];if(line&&S.line!==line)continue;const t=sumPeriod(S,'today');td.u+=t.u;td.f+=t.f;td.v+=t.v;}
+  let td={u:0,v:0};
+  for(const sku in SALESIDX){const S=SALESIDX[sku];if(line&&S.line!==line)continue;
+    const t=sumPeriod(S,'today');const tb=sumPeriod({monthly:S.bmonthly||{},daily:S.bdaily||{}},'today');td.u+=t.u;td.v+=t.v+tb.v;}
   $('content').innerHTML=
     salesToolbar('renderSalesOverview')+
     '<div class="metrics" style="margin-bottom:14px">'+
     '<div class="met gr"><div class="met-lbl">Revenue ('+spLbl()+')</div><div class="met-val" style="font-size:17px">'+fmtK(tot.v)+'</div><div class="met-sub">booked on Shopify</div><div class="met-bar"></div></div>'+
-    '<div class="met bl"><div class="met-lbl">Units sold</div><div class="met-val">'+tot.u.toLocaleString()+'</div><div class="met-sub">'+Math.max(0,tot.u-tot.f).toLocaleString()+' paid + '+tot.f.toLocaleString()+' free</div><div class="met-bar"></div></div>'+
-    '<div class="met pu"><div class="met-lbl">Free units</div><div class="met-val">'+tot.f.toLocaleString()+'</div><div class="met-sub">'+(tot.u>0?(tot.f/tot.u*100).toFixed(0)+'% of units moved':'deal +1 giveaways')+'</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Units sold</div><div class="met-val">'+tot.u.toLocaleString()+'</div><div class="met-sub">'+tot.d.toLocaleString()+' via deals · '+Math.max(0,tot.u-tot.d-tot.f).toLocaleString()+' à la carte · '+tot.f.toLocaleString()+' free</div><div class="met-bar"></div></div>'+
+    '<div class="met pu"><div class="met-lbl">Via deals</div><div class="met-val">'+(tot.u>0?(tot.d/tot.u*100).toFixed(0)+'%':'—')+'</div><div class="met-sub">'+tot.d.toLocaleString()+' units in deal orders</div><div class="met-bar"></div></div>'+
     '<div class="met am"><div class="met-lbl">Today</div><div class="met-val">'+td.u.toLocaleString()+' u</div><div class="met-sub">'+fmtK(td.v)+' booked today</div><div class="met-bar"></div></div>'+
     '</div>'+
-    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>#</th><th>Product</th><th>SKU</th><th style="text-align:right">Paid u</th><th style="text-align:right">Free u</th><th style="text-align:right">Total u</th><th style="text-align:right">Revenue</th><th style="text-align:right">Share</th></tr></thead><tbody>'+
-    (rows.length?rows.map((r,i)=>'<tr onclick="openDrawer(\''+esc(r.sku)+'\')" style="cursor:pointer"><td class="mu">'+(i+1)+'</td>'+
-      '<td style="font-weight:600;max-width:260px;overflow:hidden;text-overflow:ellipsis">'+esc(r.name)+'</td><td class="mu" style="font-size:11px">'+esc(r.sku)+'</td>'+
-      '<td class="r">'+r.paid.toLocaleString()+'</td><td class="r" style="color:var(--pu)">'+(r.f?r.f.toLocaleString():'—')+'</td><td class="r" style="font-weight:600">'+r.u.toLocaleString()+'</td>'+
-      '<td class="r" style="font-weight:600">'+fmtK(r.v)+'</td><td class="r mu">'+(tot.v>0?(r.v/tot.v*100).toFixed(1)+'%':'—')+'</td></tr>').join(''):
-      '<tr><td colspan="8"><div class="empty">No booked sales for this period'+(line?' in '+esc(line):'')+'</div></td></tr>')+
-    '</tbody></table></div><div class="tfooter"><span>Booked sales from Shopify (specialists’ POS) · units counted from itemized product lines (free +1s at ₱0) · deal/bundle lines contribute revenue only, so nothing is double-counted</span></div></div>';}
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>#</th><th>Product</th><th>SKU</th><th style="text-align:right">Total u</th><th style="text-align:right">Via deals</th><th style="text-align:right">À la carte</th><th style="text-align:right">Free u</th><th style="text-align:right">Revenue</th><th style="text-align:right">Stock now</th><th style="text-align:right">Share</th></tr></thead><tbody>'+
+    (rows.length?rows.map((r,i)=>{const s=stkOf[r.sku];
+      return '<tr onclick="openDrawer(\''+esc(r.sku)+'\')" style="cursor:pointer"><td class="mu">'+(i+1)+'</td>'+
+      '<td style="font-weight:600;max-width:240px;overflow:hidden;text-overflow:ellipsis">'+esc(r.name)+'</td><td class="mu" style="font-size:11px">'+esc(r.sku)+'</td>'+
+      '<td class="r" style="font-weight:600">'+r.u.toLocaleString()+'</td><td class="r">'+(r.d?r.d.toLocaleString():'—')+'</td><td class="r">'+(r.au?r.au.toLocaleString():'—')+'</td><td class="r" style="color:var(--pu)">'+(r.f?r.f.toLocaleString():'—')+'</td>'+
+      '<td class="r" style="font-weight:600">'+fmtK(r.v)+'</td><td class="r'+(s!=null&&s<r.u?'" style="color:var(--am)':'')+'">'+(s!=null?s.toLocaleString():'—')+'</td><td class="r mu">'+(tot.v>0?(r.v/tot.v*100).toFixed(1)+'%':'—')+'</td></tr>';}).join(''):
+      '<tr><td colspan="10"><div class="empty">No booked sales for this period'+(line?' in '+esc(line):'')+'</div></td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>Booked sales from Shopify (specialists’ POS) · via deals = units in orders with a deal line (deals counted as a whole, +1s included) · free = ₱0 giveaways outside any deal · stock in amber where the period’s sales exceed stock on hand</span></div></div>';}
+
+/* Deals vs à la carte — do the bundles outsell single-unit pricing? (Alex) */
+function renderSalesDeals(){
+  if(!salesGuard())return;
+  const priceOf={};DATA.forEach(p=>priceOf[p.sku]=p.price||0);
+  const rows=salesRows().filter(r=>r.d>0||r.au>0).map(r=>{
+    const dPU=r.d>0?r.dealRev/r.d:null, aPU=r.au>0?r.alaRev/r.au:(priceOf[r.sku]||null);
+    return {...r,dPU,aPU,disc:(dPU!=null&&aPU>0)?(1-dPU/aPU)*100:null};
+  }).sort((a,b)=>(b.d+b.au)-(a.d+a.au));
+  const tot=rows.reduce((a,r)=>({d:a.d+r.d,au:a.au+r.au,dr:a.dr+r.dealRev,ar:a.ar+r.alaRev}),{d:0,au:0,dr:0,ar:0});
+  const sold=tot.d+tot.au;
+  $('content').innerHTML=
+    salesToolbar('renderSalesDeals')+
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met pu"><div class="met-lbl">Units via deals</div><div class="met-val">'+tot.d.toLocaleString()+'</div><div class="met-sub">'+(sold>0?(tot.d/sold*100).toFixed(0)+'% of sold units':'')+'</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Units à la carte</div><div class="met-val">'+tot.au.toLocaleString()+'</div><div class="met-sub">'+(sold>0?(tot.au/sold*100).toFixed(0)+'% of sold units':'')+'</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Deal revenue</div><div class="met-val" style="font-size:17px">'+fmtK(tot.dr)+'</div><div class="met-sub">'+(tot.d>0?'₱'+Math.round(tot.dr/tot.d).toLocaleString()+' per unit':'')+'</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">À-la-carte revenue</div><div class="met-val" style="font-size:17px">'+fmtK(tot.ar)+'</div><div class="met-sub">'+(tot.au>0?'₱'+Math.round(tot.ar/tot.au).toLocaleString()+' per unit':'')+'</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Product</th><th style="text-align:right">Deal u</th><th style="text-align:right">À-la-carte u</th><th style="text-align:right">Deal share</th><th style="text-align:right">Deal rev</th><th style="text-align:right">₱/u via deal</th><th style="text-align:right">₱/u à la carte</th><th style="text-align:right">Eff. discount</th></tr></thead><tbody>'+
+    (rows.length?rows.map(r=>{const sh=(r.d+r.au)>0?r.d/(r.d+r.au)*100:0;
+      return '<tr onclick="openDrawer(\''+esc(r.sku)+'\')" style="cursor:pointer"><td style="font-weight:600;max-width:240px;overflow:hidden;text-overflow:ellipsis">'+esc(r.name)+'</td>'+
+      '<td class="r" style="font-weight:600;color:var(--pu)">'+r.d.toLocaleString()+'</td><td class="r">'+r.au.toLocaleString()+'</td>'+
+      '<td class="r"'+(sh>=50?' style="color:var(--pu);font-weight:600"':'')+'>'+sh.toFixed(0)+'%</td>'+
+      '<td class="r">'+fmtK(r.dealRev)+'</td><td class="r">'+(r.dPU!=null?'₱'+Math.round(r.dPU).toLocaleString():'—')+'</td>'+
+      '<td class="r">'+(r.aPU?'₱'+Math.round(r.aPU).toLocaleString():'—')+'</td>'+
+      '<td class="r mu">'+(r.disc!=null?r.disc.toFixed(0)+'%':'—')+'</td></tr>';}).join(''):
+      '<tr><td colspan="8"><div class="empty">No sales in this period</div></td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>Deal u = units moved through bundle orders (whole deal incl. +1s) · ₱/u via deal = deal revenue ÷ all deal units · eff. discount = how much cheaper a unit effectively is inside a deal vs à la carte</span></div></div>';}
 
 function renderSalesFree(){
   if(!salesGuard())return;
@@ -1009,7 +1057,7 @@ function renderSalesFree(){
   $('content').innerHTML=
     salesToolbar('renderSalesFree')+
     '<div class="metrics" style="margin-bottom:14px">'+
-    '<div class="met pu"><div class="met-lbl">Free units ('+spLbl()+')</div><div class="met-val">'+totF.toLocaleString()+'</div><div class="met-sub">deal +1 giveaways</div><div class="met-bar"></div></div>'+
+    '<div class="met pu"><div class="met-lbl">Free units ('+spLbl()+')</div><div class="met-val">'+totF.toLocaleString()+'</div><div class="met-sub">true giveaways (outside deals)</div><div class="met-bar"></div></div>'+
     '<div class="met am"><div class="met-lbl">Giveaway value</div><div class="met-val" style="font-size:17px">'+fmtK(totFV)+'</div><div class="met-sub">at à-la-carte list price</div><div class="met-bar"></div></div>'+
     '<div class="met bl"><div class="met-lbl">Free share</div><div class="met-val">'+(totU>0?(totF/totU*100).toFixed(0)+'%':'—')+'</div><div class="met-sub">of all units moved</div><div class="met-bar"></div></div>'+
     '<div class="met gr"><div class="met-lbl">Paid units</div><div class="met-val">'+Math.max(0,totU-totF).toLocaleString()+'</div><div class="met-sub">customer-paid</div><div class="met-bar"></div></div>'+
@@ -1021,7 +1069,7 @@ function renderSalesFree(){
       '<td class="r mu">'+(r.u>0?(r.f/r.u*100).toFixed(0)+'%':'—')+'</td><td class="r">'+(fv>0?fmtK(fv):'—')+'</td>'+
       '<td class="r">'+(s!=null?s.toLocaleString():'—')+'</td><td class="r mu">'+((s>0&&r.f>0)?(r.f/s*100).toFixed(0)+'%':'—')+'</td></tr>';}).join(''):
       '<tr><td colspan="7"><div class="empty">No sales in this period</div></td></tr>')+
-    '</tbody></table></div><div class="tfooter"><span>Free = ₱0 line items on Shopify orders (the +1 in 2+1…6+1 deals) · they leave inventory like paid units but book no revenue</span></div></div>';}
+    '</tbody></table></div><div class="tfooter"><span>Free = ₱0 items given away OUTSIDE any deal (samples, marketing, goodwill) · deal +1s are NOT counted here — the deal is sold as a whole and its units sit in the deal columns · free items still leave inventory but book no revenue</span></div></div>';}
 
 function tgMonths(){return [...new Set((TARGETS||[]).map(t=>t.month))].sort().reverse();}
 function tgActualProduct(ym,key){
@@ -1030,7 +1078,8 @@ function tgActualProduct(ym,key){
   let S=SALESIDX[key]||SALESIDX[kk];
   if(!S){for(const sku in SALESIDX){const n=(SALESIDX[sku].name||'').toUpperCase();if(n===kk){S=SALESIDX[sku];break;}}}
   if(!S){for(const sku in SALESIDX){const n=(SALESIDX[sku].name||'').toUpperCase();if(kk.length>=4&&n.includes(kk)){S=SALESIDX[sku];break;}}}
-  if(!S)return null;const c=(S.monthly||{})[ym];return {u:c?c.u:0,v:c?c.v:0,name:S.name};}
+  if(!S)return null;const c=(S.monthly||{})[ym],b=(S.bmonthly||{})[ym];
+  return {u:c?c.u:0,v:(c?c.v:0)+(b?b.v:0),name:S.name};}
 function renderSalesTarget(){
   if(!salesGuard())return;
   if(!(TARGETS||[]).length){
@@ -1049,13 +1098,14 @@ function renderSalesTarget(){
   const ym=window._tgMonth&&months.includes(window._tgMonth)?window._tgMonth:(months.includes(ymNow)?ymNow:months[0]);
   window._tgMonth=ym;
   const rowsT=TARGETS.filter(t=>t.month===ym);
-  // actuals for the month
+  // actuals for the month (base units + revenue, plus deal revenue from bundle lines)
   let actTotal={u:0,v:0};const actLine={};
-  for(const sku in SALESIDX){const S=SALESIDX[sku];const c=(S.monthly||{})[ym];if(!c)continue;
-    actTotal.u+=c.u;actTotal.v+=c.v;
-    const L=S.line||'(no line)';const a=actLine[L]||(actLine[L]={u:0,v:0});a.u+=c.u;a.v+=c.v;}
-  const specs=(SHOPIFY&&SHOPIFY.specialists)||{};
-  const specActual=name=>{const key=Object.keys(specs).find(k=>k.toLowerCase()===name.toLowerCase());const c=key?(specs[key].monthly||{})[ym]:null;return {u:c?c.u:0,v:c?c.v:0};};
+  for(const sku in SALESIDX){const S=SALESIDX[sku];const c=(S.monthly||{})[ym],b=(S.bmonthly||{})[ym];if(!c&&!b)continue;
+    const u=c?c.u:0,v=(c?c.v:0)+(b?b.v:0);
+    actTotal.u+=u;actTotal.v+=v;
+    const L=S.line||'(no line)';const a=actLine[L]||(actLine[L]={u:0,v:0});a.u+=u;a.v+=v;}
+  const specs=specMerged();
+  const specActual=name=>{const key=Object.keys(specs).find(k=>k.toLowerCase()===name.trim().toLowerCase());const c=key?(specs[key].monthly||{})[ym]:null;return {u:c?c.u:0,v:c?c.v:0};};
   const isCur=ym===ymNow;
   const dayFrac=isCur?(new Date().getDate()/new Date(new Date().getFullYear(),new Date().getMonth()+1,0).getDate()):1;
   const mkRow=t=>{
@@ -1084,9 +1134,21 @@ function renderSalesTarget(){
   html+='<div style="font-size:11px;color:var(--tx3)">Actuals are booked Shopify sales for '+ym+' · targets come from the sheet’s Targets tab · edit them there and re-sync</div>';
   $('content').innerHTML=html;}
 
+// Merge specialist tags that differ only by case/spacing ("Rhas"/"RHAS", "adel"/"Adel")
+function specMerged(){
+  const specs=(SHOPIFY&&SHOPIFY.specialists)||{};
+  const merged={};
+  for(const n in specs){
+    const k=n.trim().toLowerCase();
+    const M=merged[k]||(merged[k]={name:n.trim(),monthly:{},daily:{}});
+    for(const src of ['monthly','daily'])for(const m in (specs[n][src]||{})){
+      const c=specs[n][src][m];const d=M[src][m]||(M[src][m]={u:0,v:0});d.u+=c.u||0;d.v+=c.v||0;}
+  }
+  const out={};for(const k in merged)out[merged[k].name]=merged[k];
+  return out;}
 function renderSalesSpec(){
   if(!salesGuard())return;
-  const specs=(SHOPIFY&&SHOPIFY.specialists)||{};
+  const specs=specMerged();
   const names=Object.keys(specs);
   if(!names.length){$('content').innerHTML=salesToolbar('renderSalesSpec')+'<div class="empty" style="margin-top:30px">No specialist tags found on Shopify orders yet. Specialists are read from each order’s first tag (e.g. Rhas, Frank, Ruth, Charmaine) — make sure orders are tagged at the POS.</div>';return;}
   const ymNow=new Date().toISOString().slice(0,7);
@@ -2800,6 +2862,7 @@ function exportCurrentView(){
     case 'coverage': return exportCoverage();
     case 'dealvalue': return exportDeals();
     case 'salesoverview': return exportSalesOverview();
+    case 'salesdeals': return exportSalesDeals();
     case 'salesfree': return exportSalesFree();
     case 'salestarget': return exportSalesTarget();
     case 'salesspec': return exportSalesSpec();
@@ -2808,8 +2871,16 @@ function exportCurrentView(){
 }
 function exportSalesOverview(){
   if(!SALESIDX)return;
-  downloadCSV('sales_overview_'+SPERIOD,['SKU','Product','Line','Paid units','Free units','Total units','Revenue PHP'],
-    salesRows().map(r=>[r.sku,r.name,r.line,r.paid,r.f,r.u,Math.round(r.v)]));
+  const stkOf={};DATA.forEach(p=>stkOf[p.sku]=stk(p));
+  downloadCSV('sales_overview_'+SPERIOD,['SKU','Product','Line','Total units','Via deals','A la carte','Free units','Revenue PHP','Stock now'],
+    salesRows().map(r=>[r.sku,r.name,r.line,r.u,r.d,r.au,r.f,Math.round(r.v),stkOf[r.sku]??'']));
+}
+function exportSalesDeals(){
+  if(!SALESIDX)return;
+  downloadCSV('deals_vs_alacarte_'+SPERIOD,['SKU','Product','Line','Deal units','A la carte units','Deal share %','Deal revenue PHP','PHP per unit via deal','PHP per unit a la carte','Effective discount %'],
+    salesRows().filter(r=>r.d>0||r.au>0).map(r=>{
+      const dPU=r.d>0?r.dealRev/r.d:null,aPU=r.au>0?r.alaRev/r.au:null;
+      return [r.sku,r.name,r.line,r.d,r.au,(r.d+r.au)>0?Math.round(r.d/(r.d+r.au)*100):'',Math.round(r.dealRev),dPU!=null?Math.round(dPU):'',aPU!=null?Math.round(aPU):'',(dPU!=null&&aPU>0)?Math.round((1-dPU/aPU)*100):''];}));
 }
 function exportSalesFree(){
   if(!SALESIDX)return;
@@ -2821,10 +2892,11 @@ function exportSalesFree(){
 function exportSalesTarget(){
   if(!(TARGETS||[]).length)return;
   const ym=window._tgMonth||new Date().toISOString().slice(0,7);
-  const specs=(SHOPIFY&&SHOPIFY.specialists)||{};
+  const specs=specMerged();
   let actTotal={u:0,v:0};const actLine={};
-  for(const sku in (SALESIDX||{})){const S=SALESIDX[sku];const c=(S.monthly||{})[ym];if(!c)continue;
-    actTotal.u+=c.u;actTotal.v+=c.v;const L=S.line||'';const a=actLine[L]||(actLine[L]={u:0,v:0});a.u+=c.u;a.v+=c.v;}
+  for(const sku in (SALESIDX||{})){const S=SALESIDX[sku];const c=(S.monthly||{})[ym],b=(S.bmonthly||{})[ym];if(!c&&!b)continue;
+    const u=c?c.u:0,v=(c?c.v:0)+(b?b.v:0);
+    actTotal.u+=u;actTotal.v+=v;const L=S.line||'';const a=actLine[L]||(actLine[L]={u:0,v:0});a.u+=u;a.v+=v;}
   downloadCSV('sales_vs_target_'+ym,['Month','Scope','Name','Actual PHP','Target PHP','Attainment %','Actual units','Target units'],
     TARGETS.filter(t=>t.month===ym).map(t=>{
       let act={u:0,v:0};
@@ -2835,7 +2907,7 @@ function exportSalesTarget(){
       return [t.month,t.scope,t.name,Math.round(act.v),t.value||'',t.value>0?(act.v/t.value*100).toFixed(0):'',act.u,t.units||''];}));
 }
 function exportSalesSpec(){
-  const specs=(SHOPIFY&&SHOPIFY.specialists)||{};
+  const specs=specMerged();
   downloadCSV('sales_per_specialist_'+SPERIOD,['Specialist','Units','Revenue PHP'],
     Object.keys(specs).map(n=>{const t=sumPeriod(specs[n],SPERIOD);return [n,t.u,Math.round(t.v)];}).sort((a,b)=>b[2]-a[2]));
 }
@@ -2977,7 +3049,7 @@ async function copyForAI(){
     }
   }
   if(rows.some(p=>p.shopifySales)){
-    t+='\nSHOPIFY UNIT DEMAND PER SKU (physical units booked at the store incl. free +1 deal units; deal lines counted as revenue only so units are not double-counted; month=units):\n';
+    t+='\nSHOPIFY UNIT DEMAND PER SKU (physical units booked at the store; deals counted as a whole incl. +1 units; not double-counted; month=units):\n';
     for(const p of rows){
       if(!p.shopifySales)continue;
       const yms=Object.keys(p.shopifySales).sort();
