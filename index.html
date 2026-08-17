@@ -304,6 +304,11 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
     <div class="ni" onclick="showView('action',this)"><svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Action center<span class="nbadge" id="b-action">0</span></div>
     <div class="ni" onclick="showView('all',this)"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="1" fill="currentColor"/><circle cx="3" cy="12" r="1" fill="currentColor"/><circle cx="3" cy="18" r="1" fill="currentColor"/></svg>All SKUs</div>
     <div class="ni" onclick="showView('customers',this)"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Customers</div>
+    <div class="nlbl">Sales</div>
+    <div class="ni" onclick="showView('salesoverview',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Sales overview</div>
+    <div class="ni" onclick="showView('salesfree',this)"><svg viewBox="0 0 24 24"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>Free items</div>
+    <div class="ni" onclick="showView('salestarget',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>Sales vs target</div>
+    <div class="ni" onclick="showView('salesspec',this)"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Specialists</div>
     <div class="nlbl">Alerts</div>
     <div class="ni" onclick="showView('oos',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg>Out of stock<span class="nbadge" id="b-oos">0</span></div>
     <div class="ni" onclick="showView('low',this)"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>Low stock<span class="nbadge w" id="b-low">0</span></div>
@@ -384,6 +389,10 @@ let BRANCH_TRANSFERS = [];
 let BRANCH_EXPIRY = {};
 let CUSTOMERS = [];
 let SHOPIFY = null;
+let SALESIDX = null;              // base-SKU sales index built from Shopify variants
+let TARGETS = [];                 // sales targets from the sheet's optional Targets tab
+let SPERIOD = 'mtd';              // shared period for the Sales views
+let SLINE = null;                 // line filter for Sales views (null = auto-default to Meso)
 
 /* ── SHOPIFY MERGE: prices & deals & demand from the store; stock stays with the sheet ── */
 async function loadShopify(){
@@ -396,26 +405,52 @@ async function loadShopify(){
 }
 function mergeShopify(){
   if(!SHOPIFY||!SHOPIFY.variants||!DATA.length)return;
+  const isV2=SHOPIFY.v===2;
+  if(!isV2){try{fetch('/api/shopify?refresh=1');}catch(e){}} // old cache format — trigger a rebuild
   const sheetSkus=new Set(DATA.map(p=>p.sku));
   const bases=[...sheetSkus].sort((a,b)=>b.length-a.length); // longest-prefix wins
-  const byBase={};
+  // Unit rule (validated on real orders): physical units — including FREE (+1) units —
+  // are itemized as base-SKU lines (free at ₱0). Bundle/deal lines carry revenue only.
+  const gU=c=>isV2?(c?c.u:0):(typeof c==='number'?c:0);
+  const gF=c=>isV2&&c?c.f:0;
+  const gV=c=>isV2&&c?c.v:0;
+  SALESIDX={};
   for(const v of SHOPIFY.variants){
-    if(sheetSkus.has(v.sku)){(byBase[v.sku]=byBase[v.sku]||{main:null,bundles:[]}).main=v;continue;}
-    const base=bases.find(b=>v.sku.startsWith(b)&&v.sku.length>b.length);
-    if(base)(byBase[base]=byBase[base]||{main:null,bundles:[]}).bundles.push(v);
+    let base=null,isBundle=false;
+    if(sheetSkus.has(v.sku))base=v.sku;
+    else{base=bases.find(b=>v.sku.startsWith(b)&&v.sku.length>b.length);isBundle=!!base;}
+    if(!base)continue;
+    const S=SALESIDX[base]||(SALESIDX[base]={main:null,bundles:[],monthly:{},daily:{}});
+    if(isBundle)S.bundles.push(v);else S.main=v;
+    const addAgg=(dst,src)=>{for(const k in (src||{})){const c=src[k];const d=dst[k]||(dst[k]={u:0,f:0,v:0});if(!isBundle){d.u+=gU(c);d.f+=gF(c);}d.v+=gV(c);}};
+    addAgg(S.monthly,v.monthly);
+    addAgg(S.daily,v.daily);
   }
   for(const p of DATA){
-    const g=byBase[p.sku]; if(!g)continue;
+    const S=SALESIDX[p.sku]; if(!S)continue;
+    S.name=p.name; S.line=p.line;
     if(p.priceSheet===undefined)p.priceSheet=p.price;         // keep the sheet price for reconciliation
-    if(g.main&&g.main.price>0){p.price=g.main.price;p.priceSrc='shopify';}
-    if(g.main&&g.main.inv!=null)p.shopifyInv=g.main.inv;
-    p.deals=g.bundles.filter(b=>b.setSize).map(b=>({title:b.productTitle,setSize:b.setSize,price:b.price}));
-    const sales={};
-    const addM=(mObj,mult)=>{for(const k in (mObj||{}))sales[k]=(sales[k]||0)+mObj[k]*mult;};
-    if(g.main)addM(g.main.monthly,1);
-    for(const b of g.bundles)addM(b.monthly,b.setSize||1);    // bundle sale = setSize physical units
-    if(Object.keys(sales).length)p.shopifySales=sales;
+    if(S.main&&S.main.price>0){p.price=S.main.price;p.priceSrc='shopify';}
+    if(S.main&&S.main.inv!=null)p.shopifyInv=S.main.inv;
+    p.deals=S.bundles.filter(b=>b.setSize).map(b=>({title:b.productTitle,setSize:b.setSize,price:b.price}));
+    const sales={}; let any=false;
+    for(const ym in S.monthly){if(S.monthly[ym].u>0){sales[ym]=S.monthly[ym].u;any=true;}}
+    if(any)p.shopifySales=sales;
   }
+}
+// Sum a {monthly:{ym:{u,f,v}}, daily:{date:{u,f,v}}} aggregate over the selected period.
+function sumPeriod(S,mode){
+  const out={u:0,f:0,v:0};
+  const add=c=>{out.u+=c.u||0;out.f+=c.f||0;out.v+=c.v||0;};
+  const today=new Date().toISOString().slice(0,10);
+  const cutoff=d=>new Date(Date.now()-d*864e5).toISOString().slice(0,10);
+  const ymNow=today.slice(0,7);
+  if(mode==='today'){const c=(S.daily||{})[today];if(c)add(c);}
+  else if(mode==='7d'||mode==='30d'){const lim=cutoff(mode==='7d'?7:30);for(const d in (S.daily||{}))if(d>=lim)add((S.daily||{})[d]);}
+  else if(mode==='mtd'){const c=(S.monthly||{})[ymNow];if(c)add(c);}
+  else if(mode==='3m'){const lim=new Date();lim.setMonth(lim.getMonth()-2);const l=lim.toISOString().slice(0,7);for(const m in (S.monthly||{}))if(m>=l)add((S.monthly||{})[m]);}
+  else {for(const m in (S.monthly||{}))add((S.monthly||{})[m]);} // all (13 months)
+  return out;
 }
 function rerenderCurrent(){
   const k={l:fLine,c:fCat,s:fSearch,t:fTab,b:fBin,su:fSup};
@@ -504,13 +539,17 @@ const DESC={
   simbranch:'Suggests moving stock between <b>Remedy’s</b> branches (BGC, Vertis North, Greenhills) to balance each site’s share and use up near-expiry stock. Remedy is a sister company and a customer; this is based on what Healthspan has shipped to them.',
   movement:'Units received versus sold each month over the past year — the pulse of what’s coming in and going out.',
   value:'Where your inventory money sits, broken down by product line.',
-  dealvalue:'What the current stock is worth <b>if everything sells à la carte</b> versus through the bundle deals (2+1 up to 6+1, where the +1 is free). Prices are live from Shopify where connected (sheet SRP otherwise). Supplier/landed cost isn’t in the system yet, so this is revenue, not profit.',
+  dealvalue:'What the current stock is worth <b>if everything sells à la carte</b> versus through the bundle deals (2+1 up to 6+1, where the +1 is free). Prices are live from Shopify where connected (sheet price otherwise). Supplier/landed cost isn’t in the system yet, so this is revenue, not profit.',
   batches:'Every batch in FEFO order (first to expire, first out) — the sequence to pull stock in.',
   aged:'Products that haven’t sold in a while, grouped into aging, slow, and dead stock — candidates for a promo or clear-out.',
   shrinkage:'Flags gaps between what was received/sold and what’s actually on hand — possible loss, miscounts, or unrecorded movement.',
   cashexpiry:'The peso value tied up in stock that’s expiring soon, bucketed by urgency.',
   branchtransfer:'A log of product Healthspan has shipped to <b>Remedy’s</b> clinic branches — BGC, Vertis North, Greenhills — from 2025 onward. Remedy is a sister company and a customer.',
-  branchexpiry:'For each <b>Remedy</b> branch, the stock Healthspan shipped there sorted by expiry — so each clinic can see what to use up first.'
+  branchexpiry:'For each <b>Remedy</b> branch, the stock Healthspan shipped there sorted by expiry — so each clinic can see what to use up first.',
+  salesoverview:'Booked sales from Shopify (the specialists’ booking POS): units sold and revenue per product, over an adjustable period. <b>Paid</b> units are what customers bought; <b>free</b> units are the +1s given away in deals — both leave the warehouse. Deal/bundle lines carry the revenue; the physical units are counted from the itemized product lines, so nothing is double-counted.',
+  salesfree:'The free (+1) items given away through deals, kept separate from paid sales — how many, what they’d be worth at list price, and how the giveaway rate compares with what’s left in inventory.',
+  salestarget:'Actual booked sales versus the monthly targets set in the sheet’s <b>Targets</b> tab — total, per line, and per product. If the tab doesn’t exist yet, this view shows exactly how to set it up.',
+  salesspec:'Each product specialist’s booked sales — revenue and units — over an adjustable period, and against their monthly target if one is set. Specialists are read from the order’s first tag in Shopify (e.g. Rhas, Frank, Ruth, Charmaine).'
 };
 /* "How is this calculated" methodology, shown as a collapsible panel on planning/forecast tabs. */
 const VELOCITY_BASIS='<b>Forecast monthly demand</b> is built from actual outbound movement — not opening balances:<ol>'+
@@ -554,7 +593,7 @@ const CALC={
     '<span class="fx">à la carte value = stock × SRP\ndeal value (N+1) = (stock − free units) × SRP\nfree units       = ⌊ stock ÷ (N+1) ⌋</span>'+
     'In an <b>N+1 deal</b>, every full set of N+1 units contains one free unit. Leftover units that don’t complete a set still sell at full SRP — so the math is exact, not a flat percentage.'+
     '<div style="margin-top:9px">Example: 100 units on a <b>3+1</b> deal → 25 full sets → 25 free units → 75 units paid → value = 75 × SRP (a 25% giveaway).</div>'+
-    '<div class="note">Caveats: prices come live from Shopify where the SKU exists there (green “Shopify” badge in the product drawer), otherwise from the sheet SRP which may be outdated. Supplier cost and landed cost (forex, fees, taxes, shipping) are not in the system yet, so these figures are potential REVENUE, not profit or margin. SKUs without a price are excluded entirely — see Data health.</div>'},
+    '<div class="note">Caveats: prices come live from Shopify where the SKU exists there (green “Shopify” badge in the product drawer, confirmed aligned with the master sheet), otherwise from the sheet. Sheet-vs-Shopify disagreements are flagged in Data health. Supplier cost and landed cost (forex, fees, taxes, shipping) are not in the system yet, so these figures are potential REVENUE, not profit or margin. SKUs without any price are excluded entirely.</div>'},
   writeoff:{t:'How write-off risk is calculated',b:
     'Each batch is checked against how fast that SKU actually sells, in <b>FEFO order</b> (earliest expiry first):'+
     '<span class="fx">sellable before expiry = daily demand × days to expiry − stock ahead in the queue\nprojected expired = batch stock on hand − sellable\nwrite-off value   = projected expired × unit price</span>'+
@@ -719,6 +758,7 @@ function applySync(data){
   BRANCH_EXPIRY=data.branchExpirySummary||{};
   CUSTOMERS=data.customers||[];
   COLLISIONS=data.collisions||[];
+  TARGETS=data.targets||[];
   if(SHOPIFY)mergeShopify(); else loadShopify();
   $('psub').textContent='Healthspan Global, Inc. \u00b7 '+DATA.length+' SKUs \u00b7 '+BATCHES.length+' batches';
   updateMobileBadges();
@@ -754,6 +794,10 @@ function applySync(data){
   else if(currentView==='simcash') renderCashSim();
   else if(currentView==='simbulk') renderBulkSim();
   else if(currentView==='simbranch') renderBranchSim();
+  else if(currentView==='salesoverview') renderSalesOverview();
+  else if(currentView==='salesfree') renderSalesFree();
+  else if(currentView==='salestarget') renderSalesTarget();
+  else if(currentView==='salesspec') renderSalesSpec();
   else renderTable();
   injectDesc(currentView);
   injectCalc(currentView);
@@ -836,7 +880,8 @@ function showView(v,el){
            forecast:'Stockout forecast',coverage:'Stock coverage',reorderplan:'Reorder plan',ropoint:'Reorder point',variability:'Demand variability',abc:'ABC analysis',writeoff:'Write-off forecast',whatif:'What-if simulator',
            simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator',
            simmonte:'Monte Carlo stockout risk',simproject:'12-month projection',simcash:'Cash-flow timeline',simbulk:'Bulk-buy trade-off',simbranch:'Remedy branch rebalancing',
-           aged:'Aged inventory',shrinkage:'Shrinkage tracker',cashexpiry:'Cash in expiring stock',branchtransfer:'Remedy branch shipments',branchexpiry:'Remedy branch expiry watch'};
+           aged:'Aged inventory',shrinkage:'Shrinkage tracker',cashexpiry:'Cash in expiring stock',branchtransfer:'Remedy branch shipments',branchexpiry:'Remedy branch expiry watch',
+           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist'};
   $('ptitle').textContent=T[v]||v;
   if(v==='dashboard') renderDashboard();
   else if(v==='action') renderActionCenter();
@@ -869,6 +914,10 @@ function showView(v,el){
   else if(v==='simcash') renderCashSim();
   else if(v==='simbulk') renderBulkSim();
   else if(v==='simbranch') renderBranchSim();
+  else if(v==='salesoverview') renderSalesOverview();
+  else if(v==='salesfree') renderSalesFree();
+  else if(v==='salestarget') renderSalesTarget();
+  else if(v==='salesspec') renderSalesSpec();
   else renderTable(v);
   injectDesc(v);
   injectCalc(v);
@@ -880,6 +929,172 @@ function fltLine(line,el){
   $('ptitle').textContent=line;
   renderTable();
 }
+
+/* ── SALES SECTION (Shopify booked sales — for Jojo & Marj) ── */
+const SP_LBL={today:'today',['7d']:'last 7 days',mtd:'this month',['30d']:'last 30 days',['3m']:'last 3 months',all:'last 12 months'};
+function salesLines(){return [...new Set(Object.values(SALESIDX||{}).map(S=>S.line).filter(Boolean))].sort();}
+function salesLineCur(){if(SLINE!==null)return SLINE;const ls=salesLines();const meso=ls.find(l=>/meso/i.test(l));SLINE=(meso!==undefined)?meso:'';return SLINE;}
+function salesRows(){
+  const line=salesLineCur();const out=[];
+  for(const sku in SALESIDX){const S=SALESIDX[sku];if(line&&S.line!==line)continue;
+    const t=sumPeriod(S,SPERIOD);if(t.u<=0&&t.v<=0&&t.f<=0)continue;
+    out.push({sku,name:S.name||sku,line:S.line||'',u:t.u,f:t.f,paid:Math.max(0,t.u-t.f),v:t.v});}
+  out.sort((a,b)=>(b.v-a.v)||(b.u-a.u));return out;}
+function salesGuard(){
+  if(!DATA.length){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sync from Google Sheets first — product names come from the master sheet.</div>';return false;}
+  if(!SHOPIFY||!SALESIDX||!Object.keys(SALESIDX).length){
+    $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading booked sales from Shopify… this fills in automatically once the sales cache is ready (the first build after an update can take a few minutes — try Sync again shortly).</div>';
+    try{loadShopify();}catch(e){}return false;}
+  return true;}
+function salesToolbar(fn){
+  const periods=[['today','Today'],['7d','7 days'],['mtd','This month'],['30d','30 days'],['3m','3 months'],['all','12 months']];
+  const lines=salesLines();const cur=salesLineCur();
+  const syn=SHOPIFY&&SHOPIFY.synced?new Date(SHOPIFY.synced).toLocaleString('en-PH',{timeZone:'Asia/Manila',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):null;
+  return '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">'+
+    '<div class="tabs" style="margin:0">'+periods.map(([k,l])=>'<div class="tab'+(SPERIOD===k?' active':'')+'" onclick="SPERIOD=\''+k+'\';'+fn+'()">'+l+'</div>').join('')+'</div>'+
+    '<select onchange="SLINE=this.value;'+fn+'()" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:6px 10px;font-size:12px">'+
+    '<option value=""'+(cur===''?' selected':'')+'>All product lines</option>'+
+    lines.map(l=>'<option value="'+esc(l)+'"'+(cur===l?' selected':'')+'>'+esc(l)+'</option>').join('')+'</select>'+
+    (syn?'<span style="font-size:11px;color:var(--tx3)">Shopify synced '+syn+'</span>':'')+'</div>';}
+function attBar(pct){
+  const c=pct>=100?'var(--gr)':pct>=70?'var(--bl)':pct>=40?'var(--am)':'var(--rd)';
+  return '<div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:6px;background:var(--sf2);border-radius:3px;overflow:hidden;min-width:60px"><div style="height:100%;width:'+Math.min(100,pct).toFixed(0)+'%;background:'+c+'"></div></div><span style="font-weight:600;font-size:11.5px;color:'+c+';min-width:38px;text-align:right">'+pct.toFixed(0)+'%</span></div>';}
+
+function renderSalesOverview(){
+  if(!salesGuard())return;
+  const rows=salesRows();
+  const tot=rows.reduce((a,r)=>({u:a.u+r.u,f:a.f+r.f,v:a.v+r.v}),{u:0,f:0,v:0});
+  const line=salesLineCur();
+  let td={u:0,f:0,v:0};
+  for(const sku in SALESIDX){const S=SALESIDX[sku];if(line&&S.line!==line)continue;const t=sumPeriod(S,'today');td.u+=t.u;td.f+=t.f;td.v+=t.v;}
+  $('content').innerHTML=
+    salesToolbar('renderSalesOverview')+
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met gr"><div class="met-lbl">Revenue ('+SP_LBL[SPERIOD]+')</div><div class="met-val" style="font-size:17px">'+fmtK(tot.v)+'</div><div class="met-sub">booked on Shopify</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Units sold</div><div class="met-val">'+tot.u.toLocaleString()+'</div><div class="met-sub">'+Math.max(0,tot.u-tot.f).toLocaleString()+' paid + '+tot.f.toLocaleString()+' free</div><div class="met-bar"></div></div>'+
+    '<div class="met pu"><div class="met-lbl">Free units</div><div class="met-val">'+tot.f.toLocaleString()+'</div><div class="met-sub">'+(tot.u>0?(tot.f/tot.u*100).toFixed(0)+'% of units moved':'deal +1 giveaways')+'</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Today</div><div class="met-val">'+td.u.toLocaleString()+' u</div><div class="met-sub">'+fmtK(td.v)+' booked today</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>#</th><th>Product</th><th>SKU</th><th style="text-align:right">Paid u</th><th style="text-align:right">Free u</th><th style="text-align:right">Total u</th><th style="text-align:right">Revenue</th><th style="text-align:right">Share</th></tr></thead><tbody>'+
+    (rows.length?rows.map((r,i)=>'<tr onclick="openDrawer(\''+esc(r.sku)+'\')" style="cursor:pointer"><td class="mu">'+(i+1)+'</td>'+
+      '<td style="font-weight:600;max-width:260px;overflow:hidden;text-overflow:ellipsis">'+esc(r.name)+'</td><td class="mu" style="font-size:11px">'+esc(r.sku)+'</td>'+
+      '<td class="r">'+r.paid.toLocaleString()+'</td><td class="r" style="color:var(--pu)">'+(r.f?r.f.toLocaleString():'—')+'</td><td class="r" style="font-weight:600">'+r.u.toLocaleString()+'</td>'+
+      '<td class="r" style="font-weight:600">'+fmtK(r.v)+'</td><td class="r mu">'+(tot.v>0?(r.v/tot.v*100).toFixed(1)+'%':'—')+'</td></tr>').join(''):
+      '<tr><td colspan="8"><div class="empty">No booked sales for this period'+(line?' in '+esc(line):'')+'</div></td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>Booked sales from Shopify (specialists’ POS) · units counted from itemized product lines (free +1s at ₱0) · deal/bundle lines contribute revenue only, so nothing is double-counted</span></div></div>';}
+
+function renderSalesFree(){
+  if(!salesGuard())return;
+  const priceOf={},stkOf={};DATA.forEach(p=>{priceOf[p.sku]=p.price||0;stkOf[p.sku]=stk(p);});
+  const rows=salesRows().filter(r=>r.f>0||r.paid>0).sort((a,b)=>b.f-a.f||b.u-a.u);
+  const totF=rows.reduce((a,r)=>a+r.f,0),totU=rows.reduce((a,r)=>a+r.u,0);
+  const totFV=rows.reduce((a,r)=>a+r.f*(priceOf[r.sku]||0),0);
+  $('content').innerHTML=
+    salesToolbar('renderSalesFree')+
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met pu"><div class="met-lbl">Free units ('+SP_LBL[SPERIOD]+')</div><div class="met-val">'+totF.toLocaleString()+'</div><div class="met-sub">deal +1 giveaways</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Giveaway value</div><div class="met-val" style="font-size:17px">'+fmtK(totFV)+'</div><div class="met-sub">at à-la-carte list price</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Free share</div><div class="met-val">'+(totU>0?(totF/totU*100).toFixed(0)+'%':'—')+'</div><div class="met-sub">of all units moved</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Paid units</div><div class="met-val">'+Math.max(0,totU-totF).toLocaleString()+'</div><div class="met-sub">customer-paid</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Product</th><th style="text-align:right">Free u</th><th style="text-align:right">Paid u</th><th style="text-align:right">Free %</th><th style="text-align:right">Value @ list</th><th style="text-align:right">Stock now</th><th style="text-align:right">Free vs stock</th></tr></thead><tbody>'+
+    (rows.length?rows.map(r=>{const fv=r.f*(priceOf[r.sku]||0);const s=stkOf[r.sku];
+      return '<tr onclick="openDrawer(\''+esc(r.sku)+'\')" style="cursor:pointer"><td style="font-weight:600;max-width:260px;overflow:hidden;text-overflow:ellipsis">'+esc(r.name)+'</td>'+
+      '<td class="r" style="font-weight:600;color:var(--pu)">'+r.f.toLocaleString()+'</td><td class="r">'+r.paid.toLocaleString()+'</td>'+
+      '<td class="r mu">'+(r.u>0?(r.f/r.u*100).toFixed(0)+'%':'—')+'</td><td class="r">'+(fv>0?fmtK(fv):'—')+'</td>'+
+      '<td class="r">'+(s!=null?s.toLocaleString():'—')+'</td><td class="r mu">'+((s>0&&r.f>0)?(r.f/s*100).toFixed(0)+'%':'—')+'</td></tr>';}).join(''):
+      '<tr><td colspan="7"><div class="empty">No sales in this period</div></td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>Free = ₱0 line items on Shopify orders (the +1 in 2+1…6+1 deals) · they leave inventory like paid units but book no revenue</span></div></div>';}
+
+function tgMonths(){return [...new Set((TARGETS||[]).map(t=>t.month))].sort().reverse();}
+function tgActualProduct(ym,key){
+  // match target NAME to a product: exact SKU, else case-insensitive name equality, else substring
+  const kk=key.toUpperCase();
+  let S=SALESIDX[key]||SALESIDX[kk];
+  if(!S){for(const sku in SALESIDX){const n=(SALESIDX[sku].name||'').toUpperCase();if(n===kk){S=SALESIDX[sku];break;}}}
+  if(!S){for(const sku in SALESIDX){const n=(SALESIDX[sku].name||'').toUpperCase();if(kk.length>=4&&n.includes(kk)){S=SALESIDX[sku];break;}}}
+  if(!S)return null;const c=(S.monthly||{})[ym];return {u:c?c.u:0,v:c?c.v:0,name:S.name};}
+function renderSalesTarget(){
+  if(!salesGuard())return;
+  if(!(TARGETS||[]).length){
+    $('content').innerHTML=
+      '<div class="viewdesc" style="border-left-color:var(--am);margin-bottom:14px"><svg class="vd-i" viewBox="0 0 24 24" style="stroke:var(--am)"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg>'+
+      '<div class="vd-t"><b>No targets set up yet.</b> This view compares booked sales against monthly targets kept in the Google Sheet. To turn it on, add a tab named <b>Targets</b> to the master sheet with these five columns (row 1 = headers):</div></div>'+
+      '<div class="tcard" style="margin-bottom:14px"><div class="tscroll"><table><thead><tr><th>MONTH</th><th>SCOPE</th><th>NAME</th><th>TARGET_VALUE_PHP</th><th>TARGET_UNITS</th></tr></thead><tbody>'+
+      '<tr><td>2026-08</td><td>TOTAL</td><td class="mu">(blank)</td><td>2500000</td><td class="mu">(optional)</td></tr>'+
+      '<tr><td>2026-08</td><td>LINE</td><td>Mesoestetic</td><td>1800000</td><td>400</td></tr>'+
+      '<tr><td>2026-08</td><td>PRODUCT</td><td>Cosmelan 2 <span class="mu">(or the SKU)</span></td><td>600000</td><td>50</td></tr>'+
+      '<tr><td>2026-08</td><td>SPECIALIST</td><td>Rhas</td><td>500000</td><td></td></tr>'+
+      '</tbody></table></div><div class="tfooter"><span>MONTH must be YYYY-MM · SCOPE is TOTAL, LINE, PRODUCT or SPECIALIST · NAME matches a line, product/SKU, or specialist tag · leave a value blank if you only target the other one</span></div></div>'+
+      '<div style="font-size:12px;color:var(--tx2)">Once the tab exists, hit <b>Sync from Google Sheets</b> and this view lights up automatically. Verna can add or change targets any time.</div>';
+    return;}
+  const months=tgMonths();const ymNow=new Date().toISOString().slice(0,7);
+  const ym=window._tgMonth&&months.includes(window._tgMonth)?window._tgMonth:(months.includes(ymNow)?ymNow:months[0]);
+  window._tgMonth=ym;
+  const rowsT=TARGETS.filter(t=>t.month===ym);
+  // actuals for the month
+  let actTotal={u:0,v:0};const actLine={};
+  for(const sku in SALESIDX){const S=SALESIDX[sku];const c=(S.monthly||{})[ym];if(!c)continue;
+    actTotal.u+=c.u;actTotal.v+=c.v;
+    const L=S.line||'(no line)';const a=actLine[L]||(actLine[L]={u:0,v:0});a.u+=c.u;a.v+=c.v;}
+  const specs=(SHOPIFY&&SHOPIFY.specialists)||{};
+  const specActual=name=>{const key=Object.keys(specs).find(k=>k.toLowerCase()===name.toLowerCase());const c=key?(specs[key].monthly||{})[ym]:null;return {u:c?c.u:0,v:c?c.v:0};};
+  const isCur=ym===ymNow;
+  const dayFrac=isCur?(new Date().getDate()/new Date(new Date().getFullYear(),new Date().getMonth()+1,0).getDate()):1;
+  const mkRow=t=>{
+    let act={u:0,v:0},label=t.name||'Company total';
+    if(t.scope==='TOTAL')act=actTotal;
+    else if(t.scope==='LINE'){const k=Object.keys(actLine).find(x=>x.toLowerCase()===(t.name||'').toLowerCase());act=k?actLine[k]:{u:0,v:0};}
+    else if(t.scope==='SPECIALIST')act=specActual(t.name||'');
+    else{const a=tgActualProduct(ym,t.name||'');if(a){act={u:a.u,v:a.v};label=a.name||t.name;}}
+    const pctV=t.value>0?act.v/t.value*100:null,pctU=t.units>0?act.u/t.units*100:null;
+    return {t,label,act,pctV,pctU,pct:pctV!==null?pctV:(pctU!==null?pctU:0)};};
+  const groups=[['TOTAL','Company total'],['LINE','Per product line'],['PRODUCT','Per product'],['SPECIALIST','Per specialist']];
+  let html=
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px">'+
+    '<div class="tabs" style="margin:0">'+months.slice(0,8).map(m=>'<div class="tab'+(m===ym?' active':'')+'" onclick="window._tgMonth=\''+m+'\';renderSalesTarget()">'+m+'</div>').join('')+'</div>'+
+    (isCur?'<span style="font-size:11px;color:var(--tx3)">month is '+(dayFrac*100).toFixed(0)+'% elapsed — on pace means roughly '+(dayFrac*100).toFixed(0)+'% attainment</span>':'')+'</div>';
+  for(const[scope,title] of groups){
+    const rs=rowsT.filter(t=>t.scope===scope).map(mkRow).sort((a,b)=>b.pct-a.pct);
+    if(!rs.length)continue;
+    html+='<div class="tcard" style="margin-bottom:14px"><div class="tscroll"><table><thead><tr><th>'+title+'</th><th style="text-align:right">Actual ₱</th><th style="text-align:right">Target ₱</th><th style="min-width:130px">Attainment (₱)</th><th style="text-align:right">Actual u</th><th style="text-align:right">Target u</th><th style="min-width:130px">Attainment (u)</th></tr></thead><tbody>'+
+      rs.map(r=>'<tr><td style="font-weight:600;max-width:240px;overflow:hidden;text-overflow:ellipsis">'+esc(r.label)+'</td>'+
+        '<td class="r" style="font-weight:600">'+fmtK(r.act.v)+'</td><td class="r mu">'+(r.t.value>0?fmtK(r.t.value):'—')+'</td>'+
+        '<td>'+(r.pctV!==null?attBar(r.pctV):'<span class="mu">—</span>')+'</td>'+
+        '<td class="r">'+r.act.u.toLocaleString()+'</td><td class="r mu">'+(r.t.units>0?r.t.units.toLocaleString():'—')+'</td>'+
+        '<td>'+(r.pctU!==null?attBar(r.pctU):'<span class="mu">—</span>')+'</td></tr>').join('')+
+      '</tbody></table></div></div>';}
+  html+='<div style="font-size:11px;color:var(--tx3)">Actuals are booked Shopify sales for '+ym+' · targets come from the sheet’s Targets tab · edit them there and re-sync</div>';
+  $('content').innerHTML=html;}
+
+function renderSalesSpec(){
+  if(!salesGuard())return;
+  const specs=(SHOPIFY&&SHOPIFY.specialists)||{};
+  const names=Object.keys(specs);
+  if(!names.length){$('content').innerHTML=salesToolbar('renderSalesSpec')+'<div class="empty" style="margin-top:30px">No specialist tags found on Shopify orders yet. Specialists are read from each order’s first tag (e.g. Rhas, Frank, Ruth, Charmaine) — make sure orders are tagged at the POS.</div>';return;}
+  const ymNow=new Date().toISOString().slice(0,7);
+  const rows=names.map(n=>{const t=sumPeriod(specs[n],SPERIOD);
+    const tg=(TARGETS||[]).find(x=>x.month===ymNow&&x.scope==='SPECIALIST'&&(x.name||'').toLowerCase()===n.toLowerCase());
+    const mc=(specs[n].monthly||{})[ymNow]||{u:0,v:0};
+    return {n,u:t.u,v:t.v,tg,mtdV:mc.v,mtdU:mc.u};}).filter(r=>r.u>0||r.v>0||r.tg).sort((a,b)=>b.v-a.v);
+  const totV=rows.reduce((a,r)=>a+r.v,0),totU=rows.reduce((a,r)=>a+r.u,0);
+  const anyTg=rows.some(r=>r.tg);
+  $('content').innerHTML=
+    salesToolbar('renderSalesSpec')+
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met bl"><div class="met-lbl">Specialists</div><div class="met-val">'+rows.length+'</div><div class="met-sub">with sales '+SP_LBL[SPERIOD]+'</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Revenue ('+SP_LBL[SPERIOD]+')</div><div class="met-val" style="font-size:17px">'+fmtK(totV)+'</div><div class="met-sub">across specialists</div><div class="met-bar"></div></div>'+
+    '<div class="met pu"><div class="met-lbl">Units</div><div class="met-val">'+totU.toLocaleString()+'</div><div class="met-sub">booked '+SP_LBL[SPERIOD]+'</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Top specialist</div><div class="met-val" style="font-size:15px">'+(rows[0]?esc(rows[0].n):'—')+'</div><div class="met-sub">'+(rows[0]?fmtK(rows[0].v):'')+'</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>#</th><th>Specialist</th><th style="text-align:right">Units</th><th style="text-align:right">Revenue</th><th style="text-align:right">Share</th>'+(anyTg?'<th style="text-align:right">Target ('+ymNow+')</th><th style="min-width:130px">Attainment (MTD)</th>':'')+'</tr></thead><tbody>'+
+    rows.map((r,i)=>'<tr><td class="mu">'+(i+1)+'</td><td style="font-weight:600">'+esc(r.n)+'</td>'+
+      '<td class="r">'+r.u.toLocaleString()+'</td><td class="r" style="font-weight:600">'+fmtK(r.v)+'</td>'+
+      '<td class="r mu">'+(totV>0?(r.v/totV*100).toFixed(1)+'%':'—')+'</td>'+
+      (anyTg?('<td class="r mu">'+(r.tg&&r.tg.value>0?fmtK(r.tg.value):(r.tg&&r.tg.units>0?r.tg.units.toLocaleString()+' u':'—'))+'</td>'+
+        '<td>'+(r.tg&&r.tg.value>0?attBar(r.mtdV/r.tg.value*100):(r.tg&&r.tg.units>0?attBar(r.mtdU/r.tg.units*100):'<span class="mu">—</span>'))+'</td>'):'')+
+      '</tr>').join('')+
+    '</tbody></table></div><div class="tfooter"><span>Specialist = the order’s first tag in Shopify · units include free +1s · attainment compares this calendar month (MTD) against the Targets tab'+(anyTg?'':' — add SPECIALIST rows to the Targets tab to enable targets')+'</span></div></div>';}
 
 /* ── STOCK COVERAGE (weeks/months of runway) ── */
 function renderCoverage(){
@@ -1478,7 +1693,7 @@ function openDrawer(sku){
     '<div class="drow"><span class="dlbl">Category</span><span class="dval">'+esc(p.category||'—')+'</span></div>'+
     '<div class="drow"><span class="dlbl">Supplier</span><span class="dval">'+esc(p.supplier||'—')+'</span></div>'+
     '<div class="drow"><span class="dlbl">Price (VATex)</span><span class="dval">'+fmtP(p.price)+(p.priceSrc==='shopify'?' <span class="pill pgr" title="Live price from Shopify">Shopify</span>':'')+'</span></div>'+
-    (p.priceSrc==='shopify'&&p.priceSheet>0&&Math.abs(p.priceSheet-p.price)>1?'<div class="drow"><span class="dlbl">Sheet price (stale)</span><span class="dval" style="color:var(--am)">'+fmtP(p.priceSheet)+'</span></div>':'')+
+    (p.priceSrc==='shopify'&&p.priceSheet>0&&Math.abs(p.priceSheet-p.price)>1?'<div class="drow"><span class="dlbl">Sheet price (differs)</span><span class="dval" style="color:var(--am)">'+fmtP(p.priceSheet)+'</span></div>':'')+
     '<div class="drow"><span class="dlbl">Stock value</span><span class="dval">'+(s>0&&p.price?fmtP(s*p.price):'—')+'</span></div>'+
     '</div>'+
     '<div class="dsec"><div class="dsectitle">Warehouse</div>'+
@@ -2567,8 +2782,45 @@ function exportCurrentView(){
     case 'health': return exportHealth();
     case 'coverage': return exportCoverage();
     case 'dealvalue': return exportDeals();
+    case 'salesoverview': return exportSalesOverview();
+    case 'salesfree': return exportSalesFree();
+    case 'salestarget': return exportSalesTarget();
+    case 'salesspec': return exportSalesSpec();
     default: return exportCSV();
   }
+}
+function exportSalesOverview(){
+  if(!SALESIDX)return;
+  downloadCSV('sales_overview_'+SPERIOD,['SKU','Product','Line','Paid units','Free units','Total units','Revenue PHP'],
+    salesRows().map(r=>[r.sku,r.name,r.line,r.paid,r.f,r.u,Math.round(r.v)]));
+}
+function exportSalesFree(){
+  if(!SALESIDX)return;
+  const priceOf={};DATA.forEach(p=>priceOf[p.sku]=p.price||0);
+  downloadCSV('free_items_'+SPERIOD,['SKU','Product','Line','Free units','Paid units','Free %','Value at list PHP','Stock now'],
+    salesRows().filter(r=>r.f>0||r.paid>0).map(r=>{const p=DATA.find(x=>x.sku===r.sku);
+      return [r.sku,r.name,r.line,r.f,r.paid,r.u>0?(r.f/r.u*100).toFixed(0):'',Math.round(r.f*(priceOf[r.sku]||0)),p?stk(p):''];}));
+}
+function exportSalesTarget(){
+  if(!(TARGETS||[]).length)return;
+  const ym=window._tgMonth||new Date().toISOString().slice(0,7);
+  const specs=(SHOPIFY&&SHOPIFY.specialists)||{};
+  let actTotal={u:0,v:0};const actLine={};
+  for(const sku in (SALESIDX||{})){const S=SALESIDX[sku];const c=(S.monthly||{})[ym];if(!c)continue;
+    actTotal.u+=c.u;actTotal.v+=c.v;const L=S.line||'';const a=actLine[L]||(actLine[L]={u:0,v:0});a.u+=c.u;a.v+=c.v;}
+  downloadCSV('sales_vs_target_'+ym,['Month','Scope','Name','Actual PHP','Target PHP','Attainment %','Actual units','Target units'],
+    TARGETS.filter(t=>t.month===ym).map(t=>{
+      let act={u:0,v:0};
+      if(t.scope==='TOTAL')act=actTotal;
+      else if(t.scope==='LINE'){const k=Object.keys(actLine).find(x=>x.toLowerCase()===(t.name||'').toLowerCase());if(k)act=actLine[k];}
+      else if(t.scope==='SPECIALIST'){const k=Object.keys(specs).find(x=>x.toLowerCase()===(t.name||'').toLowerCase());const c=k?(specs[k].monthly||{})[ym]:null;if(c)act={u:c.u,v:c.v};}
+      else{const a=tgActualProduct(ym,t.name||'');if(a)act={u:a.u,v:a.v};}
+      return [t.month,t.scope,t.name,Math.round(act.v),t.value||'',t.value>0?(act.v/t.value*100).toFixed(0):'',act.u,t.units||''];}));
+}
+function exportSalesSpec(){
+  const specs=(SHOPIFY&&SHOPIFY.specialists)||{};
+  downloadCSV('sales_per_specialist_'+SPERIOD,['Specialist','Units','Revenue PHP'],
+    Object.keys(specs).map(n=>{const t=sumPeriod(specs[n],SPERIOD);return [n,t.u,Math.round(t.v)];}).sort((a,b)=>b[2]-a[2]));
 }
 function exportForecast(){
   const rows=DATA.filter(p=>((p.velAdj||0)>0||(p.velocity||0)>0)&&stk(p)!==null).sort((a,b)=>(a.daysToStockout??9999)-(b.daysToStockout??9999));
@@ -2694,8 +2946,8 @@ async function copyForAI(){
   const shopPriced=rows.filter(p=>p.priceSrc==='shopify').length;
   t+='Notes: stock is warehouse-level on-hand (from the inventory master sheet). ';
   t+=shopPriced>0
-    ?('Prices in PHP: '+shopPriced+' of '+rows.length+' SKUs carry LIVE Shopify prices (price_source=shopify); the rest use the sheet SRP which may be outdated; blank = no price on file. ')
-    :'Prices are à-la-carte SRP in PHP from the sheet, possibly outdated; blank = no price on file (Shopify prices not loaded in this session). ';
+    ?('Prices in PHP: '+shopPriced+' of '+rows.length+' SKUs carry LIVE Shopify prices (price_source=shopify, confirmed aligned with the master sheet); the rest use the sheet price; blank = no price in either system. ')
+    :'Prices are in PHP from the master sheet; blank = no price on file (Shopify prices not loaded in this session). ';
   t+='Monthly units = actual outbound movement (sales/issues) from the warehouse. Supplier cost / landed cost are NOT in this data.\n\n';
   t+='PRODUCTS (sku | name | supplier | line | stock_on_hand | price_php | price_source | forecast_units_per_month | months_of_cover | days_to_stockout | projected_stockout_date | master_expiry | batch):\n';
   for(const p of rows){
@@ -2708,7 +2960,7 @@ async function copyForAI(){
     }
   }
   if(rows.some(p=>p.shopifySales)){
-    t+='\nSHOPIFY UNIT DEMAND PER SKU (booked sales from the store, bundles expanded into physical units, month=units):\n';
+    t+='\nSHOPIFY UNIT DEMAND PER SKU (physical units booked at the store incl. free +1 deal units; deal lines counted as revenue only so units are not double-counted; month=units):\n';
     for(const p of rows){
       if(!p.shopifySales)continue;
       const yms=Object.keys(p.shopifySales).sort();
@@ -2761,7 +3013,7 @@ function askCatalog(){
     '\n\nWRITE-OFF RISK — projected to expire unsold (sku|name|batch|expiry|units_at_risk|writeoff_value_php):\n'+wo+
     '\n\nMONTHLY UNITS OUT (month=units): '+mo;
   const shopSales=DATA.filter(p=>p.shopifySales).map(p=>p.sku+'|'+p.name+'|'+Object.keys(p.shopifySales).sort().map(m=>m+'='+p.shopifySales[m]).join(',')).join('\n');
-  if(shopSales)out+='\n\nSHOPIFY UNIT DEMAND — booked store sales, bundles expanded to physical units (sku|name|month=units,...):\n'+shopSales;
+  if(shopSales)out+='\n\nSHOPIFY UNIT DEMAND — physical units booked at the store incl. free +1 deal units (sku|name|month=units,...):\n'+shopSales;
   const shopDeals=DATA.filter(p=>p.deals&&p.deals.length).map(p=>p.deals.map(d=>[p.sku,d.title,d.setSize,d.price].join('|')).join('\n')).join('\n');
   if(shopDeals)out+='\n\nLIVE DEALS ON SHOPIFY (sku|deal_title|physical_units_per_set|set_price_php):\n'+shopDeals;
   return out;
