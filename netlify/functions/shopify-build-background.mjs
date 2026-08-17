@@ -108,21 +108,34 @@ export const handler = async (event) => {
         orders++;
         const spec = (o.tags && o.tags.length ? String(o.tags[0]).trim() : '') || null;
         let oUnits = 0, oValue = 0;
+        // Two-pass per order: a base-SKU line belongs to a DEAL when the same order
+        // also carries a deal/bundle line whose SKU extends it (e.g. TD040 + "TD040 - AGF").
+        // Deal +1 units are NOT free items — the deal is sold as a whole. A PHP 0 line
+        // with no deal line in the order is a true giveaway (free item).
+        const lis = [];
         for (const le of o.lineItems.edges) {
           const li = le.node;
           const sku = (li.sku || '').trim();
           if (!sku) continue;
-          const qty = li.quantity || 0;
-          const amt = parseFloat((li.discountedTotalSet && li.discountedTotalSet.shopMoney && li.discountedTotalSet.shopMoney.amount) || '0') || 0;
-          const free = amt <= 0 ? qty : 0;
-          const rec = variants[sku] || (variants[sku] = mkVariant(sku));
+          lis.push({
+            sku,
+            qty: li.quantity || 0,
+            amt: parseFloat((li.discountedTotalSet && li.discountedTotalSet.shopMoney && li.discountedTotalSet.shopMoney.amount) || '0') || 0
+          });
+        }
+        for (const li of lis) {
+          const isDealPart = lis.some(o2 => o2.sku !== li.sku && o2.sku.startsWith(li.sku) && o2.sku.length > li.sku.length);
+          const free = (li.amt <= 0 && !isDealPart) ? li.qty : 0;   // true giveaway only
+          const dl = isDealPart ? li.qty : 0;                        // units moved via a deal
+          const dv = isDealPart ? li.amt : 0;                        // revenue booked on those lines (usually 0)
+          const rec = variants[li.sku] || (variants[li.sku] = mkVariant(li.sku));
           const bump = (obj, key) => {
-            const s = obj[key] || (obj[key] = { u: 0, f: 0, v: 0 });
-            s.u += qty; s.f += free; s.v += amt;
+            const s = obj[key] || (obj[key] = { u: 0, f: 0, v: 0, d: 0, dv: 0 });
+            s.u += li.qty; s.f += free; s.v += li.amt; s.d += dl; s.dv += dv;
           };
           bump(rec.monthly, ym);
           if (useDaily) bump(rec.daily, day);
-          oUnits += qty; oValue += amt;
+          oUnits += li.qty; oValue += li.amt;
         }
         if (spec) {
           const sp = specialists[spec] || (specialists[spec] = { monthly: {}, daily: {} });
@@ -137,7 +150,7 @@ export const handler = async (event) => {
     }
 
     await store.setJSON('data', {
-      v: 2, // aggregate format version
+      v: 3, // aggregate format version (v3: deal-unit split, true-free reclassification)
       variants: Object.values(variants),
       specialists,
       orders,

@@ -54,7 +54,7 @@ function buildShopifySections(data, shop) {
     }
   }
   let out = '';
-  if (sales) out += '\n\nSHOPIFY UNIT DEMAND - booked store sales in physical units incl. free +1 giveaways (sku|name|month=units(free),...):\n' + sales;
+  if (sales) out += '\n\nSHOPIFY UNIT DEMAND - booked store sales in physical units; deals counted as a whole incl. their +1 units; (N free) = true giveaways outside deals (sku|name|month=units(free),...):\n' + sales;
   if (deals) out += '\n\nLIVE DEALS ON SHOPIFY (sku|deal_title|physical_units_per_set|set_price_php):\n' + deals;
   if (specs) out += '\n\nSALES PER SPECIALIST - from Shopify order tags (specialist|month=units/revenue,...):\n' + specs;
   return out;
@@ -99,7 +99,7 @@ function buildData(data) {
 const SYSTEM = [
   'You are Healthspan Global\'s inventory assistant answering questions in Slack.',
   'You are given live data in named sections; each section header describes its columns.',
-  'When SHOPIFY UNIT DEMAND is present, prefer it as the demand signal for ordering questions - it is physical units booked at the store, with free +1 deal units included (shown in parentheses); MONTHLY UNITS OUT is warehouse outflow and runs longer historically.',
+  'When SHOPIFY UNIT DEMAND is present, prefer it as the demand signal for ordering questions - it is physical units booked at the store; deal bundles count as a whole (their +1 units are deal units, not freebies), and parenthesized free counts are true giveaways outside deals; MONTHLY UNITS OUT is warehouse outflow and runs longer historically.',
   'SALES PER SPECIALIST shows each product specialist\'s booked units and revenue per month (from Shopify order tags).',
   '',
   'Rules:',
