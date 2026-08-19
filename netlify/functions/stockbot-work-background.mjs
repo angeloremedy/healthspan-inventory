@@ -31,8 +31,11 @@ function buildShopifySections(data, shop) {
   const byBase = {};
   for (const v of shop.variants) {
     if (sheetSkus.has(v.sku)) { (byBase[v.sku] = byBase[v.sku] || { main: null, bundles: [] }).main = v; continue; }
-    const base = bases.find(b => v.sku.startsWith(b) && v.sku.length > b.length);
-    if (base) (byBase[base] = byBase[base] || { main: null, bundles: [] }).bundles.push(v);
+    const base = bases.find(b => v.sku.startsWith(b) && v.sku.length > b.length) ||
+                 bases.find(b => b.length >= 4 && v.sku.length > b.length && v.sku.includes(b)); // deal SKUs like DLTD040184
+    if (base) { (byBase[base] = byBase[base] || { main: null, bundles: [] }).bundles.push(v); continue; }
+    // Shopify-only package/mix SKUs (PK0114, DL0201...) — keep their revenue visible
+    (byBase[v.sku] = byBase[v.sku] || { main: null, bundles: [], pseudoTitle: v.productTitle }).main = v;
   }
   const nameOf = {}; for (const p of (data.products || [])) nameOf[p.sku] = p.name;
   let sales = '', deals = '', specs = '';
@@ -45,7 +48,7 @@ function buildShopifySections(data, shop) {
       if (b.setSize) deals += [base, b.productTitle, b.setSize, b.price].join('|') + '\n';
     }
     const yms = Object.keys(m).sort();
-    if (yms.length) sales += base + '|' + (nameOf[base] || '') + '|' + yms.map(k => k + '=' + m[k] + (fr[k] ? '(' + fr[k] + ' free)' : '')).join(',') + '\n';
+    if (yms.length) sales += base + '|' + (nameOf[base] || g.pseudoTitle || '') + '|' + yms.map(k => k + '=' + m[k] + (fr[k] ? '(' + fr[k] + ' free)' : '')).join(',') + '\n';
   }
   if (isV2 && shop.specialists) {
     for (const [tag, sp] of Object.entries(shop.specialists)) {

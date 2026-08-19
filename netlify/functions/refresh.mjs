@@ -12,13 +12,61 @@ function serialMK(s){if(!s||typeof s!=='number'||s<1)return null;const d=new Dat
 function serialExp(s){if(!s||typeof s!=='number'||s<1)return'';const d=new Date((s-25569)*86400000);return isNaN(d)?'':(d.getUTCMonth()+1)+'/'+d.getUTCFullYear();}
 function encR(tab,r){return encodeURIComponent("'"+tab+"'!"+r);}
 
-async function batchFetch(KEY,ranges,formatted){
+async function batchFetch(KEY,ranges,formatted,sheetId){
   const params=ranges.map(r=>'ranges='+encR(r.t,r.r)).join('&');
   const render=formatted?'FORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING':'UNFORMATTED_VALUE';
-  const url='https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID+'/values:batchGet?key='+KEY+'&'+params+'&valueRenderOption='+render;
+  const url='https://sheets.googleapis.com/v4/spreadsheets/'+(sheetId||SHEET_ID)+'/values:batchGet?key='+KEY+'&'+params+'&valueRenderOption='+render;
   const resp=await fetch(url);
   if(!resp.ok){const txt=await resp.text();throw new Error('Sheets '+resp.status+': '+txt.slice(0,300));}
   return(await resp.json()).valueRanges.map(vr=>vr.values||[]);
+}
+
+// ── Accounting "Sales Booked" reader (official numbers, peso-for-peso).
+// Auto-discovers the tab holding the Overall monthly table (months down the
+// side, principals across the top, Total column). Tolerant: returns null on
+// any failure so the main feed never breaks because of the accounting sheet.
+const ACCT_SHEET_ID=process.env.ACCT_SHEET_ID||'1sofu7UlHTqtTM10ZVyNBYsSlBDIEJ5piPwULILOAGao';
+async function fetchAcctBooked(KEY){
+  try{
+    const mResp=await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+ACCT_SHEET_ID+'?fields=sheets.properties.title&key='+KEY);
+    if(!mResp.ok)return null;
+    const titles=((await mResp.json()).sheets||[]).map(s=>s.properties.title);
+    const MONTH_RX=/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(\d{4})$/i;
+    const MIDX={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+    for(const title of titles){
+      let grid;
+      try{[grid]=await batchFetch(KEY,[{t:title,r:'A1:T40'}],true,ACCT_SHEET_ID);}catch(e){continue;}
+      // find the header row: contains a "Total" cell and at least 2 principal names
+      let hi=-1,hdr=null;
+      for(let i=0;i<Math.min(grid.length,10);i++){
+        const cells=(grid[i]||[]).map(c=>clean(c));
+        if(cells.some(c=>/^total$/i.test(c))&&cells.filter(c=>/inno|skinpen|meso|termosalud|mark\s?vu|gtg|biojuve/i.test(c)).length>=2){hi=i;hdr=cells;break;}
+      }
+      if(hi<0)continue;
+      const totCol=hdr.findIndex(c=>/^total$/i.test(c));
+      const qboCol=hdr.findIndex(c=>/^qbo$/i.test(c));
+      const PRINCIPAL=/inno|skinpen|meso|termosalud|thermosalud|mark\s?-?vu|gtg|biojuve/i;
+      const months={};
+      for(const row of grid.slice(hi+1)){
+        const cells=(row||[]).map(c=>clean(c));
+        // month label can sit in any of the first few columns (table starts at col B)
+        let mm=null;
+        for(let k=0;k<Math.min(cells.length,4)&&!mm;k++)mm=cells[k].match(MONTH_RX);
+        if(!mm)continue;
+        const ym=mm[2]+'-'+String(MIDX[mm[1].slice(0,3).toLowerCase()]).padStart(2,'0');
+        const byLine={};
+        for(let j=0;j<hdr.length;j++){
+          if(j===totCol||j===qboCol||!PRINCIPAL.test(hdr[j]||''))continue; // principals only — skip TARGET/2025/Growth/etc
+          const v=pNum(cells[j]);if(v&&v>0)byLine[hdr[j]]=Math.round(v);
+        }
+        const tot=pNum(cells[totCol]);
+        const qbo=qboCol>=0?pNum(cells[qboCol]):null;
+        if(tot&&tot>0)months[ym]={total:Math.round(tot),qbo:qbo?Math.round(qbo):null,byLine};
+      }
+      if(Object.keys(months).length>=3)return{tab:title,months};
+    }
+  }catch(e){}
+  return null;
 }
 
 export const handler=async(event,context)=>{
@@ -33,6 +81,7 @@ export const handler=async(event,context)=>{
   if(!KEY)return{statusCode:500,headers:hdrs,body:JSON.stringify({error:'GOOGLE_API_KEY not set'})};
   const t0=Date.now();
   try{
+    const acctP=fetchAcctBooked(KEY); // official accounting numbers, in parallel
     const [fR,rR]=await Promise.all([
       batchFetch(KEY,[
         {t:'Product Database',r:'A1:K'},
@@ -74,6 +123,7 @@ export const handler=async(event,context)=>{
         if(month&&scope)targets.push({month,scope,name,value:value||0,units:units||0});
       }
     }catch(e){/* Targets tab not created yet — fine */}
+    let acctBooked=null;try{acctBooked=await acctP;}catch(e){}
 
     const prices={};
     for(const r of dbR.slice(1)){const s=clean(r[0]);const p=pNum(r[5]);if(s&&p>0)prices[s]=p;}
@@ -349,7 +399,7 @@ export const handler=async(event,context)=>{
     return{
       statusCode:200,
       headers:hdrs,
-      body:JSON.stringify({products,batches,monthlyIn:mIn,monthlyOut:mOut,months,valueByLine:vbl,cashExpiring:ce,expiringItems:ei.slice(0,100),branchTransfers:bT.slice(0,300),branchExpirySummary:bes,collisions:collisions.slice(0,400),customers,targets,lastMovement:lastOutDs>1?new Date((lastOutDs-25569)*86400000).toISOString().slice(0,10):null,synced:new Date().toISOString(),elapsed}),
+      body:JSON.stringify({products,batches,monthlyIn:mIn,monthlyOut:mOut,months,valueByLine:vbl,cashExpiring:ce,expiringItems:ei.slice(0,100),branchTransfers:bT.slice(0,300),branchExpirySummary:bes,collisions:collisions.slice(0,400),customers,targets,acctBooked,lastMovement:lastOutDs>1?new Date((lastOutDs-25569)*86400000).toISOString().slice(0,10):null,synced:new Date().toISOString(),elapsed}),
     };
 
   }catch(err){
