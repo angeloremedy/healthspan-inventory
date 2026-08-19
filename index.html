@@ -258,6 +258,26 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>
+<!-- ── ROLE GATE: Sales sees only the Sales section, Admin sees everything.
+     Codes live in ROLE_CODES in the script below (search: ROLE PASSCODES). -->
+<div id="rolegate" style="display:none;position:fixed;inset:0;z-index:1000;background:var(--bg);align-items:center;justify-content:center">
+  <div style="background:var(--sf);border:1px solid var(--bd);border-radius:16px;padding:32px 36px;max-width:360px;width:90%;text-align:center">
+    <div style="font-weight:700;font-size:18px;margin-bottom:4px">Healthspan Inventory</div>
+    <div style="font-size:12.5px;color:var(--tx3);margin-bottom:18px">Enter your access code</div>
+    <input id="rolecode" type="password" placeholder="Access code" autocomplete="off"
+      onkeydown="if(event.key==='Enter')enterRole()"
+      style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px 12px;font-size:14px;text-align:center;letter-spacing:2px">
+    <div id="roleerr" style="color:var(--rd);font-size:11.5px;min-height:16px;margin:8px 0 4px"></div>
+    <button onclick="enterRole()" style="width:100%;background:var(--ac);color:#fff;border:none;border-radius:10px;padding:11px;font-size:13.5px;font-weight:600;cursor:pointer">Enter</button>
+  </div>
+</div>
+<style>
+/* Sales role: only the Sales nav group (and the gate/footer) is visible */
+body.role-sales .nav .nlbl,body.role-sales .nav .ni{display:none}
+body.role-sales .nav .nv-sales{display:flex}
+body.role-sales .nav .nlbl.nv-sales{display:block}
+body.role-sales .mobile-nav{display:none!important}
+</style>
 
 <div class="mobile-topbar" id="mobileTopbar">
   <div>
@@ -304,12 +324,12 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
     <div class="ni" onclick="showView('action',this)"><svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Action center<span class="nbadge" id="b-action">0</span></div>
     <div class="ni" onclick="showView('all',this)"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="1" fill="currentColor"/><circle cx="3" cy="12" r="1" fill="currentColor"/><circle cx="3" cy="18" r="1" fill="currentColor"/></svg>All SKUs</div>
     <div class="ni" onclick="showView('customers',this)"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Customers</div>
-    <div class="nlbl">Sales</div>
-    <div class="ni" onclick="showView('salesoverview',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Sales overview</div>
-    <div class="ni" onclick="showView('salesdeals',this)"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Deals vs à la carte</div>
-    <div class="ni" onclick="showView('salesfree',this)"><svg viewBox="0 0 24 24"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>Free items</div>
-    <div class="ni" onclick="showView('salestarget',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>Sales vs target</div>
-    <div class="ni" onclick="showView('salesspec',this)"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Specialists</div>
+    <div class="nlbl nv-sales">Sales</div>
+    <div class="ni nv-sales" onclick="showView('salesoverview',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Sales overview</div>
+    <div class="ni nv-sales" onclick="showView('salesdeals',this)"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Deals vs à la carte</div>
+    <div class="ni nv-sales" onclick="showView('salesfree',this)"><svg viewBox="0 0 24 24"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>Free items</div>
+    <div class="ni nv-sales" onclick="showView('salestarget',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>Sales vs target</div>
+    <div class="ni nv-sales" onclick="showView('salesspec',this)"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Specialists</div>
     <div class="nlbl">Alerts</div>
     <div class="ni" onclick="showView('oos',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg>Out of stock<span class="nbadge" id="b-oos">0</span></div>
     <div class="ni" onclick="showView('low',this)"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>Low stock<span class="nbadge w" id="b-low">0</span></div>
@@ -405,7 +425,7 @@ async function loadShopify(){
     SHOPIFY_ERR=(d&&d.status&&d.status.state==='error')?d.status.error:null;
     if(d&&d.variants){
       SHOPIFY=d;mergeShopify();refreshSidebar();rerenderCurrent();
-      if(d.v!==3)setTimeout(loadShopify,45000); // old format still cached: merge triggered a rebuild — keep polling until the new blob lands
+      if(d.v!==4)setTimeout(loadShopify,45000); // old format still cached: merge triggered a rebuild — keep polling until the new blob lands
     }
     else if(d&&d.building){
       setTimeout(loadShopify,15000);
@@ -416,7 +436,7 @@ async function loadShopify(){
 function mergeShopify(){
   if(!SHOPIFY||!SHOPIFY.variants||!DATA.length)return;
   const isNew=SHOPIFY.v>=2;
-  if(SHOPIFY.v!==3){try{fetch('/api/shopify?refresh=1');}catch(e){}} // old cache format — trigger a rebuild
+  if(SHOPIFY.v!==4){try{fetch('/api/shopify?refresh=1');}catch(e){}} // old cache format — trigger a rebuild
   const sheetSkus=new Set(DATA.map(p=>p.sku));
   const bases=[...sheetSkus].sort((a,b)=>b.length-a.length); // longest-prefix wins
   // Unit rules (validated on real orders): physical units are itemized as base-SKU
@@ -891,6 +911,7 @@ async function syncNow(){
 
 /* ── VIEWS ── */
 function showView(v,el){
+  if(typeof ROLE!=='undefined'&&ROLE==='sales'&&!String(v).startsWith('sales')){v='salesoverview';el=document.querySelector('.ni.nv-sales');}
   currentView=v;fLine='';fSearch='';fTab='all';fBin='';fSup='';
   document.querySelectorAll('.ni').forEach(x=>x.classList.remove('active'));
   if(el) el.classList.add('active');
@@ -1146,12 +1167,62 @@ function specMerged(){
   const merged={};
   for(const n in specs){
     const k=n.trim().toLowerCase();
-    const M=merged[k]||(merged[k]={name:n.trim(),monthly:{},daily:{}});
+    const M=merged[k]||(merged[k]={name:n.trim(),monthly:{},daily:{},skus:{}});
     for(const src of ['monthly','daily'])for(const m in (specs[n][src]||{})){
       const c=specs[n][src][m];const d=M[src][m]||(M[src][m]={u:0,v:0});d.u+=c.u||0;d.v+=c.v||0;}
+    for(const sku in (specs[n].skus||{})){
+      const c=specs[n].skus[sku];const d=M.skus[sku]||(M.skus[sku]={u:0,v:0});d.u+=c.u||0;d.v+=c.v||0;}
   }
   const out={};for(const k in merged)out[merged[k].name]=merged[k];
   return out;}
+/* Specialist detail drawer — trend, target, and what they sold */
+function openSpecDrawer(name){
+  const specs=specMerged();const sp=specs[name];if(!sp)return;
+  const t=sumPeriod(sp,SPERIOD);
+  const ymNow=new Date().toISOString().slice(0,7);
+  const mc=(sp.monthly||{})[ymNow]||{u:0,v:0};
+  const tg=(TARGETS||[]).find(x=>x.month===ymNow&&x.scope==='SPECIALIST'&&(x.name||'').trim().toLowerCase()===name.toLowerCase());
+  const yms=Object.keys(sp.monthly||{}).sort().slice(-6).reverse();
+  // Resolve their sold SKUs to sheet products (bundle lines → revenue only, base lines → units)
+  const sheetSkus=new Set(DATA.map(p=>p.sku));
+  const bases=[...sheetSkus].sort((a,b)=>b.length-a.length);
+  const nameOf={};DATA.forEach(p=>nameOf[p.sku]=p.name);
+  const agg={};
+  for(const sku in (sp.skus||{})){
+    const c=sp.skus[sku];
+    let base=sheetSkus.has(sku)?sku:bases.find(b=>sku.startsWith(b)&&sku.length>b.length);
+    const isBundle=!!base&&base!==sku;
+    if(!base)base=sku;
+    const a=agg[base]||(agg[base]={u:0,v:0});
+    if(!isBundle)a.u+=c.u||0;
+    a.v+=c.v||0;
+  }
+  const top=Object.keys(agg).map(k=>({sku:k,name:nameOf[k]||k,u:agg[k].u,v:agg[k].v}))
+    .sort((a,b)=>(b.v-a.v)||(b.u-a.u)).slice(0,12);
+  const topHTML=top.length?
+    '<div class="dsec"><div class="dsectitle">What they sell (12 months, top products)</div>'+
+    top.map(x=>'<div class="drow"'+(nameOf[x.sku]?' onclick="openDrawer(\''+esc(x.sku)+'\')" style="cursor:pointer"':'')+'><span class="dlbl" style="max-width:180px;overflow:hidden;text-overflow:ellipsis">'+esc(x.name)+'</span><span class="dval">'+x.u.toLocaleString()+' u'+(x.v>0?' · '+fmtK(x.v):'')+'</span></div>').join('')+'</div>':
+    '<div class="dsec"><div class="dsectitle">What they sell</div><div style="font-size:11.5px;color:var(--tx3)">Product breakdown appears after the next sales-cache rebuild (automatic — check back in a few minutes).</div></div>';
+  const trendHTML=yms.length?
+    '<div class="dsec"><div class="dsectitle">Monthly trend</div>'+
+    yms.map(m=>{const c=sp.monthly[m];return '<div class="drow"><span class="dlbl">'+m+(m===ymNow?' <span class="mu">(partial)</span>':'')+'</span><span class="dval">'+c.u.toLocaleString()+' u · '+fmtK(c.v)+'</span></div>';}).join('')+'</div>':'';
+  const tgHTML=tg?
+    '<div class="dsec"><div class="dsectitle">Target — '+ymNow+'</div>'+
+    (tg.value>0?'<div class="drow"><span class="dlbl">Revenue</span><span class="dval">'+fmtK(mc.v)+' / '+fmtK(tg.value)+'</span></div><div style="margin:6px 0">'+attBar(mc.v/tg.value*100)+'</div>':'')+
+    (tg.units>0?'<div class="drow"><span class="dlbl">Units</span><span class="dval">'+mc.u.toLocaleString()+' / '+tg.units.toLocaleString()+'</span></div><div style="margin:6px 0">'+attBar(mc.u/tg.units*100)+'</div>':'')+'</div>':'';
+  $('dbody').innerHTML=
+    '<div class="dsku">PRODUCT SPECIALIST</div>'+
+    '<div class="dname">'+esc(name)+'</div>'+
+    '<div class="dstk" style="color:var(--gr)">'+fmtK(t.v)+'</div>'+
+    '<div class="dsub">'+t.u.toLocaleString()+' units booked '+spLbl()+'</div>'+
+    '<div class="dsec"><div class="dsectitle">This month (MTD)</div>'+
+    '<div class="drow"><span class="dlbl">Revenue</span><span class="dval">'+fmtK(mc.v)+'</span></div>'+
+    '<div class="drow"><span class="dlbl">Units</span><span class="dval">'+mc.u.toLocaleString()+'</span></div>'+
+    '</div>'+tgHTML+trendHTML+topHTML+
+    '<div style="font-size:10.5px;color:var(--tx3);margin-top:10px">From Shopify order tags · tap a product to open its inventory detail</div>';
+  $('overlay').classList.add('open');
+  $('drawer').classList.add('open');
+}
 function renderSalesSpec(){
   if(!salesGuard())return;
   const specs=specMerged();
@@ -1173,7 +1244,7 @@ function renderSalesSpec(){
     '<div class="met am"><div class="met-lbl">Top specialist</div><div class="met-val" style="font-size:15px">'+(rows[0]?esc(rows[0].n):'—')+'</div><div class="met-sub">'+(rows[0]?fmtK(rows[0].v):'')+'</div><div class="met-bar"></div></div>'+
     '</div>'+
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>#</th><th>Specialist</th><th style="text-align:right">Units</th><th style="text-align:right">Revenue</th><th style="text-align:right">Share</th>'+(anyTg?'<th style="text-align:right">Target ('+ymNow+')</th><th style="min-width:130px">Attainment (MTD)</th>':'')+'</tr></thead><tbody>'+
-    rows.map((r,i)=>'<tr><td class="mu">'+(i+1)+'</td><td style="font-weight:600">'+esc(r.n)+'</td>'+
+    rows.map((r,i)=>'<tr onclick="openSpecDrawer(\''+esc(r.n).replace(/'/g,'&#39;')+'\')" style="cursor:pointer"><td class="mu">'+(i+1)+'</td><td style="font-weight:600">'+esc(r.n)+'</td>'+
       '<td class="r">'+r.u.toLocaleString()+'</td><td class="r" style="font-weight:600">'+fmtK(r.v)+'</td>'+
       '<td class="r mu">'+(totV>0?(r.v/totV*100).toFixed(1)+'%':'—')+'</td>'+
       (anyTg?('<td class="r mu">'+(r.tg&&r.tg.value>0?fmtK(r.tg.value):(r.tg&&r.tg.units>0?r.tg.units.toLocaleString()+' u':'—'))+'</td>'+
@@ -3169,10 +3240,40 @@ function exportCSV(){
   a.click();
 }
 
+/* ── ROLE PASSCODES: change the codes here (left = code, right = role) ── */
+const ROLE_CODES={'HSADMIN26':'admin','HSSALES26':'sales'};
+let ROLE=localStorage.getItem('hs_role')||'';
+if(ROLE!=='admin'&&ROLE!=='sales')ROLE='';
+function applyRole(){
+  const g=$('rolegate');
+  if(!ROLE){if(g)g.style.display='flex';return;}
+  if(g)g.style.display='none';
+  document.body.classList.toggle('role-sales',ROLE==='sales');
+  const sf=$('sf-foot');
+  const badge='<div style="margin-top:4px">'+(ROLE==='sales'?'Sales account':'Admin account')+' · <a href="#" onclick="roleLogout();return false" style="color:var(--ac)">switch</a></div>';
+  if(sf&&!document.getElementById('rolebadge')){const d=document.createElement('div');d.id='rolebadge';d.innerHTML=badge;sf.parentNode.insertBefore(d,sf);d.style.cssText='padding:6px 14px;border-top:1px solid var(--bd);font-size:10.5px;color:var(--tx3)';}
+  if(ROLE==='sales'&&!String(currentView||'').startsWith('sales'))showView('salesoverview',document.querySelector('.ni.nv-sales'));
+}
+function enterRole(){
+  const v=($('rolecode')&&$('rolecode').value||'').trim().toUpperCase();
+  const r=ROLE_CODES[v];
+  if(!r){const e=$('roleerr');if(e)e.textContent='Wrong code — ask the admin for access.';return;}
+  ROLE=r;try{localStorage.setItem('hs_role',r);}catch(e){}
+  const e=$('roleerr');if(e)e.textContent='';
+  applyRole();
+}
+function roleLogout(){
+  try{localStorage.removeItem('hs_role');}catch(e){}
+  ROLE='';document.body.classList.remove('role-sales');
+  const b=document.getElementById('rolebadge');if(b)b.remove();
+  applyRole();
+}
+
 /* ── INIT ── */
 refreshSidebar();
 renderDashboard();
 injectDesc('dashboard');
+applyRole();
 (function(){const b=document.getElementById('tipsBtn');if(b)b.style.opacity=TIPS_ON?'1':'0.55';})();
 $('sf-foot').innerHTML='Loading... <a href="#" onclick="syncNow();return false" style="color:var(--ac)">load data</a>';
 setTimeout(syncNow,300);
