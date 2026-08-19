@@ -330,6 +330,7 @@ body.role-sales .mobile-nav{display:none!important}
     <div class="ni nv-sales" onclick="showView('salesfree',this)"><svg viewBox="0 0 24 24"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>Free items</div>
     <div class="ni nv-sales" onclick="showView('salestarget',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>Sales vs target</div>
     <div class="ni nv-sales" onclick="showView('salesspec',this)"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Specialists</div>
+    <div class="ni nv-sales" onclick="showView('salesrecon',this)"><svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Vs accounting</div>
     <div class="nlbl">Alerts</div>
     <div class="ni" onclick="showView('oos',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg>Out of stock<span class="nbadge" id="b-oos">0</span></div>
     <div class="ni" onclick="showView('low',this)"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>Low stock<span class="nbadge w" id="b-low">0</span></div>
@@ -412,6 +413,7 @@ let CUSTOMERS = [];
 let SHOPIFY = null;
 let SALESIDX = null;              // base-SKU sales index built from Shopify variants
 let TARGETS = [];                 // sales targets from the sheet's optional Targets tab
+let ACCT = null;                  // accounting's official Sales Booked (from the Healthspan Sales Report sheet)
 let SPERIOD = 'mtd';              // shared period for the Sales views
 let SLINE = null;                 // line filter for Sales views (null = auto-default to Meso)
 let SFROM = '', STO = '';         // custom date range (YYYY-MM-DD) when SPERIOD === 'custom'
@@ -425,7 +427,7 @@ async function loadShopify(){
     SHOPIFY_ERR=(d&&d.status&&d.status.state==='error')?d.status.error:null;
     if(d&&d.variants){
       SHOPIFY=d;mergeShopify();refreshSidebar();rerenderCurrent();
-      if(d.v!==4)setTimeout(loadShopify,45000); // old format still cached: merge triggered a rebuild — keep polling until the new blob lands
+      if(d.v!==5)setTimeout(loadShopify,45000); // old format still cached: merge triggered a rebuild — keep polling until the new blob lands
     }
     else if(d&&d.building){
       setTimeout(loadShopify,15000);
@@ -436,7 +438,7 @@ async function loadShopify(){
 function mergeShopify(){
   if(!SHOPIFY||!SHOPIFY.variants||!DATA.length)return;
   const isNew=SHOPIFY.v>=2;
-  if(SHOPIFY.v!==4){try{fetch('/api/shopify?refresh=1');}catch(e){}} // old cache format — trigger a rebuild
+  if(SHOPIFY.v!==5){try{fetch('/api/shopify?refresh=1');}catch(e){}} // old cache format — trigger a rebuild
   const sheetSkus=new Set(DATA.map(p=>p.sku));
   const bases=[...sheetSkus].sort((a,b)=>b.length-a.length); // longest-prefix wins
   // Unit rules (validated on real orders): physical units are itemized as base-SKU
@@ -450,11 +452,22 @@ function mergeShopify(){
   const gDV=c=>isNew&&c?(c.dv||0):0;
   SALESIDX={};
   for(const v of SHOPIFY.variants){
-    let base=null,isBundle=false;
+    let base=null,isBundle=false,isPseudo=false;
     if(sheetSkus.has(v.sku))base=v.sku;
-    else{base=bases.find(b=>v.sku.startsWith(b)&&v.sku.length>b.length);isBundle=!!base;}
-    if(!base)continue;
+    else{
+      base=bases.find(b=>v.sku.startsWith(b)&&v.sku.length>b.length);           // prefix ("TD040 - AGF")
+      if(!base)base=bases.find(b=>b.length>=4&&v.sku.length>b.length&&v.sku.includes(b)); // contains ("DLTD040184")
+      isBundle=!!base;
+    }
+    if(!base){
+      // No sheet match at all (package/mix SKUs like PK0114, DL0201, MIXTDS04):
+      // keep it visible as a Shopify-only product so revenue is never dropped.
+      let has=false;for(const k in (v.monthly||{}))if(gV(v.monthly[k])>0||gU(v.monthly[k])>0){has=true;break;}
+      if(!has)continue;
+      base=v.sku;isPseudo=true;
+    }
     const S=SALESIDX[base]||(SALESIDX[base]={main:null,bundles:[],monthly:{},daily:{},bmonthly:{},bdaily:{}});
+    if(isPseudo){S.pseudo=true;S.name=(v.productTitle||v.sku);S.line='SHOPIFY ONLY';}
     if(isBundle)S.bundles.push(v);else S.main=v;
     // base lines → monthly/daily (units + revenue); bundle lines → bmonthly/bdaily (deal revenue only)
     const addAgg=(dst,src)=>{for(const k in (src||{})){const c=src[k];const d=dst[k]||(dst[k]={u:0,f:0,v:0,d:0,dv:0});
@@ -586,6 +599,7 @@ const DESC={
   branchexpiry:'For each <b>Remedy</b> branch, the stock Healthspan shipped there sorted by expiry — so each clinic can see what to use up first.',
   salesoverview:'Booked sales from Shopify (the specialists’ booking POS): units sold and revenue per product over an adjustable period, split into <b>via deals</b> (deals count as a whole — +1s are deal units, not freebies), <b>à la carte</b>, and <b>free</b> (true giveaways). The Stock now column puts sales against inventory at a glance.',
   salesdeals:'Do the bundles outsell single-unit pricing? Per product: units and revenue moved through deals versus à la carte, the effective per-unit price inside a deal (revenue ÷ all units including the +1), and the effective discount versus the à-la-carte price.',
+  salesrecon:'Peso-for-peso check against the official <b>2026 Healthspan Sales Report</b> (accounting’s Google Sheet, read live at every sync). Accounting’s Sales Booked excludes Remedy, so the dashboard applies the same rule: external = all booked orders minus Remedy/Healthspan-internal tags. The Δ column shows exactly how far apart the two systems are each month and why.',
   salesfree:'Items given away at ₱0 <b>outside any deal</b> — samples, marketing, goodwill — kept separate from sales. Deal +1s are not here; they count as deal units. Shows what the giveaways would be worth at list price and how the rate compares with remaining inventory.',
   salestarget:'Actual booked sales versus the monthly targets set in the sheet’s <b>Targets</b> tab — total, per line, and per product. If the tab doesn’t exist yet, this view shows exactly how to set it up.',
   salesspec:'Each product specialist’s booked sales — revenue and units — over an adjustable period, and against their monthly target if one is set. Specialists are read from the order’s first tag in Shopify (e.g. Rhas, Frank, Ruth, Charmaine).'
@@ -798,6 +812,7 @@ function applySync(data){
   CUSTOMERS=data.customers||[];
   COLLISIONS=data.collisions||[];
   TARGETS=data.targets||[];
+  ACCT=data.acctBooked||null;
   if(SHOPIFY)mergeShopify(); else loadShopify();
   $('psub').textContent='Healthspan Global, Inc. \u00b7 '+DATA.length+' SKUs \u00b7 '+BATCHES.length+' batches';
   updateMobileBadges();
@@ -838,6 +853,7 @@ function applySync(data){
   else if(currentView==='salestarget') renderSalesTarget();
   else if(currentView==='salesspec') renderSalesSpec();
   else if(currentView==='salesdeals') renderSalesDeals();
+  else if(currentView==='salesrecon') renderSalesRecon();
   else renderTable();
   injectDesc(currentView);
   injectCalc(currentView);
@@ -922,7 +938,7 @@ function showView(v,el){
            simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator',
            simmonte:'Monte Carlo stockout risk',simproject:'12-month projection',simcash:'Cash-flow timeline',simbulk:'Bulk-buy trade-off',simbranch:'Remedy branch rebalancing',
            aged:'Aged inventory',shrinkage:'Shrinkage tracker',cashexpiry:'Cash in expiring stock',branchtransfer:'Remedy branch shipments',branchexpiry:'Remedy branch expiry watch',
-           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte'};
+           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting'};
   $('ptitle').textContent=T[v]||v;
   if(v==='dashboard') renderDashboard();
   else if(v==='action') renderActionCenter();
@@ -960,6 +976,7 @@ function showView(v,el){
   else if(v==='salestarget') renderSalesTarget();
   else if(v==='salesspec') renderSalesSpec();
   else if(v==='salesdeals') renderSalesDeals();
+  else if(v==='salesrecon') renderSalesRecon();
   else renderTable(v);
   injectDesc(v);
   injectCalc(v);
@@ -1042,7 +1059,7 @@ function renderSalesOverview(){
       '<td class="r" style="font-weight:600">'+r.u.toLocaleString()+'</td><td class="r">'+(r.d?r.d.toLocaleString():'—')+'</td><td class="r">'+(r.au?r.au.toLocaleString():'—')+'</td><td class="r" style="color:var(--pu)">'+(r.f?r.f.toLocaleString():'—')+'</td>'+
       '<td class="r" style="font-weight:600">'+fmtK(r.v)+'</td><td class="r'+(s!=null&&s<r.u?'" style="color:var(--am)':'')+'">'+(s!=null?s.toLocaleString():'—')+'</td><td class="r mu">'+(tot.v>0?(r.v/tot.v*100).toFixed(1)+'%':'—')+'</td></tr>';}).join(''):
       '<tr><td colspan="10"><div class="empty">No booked sales for this period'+(line?' in '+esc(line):'')+'</div></td></tr>')+
-    '</tbody></table></div><div class="tfooter"><span>Booked sales from Shopify (specialists’ POS) · via deals = units in orders with a deal line (deals counted as a whole, +1s included) · free = ₱0 giveaways outside any deal · stock in amber where the period’s sales exceed stock on hand</span></div></div>';}
+    '</tbody></table></div><div class="tfooter"><span>Booked sales from Shopify (specialists’ POS) · via deals = units in orders with a deal line (deals counted as a whole, +1s included) · free = ₱0 giveaways outside any deal · SHOPIFY ONLY line = package SKUs not in the master sheet (units are sets) · includes internal orders (Remedy branches, employees) · TEST orders excluded · accounting’s Sales Booked may exclude internal orders and book by invoice date, so small differences vs accounting are expected</span></div></div>';}
 
 /* Deals vs à la carte — do the bundles outsell single-unit pricing? (Alex) */
 function renderSalesDeals(){
@@ -1252,6 +1269,56 @@ function renderSalesSpec(){
         '<td>'+(r.tg&&r.tg.value>0?attBar(r.mtdV/r.tg.value*100):(r.tg&&r.tg.units>0?attBar(r.mtdU/r.tg.units*100):'<span class="mu">—</span>'))+'</td>'):'')+
       '</tr>').join('')+
     '</tbody></table></div><div class="tfooter"><span>Specialist = the order’s first tag in Shopify · units include free +1s · attainment compares this calendar month (MTD) against the Targets tab'+(anyTg?'':' — add SPECIALIST rows to the Targets tab to enable targets')+'</span></div></div>';}
+
+/* ── VS ACCOUNTING — peso-for-peso reconciliation against the official Sales Report ── */
+const INTERNAL_TAG=/^(remedy|reemdy|healthspan)/i; // internal orders: Remedy branches (+typo), Healthspan employees/academy
+function reconRows(){
+  // per-month: dashboard total booked, internal portion (from order tags), external = total − internal
+  const dashAll={},internal={};
+  for(const sku in (SALESIDX||{})){const S=SALESIDX[sku];
+    for(const m in S.monthly)if(m>='2026-01')dashAll[m]=(dashAll[m]||0)+(S.monthly[m].v||0);
+    for(const m in (S.bmonthly||{}))if(m>='2026-01')dashAll[m]=(dashAll[m]||0)+(S.bmonthly[m].v||0);}
+  for(const tag in ((SHOPIFY&&SHOPIFY.specialists)||{})){
+    if(!INTERNAL_TAG.test(tag.trim()))continue;
+    const sp=SHOPIFY.specialists[tag];
+    for(const m in (sp.monthly||{}))if(m>='2026-01')internal[m]=(internal[m]||0)+(sp.monthly[m].v||0);}
+  const acctM=(ACCT&&ACCT.months)||{};
+  const yms=[...new Set([...Object.keys(dashAll),...Object.keys(acctM)])].sort();
+  return yms.map(m=>{
+    const all=Math.round(dashAll[m]||0),int_=Math.round(internal[m]||0),ext=all-int_;
+    const a=acctM[m]||null;
+    return {m,all,internal:int_,ext,acct:a?a.total:null,qbo:a?a.qbo:null,gap:a?ext-a.total:null};
+  });
+}
+function renderSalesRecon(){
+  if(!salesGuard())return;
+  if(!ACCT||!ACCT.months||!Object.keys(ACCT.months).length){
+    $('content').innerHTML=
+      '<div class="viewdesc" style="border-left-color:var(--am);margin-bottom:14px"><svg class="vd-i" viewBox="0 0 24 24" style="stroke:var(--am)"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg>'+
+      '<div class="vd-t"><b>Can’t read the accounting sheet yet.</b> This view compares booked sales against the official “2026 | Healthspan Sales Report” Google Sheet, peso for peso. To turn it on, open that sheet → <b>Share</b> → change General access to <b>Anyone with the link · Viewer</b>, then hit Sync here. (The dashboard reads it with the same key it uses for Verna’s sheet — nobody gets edit access.)</div></div>';
+    return;}
+  const rows=reconRows().filter(r=>r.acct!==null||r.all>0);
+  const withA=rows.filter(r=>r.acct!==null);
+  const ytd=withA.reduce((a,r)=>({e:a.e+r.ext,a:a.a+r.acct,i:a.i+r.internal}),{e:0,a:0,i:0});
+  const last=withA[withA.length-1];
+  const gapCls=g=>Math.abs(g)<50000?'var(--gr)':Math.abs(g)<500000?'var(--am)':'var(--rd)';
+  $('content').innerHTML=
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met bl"><div class="met-lbl">YTD — dashboard (external)</div><div class="met-val" style="font-size:17px">'+fmtK(ytd.e)+'</div><div class="met-sub">Shopify booked minus Remedy/internal</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">YTD — accounting</div><div class="met-val" style="font-size:17px">'+fmtK(ytd.a)+'</div><div class="met-sub">Sales Booked ('+esc(ACCT.tab||'Summary')+' tab)</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">YTD gap</div><div class="met-val" style="font-size:17px;color:'+gapCls(ytd.e-ytd.a)+'">'+fmtK(Math.abs(ytd.e-ytd.a))+'</div><div class="met-sub">'+(ytd.e>=ytd.a?'dashboard above accounting':'accounting above dashboard')+' · '+(ytd.a>0?(Math.abs(ytd.e-ytd.a)/ytd.a*100).toFixed(1):'0')+'%</div><div class="met-bar"></div></div>'+
+    '<div class="met pu"><div class="met-lbl">YTD internal (excluded)</div><div class="met-val" style="font-size:17px">'+fmtK(ytd.i)+'</div><div class="met-sub">Remedy branches + Healthspan internal</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Month</th><th style="text-align:right">Accounting booked</th><th style="text-align:right">QBO</th><th style="text-align:right">Dashboard external</th><th style="text-align:right">Δ vs accounting</th><th style="text-align:right">Δ%</th><th style="text-align:right">Internal (excl.)</th><th style="text-align:right">Dashboard total</th></tr></thead><tbody>'+
+    rows.map(r=>'<tr><td style="font-weight:600">'+r.m+'</td>'+
+      '<td class="r" style="font-weight:600">'+(r.acct!==null?fmtK(r.acct):'<span class="mu">—</span>')+'</td>'+
+      '<td class="r mu">'+(r.qbo?fmtK(r.qbo):'—')+'</td>'+
+      '<td class="r" style="font-weight:600">'+fmtK(r.ext)+'</td>'+
+      '<td class="r" style="font-weight:600;color:'+(r.gap!==null?gapCls(r.gap):'var(--tx3)')+'">'+(r.gap!==null?(r.gap>=0?'+':'−')+fmtK(Math.abs(r.gap)):'—')+'</td>'+
+      '<td class="r mu">'+(r.gap!==null&&r.acct>0?(r.gap/r.acct*100).toFixed(1)+'%':'—')+'</td>'+
+      '<td class="r mu">'+(r.internal?fmtK(r.internal):'—')+'</td>'+
+      '<td class="r mu">'+fmtK(r.all)+'</td></tr>').join('')+
+    '</tbody></table></div><div class="tfooter"><span>Accounting = the official Sales Report’s monthly Sales Booked (excludes Remedy — confirmed: their 102.4M incl. Remedy − 9.9M Remedy = 92.5M booked) · dashboard external applies the same rule via order tags · remaining Δ comes from their as-of date (they lag a few days), credit memos, and untagged orders · QBO shown for reference</span></div></div>';}
 
 /* ── STOCK COVERAGE (weeks/months of runway) ── */
 function renderCoverage(){
@@ -2941,6 +3008,7 @@ function exportCurrentView(){
     case 'dealvalue': return exportDeals();
     case 'salesoverview': return exportSalesOverview();
     case 'salesdeals': return exportSalesDeals();
+    case 'salesrecon': return exportSalesRecon();
     case 'salesfree': return exportSalesFree();
     case 'salestarget': return exportSalesTarget();
     case 'salesspec': return exportSalesSpec();
@@ -2990,6 +3058,11 @@ function exportSalesSpec(){
   const specs=specMerged();
   downloadCSV('sales_per_specialist_'+SPERIOD,['Specialist','Units','Revenue PHP'],
     Object.keys(specs).map(n=>{const t=sumPeriod(specs[n],SPERIOD);return [n,t.u,Math.round(t.v)];}).sort((a,b)=>b[2]-a[2]));
+}
+function exportSalesRecon(){
+  if(!SALESIDX)return;
+  downloadCSV('vs_accounting',['Month','Accounting booked PHP','QBO PHP','Dashboard external PHP','Delta PHP','Delta %','Internal excluded PHP','Dashboard total PHP'],
+    reconRows().filter(r=>r.acct!==null||r.all>0).map(r=>[r.m,r.acct??'',r.qbo??'',r.ext,r.gap??'',(r.gap!==null&&r.acct>0)?(r.gap/r.acct*100).toFixed(1):'',r.internal,r.all]));
 }
 function exportForecast(){
   const rows=DATA.filter(p=>((p.velAdj||0)>0||(p.velocity||0)>0)&&stk(p)!==null).sort((a,b)=>(a.daysToStockout??9999)-(b.daysToStockout??9999));
