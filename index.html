@@ -726,7 +726,7 @@ function statusOf(s){
   return              {l:'In stock',c:'pgr'};
 }
 function fmtP(v){return v!=null&&v>0?'₱'+v.toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';}
-function fmtK(v){return v!=null&&v>0?'₱'+(v/1000).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,',')+'K':'—';}
+function fmtK(v){return v!=null&&v>0?'₱'+Math.round(v).toLocaleString('en-PH'):'—';} // full pesos everywhere — no K-rounding (per Jojo)
 function expSoon(e){
   if(!e||e==='-') return false;
   const parts=e.match(/([0-9]{1,2})[\/\-]([0-9]{4})/);
@@ -1727,7 +1727,7 @@ function renderDashboard(){
     '<div class="met rd"><div class="met-lbl">Out of stock</div><div class="met-val">'+oos.length+'</div><div class="met-sub">'+Math.round(oos.length/DATA.length*100)+'% of SKUs</div><div class="met-bar"></div></div>'+
     '<div class="met am"><div class="met-lbl">Stockout &le;30d</div><div class="met-val">'+so30.length+'</div><div class="met-sub">forecast to run out</div><div class="met-bar"></div></div>'+
     '<div class="met rd"><div class="met-lbl">Expiring soon</div><div class="met-val">'+expAlerts.length+'</div><div class="met-sub">batches &le;3 months</div><div class="met-bar"></div></div>'+
-    '<div class="met gr"><div class="met-lbl">Inventory value</div><div class="met-val" style="font-size:17px">₱'+Math.round(val/1000).toLocaleString()+'K</div><div class="met-sub">VAT-exclusive</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Inventory value</div><div class="met-val" style="font-size:14px">₱'+Math.round(val).toLocaleString()+'</div><div class="met-sub">VAT-exclusive</div><div class="met-bar"></div></div>'+
     '</div>'+
     '<div class="g2">'+
     '<div class="panel"><div class="phd"><svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>Running out within 30 days</div><div class="alist" id="solist"></div></div>'+
@@ -1872,7 +1872,7 @@ function renderValue(){
       const pct=Math.round(v/total*100);
       return '<div class="vrow"><div class="vlbl">'+esc(l)+'</div>'+
         '<div class="vbar-wrap"><div class="vbar-track"><div class="vbar-fill" style="width:'+Math.round(v/max*100)+'%;background:'+COLORS[i%COLORS.length]+'"></div></div></div>'+
-        '<div class="vval">₱'+(v/1000).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,',')+' K <span style="color:var(--tx3);font-size:10px">'+pct+'%</span></div></div>';
+        '<div class="vval">₱'+Math.round(v).toLocaleString()+' <span style="color:var(--tx3);font-size:10px">'+pct+'%</span></div></div>';
     }).join('')+'</div>'+
     '<div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button class="btn" onclick="exportValueCSV()"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export value report</button></div>'+
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Product line</th><th style="text-align:right">Stock value (₱)</th><th style="text-align:right">% of total</th></tr></thead><tbody>'+
@@ -2978,7 +2978,7 @@ function updateCashSim(){
     {type:'bar',label:'Sales',data:sales,backgroundColor:'rgba(55,138,221,0.45)'},
     {type:'line',label:'Inventory value',data:invLine,borderColor:'#7F77DD',borderWidth:2,pointRadius:2,tension:.2,fill:false}
   ]},options:{responsive:true,maintainAspectRatio:false,interaction:{intersect:false,mode:'index'},
-    scales:{y:{ticks:{callback:v=>'₱'+Math.round(v/1000).toLocaleString()+'K'},grid:{color:'rgba(128,128,128,0.12)'}}},
+    scales:{y:{ticks:{callback:v=>'₱'+Math.round(v).toLocaleString()},grid:{color:'rgba(128,128,128,0.12)'}}},
     plugins:{legend:{labels:{boxWidth:10,font:{size:10}}}}}});
 }
 
