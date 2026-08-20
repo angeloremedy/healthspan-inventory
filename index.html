@@ -428,7 +428,7 @@ async function loadShopify(){
     SHOPIFY_ERR=(d&&d.status&&d.status.state==='error')?d.status.error:null;
     if(d&&d.variants){
       SHOPIFY=d;mergeShopify();refreshSidebar();rerenderCurrent();
-      if(d.v!==6)setTimeout(loadShopify,45000); // old format still cached: merge triggered a rebuild — keep polling until the new blob lands
+      if(d.v!==7)setTimeout(loadShopify,45000); // old format still cached: merge triggered a rebuild — keep polling until the new blob lands
     }
     else if(d&&d.building){
       setTimeout(loadShopify,15000);
@@ -439,7 +439,7 @@ async function loadShopify(){
 function mergeShopify(){
   if(!SHOPIFY||!SHOPIFY.variants||!DATA.length)return;
   const isNew=SHOPIFY.v>=2;
-  if(SHOPIFY.v!==6){try{fetch('/api/shopify?refresh=1');}catch(e){}} // old cache format — trigger a rebuild
+  if(SHOPIFY.v!==7){try{fetch('/api/shopify?refresh=1');}catch(e){}} // old cache format — trigger a rebuild
   const sheetSkus=new Set(DATA.map(p=>p.sku));
   const bases=[...sheetSkus].sort((a,b)=>b.length-a.length); // longest-prefix wins
   // Unit rules (validated on real orders): physical units are itemized as base-SKU
@@ -1105,7 +1105,7 @@ function renderSalesOverview(){
       '<td class="r" style="font-weight:600">'+r.u.toLocaleString()+'</td><td class="r">'+(r.d?r.d.toLocaleString():'—')+'</td><td class="r">'+(r.au?r.au.toLocaleString():'—')+'</td><td class="r" style="color:var(--pu)">'+(r.f?r.f.toLocaleString():'—')+'</td>'+
       '<td class="r" style="font-weight:600">'+fmtPeso(r.v)+'</td><td class="r'+(s!=null&&s<r.u?'" style="color:var(--am)':'')+'">'+(s!=null?s.toLocaleString():'—')+'</td><td class="r mu">'+(tot.v>0?(r.v/tot.v*100).toFixed(1)+'%':'—')+'</td></tr>';}).join(''):
       '<tr><td colspan="10"><div class="empty">No booked sales for this period'+(line?' in '+esc(line):'')+'</div></td></tr>')+
-    '</tbody></table></div><div class="tfooter"><span>Booked sales from Shopify (specialists’ POS) · via deals = units in orders with a deal line (deals counted as a whole, +1s included) · free = ₱0 giveaways outside any deal · SHOPIFY ONLY line = package SKUs not in the master sheet (units are sets) · includes internal orders (Remedy branches, employees) · TEST orders excluded · accounting’s Sales Booked may exclude internal orders and book by invoice date, so small differences vs accounting are expected</span></div></div>';}
+    '</tbody></table></div><div class="tfooter"><span>Booked sales from Shopify (specialists’ POS) · via deals = units in orders with a deal line (deals counted as a whole, +1s included) · free = ₱0 giveaways outside any deal · SHOPIFY ONLY line = package SKUs not in the master sheet (units are sets) · includes internal orders (Remedy branches, employees) · TEST orders and marketing/executive pull-outs excluded (pull-outs remain in the finance & logistics views) · accounting’s Sales Booked may exclude internal orders and book by invoice date, so small differences vs accounting are expected</span></div></div>';}
 
 /* Deals vs à la carte — do the bundles outsell single-unit pricing? (Alex) */
 function renderSalesDeals(){
@@ -1225,13 +1225,19 @@ function renderSalesTarget(){
   html+='<div style="font-size:11px;color:var(--tx3)">Actuals are booked Shopify sales for '+ym+' · targets come from the sheet’s Targets tab · edit them there and re-sync</div>';
   $('content').innerHTML=html;}
 
-// Merge specialist tags that differ only by case/spacing ("Rhas"/"RHAS", "adel"/"Adel")
+// Known alias tags: same person tagged under different names on Shopify orders.
+// Left side lowercase → canonical display name.
+const SPEC_ALIAS={'kristine':'Tin'};
+function specCanon(tag){const t=String(tag||'').trim();return SPEC_ALIAS[t.toLowerCase()]||t;}
+// Merge specialist tags that differ only by case/spacing ("Rhas"/"RHAS") or known aliases (Kristine=Tin)
 function specMerged(){
   const specs=(SHOPIFY&&SHOPIFY.specialists)||{};
   const merged={};
   for(const n in specs){
-    const k=n.trim().toLowerCase();
-    const M=merged[k]||(merged[k]={name:n.trim(),monthly:{},daily:{},skus:{}});
+    const canon=specCanon(n);
+    const k=canon.toLowerCase();
+    const M=merged[k]||(merged[k]={name:canon,monthly:{},daily:{},skus:{}});
+    if(SPEC_ALIAS[n.trim().toLowerCase()])M.name=canon; // alias resolved: prefer the canonical name
     for(const src of ['monthly','daily'])for(const m in (specs[n][src]||{})){
       const c=specs[n][src][m];const d=M[src][m]||(M[src][m]={u:0,v:0});d.u+=c.u||0;d.v+=c.v||0;}
     for(const sku in (specs[n].skus||{})){
@@ -1267,6 +1273,15 @@ function openSpecDrawer(name){
     '<div class="dsec"><div class="dsectitle">What they sell (12 months, top products)</div>'+
     top.map(x=>'<div class="drow"'+(nameOf[x.sku]?' onclick="openDrawer(\''+esc(x.sku)+'\')" style="cursor:pointer"':'')+'><span class="dlbl" style="max-width:180px;overflow:hidden;text-overflow:ellipsis">'+esc(x.name)+'</span><span class="dval">'+x.u.toLocaleString()+' u'+(x.v>0?' · '+fmtPeso(x.v):'')+'</span></div>').join('')+'</div>':
     '<div class="dsec"><div class="dsectitle">What they sell</div><div style="font-size:11.5px;color:var(--tx3)">Product breakdown appears after the next sales-cache rebuild (automatic — check back in a few minutes).</div></div>';
+  // Their recent orders (order # · date · customer), from the ~6-month drill-down window
+  const myOrders=(SHOPIFY.recent||[]).filter(o=>specCanon(o.t).toLowerCase()===name.toLowerCase())
+    .map(o=>({n:o.n,dt:o.dt,c:o.c||'',q:(o.ls||[]).reduce((x,l)=>x+(l[1]||0),0),a:(o.ls||[]).reduce((x,l)=>x+(l[2]||0),0)}))
+    .sort((a,b)=>a.dt<b.dt?1:a.dt>b.dt?-1:0);
+  const ordHTML=myOrders.length?
+    '<div class="dsec"><div class="dsectitle">Recent orders ('+myOrders.length+' in ≈6 months)</div>'+
+    myOrders.slice(0,30).map(o=>'<div class="drow" style="align-items:flex-start"><span class="dlbl" style="max-width:190px"><b>'+esc(o.n||'—')+'</b> · '+esc(o.dt)+'<br><span style="color:var(--tx3)">'+esc(o.c||'no customer name')+'</span></span><span class="dval" style="text-align:right">'+o.q.toLocaleString()+' u<br>'+fmtPeso(o.a)+'</span></div>').join('')+
+    (myOrders.length>30?'<div style="font-size:10.5px;color:var(--tx3);margin-top:6px">Showing the 30 most recent — export CSV for the full list.</div>':'')+'</div>':
+    '<div class="dsec"><div class="dsectitle">Recent orders</div><div style="font-size:11.5px;color:var(--tx3)">No orders in the drill-down window (last ~6 months).</div></div>';
   const trendHTML=yms.length?
     '<div class="dsec"><div class="dsectitle">Monthly trend</div>'+
     yms.map(m=>{const c=sp.monthly[m];return '<div class="drow"><span class="dlbl">'+m+(m===ymNow?' <span class="mu">(partial)</span>':'')+'</span><span class="dval">'+c.u.toLocaleString()+' u · '+fmtPeso(c.v)+'</span></div>';}).join('')+'</div>':'';
@@ -1282,8 +1297,8 @@ function openSpecDrawer(name){
     '<div class="dsec"><div class="dsectitle">This month (MTD)</div>'+
     '<div class="drow"><span class="dlbl">Revenue</span><span class="dval">'+fmtPeso(mc.v)+'</span></div>'+
     '<div class="drow"><span class="dlbl">Units</span><span class="dval">'+mc.u.toLocaleString()+'</span></div>'+
-    '</div>'+tgHTML+trendHTML+topHTML+
-    '<div style="font-size:10.5px;color:var(--tx3);margin-top:10px">From Shopify order tags · tap a product to open its inventory detail</div>';
+    '</div>'+tgHTML+ordHTML+trendHTML+topHTML+
+    '<div style="font-size:10.5px;color:var(--tx3);margin-top:10px">From Shopify order tags'+(name.toLowerCase()==='tin'?' · includes orders tagged Kristine (same person)':'')+' · tap a product to open its inventory detail</div>';
   $('overlay').classList.add('open');
   $('drawer').classList.add('open');
 }
