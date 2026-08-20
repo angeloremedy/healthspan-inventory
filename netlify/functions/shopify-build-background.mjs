@@ -110,6 +110,11 @@ export const handler = async (event) => {
         orders++;
         const rawTag = (o.tags && o.tags.length ? String(o.tags[0]).trim() : '');
         if (rawTag.toUpperCase() === 'TEST') continue; // test orders are not sales
+        const custName = (o.customer && o.customer.displayName) || '';
+        // Marketing/executive/academy PULL-OUTS are internal stock movements, not sales.
+        // They stay visible in the finance & logistics views (which read the warehouse
+        // sheet) but are excluded from everything Shopify-fed (all Sales views + AI demand).
+        if (/pull\s*-?\s*out/i.test(custName)) continue;
         const spec = rawTag || null;
         let oUnits = 0, oValue = 0;
         // Two-pass per order: a base-SKU line belongs to a DEAL when the same order
@@ -147,7 +152,7 @@ export const handler = async (event) => {
             n: o.name || '',                                             // order number (e.g. #HG-10142)
             dt: day,
             t: spec,                                                     // specialist (first tag)
-            c: (o.customer && o.customer.displayName) || '',             // customer
+            c: custName,                                                 // customer
             ls: lis.map(l => [l.sku, l.qty, Math.round(l.amt)])          // [sku, qty, amount]
           });
         }
@@ -169,7 +174,7 @@ export const handler = async (event) => {
     }
 
     await store.setJSON('data', {
-      v: 6, // aggregate format version (v6: order-level drill-down for the last ~6 months)
+      v: 7, // aggregate format version (v7: marketing/executive pull-outs excluded from sales data)
       variants: Object.values(variants),
       specialists,
       recent,
