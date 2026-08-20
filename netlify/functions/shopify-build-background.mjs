@@ -92,11 +92,13 @@ export const handler = async (event) => {
     const dailyFrom = new Date(Date.now() - 60 * 864e5).toISOString().slice(0, 10);
     const q = 'created_at:>=' + since.toISOString().slice(0, 10) + ' status:any';
     const specialists = {}; // tag -> { monthly: {ym:{u,v}}, daily: {d:{u,v}} }
+    const recentFrom = new Date(Date.now() - 180 * 864e5).toISOString().slice(0, 10);
+    const recent = []; // order-level drill-down: last ~6 months, capped
     cursor = null;
     let orders = 0;
     for (let page = 0; page < 300; page++) {
       const d = await gql(token,
-        'query($c:String,$q:String){orders(first:100,after:$c,query:$q){pageInfo{hasNextPage endCursor}edges{node{createdAt cancelledAt tags lineItems(first:40){edges{node{sku quantity discountedTotalSet{shopMoney{amount}}}}}}}}}',
+        'query($c:String,$q:String){orders(first:100,after:$c,query:$q){pageInfo{hasNextPage endCursor}edges{node{name createdAt cancelledAt tags customer{displayName}lineItems(first:40){edges{node{sku quantity discountedTotalSet{shopMoney{amount}}}}}}}}}',
         { c: cursor, q });
       const os = d.orders;
       for (const e of os.edges) {
@@ -140,6 +142,15 @@ export const handler = async (event) => {
           if (useDaily) bump(rec.daily, day);
           oUnits += li.qty; oValue += li.amt;
         }
+        if (day >= recentFrom && lis.length && recent.length < 2500) {
+          recent.push({
+            n: o.name || '',                                             // order number (e.g. #HG-10142)
+            dt: day,
+            t: spec,                                                     // specialist (first tag)
+            c: (o.customer && o.customer.displayName) || '',             // customer
+            ls: lis.map(l => [l.sku, l.qty, Math.round(l.amt)])          // [sku, qty, amount]
+          });
+        }
         if (spec) {
           const sp = specialists[spec] || (specialists[spec] = { monthly: {}, daily: {}, skus: {} });
           const bumpS = (obj, key) => { const s = obj[key] || (obj[key] = { u: 0, v: 0 }); s.u += oUnits; s.v += oValue; };
@@ -158,9 +169,11 @@ export const handler = async (event) => {
     }
 
     await store.setJSON('data', {
-      v: 5, // aggregate format version (v5: contains-based deal detection, TEST orders excluded)
+      v: 6, // aggregate format version (v6: order-level drill-down for the last ~6 months)
       variants: Object.values(variants),
       specialists,
+      recent,
+      recentFrom,
       orders,
       dailyFrom,
       synced: new Date().toISOString(),
