@@ -94,6 +94,8 @@ export const handler = async (event) => {
     const specialists = {}; // tag -> { monthly: {ym:{u,v}}, daily: {d:{u,v}} }
     const recentFrom = new Date(Date.now() - 180 * 864e5).toISOString().slice(0, 10);
     const recent = []; // order-level drill-down: last ~6 months, capped
+    const d90 = new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10);
+    const customers = {}; // per-customer booked totals (13 months + last-90d slice)
     cursor = null;
     let orders = 0;
     for (let page = 0; page < 300; page++) {
@@ -147,6 +149,12 @@ export const handler = async (event) => {
           if (useDaily) bump(rec.daily, day);
           oUnits += li.qty; oValue += li.amt;
         }
+        if (custName && lis.length) {
+          const cc = customers[custName] || (customers[custName] = { o: 0, u: 0, v: 0, u90: 0, v90: 0, l: '' });
+          cc.o++; cc.u += oUnits; cc.v += Math.round(oValue);
+          if (day >= d90) { cc.u90 += oUnits; cc.v90 += Math.round(oValue); }
+          if (day > cc.l) cc.l = day;
+        }
         if (day >= recentFrom && lis.length && recent.length < 2500) {
           recent.push({
             n: o.name || '',                                             // order number (e.g. #HG-10142)
@@ -174,9 +182,10 @@ export const handler = async (event) => {
     }
 
     await store.setJSON('data', {
-      v: 7, // aggregate format version (v7: marketing/executive pull-outs excluded from sales data)
+      v: 8, // aggregate format version (v8: per-customer booked totals for sheet reconciliation)
       variants: Object.values(variants),
       specialists,
+      customers,
       recent,
       recentFrom,
       orders,
