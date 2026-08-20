@@ -428,7 +428,7 @@ async function loadShopify(){
     SHOPIFY_ERR=(d&&d.status&&d.status.state==='error')?d.status.error:null;
     if(d&&d.variants){
       SHOPIFY=d;mergeShopify();refreshSidebar();rerenderCurrent();
-      if(d.v!==7)setTimeout(loadShopify,45000); // old format still cached: merge triggered a rebuild — keep polling until the new blob lands
+      if(d.v!==8)setTimeout(loadShopify,45000); // old format still cached: merge triggered a rebuild — keep polling until the new blob lands
     }
     else if(d&&d.building){
       setTimeout(loadShopify,15000);
@@ -439,7 +439,7 @@ async function loadShopify(){
 function mergeShopify(){
   if(!SHOPIFY||!SHOPIFY.variants||!DATA.length)return;
   const isNew=SHOPIFY.v>=2;
-  if(SHOPIFY.v!==7){try{fetch('/api/shopify?refresh=1');}catch(e){}} // old cache format — trigger a rebuild
+  if(SHOPIFY.v!==8){try{fetch('/api/shopify?refresh=1');}catch(e){}} // old cache format — trigger a rebuild
   const sheetSkus=new Set(DATA.map(p=>p.sku));
   const bases=[...sheetSkus].sort((a,b)=>b.length-a.length); // longest-prefix wins
   // Unit rules (validated on real orders): physical units are itemized as base-SKU
@@ -1546,10 +1546,57 @@ function renderDataHealth(){
 }
 
 /* ── CUSTOMERS / ACCOUNTS ── */
+// Normalize account names so Verna's OUT destinations match Shopify customer names
+function custNorm(s){return String(s||'').toLowerCase().replace(/\(.*?\)/g,' ').replace(/[^a-z0-9]+/g,' ').replace(/\b(inc|corp|corporation|co|ltd|clinic|clinics|the)\b/g,'').replace(/\s+/g,' ').trim();}
+function renderCustShopifyRecon(all){
+  const shopC=(SHOPIFY&&SHOPIFY.customers)||null;
+  const tabs='<div class="tabs" style="margin-bottom:12px">'+[['all','Accounts'],['growing','Growing'],['declining','Declining'],['dormant','Dormant'],['shopify','Vs Shopify']].map(([k,l])=>'<div class="tab'+(k==='shopify'?' active':'')+'" onclick="window._custFilter=\''+k+'\';renderCustomers()">'+l+'</div>').join('')+'</div>';
+  if(!shopC||!Object.keys(shopC).length){
+    $('content').innerHTML=tabs+'<div class="empty" style="margin-top:30px">Waiting for the Shopify customer data — it appears after the next sales-cache rebuild (automatic, a few minutes after deploying the update).</div>';
+    try{loadShopify();}catch(e){}return;}
+  // index Shopify customers by normalized name
+  const byNorm={};for(const n in shopC){const k=custNorm(n);if(k)(byNorm[k]||(byNorm[k]=[])).push(n);}
+  const usedShop=new Set();
+  const rows=all.map(c=>{
+    const k=custNorm(c.name);
+    let names=byNorm[k]||[];
+    if(!names.length&&k.length>=6){ // containment fallback for partial names
+      names=Object.keys(byNorm).filter(x=>x.length>=6&&(x.includes(k)||k.includes(x))).flatMap(x=>byNorm[x]);}
+    const agg={o:0,u:0,v:0,u90:0,v90:0,l:''};
+    for(const n of names){const s=shopC[n];if(!s)continue;usedShop.add(n);agg.o+=s.o;agg.u+=s.u;agg.v+=s.v;agg.u90+=s.u90;agg.v90+=s.v90;if(s.l>agg.l)agg.l=s.l;}
+    return {c,matched:names.length>0,shop:agg};
+  });
+  const matched=rows.filter(r=>r.matched);
+  const sheetOnly=rows.filter(r=>!r.matched&&!r.c.isRemedy);
+  const shopOnly=Object.keys(shopC).filter(n=>!usedShop.has(n)&&!/pull\s*-?\s*out/i.test(n))
+    .map(n=>({n,...shopC[n]})).sort((a,b)=>b.v-a.v);
+  const totShip90=all.reduce((a,c)=>a+(c.recentVal||0),0);
+  const totBook90=rows.reduce((a,r)=>a+r.shop.v90,0)+shopOnly.reduce((a,s)=>a+s.v90,0);
+  $('content').innerHTML=tabs+
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met gr"><div class="met-lbl">Matched accounts</div><div class="met-val">'+matched.length+' / '+all.length+'</div><div class="met-sub">sheet accounts found in Shopify</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Booked — last 90d</div><div class="met-val" style="font-size:15px">'+fmtPeso(totBook90)+'</div><div class="met-sub">Shopify, all customers</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Shipped — last 90d</div><div class="met-val" style="font-size:15px">'+fmtPeso(totShip90)+'</div><div class="met-sub">warehouse OUT sheet</div><div class="met-bar"></div></div>'+
+    '<div class="met pu"><div class="met-lbl">Shopify-only customers</div><div class="met-val">'+shopOnly.length+'</div><div class="met-sub">booked but never in the OUT sheet</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="tcard" style="margin-bottom:14px"><div class="tscroll"><table><thead><tr><th>Account (sheet name)</th><th style="text-align:right">Shipped u (all)</th><th style="text-align:right">Booked u (13mo)</th><th style="text-align:right">Shipped ₱ 90d</th><th style="text-align:right">Booked ₱ 90d</th><th style="text-align:right">Δ 90d</th><th>Status</th></tr></thead><tbody>'+
+    rows.sort((a,b)=>(b.shop.v90+((b.c.recentVal)||0))-(a.shop.v90+((a.c.recentVal)||0))).map(r=>{
+      const d90=r.shop.v90-(r.c.recentVal||0);
+      return '<tr onclick="openCustDrawer('+CUSTOMERS.indexOf(r.c)+')" style="cursor:pointer"><td style="font-weight:600;max-width:230px;overflow:hidden;text-overflow:ellipsis">'+esc(r.c.name)+(r.c.isRemedy?' <span class="pill pbl">sister co.</span>':'')+'</td>'+
+      '<td class="r mu">'+r.c.qty.toLocaleString()+'</td><td class="r mu">'+(r.matched?r.shop.u.toLocaleString():'—')+'</td>'+
+      '<td class="r">'+fmtPeso(r.c.recentVal||0)+'</td><td class="r">'+(r.matched?fmtPeso(r.shop.v90):'—')+'</td>'+
+      '<td class="r" style="font-weight:600;color:'+(r.matched?(Math.abs(d90)<20000?'var(--gr)':d90>0?'var(--bl)':'var(--am)'):'var(--tx3)')+'">'+(r.matched?((d90>=0?'+':'−')+fmtPeso(Math.abs(d90))):'—')+'</td>'+
+      '<td>'+(r.matched?'<span class="pill pgr">matched</span>':'<span class="pill pgy">sheet only</span>')+'</td></tr>';}).join('')+
+    '</tbody></table></div><div class="tfooter"><span>Booked = Shopify orders (13 months, pull-outs excluded) matched to sheet accounts by normalized name · Δ 90d = booked minus shipped in the last 90 days: positive = orders waiting to ship, negative = shipped more than booked (manual/legacy shipments) · Remedy ships via the sheet but books under order tags, so it shows sheet-only</span></div></div>'+
+    (shopOnly.length?'<div class="tcard"><div class="tscroll"><table><thead><tr><th>Shopify-only customer (never in OUT sheet)</th><th style="text-align:right">Orders</th><th style="text-align:right">Units</th><th style="text-align:right">Booked ₱ (13mo)</th><th style="text-align:right">Last order</th></tr></thead><tbody>'+
+      shopOnly.slice(0,60).map(s=>'<tr><td style="font-weight:600;max-width:260px;overflow:hidden;text-overflow:ellipsis">'+esc(s.n)+'</td><td class="r mu">'+s.o+'</td><td class="r">'+s.u.toLocaleString()+'</td><td class="r" style="font-weight:600">'+fmtPeso(s.v)+'</td><td class="r mu">'+esc(s.l||'—')+'</td></tr>').join('')+
+      '</tbody></table></div><div class="tfooter"><span>These booked on Shopify but never appear as a destination in Verna’s OUT sheet — new accounts not yet shipped, name spellings that don’t match, or bookings fulfilled outside the warehouse log</span></div></div>':'');
+}
 function renderCustomers(){
   const all=CUSTOMERS||[];
   if(!all.length){$('content').innerHTML='<div class="empty" style="margin-top:40px">No customer data in the current sync yet — it appears after the next Google Sheets sync.</div>';return;}
   const f=window._custFilter||'all';
+  if(f==='shopify')return renderCustShopifyRecon(all);
   const totVal=all.reduce((a,c)=>a+c.value,0);
   const remedy=all.filter(c=>c.isRemedy).reduce((a,c)=>a+c.value,0);
   const remedyPct=totVal>0?Math.round(remedy/totVal*100):0;
@@ -1559,7 +1606,7 @@ function renderCustomers(){
   const atRisk=new Set([...declining,...dormant].map(c=>c.name)).size;
   let rows=all.slice();
   if(f==='growing')rows=growing;else if(f==='declining')rows=declining;else if(f==='dormant')rows=dormant;
-  const tabs=[['all','All ('+all.length+')'],['growing','Growing ('+growing.length+')'],['declining','Declining ('+declining.length+')'],['dormant','Dormant ('+dormant.length+')']];
+  const tabs=[['all','All ('+all.length+')'],['growing','Growing ('+growing.length+')'],['declining','Declining ('+declining.length+')'],['dormant','Dormant ('+dormant.length+')'],['shopify','Vs Shopify']];
   const tb=c=>c.trend==='up'?'<span class="pill pgr">▲ growing</span>':c.trend==='new'?'<span class="pill pbl">new</span>':c.trend==='down'?'<span class="pill prd">▼ declining</span>':'<span class="pill pgy">flat</span>';
   $('content').innerHTML=
     '<div class="metrics" style="margin-bottom:14px">'+
