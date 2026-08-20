@@ -412,6 +412,7 @@ let BRANCH_EXPIRY = {};
 let CUSTOMERS = [];
 let SHOPIFY = null;
 let SALESIDX = null;              // base-SKU sales index built from Shopify variants
+let ORDIDX = null;                // base-SKU → recent orders (order #, customer, specialist)
 let TARGETS = [];                 // sales targets from the sheet's optional Targets tab
 let ACCT = null;                  // accounting's official Sales Booked (from the Healthspan Sales Report sheet)
 let SPERIOD = 'mtd';              // shared period for the Sales views
@@ -427,7 +428,7 @@ async function loadShopify(){
     SHOPIFY_ERR=(d&&d.status&&d.status.state==='error')?d.status.error:null;
     if(d&&d.variants){
       SHOPIFY=d;mergeShopify();refreshSidebar();rerenderCurrent();
-      if(d.v!==5)setTimeout(loadShopify,45000); // old format still cached: merge triggered a rebuild — keep polling until the new blob lands
+      if(d.v!==6)setTimeout(loadShopify,45000); // old format still cached: merge triggered a rebuild — keep polling until the new blob lands
     }
     else if(d&&d.building){
       setTimeout(loadShopify,15000);
@@ -438,7 +439,7 @@ async function loadShopify(){
 function mergeShopify(){
   if(!SHOPIFY||!SHOPIFY.variants||!DATA.length)return;
   const isNew=SHOPIFY.v>=2;
-  if(SHOPIFY.v!==5){try{fetch('/api/shopify?refresh=1');}catch(e){}} // old cache format — trigger a rebuild
+  if(SHOPIFY.v!==6){try{fetch('/api/shopify?refresh=1');}catch(e){}} // old cache format — trigger a rebuild
   const sheetSkus=new Set(DATA.map(p=>p.sku));
   const bases=[...sheetSkus].sort((a,b)=>b.length-a.length); // longest-prefix wins
   // Unit rules (validated on real orders): physical units are itemized as base-SKU
@@ -475,6 +476,27 @@ function mergeShopify(){
     addAgg(isBundle?S.bmonthly:S.monthly,v.monthly);
     addAgg(isBundle?S.bdaily:S.daily,v.daily);
   }
+  // Order-level drill-down index: base SKU → orders that touched it
+  ORDIDX={};
+  const resolveBase=sku=>{
+    if(sheetSkus.has(sku))return sku;
+    return bases.find(b=>sku.startsWith(b)&&sku.length>b.length)||
+           bases.find(b=>b.length>=4&&sku.length>b.length&&sku.includes(b))||sku;
+  };
+  for(const o of (SHOPIFY.recent||[])){
+    const per={}; // base → {q,a} within this order
+    for(const [sku,q,a] of (o.ls||[])){
+      const s=String(sku||'').trim();
+      const base=resolveBase(s);
+      const p=per[base]||(per[base]={q:0,a:0});
+      if(base===s)p.q+=q||0; // physical units come from base lines; deal/bundle lines add revenue only
+      p.a+=a||0;
+    }
+    for(const base in per){
+      (ORDIDX[base]||(ORDIDX[base]=[])).push({n:o.n,dt:o.dt,t:o.t||'',c:o.c||'',q:per[base].q,a:per[base].a});
+    }
+  }
+  for(const k in ORDIDX)ORDIDX[k].sort((a,b)=>b.dt<a.dt?-1:b.dt>a.dt?1:0);
   for(const p of DATA){
     const S=SALESIDX[p.sku]; if(!S)continue;
     S.name=p.name; S.line=p.line;
@@ -991,6 +1013,30 @@ function fltLine(line,el){
 
 /* ── SALES SECTION (Shopify booked sales — for Jojo & Marj) ── */
 const SP_LBL={today:'today',yest:'yesterday',['7d']:'last 7 days',mtd:'this month',['30d']:'last 30 days',['3m']:'last 3 months',all:'last 12 months'};
+function fmtPeso(v){return '₱'+Math.round(v||0).toLocaleString('en-PH');} // exact pesos — Jojo wants no K-rounding in Sales views
+/* Sales drill-down drawer: which orders, customers and specialists moved this product */
+function openSalesDrawer(sku){
+  const S=(SALESIDX||{})[sku];
+  const ords=((ORDIDX||{})[sku]||[]).slice(0,40);
+  const name=S?(S.name||sku):sku;
+  const inSheet=DATA.some(p=>p.sku===sku);
+  const rows=ords.length?ords.map(o=>
+    '<div class="drow" style="align-items:flex-start"><span class="dlbl" style="max-width:190px">'+
+    '<b>'+esc(o.n||'—')+'</b> · '+esc(o.dt)+'<br><span style="color:var(--tx3)">'+esc(o.c||'no customer name')+(o.t?' · PS: '+esc(o.t):'')+'</span></span>'+
+    '<span class="dval" style="text-align:right">'+o.q.toLocaleString()+' u'+(o.a>0?'<br>'+fmtPeso(o.a):'<br><span style="color:var(--pu)">₱0</span>')+'</span></div>').join(''):
+    '<div style="font-size:11.5px;color:var(--tx3)">No orders for this product in the drill-down window (last ~6 months). Older sales are still counted in the totals.</div>';
+  const tot=ords.reduce((x,o)=>({q:x.q+o.q,a:x.a+o.a}),{q:0,a:0});
+  $('dbody').innerHTML=
+    '<div class="dsku">'+esc(sku)+'</div>'+
+    '<div class="dname">'+esc(name)+'</div>'+
+    '<div class="dstk" style="color:var(--gr)">'+fmtPeso(tot.a)+'</div>'+
+    '<div class="dsub">'+tot.q.toLocaleString()+' units across '+ords.length+' recent orders (≈6 months)</div>'+
+    (inSheet?'<div style="margin:10px 0"><a href="#" onclick="openDrawer(\''+esc(sku)+'\');return false" style="color:var(--ac);font-size:12px">Open inventory detail →</a></div>':'')+
+    '<div class="dsec"><div class="dsectitle">Orders — number · customer · specialist</div>'+rows+'</div>'+
+    '<div style="font-size:10.5px;color:var(--tx3);margin-top:10px">From Shopify orders · amounts are what was booked on this product’s lines in each order (deal revenue included) · blank customer means the order has no customer attached in Shopify</div>';
+  $('overlay').classList.add('open');
+  $('drawer').classList.add('open');
+}
 function spLbl(){return SPERIOD==='custom'?((SFROM||'start')+' → '+(STO||'today')):SP_LBL[SPERIOD];}
 function salesLines(){return [...new Set(Object.values(SALESIDX||{}).map(S=>S.line).filter(Boolean))].sort();}
 function salesLineCur(){if(SLINE!==null)return SLINE;const ls=salesLines();const meso=ls.find(l=>/meso/i.test(l));SLINE=(meso!==undefined)?meso:'';return SLINE;}
@@ -1047,17 +1093,17 @@ function renderSalesOverview(){
   $('content').innerHTML=
     salesToolbar('renderSalesOverview')+
     '<div class="metrics" style="margin-bottom:14px">'+
-    '<div class="met gr"><div class="met-lbl">Revenue ('+spLbl()+')</div><div class="met-val" style="font-size:17px">'+fmtK(tot.v)+'</div><div class="met-sub">booked on Shopify</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Revenue ('+spLbl()+')</div><div class="met-val" style="font-size:15px">'+fmtPeso(tot.v)+'</div><div class="met-sub">booked on Shopify</div><div class="met-bar"></div></div>'+
     '<div class="met bl"><div class="met-lbl">Units sold</div><div class="met-val">'+tot.u.toLocaleString()+'</div><div class="met-sub">'+tot.d.toLocaleString()+' via deals · '+Math.max(0,tot.u-tot.d-tot.f).toLocaleString()+' à la carte · '+tot.f.toLocaleString()+' free</div><div class="met-bar"></div></div>'+
     '<div class="met pu"><div class="met-lbl">Via deals</div><div class="met-val">'+(tot.u>0?(tot.d/tot.u*100).toFixed(0)+'%':'—')+'</div><div class="met-sub">'+tot.d.toLocaleString()+' units in deal orders</div><div class="met-bar"></div></div>'+
-    '<div class="met am"><div class="met-lbl">Today</div><div class="met-val">'+td.u.toLocaleString()+' u</div><div class="met-sub">'+fmtK(td.v)+' booked today</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Today</div><div class="met-val">'+td.u.toLocaleString()+' u</div><div class="met-sub">'+fmtPeso(td.v)+' booked today</div><div class="met-bar"></div></div>'+
     '</div>'+
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>#</th><th>Product</th><th>SKU</th><th style="text-align:right">Total u</th><th style="text-align:right">Via deals</th><th style="text-align:right">À la carte</th><th style="text-align:right">Free u</th><th style="text-align:right">Revenue</th><th style="text-align:right">Stock now</th><th style="text-align:right">Share</th></tr></thead><tbody>'+
     (rows.length?rows.map((r,i)=>{const s=stkOf[r.sku];
-      return '<tr onclick="openDrawer(\''+esc(r.sku)+'\')" style="cursor:pointer"><td class="mu">'+(i+1)+'</td>'+
+      return '<tr onclick="openSalesDrawer(\''+esc(r.sku)+'\')" style="cursor:pointer"><td class="mu">'+(i+1)+'</td>'+
       '<td style="font-weight:600;max-width:240px;overflow:hidden;text-overflow:ellipsis">'+esc(r.name)+'</td><td class="mu" style="font-size:11px">'+esc(r.sku)+'</td>'+
       '<td class="r" style="font-weight:600">'+r.u.toLocaleString()+'</td><td class="r">'+(r.d?r.d.toLocaleString():'—')+'</td><td class="r">'+(r.au?r.au.toLocaleString():'—')+'</td><td class="r" style="color:var(--pu)">'+(r.f?r.f.toLocaleString():'—')+'</td>'+
-      '<td class="r" style="font-weight:600">'+fmtK(r.v)+'</td><td class="r'+(s!=null&&s<r.u?'" style="color:var(--am)':'')+'">'+(s!=null?s.toLocaleString():'—')+'</td><td class="r mu">'+(tot.v>0?(r.v/tot.v*100).toFixed(1)+'%':'—')+'</td></tr>';}).join(''):
+      '<td class="r" style="font-weight:600">'+fmtPeso(r.v)+'</td><td class="r'+(s!=null&&s<r.u?'" style="color:var(--am)':'')+'">'+(s!=null?s.toLocaleString():'—')+'</td><td class="r mu">'+(tot.v>0?(r.v/tot.v*100).toFixed(1)+'%':'—')+'</td></tr>';}).join(''):
       '<tr><td colspan="10"><div class="empty">No booked sales for this period'+(line?' in '+esc(line):'')+'</div></td></tr>')+
     '</tbody></table></div><div class="tfooter"><span>Booked sales from Shopify (specialists’ POS) · via deals = units in orders with a deal line (deals counted as a whole, +1s included) · free = ₱0 giveaways outside any deal · SHOPIFY ONLY line = package SKUs not in the master sheet (units are sets) · includes internal orders (Remedy branches, employees) · TEST orders excluded · accounting’s Sales Booked may exclude internal orders and book by invoice date, so small differences vs accounting are expected</span></div></div>';}
 
@@ -1078,16 +1124,16 @@ function renderSalesDeals(){
     '<div class="metrics" style="margin-bottom:14px">'+
     '<div class="met pu"><div class="met-lbl">Units via deals</div><div class="met-val">'+tot.d.toLocaleString()+'</div><div class="met-sub">'+(sold>0?(tot.d/sold*100).toFixed(0)+'% of sold units':'')+'</div><div class="met-bar"></div></div>'+
     '<div class="met bl"><div class="met-lbl">Units à la carte</div><div class="met-val">'+tot.au.toLocaleString()+'</div><div class="met-sub">'+(sold>0?(tot.au/sold*100).toFixed(0)+'% of sold units':'')+'</div><div class="met-bar"></div></div>'+
-    '<div class="met gr"><div class="met-lbl">Deal revenue</div><div class="met-val" style="font-size:17px">'+fmtK(tot.dr)+'</div><div class="met-sub">'+(tot.d>0?'₱'+Math.round(tot.dr/tot.d).toLocaleString()+' per unit':'')+'</div><div class="met-bar"></div></div>'+
-    '<div class="met am"><div class="met-lbl">À-la-carte revenue</div><div class="met-val" style="font-size:17px">'+fmtK(tot.ar)+'</div><div class="met-sub">'+(tot.au>0?'₱'+Math.round(tot.ar/tot.au).toLocaleString()+' per unit':'')+'</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Deal revenue</div><div class="met-val" style="font-size:15px">'+fmtPeso(tot.dr)+'</div><div class="met-sub">'+(tot.d>0?'₱'+Math.round(tot.dr/tot.d).toLocaleString()+' per unit':'')+'</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">À-la-carte revenue</div><div class="met-val" style="font-size:15px">'+fmtPeso(tot.ar)+'</div><div class="met-sub">'+(tot.au>0?'₱'+Math.round(tot.ar/tot.au).toLocaleString()+' per unit':'')+'</div><div class="met-bar"></div></div>'+
     '</div>'+
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Product</th><th>Deal type</th><th style="text-align:right">Deal u</th><th style="text-align:right">À-la-carte u</th><th style="text-align:right">Deal share</th><th style="text-align:right">Deal rev</th><th style="text-align:right">₱/u via deal</th><th style="text-align:right">₱/u à la carte</th><th style="text-align:right">Eff. discount</th></tr></thead><tbody>'+
     (rows.length?rows.map(r=>{const sh=(r.d+r.au)>0?r.d/(r.d+r.au)*100:0;
-      return '<tr onclick="openDrawer(\''+esc(r.sku)+'\')" style="cursor:pointer"><td style="font-weight:600;max-width:220px;overflow:hidden;text-overflow:ellipsis">'+esc(r.name)+'</td>'+
+      return '<tr onclick="openSalesDrawer(\''+esc(r.sku)+'\')" style="cursor:pointer"><td style="font-weight:600;max-width:220px;overflow:hidden;text-overflow:ellipsis">'+esc(r.name)+'</td>'+
       '<td>'+(r.dealType?'<span class="pill pbl">'+esc(r.dealType)+'</span>':'<span class="mu">—</span>')+'</td>'+
       '<td class="r" style="font-weight:600;color:var(--pu)">'+r.d.toLocaleString()+'</td><td class="r">'+r.au.toLocaleString()+'</td>'+
       '<td class="r"'+(sh>=50?' style="color:var(--pu);font-weight:600"':'')+'>'+sh.toFixed(0)+'%</td>'+
-      '<td class="r">'+fmtK(r.dealRev)+'</td><td class="r">'+(r.dPU!=null?'₱'+Math.round(r.dPU).toLocaleString():'—')+'</td>'+
+      '<td class="r">'+fmtPeso(r.dealRev)+'</td><td class="r">'+(r.dPU!=null?'₱'+Math.round(r.dPU).toLocaleString():'—')+'</td>'+
       '<td class="r">'+(r.aPU?'₱'+Math.round(r.aPU).toLocaleString():'—')+'</td>'+
       '<td class="r mu">'+(r.disc!=null?r.disc.toFixed(0)+'%':'—')+'</td></tr>';}).join(''):
       '<tr><td colspan="9"><div class="empty">No sales in this period</div></td></tr>')+
@@ -1103,15 +1149,15 @@ function renderSalesFree(){
     salesToolbar('renderSalesFree')+
     '<div class="metrics" style="margin-bottom:14px">'+
     '<div class="met pu"><div class="met-lbl">Free units ('+spLbl()+')</div><div class="met-val">'+totF.toLocaleString()+'</div><div class="met-sub">true giveaways (outside deals)</div><div class="met-bar"></div></div>'+
-    '<div class="met am"><div class="met-lbl">Giveaway value</div><div class="met-val" style="font-size:17px">'+fmtK(totFV)+'</div><div class="met-sub">at à-la-carte list price</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Giveaway value</div><div class="met-val" style="font-size:15px">'+fmtPeso(totFV)+'</div><div class="met-sub">at à-la-carte list price</div><div class="met-bar"></div></div>'+
     '<div class="met bl"><div class="met-lbl">Free share</div><div class="met-val">'+(totU>0?(totF/totU*100).toFixed(0)+'%':'—')+'</div><div class="met-sub">of all units moved</div><div class="met-bar"></div></div>'+
     '<div class="met gr"><div class="met-lbl">Paid units</div><div class="met-val">'+Math.max(0,totU-totF).toLocaleString()+'</div><div class="met-sub">customer-paid</div><div class="met-bar"></div></div>'+
     '</div>'+
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Product</th><th style="text-align:right">Free u</th><th style="text-align:right">Paid u</th><th style="text-align:right">Free %</th><th style="text-align:right">Value @ list</th><th style="text-align:right">Stock now</th><th style="text-align:right">Free vs stock</th></tr></thead><tbody>'+
     (rows.length?rows.map(r=>{const fv=r.f*(priceOf[r.sku]||0);const s=stkOf[r.sku];
-      return '<tr onclick="openDrawer(\''+esc(r.sku)+'\')" style="cursor:pointer"><td style="font-weight:600;max-width:260px;overflow:hidden;text-overflow:ellipsis">'+esc(r.name)+'</td>'+
+      return '<tr onclick="openSalesDrawer(\''+esc(r.sku)+'\')" style="cursor:pointer"><td style="font-weight:600;max-width:260px;overflow:hidden;text-overflow:ellipsis">'+esc(r.name)+'</td>'+
       '<td class="r" style="font-weight:600;color:var(--pu)">'+r.f.toLocaleString()+'</td><td class="r">'+r.paid.toLocaleString()+'</td>'+
-      '<td class="r mu">'+(r.u>0?(r.f/r.u*100).toFixed(0)+'%':'—')+'</td><td class="r">'+(fv>0?fmtK(fv):'—')+'</td>'+
+      '<td class="r mu">'+(r.u>0?(r.f/r.u*100).toFixed(0)+'%':'—')+'</td><td class="r">'+(fv>0?fmtPeso(fv):'—')+'</td>'+
       '<td class="r">'+(s!=null?s.toLocaleString():'—')+'</td><td class="r mu">'+((s>0&&r.f>0)?(r.f/s*100).toFixed(0)+'%':'—')+'</td></tr>';}).join(''):
       '<tr><td colspan="7"><div class="empty">No sales in this period</div></td></tr>')+
     '</tbody></table></div><div class="tfooter"><span>Free = ₱0 items given away OUTSIDE any deal (samples, marketing, goodwill) · deal +1s are NOT counted here — the deal is sold as a whole and its units sit in the deal columns · free items still leave inventory but book no revenue</span></div></div>';}
@@ -1171,7 +1217,7 @@ function renderSalesTarget(){
     if(!rs.length)continue;
     html+='<div class="tcard" style="margin-bottom:14px"><div class="tscroll"><table><thead><tr><th>'+title+'</th><th style="text-align:right">Actual ₱</th><th style="text-align:right">Target ₱</th><th style="min-width:130px">Attainment (₱)</th><th style="text-align:right">Actual u</th><th style="text-align:right">Target u</th><th style="min-width:130px">Attainment (u)</th></tr></thead><tbody>'+
       rs.map(r=>'<tr><td style="font-weight:600;max-width:240px;overflow:hidden;text-overflow:ellipsis">'+esc(r.label)+'</td>'+
-        '<td class="r" style="font-weight:600">'+fmtK(r.act.v)+'</td><td class="r mu">'+(r.t.value>0?fmtK(r.t.value):'—')+'</td>'+
+        '<td class="r" style="font-weight:600">'+fmtPeso(r.act.v)+'</td><td class="r mu">'+(r.t.value>0?fmtPeso(r.t.value):'—')+'</td>'+
         '<td>'+(r.pctV!==null?attBar(r.pctV):'<span class="mu">—</span>')+'</td>'+
         '<td class="r">'+r.act.u.toLocaleString()+'</td><td class="r mu">'+(r.t.units>0?r.t.units.toLocaleString():'—')+'</td>'+
         '<td>'+(r.pctU!==null?attBar(r.pctU):'<span class="mu">—</span>')+'</td></tr>').join('')+
@@ -1219,22 +1265,22 @@ function openSpecDrawer(name){
     .sort((a,b)=>(b.v-a.v)||(b.u-a.u)).slice(0,12);
   const topHTML=top.length?
     '<div class="dsec"><div class="dsectitle">What they sell (12 months, top products)</div>'+
-    top.map(x=>'<div class="drow"'+(nameOf[x.sku]?' onclick="openDrawer(\''+esc(x.sku)+'\')" style="cursor:pointer"':'')+'><span class="dlbl" style="max-width:180px;overflow:hidden;text-overflow:ellipsis">'+esc(x.name)+'</span><span class="dval">'+x.u.toLocaleString()+' u'+(x.v>0?' · '+fmtK(x.v):'')+'</span></div>').join('')+'</div>':
+    top.map(x=>'<div class="drow"'+(nameOf[x.sku]?' onclick="openDrawer(\''+esc(x.sku)+'\')" style="cursor:pointer"':'')+'><span class="dlbl" style="max-width:180px;overflow:hidden;text-overflow:ellipsis">'+esc(x.name)+'</span><span class="dval">'+x.u.toLocaleString()+' u'+(x.v>0?' · '+fmtPeso(x.v):'')+'</span></div>').join('')+'</div>':
     '<div class="dsec"><div class="dsectitle">What they sell</div><div style="font-size:11.5px;color:var(--tx3)">Product breakdown appears after the next sales-cache rebuild (automatic — check back in a few minutes).</div></div>';
   const trendHTML=yms.length?
     '<div class="dsec"><div class="dsectitle">Monthly trend</div>'+
-    yms.map(m=>{const c=sp.monthly[m];return '<div class="drow"><span class="dlbl">'+m+(m===ymNow?' <span class="mu">(partial)</span>':'')+'</span><span class="dval">'+c.u.toLocaleString()+' u · '+fmtK(c.v)+'</span></div>';}).join('')+'</div>':'';
+    yms.map(m=>{const c=sp.monthly[m];return '<div class="drow"><span class="dlbl">'+m+(m===ymNow?' <span class="mu">(partial)</span>':'')+'</span><span class="dval">'+c.u.toLocaleString()+' u · '+fmtPeso(c.v)+'</span></div>';}).join('')+'</div>':'';
   const tgHTML=tg?
     '<div class="dsec"><div class="dsectitle">Target — '+ymNow+'</div>'+
-    (tg.value>0?'<div class="drow"><span class="dlbl">Revenue</span><span class="dval">'+fmtK(mc.v)+' / '+fmtK(tg.value)+'</span></div><div style="margin:6px 0">'+attBar(mc.v/tg.value*100)+'</div>':'')+
+    (tg.value>0?'<div class="drow"><span class="dlbl">Revenue</span><span class="dval">'+fmtPeso(mc.v)+' / '+fmtPeso(tg.value)+'</span></div><div style="margin:6px 0">'+attBar(mc.v/tg.value*100)+'</div>':'')+
     (tg.units>0?'<div class="drow"><span class="dlbl">Units</span><span class="dval">'+mc.u.toLocaleString()+' / '+tg.units.toLocaleString()+'</span></div><div style="margin:6px 0">'+attBar(mc.u/tg.units*100)+'</div>':'')+'</div>':'';
   $('dbody').innerHTML=
     '<div class="dsku">PRODUCT SPECIALIST</div>'+
     '<div class="dname">'+esc(name)+'</div>'+
-    '<div class="dstk" style="color:var(--gr)">'+fmtK(t.v)+'</div>'+
+    '<div class="dstk" style="color:var(--gr)">'+fmtPeso(t.v)+'</div>'+
     '<div class="dsub">'+t.u.toLocaleString()+' units booked '+spLbl()+'</div>'+
     '<div class="dsec"><div class="dsectitle">This month (MTD)</div>'+
-    '<div class="drow"><span class="dlbl">Revenue</span><span class="dval">'+fmtK(mc.v)+'</span></div>'+
+    '<div class="drow"><span class="dlbl">Revenue</span><span class="dval">'+fmtPeso(mc.v)+'</span></div>'+
     '<div class="drow"><span class="dlbl">Units</span><span class="dval">'+mc.u.toLocaleString()+'</span></div>'+
     '</div>'+tgHTML+trendHTML+topHTML+
     '<div style="font-size:10.5px;color:var(--tx3);margin-top:10px">From Shopify order tags · tap a product to open its inventory detail</div>';
@@ -1257,15 +1303,15 @@ function renderSalesSpec(){
     salesToolbar('renderSalesSpec')+
     '<div class="metrics" style="margin-bottom:14px">'+
     '<div class="met bl"><div class="met-lbl">Specialists</div><div class="met-val">'+rows.length+'</div><div class="met-sub">with sales '+spLbl()+'</div><div class="met-bar"></div></div>'+
-    '<div class="met gr"><div class="met-lbl">Revenue ('+spLbl()+')</div><div class="met-val" style="font-size:17px">'+fmtK(totV)+'</div><div class="met-sub">across specialists</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Revenue ('+spLbl()+')</div><div class="met-val" style="font-size:15px">'+fmtPeso(totV)+'</div><div class="met-sub">across specialists</div><div class="met-bar"></div></div>'+
     '<div class="met pu"><div class="met-lbl">Units</div><div class="met-val">'+totU.toLocaleString()+'</div><div class="met-sub">booked '+spLbl()+'</div><div class="met-bar"></div></div>'+
-    '<div class="met am"><div class="met-lbl">Top specialist</div><div class="met-val" style="font-size:15px">'+(rows[0]?esc(rows[0].n):'—')+'</div><div class="met-sub">'+(rows[0]?fmtK(rows[0].v):'')+'</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Top specialist</div><div class="met-val" style="font-size:15px">'+(rows[0]?esc(rows[0].n):'—')+'</div><div class="met-sub">'+(rows[0]?fmtPeso(rows[0].v):'')+'</div><div class="met-bar"></div></div>'+
     '</div>'+
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>#</th><th>Specialist</th><th style="text-align:right">Units</th><th style="text-align:right">Revenue</th><th style="text-align:right">Share</th>'+(anyTg?'<th style="text-align:right">Target ('+ymNow+')</th><th style="min-width:130px">Attainment (MTD)</th>':'')+'</tr></thead><tbody>'+
     rows.map((r,i)=>'<tr onclick="openSpecDrawer(\''+esc(r.n).replace(/'/g,'&#39;')+'\')" style="cursor:pointer"><td class="mu">'+(i+1)+'</td><td style="font-weight:600">'+esc(r.n)+'</td>'+
-      '<td class="r">'+r.u.toLocaleString()+'</td><td class="r" style="font-weight:600">'+fmtK(r.v)+'</td>'+
+      '<td class="r">'+r.u.toLocaleString()+'</td><td class="r" style="font-weight:600">'+fmtPeso(r.v)+'</td>'+
       '<td class="r mu">'+(totV>0?(r.v/totV*100).toFixed(1)+'%':'—')+'</td>'+
-      (anyTg?('<td class="r mu">'+(r.tg&&r.tg.value>0?fmtK(r.tg.value):(r.tg&&r.tg.units>0?r.tg.units.toLocaleString()+' u':'—'))+'</td>'+
+      (anyTg?('<td class="r mu">'+(r.tg&&r.tg.value>0?fmtPeso(r.tg.value):(r.tg&&r.tg.units>0?r.tg.units.toLocaleString()+' u':'—'))+'</td>'+
         '<td>'+(r.tg&&r.tg.value>0?attBar(r.mtdV/r.tg.value*100):(r.tg&&r.tg.units>0?attBar(r.mtdU/r.tg.units*100):'<span class="mu">—</span>'))+'</td>'):'')+
       '</tr>').join('')+
     '</tbody></table></div><div class="tfooter"><span>Specialist = the order’s first tag in Shopify · units include free +1s · attainment compares this calendar month (MTD) against the Targets tab'+(anyTg?'':' — add SPECIALIST rows to the Targets tab to enable targets')+'</span></div></div>';}
@@ -1304,20 +1350,20 @@ function renderSalesRecon(){
   const gapCls=g=>Math.abs(g)<50000?'var(--gr)':Math.abs(g)<500000?'var(--am)':'var(--rd)';
   $('content').innerHTML=
     '<div class="metrics" style="margin-bottom:14px">'+
-    '<div class="met bl"><div class="met-lbl">YTD — dashboard (external)</div><div class="met-val" style="font-size:17px">'+fmtK(ytd.e)+'</div><div class="met-sub">Shopify booked minus Remedy/internal</div><div class="met-bar"></div></div>'+
-    '<div class="met gr"><div class="met-lbl">YTD — accounting</div><div class="met-val" style="font-size:17px">'+fmtK(ytd.a)+'</div><div class="met-sub">Sales Booked ('+esc(ACCT.tab||'Summary')+' tab)</div><div class="met-bar"></div></div>'+
-    '<div class="met am"><div class="met-lbl">YTD gap</div><div class="met-val" style="font-size:17px;color:'+gapCls(ytd.e-ytd.a)+'">'+fmtK(Math.abs(ytd.e-ytd.a))+'</div><div class="met-sub">'+(ytd.e>=ytd.a?'dashboard above accounting':'accounting above dashboard')+' · '+(ytd.a>0?(Math.abs(ytd.e-ytd.a)/ytd.a*100).toFixed(1):'0')+'%</div><div class="met-bar"></div></div>'+
-    '<div class="met pu"><div class="met-lbl">YTD internal (excluded)</div><div class="met-val" style="font-size:17px">'+fmtK(ytd.i)+'</div><div class="met-sub">Remedy branches + Healthspan internal</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">YTD — dashboard (external)</div><div class="met-val" style="font-size:15px">'+fmtPeso(ytd.e)+'</div><div class="met-sub">Shopify booked minus Remedy/internal</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">YTD — accounting</div><div class="met-val" style="font-size:15px">'+fmtPeso(ytd.a)+'</div><div class="met-sub">Sales Booked ('+esc(ACCT.tab||'Summary')+' tab)</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">YTD gap</div><div class="met-val" style="font-size:17px;color:'+gapCls(ytd.e-ytd.a)+'">'+fmtPeso(Math.abs(ytd.e-ytd.a))+'</div><div class="met-sub">'+(ytd.e>=ytd.a?'dashboard above accounting':'accounting above dashboard')+' · '+(ytd.a>0?(Math.abs(ytd.e-ytd.a)/ytd.a*100).toFixed(1):'0')+'%</div><div class="met-bar"></div></div>'+
+    '<div class="met pu"><div class="met-lbl">YTD internal (excluded)</div><div class="met-val" style="font-size:15px">'+fmtPeso(ytd.i)+'</div><div class="met-sub">Remedy branches + Healthspan internal</div><div class="met-bar"></div></div>'+
     '</div>'+
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Month</th><th style="text-align:right">Accounting booked</th><th style="text-align:right">QBO</th><th style="text-align:right">Dashboard external</th><th style="text-align:right">Δ vs accounting</th><th style="text-align:right">Δ%</th><th style="text-align:right">Internal (excl.)</th><th style="text-align:right">Dashboard total</th></tr></thead><tbody>'+
     rows.map(r=>'<tr><td style="font-weight:600">'+r.m+'</td>'+
-      '<td class="r" style="font-weight:600">'+(r.acct!==null?fmtK(r.acct):'<span class="mu">—</span>')+'</td>'+
-      '<td class="r mu">'+(r.qbo?fmtK(r.qbo):'—')+'</td>'+
-      '<td class="r" style="font-weight:600">'+fmtK(r.ext)+'</td>'+
-      '<td class="r" style="font-weight:600;color:'+(r.gap!==null?gapCls(r.gap):'var(--tx3)')+'">'+(r.gap!==null?(r.gap>=0?'+':'−')+fmtK(Math.abs(r.gap)):'—')+'</td>'+
+      '<td class="r" style="font-weight:600">'+(r.acct!==null?fmtPeso(r.acct):'<span class="mu">—</span>')+'</td>'+
+      '<td class="r mu">'+(r.qbo?fmtPeso(r.qbo):'—')+'</td>'+
+      '<td class="r" style="font-weight:600">'+fmtPeso(r.ext)+'</td>'+
+      '<td class="r" style="font-weight:600;color:'+(r.gap!==null?gapCls(r.gap):'var(--tx3)')+'">'+(r.gap!==null?(r.gap>=0?'+':'−')+fmtPeso(Math.abs(r.gap)):'—')+'</td>'+
       '<td class="r mu">'+(r.gap!==null&&r.acct>0?(r.gap/r.acct*100).toFixed(1)+'%':'—')+'</td>'+
-      '<td class="r mu">'+(r.internal?fmtK(r.internal):'—')+'</td>'+
-      '<td class="r mu">'+fmtK(r.all)+'</td></tr>').join('')+
+      '<td class="r mu">'+(r.internal?fmtPeso(r.internal):'—')+'</td>'+
+      '<td class="r mu">'+fmtPeso(r.all)+'</td></tr>').join('')+
     '</tbody></table></div><div class="tfooter"><span>Accounting = the official Sales Report’s monthly Sales Booked (excludes Remedy — confirmed: their 102.4M incl. Remedy − 9.9M Remedy = 92.5M booked) · dashboard external applies the same rule via order tags · remaining Δ comes from their as-of date (they lag a few days), credit memos, and untagged orders · QBO shown for reference</span></div></div>';}
 
 /* ── STOCK COVERAGE (weeks/months of runway) ── */
