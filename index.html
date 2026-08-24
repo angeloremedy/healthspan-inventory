@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Healthspan Inventory Monitor</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -325,11 +326,13 @@ body.role-sales .mobile-nav{display:none!important}
     <div class="ni" onclick="showView('all',this)"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="1" fill="currentColor"/><circle cx="3" cy="12" r="1" fill="currentColor"/><circle cx="3" cy="18" r="1" fill="currentColor"/></svg>All SKUs</div>
     <div class="ni" onclick="showView('customers',this)"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Customers</div>
     <div class="nlbl nv-sales">Sales</div>
+    <div class="ni nv-sales" onclick="showView('logvisit',this)"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>Log visit</div>
     <div class="ni nv-sales" onclick="showView('salesoverview',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Sales overview</div>
     <div class="ni nv-sales" onclick="showView('salesdeals',this)"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Deals vs à la carte</div>
     <div class="ni nv-sales" onclick="showView('salesfree',this)"><svg viewBox="0 0 24 24"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>Free items</div>
     <div class="ni nv-sales" onclick="showView('salestarget',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>Sales vs target</div>
     <div class="ni nv-sales" onclick="showView('salesspec',this)"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Specialists</div>
+    <div class="ni nv-sales" onclick="showView('salesfield',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.4 8 12 8 12s8-6.6 8-12a8 8 0 0 0-8-8z"/></svg>Field coverage</div>
     <div class="ni nv-sales" onclick="showView('salesrecon',this)"><svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Vs accounting</div>
     <div class="nlbl">Alerts</div>
     <div class="ni" onclick="showView('oos',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg>Out of stock<span class="nbadge" id="b-oos">0</span></div>
@@ -621,6 +624,8 @@ const DESC={
   branchexpiry:'For each <b>Remedy</b> branch, the stock Healthspan shipped there sorted by expiry — so each clinic can see what to use up first.',
   salesoverview:'Booked sales from Shopify (the specialists’ booking POS): units sold and revenue per product over an adjustable period, split into <b>via deals</b> (deals count as a whole — +1s are deal units, not freebies), <b>à la carte</b>, and <b>free</b> (true giveaways). The Stock now column puts sales against inventory at a glance.',
   salesdeals:'Do the bundles outsell single-unit pricing? Per product: units and revenue moved through deals versus à la carte, the effective per-unit price inside a deal (revenue ÷ all units including the +1), and the effective discount versus the à-la-carte price.',
+  logvisit:'For the product specialists, from the iPad: log every doctor/clinic visit in ~10 seconds — even when there’s no order. Pick your name once and it’s remembered. Logged visits count toward Field coverage and build Healthspan’s own visit history (the start of our own CRM).',
+  salesfield:'Veeva-style field activity per specialist, built from bookings: how many accounts each specialist reached in the period vs their own account universe (≈6 months), orders per active day, samples given, and — most useful — the <b>accounts not reached</b> list, sorted by value, as a ready follow-up sheet. A booking counts as contact; visits without an order would need a call log (phase 2).',
   salesrecon:'Peso-for-peso check against the official <b>2026 Healthspan Sales Report</b> (accounting’s Google Sheet, read live at every sync). Accounting’s Sales Booked excludes Remedy, so the dashboard applies the same rule: external = all booked orders minus Remedy/Healthspan-internal tags. The Δ column shows exactly how far apart the two systems are each month and why.',
   salesfree:'Items given away at ₱0 <b>outside any deal</b> — samples, marketing, goodwill — kept separate from sales. Deal +1s are not here; they count as deal units. Shows what the giveaways would be worth at list price and how the rate compares with remaining inventory.',
   salestarget:'Actual booked sales versus the monthly targets set in the sheet’s <b>Targets</b> tab — total, per line, and per product. If the tab doesn’t exist yet, this view shows exactly how to set it up.',
@@ -876,6 +881,8 @@ function applySync(data){
   else if(currentView==='salesspec') renderSalesSpec();
   else if(currentView==='salesdeals') renderSalesDeals();
   else if(currentView==='salesrecon') renderSalesRecon();
+  else if(currentView==='salesfield') renderSalesField();
+  else if(currentView==='logvisit') renderLogVisit();
   else renderTable();
   injectDesc(currentView);
   injectCalc(currentView);
@@ -960,7 +967,7 @@ function showView(v,el){
            simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator',
            simmonte:'Monte Carlo stockout risk',simproject:'12-month projection',simcash:'Cash-flow timeline',simbulk:'Bulk-buy trade-off',simbranch:'Remedy branch rebalancing',
            aged:'Aged inventory',shrinkage:'Shrinkage tracker',cashexpiry:'Cash in expiring stock',branchtransfer:'Remedy branch shipments',branchexpiry:'Remedy branch expiry watch',
-           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting'};
+           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit'};
   $('ptitle').textContent=T[v]||v;
   if(v==='dashboard') renderDashboard();
   else if(v==='action') renderActionCenter();
@@ -999,6 +1006,8 @@ function showView(v,el){
   else if(v==='salesspec') renderSalesSpec();
   else if(v==='salesdeals') renderSalesDeals();
   else if(v==='salesrecon') renderSalesRecon();
+  else if(v==='salesfield') renderSalesField();
+  else if(v==='logvisit') renderLogVisit();
   else renderTable(v);
   injectDesc(v);
   injectCalc(v);
@@ -1098,6 +1107,10 @@ function renderSalesOverview(){
     '<div class="met pu"><div class="met-lbl">Via deals</div><div class="met-val">'+(tot.u>0?(tot.d/tot.u*100).toFixed(0)+'%':'—')+'</div><div class="met-sub">'+tot.d.toLocaleString()+' units in deal orders</div><div class="met-bar"></div></div>'+
     '<div class="met am"><div class="met-lbl">Today</div><div class="met-val">'+td.u.toLocaleString()+' u</div><div class="met-sub">'+fmtPeso(td.v)+' booked today</div><div class="met-bar"></div></div>'+
     '</div>'+
+    '<div class="g2" style="margin-bottom:14px">'+
+    '<div class="panel"><div class="phd"><svg viewBox="0 0 24 24"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>Revenue by month'+(line?' — '+esc(line):'')+'</div><div class="cw" style="height:230px"><canvas id="soRevChart"></canvas></div></div>'+
+    '<div class="panel"><div class="phd"><svg viewBox="0 0 24 24"><rect x="3" y="12" width="4" height="9"/><rect x="10" y="7" width="4" height="14"/><rect x="17" y="3" width="4" height="18"/></svg>Top products '+spLbl()+' — sold vs stock</div><div class="cw" style="height:230px"><canvas id="soTopChart"></canvas></div></div>'+
+    '</div>'+
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>#</th><th>Product</th><th>SKU</th><th style="text-align:right">Total u</th><th style="text-align:right">Via deals</th><th style="text-align:right">À la carte</th><th style="text-align:right">Free u</th><th style="text-align:right">Revenue</th><th style="text-align:right">Stock now</th><th style="text-align:right">Share</th></tr></thead><tbody>'+
     (rows.length?rows.map((r,i)=>{const s=stkOf[r.sku];
       return '<tr onclick="openSalesDrawer(\''+esc(r.sku)+'\')" style="cursor:pointer"><td class="mu">'+(i+1)+'</td>'+
@@ -1105,7 +1118,30 @@ function renderSalesOverview(){
       '<td class="r" style="font-weight:600">'+r.u.toLocaleString()+'</td><td class="r">'+(r.d?r.d.toLocaleString():'—')+'</td><td class="r">'+(r.au?r.au.toLocaleString():'—')+'</td><td class="r" style="color:var(--pu)">'+(r.f?r.f.toLocaleString():'—')+'</td>'+
       '<td class="r" style="font-weight:600">'+fmtPeso(r.v)+'</td><td class="r'+(s!=null&&s<r.u?'" style="color:var(--am)':'')+'">'+(s!=null?s.toLocaleString():'—')+'</td><td class="r mu">'+(tot.v>0?(r.v/tot.v*100).toFixed(1)+'%':'—')+'</td></tr>';}).join(''):
       '<tr><td colspan="10"><div class="empty">No booked sales for this period'+(line?' in '+esc(line):'')+'</div></td></tr>')+
-    '</tbody></table></div><div class="tfooter"><span>Booked sales from Shopify (specialists’ POS) · via deals = units in orders with a deal line (deals counted as a whole, +1s included) · free = ₱0 giveaways outside any deal · SHOPIFY ONLY line = package SKUs not in the master sheet (units are sets) · includes internal orders (Remedy branches, employees) · TEST orders and marketing/executive pull-outs excluded (pull-outs remain in the finance & logistics views) · accounting’s Sales Booked may exclude internal orders and book by invoice date, so small differences vs accounting are expected</span></div></div>';}
+    '</tbody></table></div><div class="tfooter"><span>Booked sales from Shopify (specialists’ POS) · via deals = units in orders with a deal line (deals counted as a whole, +1s included) · free = ₱0 giveaways outside any deal · SHOPIFY ONLY line = package SKUs not in the master sheet (units are sets) · includes internal orders (Remedy branches, employees) · TEST orders and marketing/executive pull-outs excluded (pull-outs remain in the finance & logistics views) · accounting’s Sales Booked may exclude internal orders and book by invoice date, so small differences vs accounting are expected</span></div></div>';
+  // ── charts: 13-month revenue trend + top products sold vs current stock
+  const ymNow=new Date().toISOString().slice(0,7);
+  const revM={};
+  for(const sku in SALESIDX){const S=SALESIDX[sku];if(line&&S.line!==line)continue;
+    for(const m in S.monthly)revM[m]=(revM[m]||0)+(S.monthly[m].v||0);
+    for(const m in (S.bmonthly||{}))revM[m]=(revM[m]||0)+(S.bmonthly[m].v||0);}
+  const yms=Object.keys(revM).sort();
+  try{
+    if(window._soRev)window._soRev.destroy();
+    window._soRev=new Chart($('soRevChart'),{type:'bar',
+      data:{labels:yms,datasets:[{label:'Revenue',data:yms.map(m=>Math.round(revM[m])),backgroundColor:yms.map(m=>m===ymNow?'#1D9E75':'rgba(29,158,117,0.45)'),borderRadius:3}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>'₱'+Math.round(c.raw).toLocaleString()+(c.label===ymNow?' (month in progress)':'')}}},
+        scales:{y:{beginAtZero:true,ticks:{callback:v=>'₱'+Math.round(v).toLocaleString()},grid:{color:'rgba(128,128,128,0.12)'}},x:{grid:{display:false}}}}});
+    const top=rows.slice(0,8);
+    if(window._soTop)window._soTop.destroy();
+    window._soTop=new Chart($('soTopChart'),{type:'bar',
+      data:{labels:top.map(r=>r.name.length>16?r.name.slice(0,15)+'…':r.name),datasets:[
+        {label:'Units sold '+spLbl(),data:top.map(r=>r.u),backgroundColor:'#378ADD',borderRadius:3},
+        {label:'Stock now',data:top.map(r=>Math.max(0,stkOf[r.sku]??0)),backgroundColor:'#BA7517',borderRadius:3}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}},
+        scales:{y:{beginAtZero:true,grid:{color:'rgba(128,128,128,0.12)'}},x:{grid:{display:false}}}}});
+  }catch(e){}
+}
 
 /* Deals vs à la carte — do the bundles outsell single-unit pricing? (Alex) */
 function renderSalesDeals(){
@@ -1330,6 +1366,172 @@ function renderSalesSpec(){
         '<td>'+(r.tg&&r.tg.value>0?attBar(r.mtdV/r.tg.value*100):(r.tg&&r.tg.units>0?attBar(r.mtdU/r.tg.units*100):'<span class="mu">—</span>'))+'</td>'):'')+
       '</tr>').join('')+
     '</tbody></table></div><div class="tfooter"><span>Specialist = the order’s first tag in Shopify · units include free +1s · attainment compares this calendar month (MTD) against the Targets tab'+(anyTg?'':' — add SPECIALIST rows to the Targets tab to enable targets')+'</span></div></div>';}
+
+/* ── VISIT LOG — specialists log doctor/clinic visits from the iPad (CRM brick #1) ── */
+let VISITS=null; // recent logged visits, fetched on demand
+async function loadVisits(force){
+  if(VISITS&&!force)return VISITS;
+  try{
+    if(SB){
+      const since=new Date(Date.now()-120*864e5).toISOString().slice(0,10);
+      const {data}=await SB.from('visits').select('date,spec,account,type,outcome,notes').gte('date',since).order('date',{ascending:false}).limit(2000);
+      VISITS=data||[];
+    }else{
+      const r=await fetch('/.netlify/functions/visits?months=4');const d=await r.json();VISITS=d.visits||[];
+    }
+  }catch(e){VISITS=VISITS||[];}
+  return VISITS;
+}
+function renderLogVisit(){
+  const specs=Object.keys(specMerged()).sort((a,b)=>a.localeCompare(b));
+  const accounts=[...new Set([...Object.keys((SHOPIFY&&SHOPIFY.customers)||{}),...(CUSTOMERS||[]).map(c=>c.name)])].filter(a=>a&&!/pull\s*-?\s*out/i.test(a)).sort();
+  const today=new Date().toISOString().slice(0,10);
+  const myTag=(SBPROFILE&&SBPROFILE.specialist_tag)||'';
+  const last=myTag||localStorage.getItem('hs_visit_spec')||'';
+  const lockSpec=!!myTag&&ROLE==='sales'; // logged-in specialists log as themselves
+  const inp='style="width:100%;box-sizing:border-box;background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:12px;font-size:14px"';
+  const lbl='style="font-size:11.5px;color:var(--tx3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin:12px 0 5px;display:block"';
+  $('content').innerHTML=
+    '<div style="max-width:520px">'+
+    '<div class="panel" style="padding:18px">'+
+    '<label '+lbl+'>Specialist</label>'+
+    (lockSpec?'<input id="lv-spec" value="'+esc(myTag)+'" readonly '+inp.slice(0,-1)+';opacity:.75">':
+    '<select id="lv-spec" '+inp+'>'+'<option value=""></option>'+specs.map(s=>'<option'+(s===last?' selected':'')+'>'+esc(s)+'</option>').join('')+'</select>')+
+    '<label '+lbl+'>Account / doctor / clinic</label>'+
+    '<input id="lv-acct" list="lv-accts" placeholder="Start typing — or enter a new account" '+inp+'>'+
+    '<datalist id="lv-accts">'+accounts.map(a=>'<option value="'+esc(a)+'">').join('')+'</datalist>'+
+    '<label '+lbl+'>Visit type</label>'+
+    '<select id="lv-type" '+inp+'><option>Clinic visit</option><option>Call / follow-up</option><option>Product demo</option><option>Delivery / after-sales</option><option>Event / congress</option></select>'+
+    '<label '+lbl+'>Outcome</label>'+
+    '<select id="lv-out" '+inp+'><option>Ordered</option><option>Follow-up needed</option><option>Left samples</option><option>No order</option><option>New account opened</option></select>'+
+    '<label '+lbl+'>Date</label><input id="lv-date" type="date" value="'+today+'" max="'+today+'" '+inp+'>'+
+    '<label '+lbl+'>Notes (optional)</label><textarea id="lv-notes" rows="2" placeholder="e.g. interested in Cosmelan, follow up next week" '+inp+'></textarea>'+
+    '<div id="lv-msg" style="min-height:18px;font-size:12px;margin-top:8px"></div>'+
+    '<button id="lv-btn" onclick="submitVisit()" style="width:100%;background:var(--ac);color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:600;cursor:pointer;margin-top:4px">Log visit</button>'+
+    '</div>'+
+    '<div id="lv-recent" style="margin-top:14px"></div></div>';
+  renderRecentVisits();
+}
+async function renderRecentVisits(){
+  const box=$('lv-recent');if(!box)return;
+  const vs=await loadVisits();
+  const mine=(localStorage.getItem('hs_visit_spec')||'');
+  const show=vs.filter(v=>!mine||v.spec===mine).slice(0,10);
+  if(!$('lv-recent'))return;
+  box.innerHTML=show.length?'<div class="panel" style="padding:14px"><div class="phd">Recent logged visits'+(mine?' — '+esc(mine):'')+'</div>'+
+    show.map(v=>'<div class="drow" style="align-items:flex-start"><span class="dlbl" style="max-width:280px"><b>'+esc(v.account)+'</b> · '+esc(v.date)+'<br><span style="color:var(--tx3)">'+esc(v.type)+' · '+esc(v.outcome)+(v.notes?' · '+esc(v.notes):'')+'</span></span><span class="dval">'+esc(v.spec)+'</span></div>').join('')+'</div>':'';
+}
+async function submitVisit(){
+  const g=id=>($(id)&&$(id).value||'').trim();
+  const msg=$('lv-msg'),btn=$('lv-btn');
+  const spec=g('lv-spec'),account=g('lv-acct');
+  if(!spec||!account){if(msg){msg.style.color='var(--rd)';msg.textContent='Pick your name and the account.';}return;}
+  if(btn){btn.disabled=true;btn.textContent='Saving…';}
+  try{
+    if(SB&&SBUSER){
+      const {error}=await SB.from('visits').insert({spec,account,type:g('lv-type'),outcome:g('lv-out'),date:g('lv-date')||undefined,notes:g('lv-notes'),user_id:SBUSER.id});
+      if(error)throw new Error(error.message);
+    }else{
+      const r=await fetch('/.netlify/functions/visits',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({spec,account,type:g('lv-type'),outcome:g('lv-out'),date:g('lv-date'),notes:g('lv-notes')})});
+      const d=await r.json();
+      if(d.error)throw new Error(d.error);
+    }
+    localStorage.setItem('hs_visit_spec',spec);
+    if(msg){msg.style.color='var(--gr)';msg.textContent='Saved — '+account+' logged.';}
+    if($('lv-acct'))$('lv-acct').value='';if($('lv-notes'))$('lv-notes').value='';
+    VISITS=null;renderRecentVisits();
+  }catch(e){if(msg){msg.style.color='var(--rd)';msg.textContent='Could not save: '+e.message;}}
+  if(btn){btn.disabled=false;btn.textContent='Log visit';}
+}
+
+/* ── FIELD COVERAGE — Veeva-style specialist activity, computed from bookings ── */
+function fieldPeriodRange(){
+  const today=new Date().toISOString().slice(0,10);
+  const back=d=>new Date(Date.now()-d*864e5).toISOString().slice(0,10);
+  if(SPERIOD==='today')return[today,today];
+  if(SPERIOD==='yest'){const y=back(1);return[y,y];}
+  if(SPERIOD==='7d')return[back(7),today];
+  if(SPERIOD==='30d')return[back(30),today];
+  if(SPERIOD==='3m')return[back(92),today];
+  if(SPERIOD==='custom')return[SFROM||back(30),STO||today];
+  if(SPERIOD==='all')return[(SHOPIFY&&SHOPIFY.recentFrom)||back(180),today];
+  return[today.slice(0,8)+'01',today]; // mtd
+}
+function fieldRows(){
+  const [from,to]=fieldPeriodRange();
+  const recent=(SHOPIFY&&SHOPIFY.recent)||[];
+  const specs={};const disp={};const universe={};const custLast={};const custSpec={};
+  const isFreeLine=(l,ls)=>((l[2]||0)<=0)&&(l[1]||0)>0&&!ls.some(o2=>o2!==l&&String(o2[0]).length>String(l[0]).length&&String(o2[0]).includes(String(l[0])));
+  for(const o of recent){
+    const raw=specCanon(o.t||'');
+    if(!raw||INTERNAL_TAG.test(raw))continue; // untagged & internal orders aren't field activity
+    const tag=raw.toLowerCase();               // merge case variants (Rhas/RHAS)
+    if(!disp[tag])disp[tag]=raw;
+    const S=specs[tag]||(specs[tag]={orders:0,days:new Set(),custs:new Set(),custs6:new Set(),rev:0,free:0});
+    const c=(o.c||'').trim();
+    if(c){S.custs6.add(c);(universe[c]=universe[c]||new Set()).add(tag);
+      if(!custLast[c]||o.dt>custLast[c])custLast[c]=o.dt;
+      custSpec[c]=custSpec[c]||{};custSpec[c][tag]=(custSpec[c][tag]||0)+1;}
+    if(o.dt<from||o.dt>to)continue;
+    S.orders++;S.days.add(o.dt);S.rev+=(o.ls||[]).reduce((x,l)=>x+(l[2]||0),0);
+    S.free+=(o.ls||[]).reduce((x,l)=>x+(isFreeLine(l,o.ls)?(l[1]||0):0),0);
+    if(c)S.custs.add(c);
+  }
+  // logged visits (the in-app visit log) count as field contact too
+  for(const v of (VISITS||[])){
+    const raw=specCanon(v.spec||'');if(!raw||INTERNAL_TAG.test(raw))continue;
+    const tag=raw.toLowerCase();if(!disp[tag])disp[tag]=raw;
+    const S=specs[tag]||(specs[tag]={orders:0,days:new Set(),custs:new Set(),custs6:new Set(),rev:0,free:0});
+    const c=(v.account||'').trim();
+    if(c){S.custs6.add(c);(universe[c]=universe[c]||new Set()).add(tag);
+      if(!custLast[c]||v.date>custLast[c])custLast[c]=v.date;
+      custSpec[c]=custSpec[c]||{};custSpec[c][tag]=(custSpec[c][tag]||0)+1;}
+    if(v.date<from||v.date>to)continue;
+    S.visits=(S.visits||0)+1;S.days.add(v.date);
+    if(c)S.custs.add(c);
+  }
+  const rows=Object.keys(specs).map(k=>{const s=specs[k];const n=disp[k]||k;return{n,orders:s.orders,visits:s.visits||0,days:s.days.size,
+    perDay:s.days.size?(s.orders+(s.visits||0))/s.days.size:0,custs:s.custs.size,custs6:s.custs6.size,
+    cov:s.custs6.size?s.custs.size/s.custs6.size*100:0,rev:s.rev,free:s.free};})
+    .filter(r=>r.orders>0||r.custs6>0||r.visits>0).sort((a,b)=>b.rev-a.rev);
+  // accounts not booked in the period (universe = anyone booked in the ~6-month window)
+  const visited=new Set();for(const n in specs)for(const c of specs[n].custs)visited.add(c);
+  const notVisited=Object.keys(universe).filter(c=>!visited.has(c)&&!/pull\s*-?\s*out/i.test(c))
+    .map(c=>{const sp=Object.entries(custSpec[c]||{}).sort((a,b)=>b[1]-a[1]);const shopC=((SHOPIFY&&SHOPIFY.customers)||{})[c]||{};
+      return{c,last:custLast[c]||'',spec:sp.length?(disp[sp[0][0]]||sp[0][0]):'',v:shopC.v||0};})
+    .sort((a,b)=>b.v-a.v);
+  return{rows,notVisited,from,to,universeN:Object.keys(universe).length,visitedN:visited.size};
+}
+function renderSalesField(){
+  if(!salesGuard())return;
+  if(!(SHOPIFY&&SHOPIFY.recent&&SHOPIFY.recent.length)){
+    $('content').innerHTML='<div class="empty" style="margin-top:40px">Waiting for order-level data — appears after the next sales-cache rebuild.</div>';try{loadShopify();}catch(e){}return;}
+  if(VISITS===null)loadVisits().then(()=>{if(currentView==='salesfield')renderSalesField();}); // pull logged visits in, once
+  const periods=[['today','Today'],['yest','Yesterday'],['7d','7 days'],['mtd','This month'],['30d','30 days'],['3m','3 months'],['all','≈6 months'],['custom','Custom']];
+  const dInp='style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:5px 8px;font-size:12px"';
+  const F=fieldRows();
+  const cov=F.universeN?F.visitedN/F.universeN*100:0;
+  $('content').innerHTML=
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">'+
+    '<div class="tabs" style="margin:0">'+periods.map(([k,l])=>'<div class="tab'+(SPERIOD===k?' active':'')+'" onclick="SPERIOD=\''+k+'\';renderSalesField()">'+l+'</div>').join('')+'</div>'+
+    (SPERIOD==='custom'?('<input type="date" value="'+SFROM+'" onchange="SFROM=this.value;renderSalesField()" '+dInp+'><span style="color:var(--tx3);font-size:12px">to</span><input type="date" value="'+STO+'" onchange="STO=this.value;renderSalesField()" '+dInp+'>'):'')+
+    '</div>'+
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met bl"><div class="met-lbl">Accounts reached</div><div class="met-val">'+F.visitedN+'</div><div class="met-sub">booked '+spLbl()+'</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Account universe</div><div class="met-val">'+F.universeN+'</div><div class="met-sub">customers seen in ≈6 months</div><div class="met-bar"></div></div>'+
+    '<div class="met pu"><div class="met-lbl">Coverage</div><div class="met-val">'+cov.toFixed(0)+'%</div><div class="met-sub">of the universe reached</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Not reached</div><div class="met-val">'+F.notVisited.length+'</div><div class="met-sub">accounts with no booking '+spLbl()+'</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="tcard" style="margin-bottom:14px"><div class="tscroll"><table><thead><tr><th>Specialist</th><th style="text-align:right">Orders</th><th style="text-align:right">Visits logged</th><th style="text-align:right">Active days</th><th style="text-align:right">Contacts/day</th><th style="text-align:right">Accounts reached</th><th style="text-align:right">Their universe</th><th style="min-width:120px">Coverage</th><th style="text-align:right">Free/sample u</th><th style="text-align:right">Booked ₱</th></tr></thead><tbody>'+
+    F.rows.map(r=>'<tr onclick="openSpecDrawer(\''+esc(r.n).replace(/\'/g,'&#39;')+'\')" style="cursor:pointer"><td style="font-weight:600">'+esc(r.n)+'</td>'+
+      '<td class="r">'+r.orders.toLocaleString()+'</td><td class="r" style="color:var(--bl);font-weight:600">'+(r.visits?r.visits.toLocaleString():'—')+'</td><td class="r mu">'+r.days+'</td><td class="r">'+((r.orders+r.visits)?r.perDay.toFixed(1):'—')+'</td>'+
+      '<td class="r" style="font-weight:600">'+r.custs+'</td><td class="r mu">'+r.custs6+'</td><td>'+attBar(r.cov)+'</td>'+
+      '<td class="r" style="color:var(--pu)">'+(r.free?r.free.toLocaleString():'—')+'</td><td class="r" style="font-weight:600">'+fmtPeso(r.rev)+'</td></tr>').join('')+
+    '</tbody></table></div><div class="tfooter"><span>Contacts = Shopify bookings + visits logged in the Log visit tab · universe = accounts contacted in the last ≈6 months · contacts/day = (orders + visits) ÷ active days · free/sample u = ₱0 giveaway units in their orders · pull-outs and internal orders excluded</span></div></div>'+
+    (F.notVisited.length?'<div class="tcard"><div class="tscroll"><table><thead><tr><th>Account not reached '+spLbl()+'</th><th>Usual specialist</th><th style="text-align:right">Last booking</th><th style="text-align:right">Booked ₱ (13mo)</th></tr></thead><tbody>'+
+      F.notVisited.slice(0,60).map(x=>'<tr><td style="font-weight:600;max-width:250px;overflow:hidden;text-overflow:ellipsis">'+esc(x.c)+'</td><td>'+esc(x.spec||'—')+'</td><td class="r mu">'+esc(x.last||'—')+'</td><td class="r" style="font-weight:600">'+fmtPeso(x.v)+'</td></tr>').join('')+
+      '</tbody></table></div><div class="tfooter"><span>Sorted by 13-month booked value — the most valuable accounts going quiet sit on top · a ready-made follow-up list for the team</span></div></div>':'');}
 
 /* ── VS ACCOUNTING — peso-for-peso reconciliation against the official Sales Report ── */
 const INTERNAL_TAG=/^(remedy|reemdy|healthspan)/i; // internal orders: Remedy branches (+typo), Healthspan employees/academy
@@ -3117,6 +3319,7 @@ function exportCurrentView(){
     case 'salesoverview': return exportSalesOverview();
     case 'salesdeals': return exportSalesDeals();
     case 'salesrecon': return exportSalesRecon();
+    case 'salesfield': return exportSalesField();
     case 'salesfree': return exportSalesFree();
     case 'salestarget': return exportSalesTarget();
     case 'salesspec': return exportSalesSpec();
@@ -3171,6 +3374,12 @@ function exportSalesRecon(){
   if(!SALESIDX)return;
   downloadCSV('vs_accounting',['Month','Accounting booked PHP','QBO PHP','Dashboard external PHP','Delta PHP','Delta %','Internal excluded PHP','Dashboard total PHP'],
     reconRows().filter(r=>r.acct!==null||r.all>0).map(r=>[r.m,r.acct??'',r.qbo??'',r.ext,r.gap??'',(r.gap!==null&&r.acct>0)?(r.gap/r.acct*100).toFixed(1):'',r.internal,r.all]));
+}
+function exportSalesField(){
+  if(!SHOPIFY||!SHOPIFY.recent)return;
+  const F=fieldRows();
+  downloadCSV('field_coverage_'+SPERIOD,['Specialist','Orders','Visits logged','Active days','Contacts per day','Accounts reached','Universe (6mo)','Coverage %','Free units','Booked PHP'],
+    F.rows.map(r=>[r.n,r.orders,r.visits,r.days,r.perDay.toFixed(1),r.custs,r.custs6,r.cov.toFixed(0),r.free,Math.round(r.rev)]));
 }
 function exportForecast(){
   const rows=DATA.filter(p=>((p.velAdj||0)>0||(p.velocity||0)>0)&&stk(p)!==null).sort((a,b)=>(a.daysToStockout??9999)-(b.daysToStockout??9999));
@@ -3422,7 +3631,68 @@ function exportCSV(){
   a.click();
 }
 
-/* ── ROLE PASSCODES: change the codes here (left = code, right = role) ── */
+/* ── SUPABASE AUTH (Phase A) ──
+   Paste your project's URL and anon PUBLIC key here (Supabase → Settings → API).
+   The anon key is designed to be public — security lives in row-level policies.
+   While these are empty, the dashboard falls back to the old passcode gate. */
+const SUPABASE_URL='https://lesjigujcajxurmsmwwc.supabase.co';
+const SUPABASE_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxlc2ppZ3VqY2FqeHVybXNtd3djIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc1NTc1ODcsImV4cCI6MjEwMzEzMzU4N30.nvVsTd2M5d_HQEON7v_g6gc82HoUgRQ-htg_MyPFGUQ';
+let SB=null,SBUSER=null,SBPROFILE=null;
+function sbInit(){
+  if(SB!==null)return SB;
+  if(SUPABASE_URL&&SUPABASE_ANON&&window.supabase){try{SB=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON);}catch(e){SB=false;}}
+  else SB=false;
+  return SB;
+}
+async function initAuth(){
+  sbInit();
+  if(!SB){applyRole();return;}                      // legacy passcode mode until keys are pasted
+  try{
+    const {data:{session}}=await SB.auth.getSession();
+    if(session)await sbLoadProfile(session.user);
+    else showSbLogin();
+  }catch(e){showSbLogin('Could not reach the login server — check the connection.');}
+}
+async function sbLoadProfile(user){
+  SBUSER=user;
+  try{const {data}=await SB.from('profiles').select('name,role,specialist_tag').eq('id',user.id).single();SBPROFILE=data||null;}catch(e){SBPROFILE=null;}
+  ROLE=(SBPROFILE&&SBPROFILE.role)||'sales';
+  const g=$('rolegate');if(g)g.style.display='none';
+  document.body.classList.toggle('role-sales',ROLE==='sales');
+  const sf=$('sf-foot');
+  const who=(SBPROFILE&&SBPROFILE.name)||user.email||'';
+  if(sf){const old=document.getElementById('rolebadge');if(old)old.remove();
+    const d=document.createElement('div');d.id='rolebadge';
+    d.innerHTML=esc(who)+' · '+(ROLE==='sales'?'Sales':'Admin')+' · <a href="#" onclick="roleLogout();return false" style="color:var(--ac)">sign out</a>';
+    d.style.cssText='padding:6px 14px;border-top:1px solid var(--bd);font-size:10.5px;color:var(--tx3)';
+    sf.parentNode.insertBefore(d,sf);}
+  if(ROLE==='sales'&&!String(currentView||'').startsWith('sales')&&currentView!=='logvisit')showView('logvisit',document.querySelector('.ni.nv-sales'));
+}
+function showSbLogin(err){
+  const g=$('rolegate');if(!g)return;
+  g.style.display='flex';
+  g.innerHTML='<div style="background:var(--sf);border:1px solid var(--bd);border-radius:16px;padding:32px 36px;max-width:360px;width:90%;text-align:center">'+
+    '<div style="font-weight:700;font-size:18px;margin-bottom:4px">Healthspan</div>'+
+    '<div style="font-size:12.5px;color:var(--tx3);margin-bottom:18px">Sign in with your Healthspan account</div>'+
+    '<input id="sb-email" type="email" placeholder="Email" autocomplete="username" style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px 12px;font-size:14px;margin-bottom:8px">'+
+    '<input id="sb-pass" type="password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key===\'Enter\')sbLogin()" style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px 12px;font-size:14px">'+
+    '<div id="sb-err" style="color:var(--rd);font-size:11.5px;min-height:16px;margin:8px 0 4px">'+(err?esc(err):'')+'</div>'+
+    '<button onclick="sbLogin()" style="width:100%;background:var(--ac);color:#fff;border:none;border-radius:10px;padding:11px;font-size:13.5px;font-weight:600;cursor:pointer">Sign in</button>'+
+    '<div style="font-size:10.5px;color:var(--tx3);margin-top:14px">No account or forgot the password? Ask Angelo.</div></div>';
+}
+async function sbLogin(){
+  const email=($('sb-email')&&$('sb-email').value||'').trim();
+  const pass=($('sb-pass')&&$('sb-pass').value||'');
+  const err=$('sb-err');
+  if(!email||!pass){if(err)err.textContent='Enter your email and password.';return;}
+  try{
+    const {data,error}=await SB.auth.signInWithPassword({email,password:pass});
+    if(error){if(err)err.textContent=error.message==='Invalid login credentials'?'Wrong email or password.':error.message;return;}
+    await sbLoadProfile(data.user);
+  }catch(e){if(err)err.textContent='Could not sign in: '+e.message;}
+}
+
+/* ── ROLE PASSCODES (legacy fallback, used only while Supabase keys are not set) ── */
 const ROLE_CODES={'HSADMIN26':'admin','HSSALES26':'sales'};
 let ROLE=localStorage.getItem('hs_role')||'';
 if(ROLE!=='admin'&&ROLE!=='sales')ROLE='';
@@ -3445,6 +3715,7 @@ function enterRole(){
   applyRole();
 }
 function roleLogout(){
+  if(SB){try{SB.auth.signOut();}catch(e){}SBUSER=null;SBPROFILE=null;location.reload();return;}
   try{localStorage.removeItem('hs_role');}catch(e){}
   ROLE='';document.body.classList.remove('role-sales');
   const b=document.getElementById('rolebadge');if(b)b.remove();
@@ -3455,7 +3726,7 @@ function roleLogout(){
 refreshSidebar();
 renderDashboard();
 injectDesc('dashboard');
-applyRole();
+initAuth();
 (function(){const b=document.getElementById('tipsBtn');if(b)b.style.opacity=TIPS_ON?'1':'0.55';})();
 $('sf-foot').innerHTML='Loading... <a href="#" onclick="syncNow();return false" style="color:var(--ac)">load data</a>';
 setTimeout(syncNow,300);
