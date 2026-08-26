@@ -40,10 +40,16 @@ export const handler = async (event) => {
     if (!r.ok) throw new Error('bad session');
     caller = await r.json();
   } catch (e) { return out(401, { error: 'Session invalid — sign in again' }); }
+  let callerName = caller.email || '';
   try {
-    const prof = await svc('/rest/v1/profiles?id=eq.' + caller.id + '&select=role');
+    const prof = await svc('/rest/v1/profiles?id=eq.' + caller.id + '&select=role,name');
     if (!prof || !prof[0] || prof[0].role !== 'admin') return out(403, { error: 'Admins only' });
+    callerName = prof[0].name || callerName;
   } catch (e) { return out(403, { error: 'Admins only' }); }
+  // audit trail (best-effort; the table may not exist yet)
+  const log = async (action, detail) => {
+    try { await svc('/rest/v1/audit_log', 'POST', { user_id: caller.id, who: callerName, action, detail: JSON.stringify(detail || {}).slice(0, 900) }); } catch (e) {}
+  };
 
   let p = {};
   try { p = JSON.parse(event.body || '{}'); } catch (e) {}
@@ -70,6 +76,7 @@ export const handler = async (event) => {
       if (password.length < 8) return out(400, { error: 'Password must be 8+ characters' });
       const u = await svc('/auth/v1/admin/users', 'POST', { email, password, email_confirm: true });
       await svc('/rest/v1/profiles', 'POST', { id: u.id, name, role, specialist_tag: tag || null });
+      await log('user.create', { email, name, role, tag: tag || '' });
       return out(200, { ok: true, id: u.id });
     }
     if (act === 'update') {
@@ -82,12 +89,14 @@ export const handler = async (event) => {
       await fetch(SB_URL + '/rest/v1/profiles?id=eq.' + id, {
         method: 'PATCH', headers: { apikey: SVC, Authorization: 'Bearer ' + SVC, 'Content-Type': 'application/json' }, body: JSON.stringify(patch)
       });
+      await log('user.update', { id: id.slice(0, 8), ...patch });
       return out(200, { ok: true });
     }
     if (act === 'password') {
       const { id, password } = p;
       if (!id || !password || password.length < 8) return out(400, { error: 'Need id and an 8+ character password' });
       await svc('/auth/v1/admin/users/' + id, 'PUT', { password });
+      await log('user.password', { id: id.slice(0, 8) });
       return out(200, { ok: true });
     }
     if (act === 'disable' || act === 'enable') {
@@ -95,6 +104,7 @@ export const handler = async (event) => {
       if (!id) return out(400, { error: 'Need id' });
       if (id === caller.id) return out(400, { error: 'You can’t disable your own account' });
       await svc('/auth/v1/admin/users/' + id, 'PUT', { ban_duration: act === 'disable' ? '876000h' : 'none' });
+      await log('user.' + act, { id: id.slice(0, 8) });
       return out(200, { ok: true });
     }
     return out(400, { error: 'Unknown action' });
