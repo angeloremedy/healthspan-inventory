@@ -88,7 +88,7 @@ export const handler = async (event) => {
         const status = o.cancelledAt ? 'cancelled' : (o.displayFulfillmentStatus === 'FULFILLED' ? 'fulfilled' : 'pending');
         // payments: Shopify's own financial tracking (accounting marks paid there)
         const fin = String(o.displayFinancialStatus || '').toUpperCase();
-        const pay_status = o.cancelledAt ? 'refunded' : fin === 'PAID' ? 'paid' : fin === 'REFUNDED' || fin === 'PARTIALLY_REFUNDED' ? 'refunded' : fin === 'PARTIALLY_PAID' ? 'partial' : 'pending';
+        let pay_status = o.cancelledAt ? 'refunded' : fin === 'PAID' ? 'paid' : fin === 'REFUNDED' || fin === 'PARTIALLY_REFUNDED' ? 'refunded' : fin === 'PARTIALLY_PAID' ? 'partial' : 'pending';
         // Shopify's totalOutstanding IS the truth (0 on paid orders — even those marked
         // paid manually with no gateway "received" amount). Never second-guess it.
         const hasOut = !!(o.totalOutstandingSet && o.totalOutstandingSet.shopMoney);
@@ -97,6 +97,9 @@ export const handler = async (event) => {
           : pay_status === 'paid' ? Math.max(0, outst || 0)
           : (outst !== null ? Math.max(0, outst) : total);
         const paid = Math.max(0, total - balance);
+        // Shopify shows "Paid" on the original charge even when the order still owes
+        // money (50% down / 50% PDC, or items added after payment). Money owed = partial.
+        if (pay_status === 'paid' && balance > 0) pay_status = 'partial';
         const note = String(o.note || '').slice(0, 500) || null;
         // payment terms live in free-text notes, e.g. "50% down & 50% PDC 30 days"
         const tm = note && note.match(/(\d{1,3})\s*(?:days?|dys?)\b/i);
