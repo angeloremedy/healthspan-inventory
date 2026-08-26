@@ -979,6 +979,7 @@ async function syncNow(){
 function showView(v,el){
   const SALES_OK=['logvisit','followups','account']; // non-"sales*" views the sales role may open
   if(typeof ROLE!=='undefined'&&ROLE==='sales'&&!String(v).startsWith('sales')&&!SALES_OK.includes(v)){v='salesoverview';el=document.querySelector('.ni.nv-sales');}
+  if(typeof pushRoute==='function')pushRoute('#/v/'+v); // browser back/forward works across views
   currentView=v;fLine='';fSearch='';fTab='all';fBin='';fSup='';
   document.querySelectorAll('.ni').forEach(x=>x.classList.remove('active'));
   if(el) el.classList.add('active');
@@ -1473,16 +1474,20 @@ async function submitVisit(){
 /* ── UNIFIED ACCOUNT INDEX — one entity per customer, merged from every source:
    Verna's OUT sheet (shipped), Shopify (booked), the visit log, and the CRM table ── */
 let ACCTBYNORM=null;
+// Shopify displayName artifact: company name doubled ("X X" or "X X - Branch") → collapse
+function acctDedup(s){const m=String(s||'').match(/^(.{4,}?)\s+\1(\s*-\s*.+)?$/);return m?(m[1]+(m[2]||'')).trim():String(s||'').trim();}
 function buildAcctIdx(){
   ACCTBYNORM={};
   const get=(name)=>{
-    const k=custNorm(name);if(!k)return null;
+    const disp=acctDedup(name);
+    const k=custNorm(disp);if(!k)return null;
     let e=ACCTBYNORM[k];
-    if(!e){e=ACCTBYNORM[k]={name:String(name).trim(),names:new Set([String(name).trim()]),sheet:null,shop:null,visitN:0,lastVisit:'',isRemedy:false};}
-    else e.names.add(String(name).trim());
+    if(!e){e=ACCTBYNORM[k]={name:disp,names:new Set(),sheet:null,shop:null,visitN:0,lastVisit:'',isRemedy:false,children:null,parentKey:null};}
+    e.names.add(String(name).trim()); // keep RAW spellings for timeline matching
+    e.names.add(disp);
     return e;
   };
-  for(const c of (CUSTOMERS||[])){const e=get(c.name);if(!e)continue;e.sheet=c;e.isRemedy=e.isRemedy||!!c.isRemedy;e.name=c.name;}
+  for(const c of (CUSTOMERS||[])){const e=get(c.name);if(!e)continue;e.sheet=c;e.isRemedy=e.isRemedy||!!c.isRemedy;e.name=acctDedup(c.name);}
   for(const n in ((SHOPIFY&&SHOPIFY.customers)||{})){
     if(/pull\s*-?\s*out/i.test(n))continue;
     const e=get(n);if(!e)continue;
@@ -1490,27 +1495,74 @@ function buildAcctIdx(){
     if(!e.shop)e.shop={o:0,u:0,v:0,u90:0,v90:0,l:''};
     e.shop.o+=s.o||0;e.shop.u+=s.u||0;e.shop.v+=s.v||0;e.shop.u90+=s.u90||0;e.shop.v90+=s.v90||0;
     if((s.l||'')>e.shop.l)e.shop.l=s.l;
-    if(!e.sheet)e.name=n;
+    if(!e.sheet)e.name=acctDedup(n);
   }
   for(const v of (VISITS||[])){const e=get(v.account);if(!e)continue;e.visitN++;if(v.date>e.lastVisit)e.lastVisit=v.date;}
+  // Parent/branch grouping — only structurally CONFIRMED: "X - Branch" groups under X
+  // when X itself exists as an account, or ≥2 accounts share the "X - " prefix.
+  const keys=Object.keys(ACCTBYNORM);
+  const prefixCount={};
+  for(const k of keys){const n=ACCTBYNORM[k].name;const i=n.indexOf(' - ');
+    if(i>3){const p=custNorm(n.slice(0,i));if(p)prefixCount[p]=(prefixCount[p]||0)+1;}}
+  for(const k of keys){
+    const e=ACCTBYNORM[k];const n=e.name;const i=n.indexOf(' - ');
+    if(i<=3)continue;
+    const pName=n.slice(0,i).trim();const pk=custNorm(pName);
+    if(!pk||pk===k)continue;
+    if(ACCTBYNORM[pk]||prefixCount[pk]>=2){
+      let P=ACCTBYNORM[pk];
+      if(!P)P=ACCTBYNORM[pk]={name:pName,names:new Set([pName]),sheet:null,shop:null,visitN:0,lastVisit:'',isRemedy:e.isRemedy,children:null,parentKey:null,virtual:true};
+      (P.children=P.children||[]).push(k);
+      e.parentKey=pk;
+      P.isRemedy=P.isRemedy||e.isRemedy;
+    }
+  }
   return ACCTBYNORM;
+}
+// Aggregate an entity + its branches (for the parent's cards and list row)
+function acctAgg(e){
+  const list=[e,...((e.children||[]).map(k=>ACCTBYNORM[k]).filter(Boolean))];
+  const out={shipped:0,booked:0,v90:0,orders:0,visitN:0,last:'',names:new Set()};
+  for(const x of list){
+    if(x.sheet){out.shipped+=x.sheet.value||0;if((x.sheet.lastOrder||'')>out.last)out.last=x.sheet.lastOrder||'';}
+    if(x.shop){out.booked+=x.shop.v||0;out.v90+=x.shop.v90||0;out.orders+=x.shop.o||0;if((x.shop.l||'')>out.last)out.last=x.shop.l;}
+    out.visitN+=x.visitN;if(x.lastVisit>out.last)out.last=x.lastVisit;
+    for(const n of x.names)out.names.add(n);
+  }
+  return out;
 }
 function acctList(){
   if(!ACCTBYNORM)buildAcctIdx();
-  return Object.values(ACCTBYNORM).map(e=>{
-    const shipped=e.sheet?e.sheet.value:0, booked=e.shop?e.shop.v:0;
-    const last=[e.sheet&&e.sheet.lastOrder||'',e.shop&&e.shop.l||'',e.lastVisit].sort().pop()||'';
-    const src=e.sheet&&e.shop?'both':e.sheet?'sheet':e.shop?'shopify':'prospect';
-    return {e,name:e.name,shipped,booked,last,src,total:shipped+booked};
+  return Object.values(ACCTBYNORM).filter(e=>!e.parentKey).map(e=>{
+    const a=acctAgg(e);
+    const hasSheet=e.sheet||(e.children||[]).some(k=>ACCTBYNORM[k]&&ACCTBYNORM[k].sheet);
+    const hasShop=e.shop||(e.children||[]).some(k=>ACCTBYNORM[k]&&ACCTBYNORM[k].shop);
+    const src=hasSheet&&hasShop?'both':hasSheet?'sheet':hasShop?'shopify':'prospect';
+    return {e,name:e.name,shipped:a.shipped,booked:a.booked,v90:a.v90,last:a.last,src,total:a.shipped+a.booked,branches:(e.children||[]).length};
   }).sort((a,b)=>b.total-a.total);
 }
 
 /* ── FULL-PAGE ACCOUNT PROFILE ── */
 let CUR_ACCT=null,ACCT_BACK='customers';
+let ROUTING=false; // true while applying a route from the URL (prevents push loops)
+function pushRoute(h){
+  if(ROUTING)return;
+  try{if(location.hash!==h)history.pushState(null,'',h);}catch(e){}
+}
+function applyRoute(){
+  const h=location.hash||'';
+  ROUTING=true;
+  try{
+    if(h.startsWith('#/a/')){const n=decodeURIComponent(h.slice(4));if(n){showAccountPage(n);return;}}
+    if(h.startsWith('#/v/')){const v=h.slice(4);if(v){showView(v,document.querySelector('.ni[onclick*="\''+v+'\'"]'));return;}}
+  }finally{ROUTING=false;}
+}
+window.addEventListener('popstate',applyRoute);
 function showAccountPage(name){
   if(currentView!=='account')ACCT_BACK=currentView||'customers';
   CUR_ACCT=String(name||'').trim();
   currentView='account';
+  pushRoute('#/a/'+encodeURIComponent(CUR_ACCT));
   $('ptitle').textContent=CUR_ACCT;
   $('overlay').classList.remove('open');$('drawer').classList.remove('open');
   renderAccountPage();
@@ -1520,17 +1572,22 @@ async function renderAccountPage(){
   const name=CUR_ACCT;if(!name){showView(ACCT_BACK);return;}
   await loadVisits();
   if(!ACCTBYNORM)buildAcctIdx();
-  const e=ACCTBYNORM[custNorm(name)]||{name,names:new Set([name]),sheet:null,shop:null,visitN:0,lastVisit:''};
+  const e=ACCTBYNORM[custNorm(acctDedup(name))]||{name:acctDedup(name),names:new Set([name]),sheet:null,shop:null,visitN:0,lastVisit:'',children:null};
   let acct=null;
-  if(SB){try{const {data}=await SB.from('accounts').select('*').eq('name',name).maybeSingle();acct=data||null;}catch(err){}}
-  const aliases=[...(e.names||[])];
-  // timeline from ALL name variants: Shopify orders + visits (+ sheet shipments if available)
+  if(SB){try{const {data}=await SB.from('accounts').select('*').eq('name',e.name).maybeSingle();acct=data||null;}catch(err){}}
+  const AGG=acctAgg(e);
+  const aliases=[...AGG.names];
+  // timeline from ALL name variants INCLUDING branches: orders + visits + shipments
   const inNames=new Set(aliases.map(a=>a.trim()));
+  const skuName=(()=>{const m={};DATA.forEach(p=>m[p.sku]=p.name);const bs=Object.keys(m).sort((a,b)=>b.length-a.length);
+    return s=>{s=String(s).trim();if(m[s])return m[s];const b=bs.find(x=>s.startsWith(x)&&s.length>x.length)||bs.find(x=>x.length>=4&&s.length>x.length&&s.includes(x));return b?m[b]+' (deal)':s;};})();
   const orders=((SHOPIFY&&SHOPIFY.recent)||[]).filter(o=>inNames.has((o.c||'').trim()))
-    .map(o=>({k:'order',dt:o.dt,who:o.t||'',label:o.n,amt:(o.ls||[]).reduce((x,l)=>x+(l[2]||0),0),detail:(o.ls||[]).length+' lines'}));
+    .map((o,ix)=>({k:'order',dt:o.dt,who:o.t||'',label:o.n,amt:(o.ls||[]).reduce((x,l)=>x+(l[2]||0),0),oid:'ord'+ix,
+      lines:(o.ls||[]).map(l=>({n:skuName(l[0]),q:l[1]||0,a:l[2]||0}))}));
   const visits=(VISITS||[]).filter(v=>inNames.has((v.account||'').trim()))
     .map(v=>({k:v.status==='planned'?'plan':'visit',dt:v.date,who:v.spec,label:v.type||'Visit',out:v.outcome,notes:v.notes,fu:v.outcome==='Follow-up needed'&&!v.fu_done}));
-  const ship=(e.sheet&&e.sheet.recent||[]).map(r=>({k:'ship',dt:r.date,who:'warehouse',label:r.qty+' × '+r.name,amt:null}));
+  const ship=[e,...((e.children||[]).map(k=>ACCTBYNORM[k]).filter(Boolean))]
+    .flatMap(x=>(x.sheet&&x.sheet.recent||[]).map(r=>({k:'ship',dt:r.date,who:'warehouse',label:r.qty+' × '+r.name,amt:null})));
   const tl=[...orders,...visits,...ship].sort((a,b)=>a.dt<b.dt?1:a.dt>b.dt?-1:0).slice(0,60);
   const openFu=visits.filter(v=>v.fu).length;
   const pill=k=>k==='order'?'<span class="pill pgr">order</span>':k==='plan'?'<span class="pill pbl">planned</span>':k==='ship'?'<span class="pill pgy">shipped</span>':'<span class="pill" style="background:rgba(186,117,23,.15);color:var(--am)">visit</span>';
@@ -1560,27 +1617,66 @@ async function renderAccountPage(){
     '<button onclick="window._lvAccount=\''+esc(name).replace(/'/g,'&#39;')+'\';showView(\'logvisit\',null)" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:600;cursor:pointer">+ Log visit here</button>'+
     '</div>'+
     '<div class="metrics" style="margin-bottom:14px">'+
-    '<div class="met gr"><div class="met-lbl">Booked (13mo)</div><div class="met-val" style="font-size:15px">'+fmtPeso(e.shop?e.shop.v:0)+'</div><div class="met-sub">'+(e.shop?e.shop.o+' Shopify orders':'—')+'</div><div class="met-bar"></div></div>'+
-    '<div class="met bl"><div class="met-lbl">Shipped (sheet)</div><div class="met-val" style="font-size:15px">'+fmtPeso(e.sheet?e.sheet.value:0)+'</div><div class="met-sub">'+(e.sheet?e.sheet.qty.toLocaleString()+' units':'not in OUT sheet')+'</div><div class="met-bar"></div></div>'+
-    '<div class="met am"><div class="met-lbl">Last 90d booked</div><div class="met-val" style="font-size:15px">'+fmtPeso(e.shop?e.shop.v90:0)+'</div><div class="met-sub">momentum</div><div class="met-bar"></div></div>'+
-    '<div class="met pu"><div class="met-lbl">Visits logged</div><div class="met-val">'+e.visitN+'</div><div class="met-sub">'+(e.lastVisit?'last '+esc(e.lastVisit):'none yet')+'</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Booked (13mo)</div><div class="met-val" style="font-size:15px">'+fmtPeso(AGG.booked)+'</div><div class="met-sub">'+AGG.orders+' Shopify orders'+(e.children?' · all branches':'')+'</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Shipped (sheet)</div><div class="met-val" style="font-size:15px">'+fmtPeso(AGG.shipped)+'</div><div class="met-sub">'+(AGG.shipped?'warehouse OUT':'not in OUT sheet')+'</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Last 90d booked</div><div class="met-val" style="font-size:15px">'+fmtPeso(AGG.v90)+'</div><div class="met-sub">momentum</div><div class="met-bar"></div></div>'+
+    '<div class="met pu"><div class="met-lbl">Visits logged</div><div class="met-val">'+AGG.visitN+'</div><div class="met-sub">'+(AGG.last?'last activity '+esc(AGG.last):'none yet')+'</div><div class="met-bar"></div></div>'+
     '</div>'+
+    ((e.children&&e.children.length)?'<div class="panel" style="padding:12px 16px;margin-bottom:14px"><div class="phd">Branches</div><div style="display:flex;flex-wrap:wrap;gap:8px">'+
+      e.children.map(k=>{const c=ACCTBYNORM[k];if(!c)return '';const ca=acctAgg(c);
+        return '<a href="#" onclick="showAccountPage(\''+esc(c.name).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac);font-size:12px;background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:6px 10px;text-decoration:none">'+esc(c.name.slice(e.name.length).replace(/^\s*-\s*/,''))+' · '+fmtPeso(ca.booked+ca.shipped)+'</a>';}).join('')+'</div></div>':'')+
+    (e.parentKey&&ACCTBYNORM[e.parentKey]?'<div style="font-size:12px;margin-bottom:12px">Branch of <a href="#" onclick="showAccountPage(\''+esc(ACCTBYNORM[e.parentKey].name).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac);font-weight:600">'+esc(ACCTBYNORM[e.parentKey].name)+'</a></div>':'')+
     '<div class="g2" style="align-items:start">'+
     '<div>'+
-    '<div class="panel" style="padding:16px;margin-bottom:14px"><div class="phd">Timeline — orders, visits, shipments</div>'+
-    (tl.length?tl.map(t=>'<div class="drow" style="align-items:flex-start;border-bottom:1px solid var(--bd);padding:8px 0"><span class="dlbl" style="max-width:65%">'+pill(t.k)+' <b>'+esc(t.label||'')+'</b> · '+esc(t.dt)+'<br><span style="color:var(--tx3);font-size:11.5px">'+esc(t.who||'')+(t.out?' · '+esc(t.out):'')+(t.notes?' · '+esc(t.notes):'')+'</span></span><span class="dval">'+(t.amt!=null?fmtPeso(t.amt):'')+'</span></div>').join(''):'<div style="font-size:12px;color:var(--tx3)">Nothing recorded yet — log the first visit.</div>')+'</div>'+
+    '<div class="panel" style="padding:16px;margin-bottom:14px"><div class="phd">Timeline — orders, visits, shipments'+(e.children?' (all branches)':'')+'</div>'+
+    (tl.length?tl.map(t=>{
+      const head='<div class="drow" style="align-items:flex-start;border-bottom:1px solid var(--bd);padding:8px 0'+(t.k==='order'?';cursor:pointer':'')+'"'+(t.k==='order'?' onclick="var d=document.getElementById(\''+t.oid+'\');if(d)d.style.display=d.style.display===\'none\'?\'block\':\'none\'"':'')+'>'+
+        '<span class="dlbl" style="max-width:65%">'+pill(t.k)+' <b>'+esc(t.label||'')+'</b> · '+esc(t.dt)+(t.k==='order'?' <span style="color:var(--tx3);font-size:10px">▾ tap for items</span>':'')+
+        '<br><span style="color:var(--tx3);font-size:11.5px">'+esc(t.who||'')+(t.out?' · '+esc(t.out):'')+(t.notes?' · '+esc(t.notes):'')+'</span></span>'+
+        '<span class="dval">'+(t.amt!=null?fmtPeso(t.amt):'')+'</span></div>';
+      const det=t.k==='order'&&t.lines?'<div id="'+t.oid+'" style="display:none;background:var(--sf2);border-radius:8px;padding:8px 12px;margin:2px 0 8px">'+
+        t.lines.map(l=>'<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0"><span style="max-width:70%">'+esc(l.n)+' × '+l.q+'</span><span>'+(l.a>0?fmtPeso(l.a):'<span style="color:var(--pu)">₱0</span>')+'</span></div>').join('')+'</div>':'';
+      return head+det;}).join(''):'<div style="font-size:12px;color:var(--tx3)">Nothing recorded yet — log the first visit.</div>')+'</div>'+
     (buys.length?'<div class="panel" style="padding:16px"><div class="phd">What they buy</div>'+buys.map(b=>'<div class="drow"><span class="dlbl">'+esc(b.name)+'</span><span class="dval">'+(b.q?b.q.toLocaleString()+' u':'')+(b.v?' · '+fmtPeso(b.v):'')+'</span></div>').join('')+'</div>':'')+
     '</div>'+
-    '<div class="panel" style="padding:16px"><div class="phd">Account details'+(SB?'':' (sign in to edit)')+'</div>'+
+    '<div class="panel" style="padding:16px" id="ac-panel">'+acctDetailsHTML(e.name,acct,false)+'</div>'+
+    '</div>';
+}
+/* Details panel: read-only by default, Edit button switches to the form (per Angelo) */
+let ACCT_REC=null;
+function acctDetailsHTML(name,acct,editing){
+  ACCT_REC=acct;
+  const lbl=t=>'<div style="font-size:10.5px;color:var(--tx3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin:10px 0 2px">'+t+'</div>';
+  const nameArg=esc(name).replace(/'/g,'&#39;');
+  if(!editing){
+    const val=v=>v?esc(v):'<span style="color:var(--tx3)">—</span>';
+    return '<div class="phd" style="display:flex;justify-content:space-between;align-items:center">Account details'+
+      (SB?'<button onclick="editAccount(\''+nameArg+'\')" style="background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:5px 12px;font-size:11.5px;font-weight:600;cursor:pointer">Edit</button>':'<span style="font-size:10px;color:var(--tx3)">sign in to edit</span>')+'</div>'+
+      lbl('Contact person')+val(acct&&acct.contact_person)+
+      lbl('Phone')+val(acct&&acct.phone)+
+      lbl('Address')+val(acct&&acct.address)+
+      lbl('Specialty')+val(acct&&acct.specialty)+
+      lbl('Notes')+'<div style="font-size:12.5px;white-space:pre-wrap">'+(acct&&acct.notes?esc(acct.notes):'<span style="color:var(--tx3)">—</span>')+'</div>';
+  }
+  const F=(id,label,v,ph)=>lbl(label)+'<input id="'+id+'" value="'+esc(v||'')+'" placeholder="'+ph+'" style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:9px 10px;font-size:13px">';
+  return '<div class="phd">Editing account details</div>'+
     F('ac-person','Contact person',acct&&acct.contact_person,'e.g. Dr. Santos / clinic manager')+
     F('ac-phone','Phone',acct&&acct.phone,'')+
     F('ac-addr','Address',acct&&acct.address,'')+
     F('ac-spec','Specialty',acct&&acct.specialty,'e.g. Dermatology')+
-    '<label style="font-size:10.5px;color:var(--tx3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin:10px 0 4px">Notes</label>'+
-    '<textarea id="ac-notes" rows="4" style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:9px 10px;font-size:13px">'+esc(acct&&acct.notes||'')+'</textarea>'+
-    (SB?'<div id="ac-msg" style="min-height:14px;font-size:11px;margin-top:8px"></div>'+
-    '<button onclick="saveAccount(\''+esc(name).replace(/'/g,'&#39;')+'\')" style="width:100%;background:var(--ac);color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">Save details</button>':'')+
-    '</div></div>';
+    lbl('Notes')+'<textarea id="ac-notes" rows="4" style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:9px 10px;font-size:13px">'+esc(acct&&acct.notes||'')+'</textarea>'+
+    '<div id="ac-msg" style="min-height:14px;font-size:11px;margin-top:8px"></div>'+
+    '<div style="display:flex;gap:8px;margin-top:2px">'+
+    '<button onclick="saveAccountEdit(\''+nameArg+'\')" style="flex:1;background:var(--ac);color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">Save</button>'+
+    '<button onclick="editAccountCancel(\''+nameArg+'\')" style="background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:10px 14px;font-size:13px;cursor:pointer">Cancel</button>'+
+    '</div>';
+}
+function editAccount(name){const p=$('ac-panel');if(p)p.innerHTML=acctDetailsHTML(name,ACCT_REC,true);}
+function editAccountCancel(name){const p=$('ac-panel');if(p)p.innerHTML=acctDetailsHTML(name,ACCT_REC,false);}
+async function saveAccountEdit(name){
+  await saveAccount(name);
+  if(SB){try{const {data}=await SB.from('accounts').select('*').eq('name',name).maybeSingle();ACCT_REC=data||ACCT_REC;}catch(e){}}
+  const p=$('ac-panel');if(p)p.innerHTML=acctDetailsHTML(name,ACCT_REC,false);
 }
 
 /* Legacy drawer entry — everything routes to the full-page profile now */
@@ -2060,10 +2156,10 @@ function renderCustomers(){
       '<div class="tabs" style="margin-bottom:12px">'+tabs2.map(([k,l])=>'<div class="tab'+(k==='all'?' active':'')+'" onclick="window._custFilter=\''+k+'\';renderCustomers()">'+l+'</div>').join('')+'</div>'+
       '<div class="tcard"><div class="tscroll"><table><thead><tr><th>#</th><th>Account</th><th>Source</th><th style="text-align:right">Shipped ₱</th><th style="text-align:right">Booked ₱ (13mo)</th><th style="text-align:right">Booked ₱ 90d</th><th style="text-align:right">Last activity</th></tr></thead><tbody>'+
       rows.map((r,i)=>'<tr onclick="showAccountPage(\''+esc(r.name).replace(/\'/g,'&#39;')+'\')" style="cursor:pointer'+(r.e.isRemedy?';background:var(--sf2)':'')+'"><td class="mu">'+(i+1)+'</td>'+
-        '<td style="font-weight:600;max-width:250px;overflow:hidden;text-overflow:ellipsis">'+esc(r.name)+(r.e.isRemedy?' <span class="pill pbl">sister co.</span>':'')+'</td>'+
+        '<td style="font-weight:600;max-width:250px;overflow:hidden;text-overflow:ellipsis">'+esc(r.name)+(r.branches?' <span class="pill pbl">'+r.branches+' branches</span>':'')+(r.e.isRemedy?' <span class="pill pbl">sister co.</span>':'')+'</td>'+
         '<td>'+(srcPill[r.src]||'')+'</td>'+
         '<td class="r">'+(r.shipped?fmtPeso(r.shipped):'—')+'</td><td class="r" style="font-weight:600">'+(r.booked?fmtPeso(r.booked):'—')+'</td>'+
-        '<td class="r mu">'+(r.e.shop&&r.e.shop.v90?fmtPeso(r.e.shop.v90):'—')+'</td>'+
+        '<td class="r mu">'+(r.v90?fmtPeso(r.v90):'—')+'</td>'+
         '<td class="r mu" style="font-size:11px">'+esc(r.last||'—')+'</td></tr>').join('')+
       '</tbody></table></div><div class="tfooter"><span>One row per account, merged by name across Verna’s OUT sheet, Shopify, and the visit log · tap a row for the full profile · prospects = accounts that exist only in the visit log so far</span></div></div>';
     return;
@@ -3956,7 +4052,8 @@ async function sbLoadProfile(user){
     d.innerHTML=esc(who)+' · '+(ROLE==='sales'?'Sales':'Admin')+' · <a href="#" onclick="openChangePassword();return false" style="color:var(--ac)">password</a> · <a href="#" onclick="roleLogout();return false" style="color:var(--ac)">sign out</a>';
     d.style.cssText='padding:6px 14px;border-top:1px solid var(--bd);font-size:10.5px;color:var(--tx3)';
     sf.parentNode.insertBefore(d,sf);}
-  if(ROLE==='sales'&&!String(currentView||'').startsWith('sales')&&currentView!=='logvisit')showView('logvisit',document.querySelector('.ni.nv-sales'));
+  if(location.hash&&location.hash.startsWith('#/'))applyRoute(); // deep link / refresh keeps the page
+  else if(ROLE==='sales'&&!String(currentView||'').startsWith('sales')&&currentView!=='logvisit')showView('logvisit',document.querySelector('.ni.nv-sales'));
 }
 function showSbLogin(err){
   const g=$('rolegate');if(!g)return;
