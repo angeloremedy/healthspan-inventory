@@ -35,7 +35,8 @@ body[data-theme="healthspan"]{
   --ac:#00168f;
   font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
 }
-@media(prefers-color-scheme:dark){:root{
+/* ── DARK MODE — applied via body.dark by the light/dark/system toggle ── */
+body.dark{
   --bg:#111113;--sf:#18181b;--sf2:#1f1f23;--sf3:#27272b;
   --bd:#2e2e33;--bd2:#45454d;
   --tx:#f0f0ef;--tx2:#9a9a97;--tx3:#656562;
@@ -45,7 +46,11 @@ body[data-theme="healthspan"]{
   --bl:#85b7eb;--bl-bg:#05192e;--bl-lt:#b5d4f4;
   --pu:#afa9ec;--pu-bg:#16143d;
   --ac:#5dcaa5;
-}}
+}
+/* Healthspan theme keeps its royal-blue identity in the dark */
+body.dark[data-theme="healthspan"]{
+  --ac:#8fa0ff;--bl:#8fa0ff;--bl-bg:#131a3a;--bl-lt:#b7c2ff;--pu:#b3adf0;--pu-bg:#191645;
+}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--tx);font-size:14px;line-height:1.5;min-height:100vh}
 .shell{display:flex;height:100vh;overflow:hidden}
 .sb{width:228px;flex-shrink:0;background:var(--sf);border-right:1px solid var(--bd);display:flex;flex-direction:column;overflow:hidden}
@@ -360,25 +365,36 @@ body.role-manager #nav-admin-lbl,body.role-manager .ni[onclick*="'users'"]{displ
     <span id="slbl">Sync from Google Sheets</span>
   </div>
   <nav class="nav">
-    <div class="nlbl">Views</div>
-    <div class="ni nv-sales" onclick="showView('home',this)"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Home</div>
-    <div class="ni active" onclick="showView('dashboard',this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>Dashboard</div>
-    <div class="ni" onclick="showView('action',this)"><svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Action center<span class="nbadge" id="b-action">0</span></div>
-    <div class="ni" onclick="showView('all',this)"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="1" fill="currentColor"/><circle cx="3" cy="12" r="1" fill="currentColor"/><circle cx="3" cy="18" r="1" fill="currentColor"/></svg>All SKUs</div>
-    <div class="ni" onclick="showView('customers',this)"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Accounts (CRM)</div>
-    <div class="ni" onclick="showView('fulfillq',this)"><svg viewBox="0 0 24 24"><path d="M16 3h5v5"/><path d="M21 3l-7 7"/><path d="M21 16v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3"/></svg>Fulfillment</div>
-    <div class="nlbl nv-sales">Sales</div>
+    <div class="ni nv-sales active" onclick="showView('home',this)"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Home</div>
+    <div class="nlbl nv-sales">Sales &amp; CRM</div>
     <div class="ni nv-sales" onclick="showView('neworder',this)"><svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1" fill="currentColor"/><circle cx="20" cy="21" r="1" fill="currentColor"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>New order</div>
     <div class="ni nv-sales" onclick="showView('orders',this)"><svg viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>Orders</div>
     <div class="ni nv-sales" onclick="showView('logvisit',this)"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>Log visit</div>
     <div class="ni nv-sales" onclick="showView('followups',this)"><svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Follow-ups &amp; plans</div>
+    <div class="ni" onclick="showView('customers',this)"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Accounts (CRM)</div>
+    <div class="ni" onclick="showView('targets',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M12 2v4"/></svg>Set targets</div>
+    <div class="nlbl nv-sales">Sales analytics</div>
     <div class="ni nv-sales" onclick="showView('salesoverview',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Sales overview</div>
-    <div class="ni nv-sales" onclick="showView('salesdeals',this)"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Deals vs à la carte</div>
-    <div class="ni nv-sales" onclick="showView('salesfree',this)"><svg viewBox="0 0 24 24"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>Free items</div>
     <div class="ni nv-sales" onclick="showView('salestarget',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>Sales vs target</div>
     <div class="ni nv-sales" onclick="showView('salesspec',this)"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Specialists</div>
+    <div class="ni nv-sales" onclick="showView('salesdeals',this)"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Deals vs à la carte</div>
+    <div class="ni nv-sales" onclick="showView('salesfree',this)"><svg viewBox="0 0 24 24"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>Free items</div>
     <div class="ni nv-sales" onclick="showView('salesfield',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.4 8 12 8 12s8-6.6 8-12a8 8 0 0 0-8-8z"/></svg>Field coverage</div>
     <div class="ni nv-sales" onclick="showView('salesrecon',this)"><svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Vs accounting</div>
+    <div class="nlbl">Logistics</div>
+    <div class="ni" onclick="showView('fulfillq',this)"><svg viewBox="0 0 24 24"><path d="M16 3h5v5"/><path d="M21 3l-7 7"/><path d="M21 16v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3"/></svg>Fulfillment queue</div>
+    <div class="ni" onclick="showView('branchtransfer',this)"><svg viewBox="0 0 24 24"><path d="M5 17H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v3"/><rect x="9" y="11" width="14" height="10" rx="2"/><line x1="13" y1="16" x2="19" y2="16"/><line x1="16" y1="13" x2="16" y2="19"/></svg>Remedy shipments</div>
+    <div class="ni" onclick="showView('branchexpiry',this)"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Remedy expiry watch</div>
+    <div class="nlbl">Finance</div>
+    <div class="ni" onclick="showView('ar',this)"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><circle cx="12" cy="15" r="2"/></svg>AR aging</div>
+    <div class="ni" onclick="showView('aged',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Aged inventory</div>
+    <div class="ni" onclick="showView('shrinkage',this)"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r="1" fill="currentColor"/></svg>Shrinkage tracker</div>
+    <div class="ni" onclick="showView('cashexpiry',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Cash in expiring stock</div>
+    <div class="nlbl">Inventory</div>
+    <div class="ni" onclick="showView('dashboard',this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>Dashboard</div>
+    <div class="ni" onclick="showView('action',this)"><svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Action center<span class="nbadge" id="b-action">0</span></div>
+    <div class="ni" onclick="showView('all',this)"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="1" fill="currentColor"/><circle cx="3" cy="12" r="1" fill="currentColor"/><circle cx="3" cy="18" r="1" fill="currentColor"/></svg>All SKUs</div>
+    <div class="ni" onclick="showView('batches',this)"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>Batch view (FEFO)</div>
     <div class="nlbl">Alerts</div>
     <div class="ni" onclick="showView('oos',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg>Out of stock<span class="nbadge" id="b-oos">0</span></div>
     <div class="ni" onclick="showView('low',this)"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>Low stock<span class="nbadge w" id="b-low">0</span></div>
@@ -409,15 +425,6 @@ body.role-manager #nav-admin-lbl,body.role-manager .ni[onclick*="'users'"]{displ
     <div class="ni" onclick="showView('movement',this)"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Monthly movement</div>
     <div class="ni" onclick="showView('value',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Inventory value</div>
     <div class="ni" onclick="showView('dealvalue',this)"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/><line x1="13" y1="11" x2="17" y2="15"/></svg>Deal scenarios</div>
-    <div class="ni" onclick="showView('batches',this)"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>Batch view (FEFO)</div>
-    <div class="nlbl">Finance</div>
-    <div class="ni" onclick="showView('ar',this)"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><circle cx="12" cy="15" r="2"/></svg>AR aging</div>
-    <div class="ni" onclick="showView('aged',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Aged inventory</div>
-    <div class="ni" onclick="showView('shrinkage',this)"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r="1" fill="currentColor"/></svg>Shrinkage tracker</div>
-    <div class="ni" onclick="showView('cashexpiry',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Cash in expiring stock</div>
-    <div class="nlbl">Logistics</div>
-    <div class="ni" onclick="showView('branchtransfer',this)"><svg viewBox="0 0 24 24"><path d="M5 17H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v3"/><rect x="9" y="11" width="14" height="10" rx="2"/><line x1="13" y1="16" x2="19" y2="16"/><line x1="16" y1="13" x2="16" y2="19"/></svg>Remedy shipments</div>
-    <div class="ni" onclick="showView('branchexpiry',this)"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Remedy expiry watch</div>
     <div class="nlbl" id="nav-admin-lbl">Admin</div>
     <div class="ni" onclick="showView('users',this)"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Team &amp; access</div>
     <div class="ni" onclick="showView('audit',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Activity log</div>
@@ -676,6 +683,7 @@ const DESC={
   logvisit:'For the product specialists, from the iPad: log every doctor/clinic visit in ~10 seconds — even when there’s no order. Pick your name once and it’s remembered. Logged visits count toward Field coverage and build Healthspan’s own visit history (the start of our own CRM).',
   ar:'Who owes what, and for how long: every unpaid balance bucketed into current / 31–60 / 61–90 / 90+ days, per account. Ages count from the order date plus any terms noted on the order (e.g. “PDC 30 days” — parsed from Shopify notes automatically). Payment statuses come from Shopify (accounting marks paid there); re-running the backfill syncs them. Record payments on HS-orders from their order page.',
   spec:'One specialist’s whole world: this month vs target, the calendar of planned and logged visits plus orders (tap any day), monthly sales chart with the target line, top products, open follow-ups and recent activity. Specialists land here on sign-in; managers and admins reach it from the Specialists view.',
+  targets:'Set each product specialist’s monthly peso target (admins & sales managers). Values saved here override the sheet/corporate numbers for that specialist and month across the whole app — Vs target, the Specialists view, and each specialist’s own page. Blank rows keep the sheet value; "Copy from last month" pre-fills, then adjust and save.',
   audit:'Every change, logged automatically: orders created and fulfilled, payments recorded, shipments dispatched, accounts merged, users managed — who did it and when. The paper trail for when a number looks off.',
   users:'Create, edit, and disable team accounts without opening Supabase. Add someone with a starter password, change roles and specialist tags, reset passwords, and disable accounts (kept, just blocked from signing in). Disabled accounts can be re-enabled any time.',
   fulfillq:'Verna’s daily worklist: every pending order, oldest first, with age flags (red past a week). Tap an order to fulfill or cancel it, or print the Pick list — a FEFO pull sheet that names the exact batch and bin for every line, doubling as the packing slip / delivery receipt.',
@@ -895,6 +903,7 @@ function applySync(data){
   CUSTOMERS=data.customers||[];
   COLLISIONS=data.collisions||[];
   TARGETS=data.targets||[];
+  try{mergeSpecTargets();}catch(e){} // in-app targets override sheet targets
   ACCT=data.acctBooked||null;
   if(SHOPIFY)mergeShopify(); else loadShopify();
   $('psub').textContent='Healthspan Global, Inc. \u00b7 '+DATA.length+' SKUs \u00b7 '+BATCHES.length+' batches';
@@ -950,6 +959,7 @@ function applySync(data){
   else if(currentView==='users') renderUsers();
   else if(currentView==='home') renderHome();
   else if(currentView==='audit') renderAudit();
+  else if(currentView==='targets') renderTargets();
   else renderTable();
   injectDesc(currentView);
   injectCalc(currentView);
@@ -1037,7 +1047,7 @@ function showView(v,el){
            simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator',
            simmonte:'Monte Carlo stockout risk',simproject:'12-month projection',simcash:'Cash-flow timeline',simbulk:'Bulk-buy trade-off',simbranch:'Remedy branch rebalancing',
            aged:'Aged inventory',shrinkage:'Shrinkage tracker',cashexpiry:'Cash in expiring stock',branchtransfer:'Remedy branch shipments',branchexpiry:'Remedy branch expiry watch',
-           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt'};
+           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt',targets:'Set targets'};
   $('ptitle').textContent=T[v]||v;
   if(v==='dashboard') renderDashboard();
   else if(v==='action') renderActionCenter();
@@ -1088,6 +1098,7 @@ function showView(v,el){
   else if(v==='users') renderUsers();
   else if(v==='home') renderHome();
   else if(v==='audit') renderAudit();
+  else if(v==='targets') renderTargets();
   else renderTable(v);
   injectDesc(v);
   injectCalc(v);
@@ -1581,12 +1592,15 @@ function renderNewOrder(){
   const myTag=(SBPROFILE&&SBPROFILE.specialist_tag)||'';
   const specs=specNames();
   const accounts=acctList().map(r=>r.name);
-  const preAcct=window._noAccount||'';window._noAccount='';
+  const E=window._EDITORD||null; // edit mode: reuse this form to modify an existing order
+  const preAcct=(E&&E.account)||window._noAccount||'';window._noAccount='';
   const inp='style="width:100%;box-sizing:border-box;background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:14px"';
   const lbl='style="font-size:11.5px;color:var(--tx3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin:12px 0 5px;display:block"';
   const prodOpts=DATA.filter(p=>p.price>0||stk(p)>0).map(p=>'<option value="'+esc(p.name)+' ('+esc(p.sku)+')">'+(p.price>0?fmtPeso(p.price):'no price')+'</option>').join('');
   $('content').innerHTML=
     '<div style="max-width:680px">'+
+    (E?'<div class="panel" style="padding:12px 16px;margin-bottom:14px;border-left:3px solid var(--am);display:flex;align-items:center;gap:10px"><b style="font-size:13px">✎ Editing '+esc(E.label)+'</b><span style="font-size:11.5px;color:var(--tx3)">change the lines/details below, then Save</span><span style="flex:1"></span>'+
+      '<a href="#" onclick="cancelOrderEdit();return false" style="color:var(--rd);font-size:12px">Cancel edit</a></div>':'')+
     '<div class="panel" style="padding:18px;margin-bottom:14px">'+
     '<label '+lbl+'>Account / doctor / clinic</label>'+
     '<input id="no-acct" list="no-accts" value="'+esc(preAcct)+'" placeholder="Start typing…" onchange="noAcctChanged()" '+inp+'>'+
@@ -1595,7 +1609,7 @@ function renderNewOrder(){
     '<div class="g2" style="gap:10px"><div><label '+lbl+'>Specialist</label>'+
     (myTag&&ROLE==='sales'?'<input id="no-spec" value="'+esc(myTag)+'" readonly '+inp.slice(0,-1)+';opacity:.75">':
     '<select id="no-spec" '+inp+'>'+specs.map(s=>'<option>'+esc(s)+'</option>').join('')+'</select>')+
-    '</div><div><label '+lbl+'>Date</label><input id="no-date" type="date" value="'+new Date().toISOString().slice(0,10)+'" '+inp+'></div></div>'+
+    '</div><div><label '+lbl+'>Date</label><input id="no-date" type="date" value="'+esc((E&&E.date)||new Date().toISOString().slice(0,10))+'" '+inp+'></div></div>'+
     '</div>'+
     '<div class="panel" style="padding:18px;margin-bottom:14px"><div class="phd">Add products</div>'+
     '<label '+lbl+'>Product</label><input id="no-prod" list="no-prods" oninput="noProdChanged()" placeholder="Start typing or select…" '+inp+'>'+
@@ -1607,12 +1621,30 @@ function renderNewOrder(){
     '<div id="no-cart" style="margin-top:12px"></div>'+
     '</div>'+
     '<div class="panel" style="padding:18px">'+
-    '<label '+lbl+'>Order notes (optional)</label><textarea id="no-notes" rows="2" '+inp+'></textarea>'+
+    '<label '+lbl+'>Order notes (optional)</label><textarea id="no-notes" rows="2" '+inp+'>'+esc((E&&E.notes)||'')+'</textarea>'+
     '<div id="no-msg" style="min-height:18px;font-size:12px;margin:10px 0 4px"></div>'+
-    '<button id="no-btn" onclick="submitOrder()" style="width:100%;background:var(--ac);color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:700;cursor:pointer">Submit order</button>'+
+    '<button id="no-btn" onclick="submitOrder()" style="width:100%;background:var(--ac);color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:700;cursor:pointer">'+(E?'Save changes to '+esc(E.label):'Submit order')+'</button>'+
     '<div style="font-size:10.5px;color:var(--tx3);margin-top:10px">Pilot: keep entering the order in Shopify too — we cut over once the parallel run checks out.</div>'+
     '</div></div>';
+  if(E&&E.spec&&$('no-spec'))$('no-spec').value=E.spec;
   renderCart();
+}
+/* Edit an existing native order: load it into the order form (specialists: own orders only) */
+async function editOrder(id){
+  if(!SB)return;
+  const {data:o}=await SB.from('orders').select('*,order_lines(*)').eq('id',id).maybeSingle();
+  if(!o)return alert('Order not found.');
+  if(o.source==='shopify')return alert('This order came from Shopify — edit it there; the sync brings changes over.');
+  if(o.status!=='pending')return alert('Only pending orders can be edited — unfulfill/reopen it first.');
+  const own=SBUSER&&o.user_id===SBUSER.id;
+  if(!canManage()&&!own)return alert('You can only edit your own orders.');
+  window._EDITORD={id:o.id,label:ordLabel(o),account:o.account,spec:o.spec,date:o.date,notes:o.notes||'',paid:o.paid||0};
+  CART=(o.order_lines||[]).map(l=>({sku:l.sku,name:l.name,qty:l.qty,price:l.price,amount:l.amount,is_free:l.is_free,deal:l.deal}));
+  showView('neworder',null);
+}
+function cancelOrderEdit(){
+  const E=window._EDITORD;window._EDITORD=null;CART=[];
+  if(E)showOrderPage(E.id);else showView('orders',null);
 }
 function noProdResolve(){
   const v=(($('no-prod')&&$('no-prod').value)||'').trim();
@@ -1671,6 +1703,22 @@ async function submitOrder(){
   if(btn){btn.disabled=true;btn.textContent='Submitting…';}
   try{
     const total=CART.reduce((a,l)=>a+l.amount,0);
+    const E=window._EDITORD;
+    if(E){ // EDIT: replace details + lines on the existing order
+      const paid=E.paid||0;
+      const balance=Math.max(0,total-paid);
+      const pay_status=balance<=0&&paid>0?'paid':paid>0?'partial':'pending';
+      const {error}=await SB.from('orders').update({account,spec,date:($('no-date')&&$('no-date').value)||undefined,notes:($('no-notes')&&$('no-notes').value||'').trim(),total,balance,pay_status}).eq('id',E.id);
+      if(error)throw new Error(error.message);
+      const {error:eD}=await SB.from('order_lines').delete().eq('order_id',E.id);
+      if(eD)throw new Error('Could not replace the lines: '+eD.message);
+      const {error:e2}=await SB.from('order_lines').insert(CART.map(l=>({order_id:E.id,sku:l.sku,name:l.name,qty:l.qty,price:l.price,amount:l.amount,is_free:l.is_free,deal:l.deal})));
+      if(e2)throw new Error('Details saved but lines failed — re-edit the order: '+e2.message);
+      audit('order.edit',{order:E.label,account,spec,total});
+      const id=E.id;window._EDITORD=null;CART=[];NORDERS=null;
+      showOrderPage(id);
+      return;
+    }
     const {data:ord,error}=await SB.from('orders').insert({account,spec,date:($('no-date')&&$('no-date').value)||undefined,notes:($('no-notes')&&$('no-notes').value||'').trim(),total,user_id:SBUSER.id,pay_status:'pending',paid:0,balance:total}).select().single();
     if(error)throw new Error(error.message);
     const {error:e2}=await SB.from('order_lines').insert(CART.map(l=>({order_id:ord.id,sku:l.sku,name:l.name,qty:l.qty,price:l.price,amount:l.amount,is_free:l.is_free,deal:l.deal})));
@@ -1780,6 +1828,7 @@ async function renderOrderPage(){
     '<a href="#" onclick="showView(\''+esc(ORDER_BACK)+'\');return false" style="color:var(--ac);font-size:12.5px">← Back</a>'+
     stPill(eff)+(inTrash?'<span class="pill prd">in trash</span>':'')+
     '<span style="flex:1"></span>'+
+    (src==='native'&&o.source!=='shopify'&&eff==='pending'&&!inTrash&&(canManage()||(SBUSER&&o.user_id===SBUSER.id))?'<button onclick="editOrder(\''+o.id+'\')" style="background:var(--am);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer">✎ Edit order</button>':'')+
     (src==='native'?'<button onclick="showPickSlip(\''+o.id+'\')" style="background:var(--bl);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer">🖨 Pick list</button>'+
     '<button onclick="showDeliveryReceipt(\''+o.id+'\')" style="background:var(--pu);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer">🖨 Delivery receipt</button>':'')+
     actions+
@@ -1886,6 +1935,84 @@ async function renderAudit(){
       '<td style="font-weight:600">'+esc(r.who||'')+'</td><td><span class="pill pbl">'+esc(r.action)+'</span></td>'+
       '<td class="mu" style="font-size:11.5px;max-width:420px;overflow:hidden;text-overflow:ellipsis">'+esc(fmt(r.detail))+'</td></tr>').join('')+
     '</tbody></table></div><div class="tfooter"><span>Latest '+rows.length+' events · orders, payments, shipments, merges, and account management are logged automatically</span></div></div>';
+}
+
+/* ── TARGET SETTING — admins & sales managers set monthly ₱ targets per specialist.
+   In-app targets OVERRIDE the sheet/corporate numbers for the same specialist+month;
+   every target view and specialist page picks them up automatically. ── */
+let SPEC_TGT=null;
+async function loadSpecTargets(force){
+  if(SPEC_TGT&&!force)return SPEC_TGT;
+  SPEC_TGT=[];
+  if(SB){try{const {data}=await SB.from('spec_targets').select('spec,month,amount');SPEC_TGT=data||[];}catch(e){}}
+  mergeSpecTargets();
+  return SPEC_TGT;
+}
+function mergeSpecTargets(){
+  if(!SPEC_TGT||!SPEC_TGT.length)return;
+  TARGETS=(TARGETS||[]).filter(t=>!(t.scope==='SPECIALIST'&&SPEC_TGT.some(s=>s.month===t.month&&specCanon(s.spec).toLowerCase()===specCanon(t.name||'').toLowerCase())));
+  for(const s of SPEC_TGT)TARGETS.push({month:s.month,scope:'SPECIALIST',name:s.spec,value:s.amount});
+}
+async function renderTargets(){
+  if(!canManage()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only.</div>';return;}
+  await loadSpecTargets();
+  const ym=window._tgSetYm||new Date().toISOString().slice(0,7);window._tgSetYm=ym;
+  const prev=(function(){const d=new Date(ym+'-15');d.setMonth(d.getMonth()-1);return d.toISOString().slice(0,7);})();
+  const specs=specNames();
+  const mine=s=>(SPEC_TGT||[]).find(x=>x.month===ym&&specCanon(x.spec).toLowerCase()===specCanon(s).toLowerCase());
+  const sheet=s=>{const t=(TARGETS||[]).find(x=>x.month===ym&&x.scope==='SPECIALIST'&&specCanon(x.name||'').toLowerCase()===specCanon(s).toLowerCase()&&!mine(s));return t?t.value:null;};
+  const prevOf=s=>{const t=(TARGETS||[]).find(x=>x.month===prev&&x.scope==='SPECIALIST'&&specCanon(x.name||'').toLowerCase()===specCanon(s).toLowerCase());return t?t.value:null;};
+  const inp='style="width:150px;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;font-size:13px;text-align:right"';
+  $('content').innerHTML=
+    '<div class="panel" style="padding:12px 16px;margin-bottom:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">'+
+    '<b style="font-size:13px">Month</b><input type="month" value="'+ym+'" onchange="window._tgSetYm=this.value;renderTargets()" style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:7px 9px;font-size:12.5px">'+
+    '<button onclick="tgCopyPrev()" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer">Copy from '+prev+'</button>'+
+    '<span style="flex:1"></span>'+
+    '<button onclick="tgSaveAll()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer">Save all</button></div>'+
+    '<div id="tg-msg" style="min-height:16px;font-size:12px;margin-bottom:8px"></div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Specialist</th><th style="text-align:right">Target for '+ym+' (₱)</th><th style="text-align:right">Currently in effect</th><th style="text-align:right">Last month</th><th></th></tr></thead><tbody>'+
+    specs.map(s=>{const m=mine(s),sh=sheet(s);
+      return '<tr><td style="font-weight:600">'+esc(s)+'</td>'+
+      '<td class="r"><input class="tg-in" data-spec="'+esc(s)+'" type="number" min="0" step="1000" value="'+(m?m.amount:'')+'" placeholder="'+(sh!=null?sh:'—')+'" '+inp+'></td>'+
+      '<td class="r">'+(m?'<b>'+fmtPeso(m.amount)+'</b> <span class="pill pgr" style="font-size:9px">set here</span>':sh!=null?fmtPeso(sh)+' <span class="pill pgy" style="font-size:9px">sheet</span>':'<span class="mu">none</span>')+'</td>'+
+      '<td class="r mu">'+(prevOf(s)!=null?fmtPeso(prevOf(s)):'—')+'</td>'+
+      '<td>'+(m?'<a href="#" onclick="tgClear(\''+esc(s).replace(/'/g,'&#39;')+'\');return false" style="color:var(--rd);font-size:11px">clear</a>':'')+'</td></tr>';}).join('')+
+    '</tbody></table></div><div class="tfooter"><span>Targets set here override the sheet/corporate numbers for that specialist & month, everywhere (Vs target, Specialists, their own pages) · blank = keep the sheet value · specialists see targets, only admins & sales managers set them</span></div></div>';
+}
+async function tgSaveAll(){
+  if(!canManage()||!SB)return;
+  const ym=window._tgSetYm;const msg=$('tg-msg');
+  const rows=[...document.querySelectorAll('.tg-in')].map(i=>({spec:i.dataset.spec,v:i.value.trim()})).filter(r=>r.v!==''&&!isNaN(parseFloat(r.v)));
+  if(!rows.length){if(msg){msg.style.color='var(--am)';msg.textContent='Nothing entered — type amounts first (blank rows keep their sheet value).';}return;}
+  try{
+    const {error}=await SB.from('spec_targets').upsert(rows.map(r=>({spec:r.spec,month:ym,amount:Math.round(parseFloat(r.v)),set_by:(SBUSER&&SBUSER.id)||null,updated_at:new Date().toISOString()})));
+    if(error)throw error;
+    audit('targets.set',{month:ym,specialists:rows.length});
+    await loadSpecTargets(true);
+    renderTargets();
+    const m2=$('tg-msg');if(m2){m2.style.color='var(--gr)';m2.textContent=rows.length+' target'+(rows.length>1?'s':'')+' saved for '+ym+'.';}
+  }catch(e){if(msg){msg.style.color='var(--rd)';msg.textContent='Could not save: '+(e.message||e)+(String(e.message||'').includes('spec_targets')?' — run the spec_targets SQL from SUPABASE-SETUP.md first.':'');}}
+}
+async function tgClear(spec){
+  if(!canManage()||!SB)return;
+  if(!confirm('Remove the in-app target for '+spec+' ('+window._tgSetYm+')? The sheet value (if any) takes over again.'))return;
+  try{
+    const {error}=await SB.from('spec_targets').delete().eq('spec',spec).eq('month',window._tgSetYm);
+    if(error)throw error;
+    audit('targets.clear',{month:window._tgSetYm,spec});
+    await loadSpecTargets(true);renderTargets();
+  }catch(e){alert(e.message||e);}
+}
+function tgCopyPrev(){
+  const ym=window._tgSetYm;
+  const d=new Date(ym+'-15');d.setMonth(d.getMonth()-1);const prev=d.toISOString().slice(0,7);
+  let n=0;
+  document.querySelectorAll('.tg-in').forEach(i=>{
+    if(i.value.trim()!=='')return;
+    const t=(TARGETS||[]).find(x=>x.month===prev&&x.scope==='SPECIALIST'&&specCanon(x.name||'').toLowerCase()===specCanon(i.dataset.spec).toLowerCase());
+    if(t){i.value=t.value;n++;}
+  });
+  const msg=$('tg-msg');if(msg){msg.style.color='var(--tx3)';msg.textContent=n?n+' filled from '+prev+' — review, then Save all.':'No '+prev+' targets to copy.';}
 }
 
 /* ── SHIPMENT TRACKING (courier / waybill / dispatched / delivered) ── */
@@ -2479,6 +2606,7 @@ function renderHome(){
         card(go('salesoverview'),'Sales overview','Units, value, deals split',HI.chart),
         card(go('salestarget'),'Vs target','Monthly attainment',HI.target),
         card(go('salesspec'),'Specialists','Per-PS performance',HI.user),
+        card(go('targets'),'Set targets','Monthly ₱ per specialist',HI.target),
         card(go('customers'),'Accounts','Unified customer profiles',HI.users),
         card(go('followups'),'Follow-ups','Open to-dos & planned visits',HI.check),
         card(go('salesfield'),'Field coverage','Reach vs universe',HI.pin)]],
@@ -5131,18 +5259,31 @@ function applyTheme(t){
   try{localStorage.setItem('hs_theme',t);}catch(e){}
   const el=document.getElementById('themeSel');if(el)el.value=t;
 }
+/* light / dark / system mode */
+function applyMode(m){
+  window._hsMode=m;
+  try{localStorage.setItem('hs_mode',m);}catch(e){}
+  const mq=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)');
+  document.body.classList.toggle('dark',m==='dark'||(m==='system'&&mq&&mq.matches));
+  document.querySelectorAll('.modeBtn').forEach(b=>b.style.opacity=b.dataset.m===m?'1':'.45');
+}
+if(window.matchMedia)try{window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if(window._hsMode==='system')applyMode('system');});}catch(e){}
 function initTheme(){
   const t=(function(){try{return localStorage.getItem('hs_theme');}catch(e){return null;}})()||'healthspan';
   applyTheme(t);
+  const m=(function(){try{return localStorage.getItem('hs_mode');}catch(e){return null;}})()||'system';
   const sf=$('sf-foot');
   if(sf&&!document.getElementById('themeRow')){
     const d=document.createElement('div');d.id='themeRow';
-    d.style.cssText='padding:6px 14px;border-top:1px solid var(--bd);font-size:10.5px;color:var(--tx3);display:flex;align-items:center;gap:6px';
+    d.style.cssText='padding:6px 14px;border-top:1px solid var(--bd);font-size:10.5px;color:var(--tx3);display:flex;align-items:center;gap:6px;flex-wrap:wrap';
+    const mb=(v,icon,title)=>'<span class="modeBtn" data-m="'+v+'" onclick="applyMode(\''+v+'\')" title="'+title+'" style="cursor:pointer;font-size:12px;line-height:1;padding:3px 5px;border:1px solid var(--bd);border-radius:6px;background:var(--sf)">'+icon+'</span>';
     d.innerHTML='Theme <select id="themeSel" onchange="applyTheme(this.value)" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:2px 6px;font-size:10.5px">'+
       '<option value="healthspan"'+(t==='healthspan'?' selected':'')+'>Healthspan</option>'+
-      '<option value="classic"'+(t==='classic'?' selected':'')+'>Classic</option></select>';
+      '<option value="classic"'+(t==='classic'?' selected':'')+'>Classic</option></select>'+
+      '<span style="display:inline-flex;gap:3px;margin-left:2px">'+mb('light','☀️','Light')+mb('dark','🌙','Dark')+mb('system','🖥','Match device')+'</span>';
     sf.parentNode.insertBefore(d,sf);
   }
+  applyMode(m);
 }
 
 /* ── MOBILE NAV — rebuilt per role so phones/iPads always have the right tabs ── */
@@ -5203,6 +5344,7 @@ async function sbLoadProfile(user){
   document.body.classList.toggle('role-sales',ROLE==='sales');
   document.body.classList.toggle('role-manager',ROLE==='manager');
   try{await loadAcctLinks(true);}catch(e){} // curated merges/branches apply everywhere
+  try{loadSpecTargets(true);}catch(e){}     // in-app specialist targets (override sheet)
   const sf=$('sf-foot');
   const who=(SBPROFILE&&SBPROFILE.name)||user.email||'';
   if(sf){const old=document.getElementById('rolebadge');if(old)old.remove();
