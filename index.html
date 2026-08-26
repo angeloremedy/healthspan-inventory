@@ -1507,7 +1507,7 @@ function renderNewOrder(){
   const preAcct=window._noAccount||'';window._noAccount='';
   const inp='style="width:100%;box-sizing:border-box;background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:14px"';
   const lbl='style="font-size:11.5px;color:var(--tx3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin:12px 0 5px;display:block"';
-  const prodOpts=DATA.filter(p=>p.price>0||stk(p)>0).map(p=>'<option value="'+esc(p.sku)+'">'+esc(p.name)+' ('+esc(p.sku)+')'+(p.price>0?' — '+fmtPeso(p.price):'')+'</option>').join('');
+  const prodOpts=DATA.filter(p=>p.price>0||stk(p)>0).map(p=>'<option value="'+esc(p.name)+' ('+esc(p.sku)+')">'+(p.price>0?fmtPeso(p.price):'no price')+'</option>').join('');
   $('content').innerHTML=
     '<div style="max-width:680px">'+
     '<div class="panel" style="padding:18px;margin-bottom:14px">'+
@@ -1520,7 +1520,8 @@ function renderNewOrder(){
     '</div><div><label '+lbl+'>Date</label><input id="no-date" type="date" value="'+new Date().toISOString().slice(0,10)+'" '+inp+'></div></div>'+
     '</div>'+
     '<div class="panel" style="padding:18px;margin-bottom:14px"><div class="phd">Add products</div>'+
-    '<label '+lbl+'>Product</label><select id="no-prod" onchange="noProdChanged()" '+inp+'><option value=""></option>'+prodOpts+'</select>'+
+    '<label '+lbl+'>Product</label><input id="no-prod" list="no-prods" oninput="noProdChanged()" placeholder="Start typing or select…" '+inp+'>'+
+    '<datalist id="no-prods">'+prodOpts+'</datalist>'+
     '<div class="g2" style="gap:10px"><div><label '+lbl+'>Pricing</label><select id="no-deal" '+inp+'><option value="">À la carte</option></select></div>'+
     '<div><label '+lbl+'>Qty <span style="text-transform:none;font-weight:400">(sets, for deals)</span></label><input id="no-qty" type="number" min="1" value="1" '+inp+'></div></div>'+
     '<label style="display:flex;align-items:center;gap:8px;margin:10px 0;font-size:12.5px"><input type="checkbox" id="no-free"> Free of charge (sample / goodwill)</label>'+
@@ -1535,19 +1536,28 @@ function renderNewOrder(){
     '</div></div>';
   renderCart();
 }
+function noProdResolve(){
+  const v=(($('no-prod')&&$('no-prod').value)||'').trim();
+  if(!v)return null;
+  const m=v.match(/\(([^()]+)\)\s*$/);                                  // "Name (SKU)" from the picker
+  if(m){const p=DATA.find(x=>x.sku.toLowerCase()===m[1].trim().toLowerCase());if(p)return p;}
+  let p=DATA.find(x=>x.sku.toLowerCase()===v.toLowerCase());            // raw SKU typed
+  if(p)return p;
+  const c=DATA.filter(x=>x.name.toLowerCase().startsWith(v.toLowerCase()));
+  return c.length===1?c[0]:null;                                        // unique name prefix
+}
 function noProdChanged(){
-  const sku=($('no-prod')&&$('no-prod').value)||'';
-  const p=DATA.find(x=>x.sku===sku);
+  const p=noProdResolve();
   const sel=$('no-deal');if(!sel)return;
   let html='<option value="">À la carte'+(p&&p.price>0?' — '+fmtPeso(p.price)+'/u':'')+'</option>';
   if(p&&p.deals)p.deals.forEach((d,i)=>{if(d.setSize&&d.price>0)html+='<option value="'+i+'">'+esc(d.title)+' — '+fmtPeso(d.price)+'/set</option>';});
   sel.innerHTML=html;
 }
 function addCartLine(){
-  const sku=($('no-prod')&&$('no-prod').value)||'';
-  const p=DATA.find(x=>x.sku===sku);
+  const p=noProdResolve();
+  const sku=p?p.sku:'';
   const msg=$('no-msg');
-  if(!p){if(msg){msg.style.color='var(--rd)';msg.textContent='Pick a product first.';}return;}
+  if(!p){if(msg){msg.style.color='var(--rd)';msg.textContent='Pick a product from the list (or type its exact SKU).';}return;}
   const sets=Math.max(1,parseInt(($('no-qty')&&$('no-qty').value)||'1',10)||1);
   const dealIx=($('no-deal')&&$('no-deal').value)||'';
   const free=$('no-free')&&$('no-free').checked;
@@ -1691,6 +1701,16 @@ function buildAcctIdx(){
     if(!e.sheet)e.name=acctDedup(n);
   }
   for(const v of (VISITS||[])){const e=get(v.account);if(!e)continue;e.visitN++;if(v.date>e.lastVisit)e.lastVisit=v.date;}
+  // CURATED parent groups — confirmed by the team (Jojo: A one + A2 are both Aivee;
+  // verified via Shopify records: Forbestown BGC address, "Cosmelan - Aivee" deals)
+  const CURATED_GROUPS={'Aivee Group':['a one skin and laser technologies','a2 skin and laser']};
+  for(const pName in CURATED_GROUPS){
+    const members=CURATED_GROUPS[pName].map(k=>ACCTBYNORM[k]).filter(Boolean);
+    if(!members.length)continue;
+    const pk=custNorm(pName);
+    const P=ACCTBYNORM[pk]||(ACCTBYNORM[pk]={name:pName,names:new Set([pName]),sheet:null,shop:null,visitN:0,lastVisit:'',isRemedy:false,children:null,parentKey:null,virtual:true});
+    for(const m of members){if(m===P||m.parentKey)continue;(P.children=P.children||[]).push(custNorm(m.name));m.parentKey=pk;}
+  }
   // Parent/branch grouping — only structurally CONFIRMED: "X - Branch" groups under X
   // when X itself exists as an account, or ≥2 accounts share the "X - " prefix.
   const keys=Object.keys(ACCTBYNORM);
