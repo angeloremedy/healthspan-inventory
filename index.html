@@ -341,6 +341,8 @@ body.role-sales .mobile-nav{display:none!important}
     <div class="ni" onclick="showView('all',this)"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="1" fill="currentColor"/><circle cx="3" cy="12" r="1" fill="currentColor"/><circle cx="3" cy="18" r="1" fill="currentColor"/></svg>All SKUs</div>
     <div class="ni" onclick="showView('customers',this)"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Accounts (CRM)</div>
     <div class="nlbl nv-sales">Sales</div>
+    <div class="ni nv-sales" onclick="showView('neworder',this)"><svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1" fill="currentColor"/><circle cx="20" cy="21" r="1" fill="currentColor"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>New order</div>
+    <div class="ni nv-sales" onclick="showView('orders',this)"><svg viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>Orders</div>
     <div class="ni nv-sales" onclick="showView('logvisit',this)"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>Log visit</div>
     <div class="ni nv-sales" onclick="showView('followups',this)"><svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Follow-ups &amp; plans</div>
     <div class="ni nv-sales" onclick="showView('salesoverview',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Sales overview</div>
@@ -903,6 +905,9 @@ function applySync(data){
   else if(currentView==='logvisit') renderLogVisit();
   else if(currentView==='followups') renderFollowups();
   else if(currentView==='account'){ACCTBYNORM=null;renderAccountPage();}
+  else if(currentView==='neworder') renderNewOrder();
+  else if(currentView==='orders') renderOrders();
+  else if(currentView==='order') renderOrderPage();
   else renderTable();
   injectDesc(currentView);
   injectCalc(currentView);
@@ -977,7 +982,7 @@ async function syncNow(){
 
 /* ── VIEWS ── */
 function showView(v,el){
-  const SALES_OK=['logvisit','followups','account']; // non-"sales*" views the sales role may open
+  const SALES_OK=['logvisit','followups','account','neworder','orders','order']; // non-"sales*" views the sales role may open
   if(typeof ROLE!=='undefined'&&ROLE==='sales'&&!String(v).startsWith('sales')&&!SALES_OK.includes(v)){v='salesoverview';el=document.querySelector('.ni.nv-sales');}
   if(typeof pushRoute==='function')pushRoute('#/v/'+v); // browser back/forward works across views
   currentView=v;fLine='';fSearch='';fTab='all';fBin='';fSup='';
@@ -989,7 +994,7 @@ function showView(v,el){
            simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator',
            simmonte:'Monte Carlo stockout risk',simproject:'12-month projection',simcash:'Cash-flow timeline',simbulk:'Bulk-buy trade-off',simbranch:'Remedy branch rebalancing',
            aged:'Aged inventory',shrinkage:'Shrinkage tracker',cashexpiry:'Cash in expiring stock',branchtransfer:'Remedy branch shipments',branchexpiry:'Remedy branch expiry watch',
-           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile'};
+           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order'};
   $('ptitle').textContent=T[v]||v;
   if(v==='dashboard') renderDashboard();
   else if(v==='action') renderActionCenter();
@@ -1031,6 +1036,9 @@ function showView(v,el){
   else if(v==='salesfield') renderSalesField();
   else if(v==='logvisit') renderLogVisit();
   else if(v==='followups') renderFollowups();
+  else if(v==='neworder') renderNewOrder();
+  else if(v==='orders') renderOrders();
+  else if(v==='order') renderOrderPage();
   else renderTable(v);
   injectDesc(v);
   injectCalc(v);
@@ -1471,6 +1479,180 @@ async function submitVisit(){
   if(btn){btn.disabled=false;btn.textContent='Log visit';}
 }
 
+/* ── ORDER TAKING (native orders — the Shopify replacement, pilot) ── */
+let NORDERS=null,CUR_ORDER=null,ORDER_BACK='orders';
+const fmtOrdNum=n=>'HS-'+String(1000+Number(n||0));
+async function loadNativeOrders(force){
+  if(NORDERS&&!force)return NORDERS;
+  if(!SB){NORDERS=[];return NORDERS;}
+  try{
+    const {data}=await SB.from('orders').select('*,order_lines(*)').order('created_at',{ascending:false}).limit(300);
+    NORDERS=data||[];
+  }catch(e){NORDERS=NORDERS||[];}
+  return NORDERS;
+}
+let CART=[];
+function renderNewOrder(){
+  if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in with your Healthspan account to take orders.</div>';return;}
+  const myTag=(SBPROFILE&&SBPROFILE.specialist_tag)||'';
+  const specs=Object.keys(specMerged()).sort((a,b)=>a.localeCompare(b));
+  const accounts=acctList().map(r=>r.name);
+  const preAcct=window._noAccount||'';window._noAccount='';
+  const inp='style="width:100%;box-sizing:border-box;background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:14px"';
+  const lbl='style="font-size:11.5px;color:var(--tx3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin:12px 0 5px;display:block"';
+  const prodOpts=DATA.filter(p=>p.price>0||stk(p)>0).map(p=>'<option value="'+esc(p.sku)+'">'+esc(p.name)+' ('+esc(p.sku)+')'+(p.price>0?' — '+fmtPeso(p.price):'')+'</option>').join('');
+  $('content').innerHTML=
+    '<div style="max-width:680px">'+
+    '<div class="panel" style="padding:18px;margin-bottom:14px">'+
+    '<label '+lbl+'>Account / doctor / clinic</label>'+
+    '<input id="no-acct" list="no-accts" value="'+esc(preAcct)+'" placeholder="Start typing…" '+inp+'>'+
+    '<datalist id="no-accts">'+accounts.map(a=>'<option value="'+esc(a)+'">').join('')+'</datalist>'+
+    '<div class="g2" style="gap:10px"><div><label '+lbl+'>Specialist</label>'+
+    (myTag&&ROLE==='sales'?'<input id="no-spec" value="'+esc(myTag)+'" readonly '+inp.slice(0,-1)+';opacity:.75">':
+    '<select id="no-spec" '+inp+'>'+specs.map(s=>'<option>'+esc(s)+'</option>').join('')+'</select>')+
+    '</div><div><label '+lbl+'>Date</label><input id="no-date" type="date" value="'+new Date().toISOString().slice(0,10)+'" '+inp+'></div></div>'+
+    '</div>'+
+    '<div class="panel" style="padding:18px;margin-bottom:14px"><div class="phd">Add products</div>'+
+    '<label '+lbl+'>Product</label><select id="no-prod" onchange="noProdChanged()" '+inp+'><option value=""></option>'+prodOpts+'</select>'+
+    '<div class="g2" style="gap:10px"><div><label '+lbl+'>Pricing</label><select id="no-deal" '+inp+'><option value="">À la carte</option></select></div>'+
+    '<div><label '+lbl+'>Qty <span style="text-transform:none;font-weight:400">(sets, for deals)</span></label><input id="no-qty" type="number" min="1" value="1" '+inp+'></div></div>'+
+    '<label style="display:flex;align-items:center;gap:8px;margin:10px 0;font-size:12.5px"><input type="checkbox" id="no-free"> Free of charge (sample / goodwill)</label>'+
+    '<button onclick="addCartLine()" style="width:100%;background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13.5px;font-weight:600;cursor:pointer">+ Add to order</button>'+
+    '<div id="no-cart" style="margin-top:12px"></div>'+
+    '</div>'+
+    '<div class="panel" style="padding:18px">'+
+    '<label '+lbl+'>Order notes (optional)</label><textarea id="no-notes" rows="2" '+inp+'></textarea>'+
+    '<div id="no-msg" style="min-height:18px;font-size:12px;margin:10px 0 4px"></div>'+
+    '<button id="no-btn" onclick="submitOrder()" style="width:100%;background:var(--ac);color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:700;cursor:pointer">Submit order</button>'+
+    '<div style="font-size:10.5px;color:var(--tx3);margin-top:10px">Pilot: keep entering the order in Shopify too — we cut over once the parallel run checks out.</div>'+
+    '</div></div>';
+  renderCart();
+}
+function noProdChanged(){
+  const sku=($('no-prod')&&$('no-prod').value)||'';
+  const p=DATA.find(x=>x.sku===sku);
+  const sel=$('no-deal');if(!sel)return;
+  let html='<option value="">À la carte'+(p&&p.price>0?' — '+fmtPeso(p.price)+'/u':'')+'</option>';
+  if(p&&p.deals)p.deals.forEach((d,i)=>{if(d.setSize&&d.price>0)html+='<option value="'+i+'">'+esc(d.title)+' — '+fmtPeso(d.price)+'/set</option>';});
+  sel.innerHTML=html;
+}
+function addCartLine(){
+  const sku=($('no-prod')&&$('no-prod').value)||'';
+  const p=DATA.find(x=>x.sku===sku);
+  const msg=$('no-msg');
+  if(!p){if(msg){msg.style.color='var(--rd)';msg.textContent='Pick a product first.';}return;}
+  const sets=Math.max(1,parseInt(($('no-qty')&&$('no-qty').value)||'1',10)||1);
+  const dealIx=($('no-deal')&&$('no-deal').value)||'';
+  const free=$('no-free')&&$('no-free').checked;
+  if(free){CART.push({sku,name:p.name,qty:sets,price:0,amount:0,is_free:true,deal:null});}
+  else if(dealIx!==''&&p.deals&&p.deals[dealIx]){
+    const d=p.deals[dealIx];const per=d.setSize-1;
+    CART.push({sku,name:p.name,qty:sets*per,price:Math.round(d.price/per),amount:Math.round(sets*d.price),is_free:false,deal:(d.title.match(/\d+\s*\+\s*\d+/)||[d.title])[0]});
+    CART.push({sku,name:p.name,qty:sets,price:0,amount:0,is_free:true,deal:(d.title.match(/\d+\s*\+\s*\d+/)||[d.title])[0]});
+  }else{
+    if(!(p.price>0)){if(msg){msg.style.color='var(--rd)';msg.textContent='No price on file — tick “free of charge” or fix the price first.';}return;}
+    CART.push({sku,name:p.name,qty:sets,price:p.price,amount:Math.round(sets*p.price),is_free:false,deal:null});
+  }
+  if(msg)msg.textContent='';
+  if($('no-free'))$('no-free').checked=false;
+  renderCart();
+}
+function rmCartLine(i){CART.splice(i,1);renderCart();}
+function renderCart(){
+  const box=$('no-cart');if(!box)return;
+  if(!CART.length){box.innerHTML='<div style="font-size:12px;color:var(--tx3)">No items yet.</div>';return;}
+  const tot=CART.reduce((a,l)=>a+l.amount,0);
+  box.innerHTML='<table style="width:100%;font-size:12.5px"><thead><tr><th style="text-align:left">Item</th><th style="text-align:right">Qty</th><th style="text-align:right">Amount</th><th></th></tr></thead><tbody>'+
+    CART.map((l,i)=>'<tr><td>'+esc(l.name)+(l.deal?' <span class="pill pbl">'+esc(l.deal)+'</span>':'')+(l.is_free?' <span class="pill" style="background:var(--pu-bg);color:var(--pu)">free</span>':'')+'</td>'+
+      '<td style="text-align:right">'+l.qty+'</td><td style="text-align:right">'+(l.amount?fmtPeso(l.amount):'₱0')+'</td>'+
+      '<td style="text-align:right"><a href="#" onclick="rmCartLine('+i+');return false" style="color:var(--rd)">✕</a></td></tr>').join('')+
+    '</tbody></table><div style="text-align:right;font-weight:700;font-size:15px;margin-top:10px">Total '+fmtPeso(tot)+'</div>';
+}
+async function submitOrder(){
+  const msg=$('no-msg'),btn=$('no-btn');
+  const account=($('no-acct')&&$('no-acct').value||'').trim();
+  const spec=($('no-spec')&&$('no-spec').value||'').trim();
+  if(!account||!spec||!CART.length){if(msg){msg.style.color='var(--rd)';msg.textContent='Need an account, a specialist, and at least one item.';}return;}
+  if(btn){btn.disabled=true;btn.textContent='Submitting…';}
+  try{
+    const total=CART.reduce((a,l)=>a+l.amount,0);
+    const {data:ord,error}=await SB.from('orders').insert({account,spec,date:($('no-date')&&$('no-date').value)||undefined,notes:($('no-notes')&&$('no-notes').value||'').trim(),total,user_id:SBUSER.id}).select().single();
+    if(error)throw new Error(error.message);
+    const {error:e2}=await SB.from('order_lines').insert(CART.map(l=>({order_id:ord.id,sku:l.sku,name:l.name,qty:l.qty,price:l.price,amount:l.amount,is_free:l.is_free,deal:l.deal})));
+    if(e2)throw new Error('Order saved but lines failed: '+e2.message);
+    CART=[];NORDERS=null;
+    if(msg){msg.style.color='var(--gr)';msg.textContent='Order '+fmtOrdNum(ord.num)+' submitted.';}
+    showOrderPage(ord.id);
+  }catch(e){if(msg){msg.style.color='var(--rd)';msg.textContent='Could not submit: '+e.message;}}
+  if(btn){btn.disabled=false;btn.textContent='Submit order';}
+}
+async function renderOrders(){
+  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  const os=await loadNativeOrders(true);
+  const myTag=(SBPROFILE&&SBPROFILE.specialist_tag)||'';
+  const mine=o=>!myTag||specCanon(o.spec).toLowerCase()===specCanon(myTag).toLowerCase();
+  const rows=os.filter(mine);
+  const stPill=s=>s==='fulfilled'?'<span class="pill pgr">fulfilled</span>':s==='cancelled'?'<span class="pill prd">cancelled</span>':'<span class="pill pam" style="background:var(--am-bg);color:var(--am)">pending</span>';
+  $('content').innerHTML=
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
+    '<div style="font-size:12px;color:var(--tx3)">'+rows.length+' native orders'+(myTag?' (yours)':'')+' · Shopify-entered orders stay in the account pages & sales views</div>'+
+    '<button onclick="showView(\'neworder\',null)" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer">+ New order</button></div>'+
+    (rows.length?'<div class="tcard"><div class="tscroll"><table><thead><tr><th>Order</th><th>Date</th><th>Account</th><th>Specialist</th><th style="text-align:right">Items</th><th style="text-align:right">Total</th><th>Status</th></tr></thead><tbody>'+
+    rows.map(o=>'<tr onclick="showOrderPage(\''+o.id+'\')" style="cursor:pointer"><td style="font-weight:700">'+fmtOrdNum(o.num)+'</td><td class="mu">'+esc(o.date)+'</td>'+
+      '<td style="font-weight:600;max-width:220px;overflow:hidden;text-overflow:ellipsis">'+esc(o.account)+'</td><td>'+esc(o.spec)+'</td>'+
+      '<td class="r mu">'+(o.order_lines||[]).length+'</td><td class="r" style="font-weight:600">'+fmtPeso(o.total)+'</td><td>'+stPill(o.status)+'</td></tr>').join('')+
+    '</tbody></table></div></div>':'<div class="empty" style="margin-top:30px">No orders yet — tap “+ New order” to take the first one.</div>');
+}
+function showOrderPage(ref){
+  if(currentView!=='order')ORDER_BACK=currentView||'orders';
+  CUR_ORDER=String(ref);
+  currentView='order';
+  pushRoute('#/o/'+encodeURIComponent(CUR_ORDER));
+  renderOrderPage();
+}
+async function renderOrderPage(){
+  const ref=CUR_ORDER;if(!ref){showView(ORDER_BACK);return;}
+  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  let o=null,src='native';
+  if(/^[0-9a-f-]{30,40}$/i.test(ref)){const os=await loadNativeOrders();o=os.find(x=>x.id===ref);
+    if(!o&&SB){try{const {data}=await SB.from('orders').select('*,order_lines(*)').eq('id',ref).maybeSingle();o=data;}catch(e){}}}
+  if(!o){ // Shopify order by number (e.g. #HG-10142)
+    const s=((SHOPIFY&&SHOPIFY.recent)||[]).find(x=>x.n===ref||x.n===('#'+ref));
+    if(s){src='shopify';
+      const skuName=(()=>{const m={};DATA.forEach(p=>m[p.sku]=p.name);const bs=Object.keys(m).sort((a,b)=>b.length-a.length);return t=>{t=String(t).trim();if(m[t])return m[t];const b=bs.find(x=>t.startsWith(x)&&t.length>x.length)||bs.find(x=>x.length>=4&&t.length>x.length&&t.includes(x));return b?m[b]+' (deal)':t;};})();
+      o={num:null,id:s.n,date:s.dt,account:s.c||'',spec:s.t||'',status:'imported',notes:'',total:(s.ls||[]).reduce((a,l)=>a+(l[2]||0),0),
+        order_lines:(s.ls||[]).map(l=>({sku:l[0],name:skuName(l[0]),qty:l[1]||0,amount:l[2]||0,is_free:(l[2]||0)<=0,deal:null}))};}
+  }
+  if(!o){$('content').innerHTML='<div class="empty" style="margin-top:40px">Order not found — it may be outside the imported window.</div>';return;}
+  $('ptitle').textContent=src==='shopify'?String(o.id):fmtOrdNum(o.num);
+  const isMgr=ROLE==='admin'||!(SBPROFILE&&SBPROFILE.specialist_tag);
+  const stPill=s=>s==='fulfilled'?'<span class="pill pgr">fulfilled</span>':s==='cancelled'?'<span class="pill prd">cancelled</span>':s==='imported'?'<span class="pill pbl">Shopify import</span>':'<span class="pill" style="background:var(--am-bg);color:var(--am)">pending</span>';
+  $('content').innerHTML=
+    '<div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">'+
+    '<a href="#" onclick="showView(\''+esc(ORDER_BACK)+'\');return false" style="color:var(--ac);font-size:12.5px">← Back</a>'+
+    stPill(o.status)+
+    '<span style="flex:1"></span>'+
+    (src==='native'&&o.status==='pending'&&isMgr?'<button onclick="setOrderStatus(\''+o.id+'\',\'fulfilled\')" style="background:var(--gr);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer">Mark fulfilled</button>'+
+      '<button onclick="setOrderStatus(\''+o.id+'\',\'cancelled\')" style="background:var(--rd);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer">Cancel order</button>':'')+
+    '</div>'+
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met gr"><div class="met-lbl">Total</div><div class="met-val" style="font-size:16px">'+fmtPeso(o.total)+'</div><div class="met-sub">'+(o.order_lines||[]).length+' lines</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Account</div><div class="met-val" style="font-size:13px"><a href="#" onclick="showAccountPage(\''+esc(o.account).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac)">'+esc(o.account||'—')+'</a></div><div class="met-sub">tap for profile</div><div class="met-bar"></div></div>'+
+    '<div class="met pu"><div class="met-lbl">Specialist</div><div class="met-val" style="font-size:14px">'+esc(o.spec||'—')+'</div><div class="met-sub">'+esc(o.date)+'</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Source</div><div class="met-val" style="font-size:13px">'+(src==='shopify'?'Shopify':'Healthspan')+'</div><div class="met-sub">'+(src==='shopify'?'imported order':'entered here')+'</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Product</th><th>SKU</th><th style="text-align:right">Qty</th><th style="text-align:right">Amount</th><th></th></tr></thead><tbody>'+
+    (o.order_lines||[]).map(l=>'<tr><td style="font-weight:600">'+esc(l.name)+(l.deal?' <span class="pill pbl">'+esc(l.deal)+'</span>':'')+'</td><td class="mu" style="font-size:11px">'+esc(l.sku)+'</td>'+
+      '<td class="r">'+l.qty+'</td><td class="r" style="font-weight:600">'+(l.amount>0?fmtPeso(l.amount):'<span style="color:var(--pu)">₱0</span>')+'</td>'+
+      '<td>'+(l.is_free?'<span class="pill" style="background:var(--pu-bg);color:var(--pu)">free</span>':'')+'</td></tr>').join('')+
+    '</tbody></table></div>'+(o.notes?'<div class="tfooter"><span>Notes: '+esc(o.notes)+'</span></div>':'')+'</div>';
+}
+async function setOrderStatus(id,st){
+  if(!SB)return;
+  try{const {error}=await SB.from('orders').update({status:st}).eq('id',id);if(error)throw new Error(error.message);
+    NORDERS=null;renderOrderPage();}catch(e){alert('Could not update: '+e.message);}
+}
+
 /* ── UNIFIED ACCOUNT INDEX — one entity per customer, merged from every source:
    Verna's OUT sheet (shipped), Shopify (booked), the visit log, and the CRM table ── */
 let ACCTBYNORM=null;
@@ -1554,6 +1736,7 @@ function applyRoute(){
   ROUTING=true;
   try{
     if(h.startsWith('#/a/')){const n=decodeURIComponent(h.slice(4));if(n){showAccountPage(n);return;}}
+    if(h.startsWith('#/o/')){const n=decodeURIComponent(h.slice(4));if(n){showOrderPage(n);return;}}
     if(h.startsWith('#/v/')){const v=h.slice(4);if(v){showView(v,document.querySelector('.ni[onclick*="\''+v+'\'"]'));return;}}
   }finally{ROUTING=false;}
 }
@@ -1582,8 +1765,10 @@ async function renderAccountPage(){
   const skuName=(()=>{const m={};DATA.forEach(p=>m[p.sku]=p.name);const bs=Object.keys(m).sort((a,b)=>b.length-a.length);
     return s=>{s=String(s).trim();if(m[s])return m[s];const b=bs.find(x=>s.startsWith(x)&&s.length>x.length)||bs.find(x=>x.length>=4&&s.length>x.length&&s.includes(x));return b?m[b]+' (deal)':s;};})();
   const orders=((SHOPIFY&&SHOPIFY.recent)||[]).filter(o=>inNames.has((o.c||'').trim()))
-    .map((o,ix)=>({k:'order',dt:o.dt,who:o.t||'',label:o.n,amt:(o.ls||[]).reduce((x,l)=>x+(l[2]||0),0),oid:'ord'+ix,
-      lines:(o.ls||[]).map(l=>({n:skuName(l[0]),q:l[1]||0,a:l[2]||0}))}));
+    .map(o=>({k:'order',dt:o.dt,who:o.t||'',label:o.n,amt:(o.ls||[]).reduce((x,l)=>x+(l[2]||0),0),ref:o.n}));
+  const natOrders=(await loadNativeOrders()).filter(o=>inNames.has((o.account||'').trim())&&o.status!=='cancelled')
+    .map(o=>({k:'order',dt:o.date,who:o.spec||'',label:fmtOrdNum(o.num),amt:o.total,ref:o.id,native:true}));
+  orders.push(...natOrders);
   const visits=(VISITS||[]).filter(v=>inNames.has((v.account||'').trim()))
     .map(v=>({k:v.status==='planned'?'plan':'visit',dt:v.date,who:v.spec,label:v.type||'Visit',out:v.outcome,notes:v.notes,fu:v.outcome==='Follow-up needed'&&!v.fu_done}));
   const ship=[e,...((e.children||[]).map(k=>ACCTBYNORM[k]).filter(Boolean))]
@@ -1614,6 +1799,7 @@ async function renderAccountPage(){
     (openFu?'<span class="pill prd">'+openFu+' open follow-up'+(openFu>1?'s':'')+'</span>':'')+
     (aliases.length>1?'<span class="pill pgy" title="'+esc(aliases.join(' / '))+'">'+aliases.length+' name spellings merged</span>':'')+
     '<span style="flex:1"></span>'+
+    '<button onclick="window._noAccount=\''+esc(name).replace(/'/g,'&#39;')+'\';showView(\'neworder\',null)" style="background:var(--gr);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:600;cursor:pointer">+ New order</button>'+
     '<button onclick="window._lvAccount=\''+esc(name).replace(/'/g,'&#39;')+'\';showView(\'logvisit\',null)" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:600;cursor:pointer">+ Log visit here</button>'+
     '</div>'+
     '<div class="metrics" style="margin-bottom:14px">'+
@@ -1630,13 +1816,12 @@ async function renderAccountPage(){
     '<div>'+
     '<div class="panel" style="padding:16px;margin-bottom:14px"><div class="phd">Timeline — orders, visits, shipments'+(e.children?' (all branches)':'')+'</div>'+
     (tl.length?tl.map(t=>{
-      const head='<div class="drow" style="align-items:flex-start;border-bottom:1px solid var(--bd);padding:8px 0'+(t.k==='order'?';cursor:pointer':'')+'"'+(t.k==='order'?' onclick="var d=document.getElementById(\''+t.oid+'\');if(d)d.style.display=d.style.display===\'none\'?\'block\':\'none\'"':'')+'>'+
-        '<span class="dlbl" style="max-width:65%">'+pill(t.k)+' <b>'+esc(t.label||'')+'</b> · '+esc(t.dt)+(t.k==='order'?' <span style="color:var(--tx3);font-size:10px">▾ tap for items</span>':'')+
+      const click=t.k==='order'?' onclick="showOrderPage(\''+esc(String(t.ref)).replace(/'/g,'&#39;')+'\')" style="cursor:pointer;align-items:flex-start;border-bottom:1px solid var(--bd);padding:8px 0"':' style="align-items:flex-start;border-bottom:1px solid var(--bd);padding:8px 0"';
+      return '<div class="drow"'+click+'>'+
+        '<span class="dlbl" style="max-width:65%">'+pill(t.k)+(t.native?' <span class="pill pgr">HS</span>':'')+' <b>'+esc(t.label||'')+'</b> · '+esc(t.dt)+(t.k==='order'?' <span style="color:var(--ac);font-size:10px">open →</span>':'')+
         '<br><span style="color:var(--tx3);font-size:11.5px">'+esc(t.who||'')+(t.out?' · '+esc(t.out):'')+(t.notes?' · '+esc(t.notes):'')+'</span></span>'+
         '<span class="dval">'+(t.amt!=null?fmtPeso(t.amt):'')+'</span></div>';
-      const det=t.k==='order'&&t.lines?'<div id="'+t.oid+'" style="display:none;background:var(--sf2);border-radius:8px;padding:8px 12px;margin:2px 0 8px">'+
-        t.lines.map(l=>'<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0"><span style="max-width:70%">'+esc(l.n)+' × '+l.q+'</span><span>'+(l.a>0?fmtPeso(l.a):'<span style="color:var(--pu)">₱0</span>')+'</span></div>').join('')+'</div>':'';
-      return head+det;}).join(''):'<div style="font-size:12px;color:var(--tx3)">Nothing recorded yet — log the first visit.</div>')+'</div>'+
+      }).join(''):'<div style="font-size:12px;color:var(--tx3)">Nothing recorded yet — log the first visit.</div>')+'</div>'+
     (buys.length?'<div class="panel" style="padding:16px"><div class="phd">What they buy</div>'+buys.map(b=>'<div class="drow"><span class="dlbl">'+esc(b.name)+'</span><span class="dval">'+(b.q?b.q.toLocaleString()+' u':'')+(b.v?' · '+fmtPeso(b.v):'')+'</span></div>').join('')+'</div>':'')+
     '</div>'+
     '<div class="panel" style="padding:16px" id="ac-panel">'+acctDetailsHTML(e.name,acct,false)+'</div>'+
@@ -2144,7 +2329,6 @@ function renderCustomers(){
   if(f==='all'){ // unified CRM account list: sheet + Shopify + visit-log accounts merged
     ACCTBYNORM=null;
     const rows=acctList();
-    const srcPill={both:'<span class="pill pgr">sheet + shopify</span>',sheet:'<span class="pill pgy">sheet only</span>',shopify:'<span class="pill pbl">shopify only</span>',prospect:'<span class="pill" style="background:rgba(127,119,221,.15);color:var(--pu)">prospect</span>'};
     const tabs2=[['all','All accounts ('+rows.length+')'],['growing','Growing'],['declining','Declining'],['dormant','Dormant'],['shopify','Vs Shopify']];
     $('content').innerHTML=
       '<div class="metrics" style="margin-bottom:14px">'+
@@ -2154,10 +2338,9 @@ function renderCustomers(){
       '<div class="met pu"><div class="met-lbl">Shopify-only / prospects</div><div class="met-val">'+rows.filter(r=>r.src==='shopify'||r.src==='prospect').length+'</div><div class="met-sub">not yet in the OUT sheet</div><div class="met-bar"></div></div>'+
       '</div>'+
       '<div class="tabs" style="margin-bottom:12px">'+tabs2.map(([k,l])=>'<div class="tab'+(k==='all'?' active':'')+'" onclick="window._custFilter=\''+k+'\';renderCustomers()">'+l+'</div>').join('')+'</div>'+
-      '<div class="tcard"><div class="tscroll"><table><thead><tr><th>#</th><th>Account</th><th>Source</th><th style="text-align:right">Shipped ₱</th><th style="text-align:right">Booked ₱ (13mo)</th><th style="text-align:right">Booked ₱ 90d</th><th style="text-align:right">Last activity</th></tr></thead><tbody>'+
+      '<div class="tcard"><div class="tscroll"><table><thead><tr><th>#</th><th>Account</th><th style="text-align:right">Shipped ₱</th><th style="text-align:right">Booked ₱ (13mo)</th><th style="text-align:right">Booked ₱ 90d</th><th style="text-align:right">Last activity</th></tr></thead><tbody>'+
       rows.map((r,i)=>'<tr onclick="showAccountPage(\''+esc(r.name).replace(/\'/g,'&#39;')+'\')" style="cursor:pointer'+(r.e.isRemedy?';background:var(--sf2)':'')+'"><td class="mu">'+(i+1)+'</td>'+
-        '<td style="font-weight:600;max-width:250px;overflow:hidden;text-overflow:ellipsis">'+esc(r.name)+(r.branches?' <span class="pill pbl">'+r.branches+' branches</span>':'')+(r.e.isRemedy?' <span class="pill pbl">sister co.</span>':'')+'</td>'+
-        '<td>'+(srcPill[r.src]||'')+'</td>'+
+        '<td style="font-weight:600;max-width:250px;overflow:hidden;text-overflow:ellipsis">'+esc(r.name)+(r.branches?' <span class="pill pbl">'+r.branches+' branches</span>':'')+(r.e.isRemedy?' <span class="pill pbl">sister co.</span>':'')+(r.src==='prospect'?' <span class="pill" style="background:rgba(127,119,221,.15);color:var(--pu)">prospect</span>':'')+'</td>'+
         '<td class="r">'+(r.shipped?fmtPeso(r.shipped):'—')+'</td><td class="r" style="font-weight:600">'+(r.booked?fmtPeso(r.booked):'—')+'</td>'+
         '<td class="r mu">'+(r.v90?fmtPeso(r.v90):'—')+'</td>'+
         '<td class="r mu" style="font-size:11px">'+esc(r.last||'—')+'</td></tr>').join('')+
