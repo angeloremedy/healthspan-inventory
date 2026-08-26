@@ -88,15 +88,21 @@ export const handler = async (event) => {
         const status = o.cancelledAt ? 'cancelled' : (o.displayFulfillmentStatus === 'FULFILLED' ? 'fulfilled' : 'pending');
         // payments: Shopify's own financial tracking (accounting marks paid there)
         const fin = String(o.displayFinancialStatus || '').toUpperCase();
-        const paid = Math.round(parseFloat((o.totalReceivedSet && o.totalReceivedSet.shopMoney.amount) || '0') || 0);
-        const outst = Math.round(parseFloat((o.totalOutstandingSet && o.totalOutstandingSet.shopMoney.amount) || '0') || 0);
         const pay_status = o.cancelledAt ? 'refunded' : fin === 'PAID' ? 'paid' : fin === 'REFUNDED' || fin === 'PARTIALLY_REFUNDED' ? 'refunded' : fin === 'PARTIALLY_PAID' ? 'partial' : 'pending';
+        // Shopify's totalOutstanding IS the truth (0 on paid orders — even those marked
+        // paid manually with no gateway "received" amount). Never second-guess it.
+        const hasOut = !!(o.totalOutstandingSet && o.totalOutstandingSet.shopMoney);
+        const outst = hasOut ? Math.round(parseFloat(o.totalOutstandingSet.shopMoney.amount) || 0) : null;
+        const balance = (o.cancelledAt || pay_status === 'refunded') ? 0
+          : pay_status === 'paid' ? Math.max(0, outst || 0)
+          : (outst !== null ? Math.max(0, outst) : total);
+        const paid = Math.max(0, total - balance);
         const note = String(o.note || '').slice(0, 500) || null;
         // payment terms live in free-text notes, e.g. "50% down & 50% PDC 30 days"
         const tm = note && note.match(/(\d{1,3})\s*(?:days?|dys?)\b/i);
         const terms_days = tm ? parseInt(tm[1], 10) : null;
         orderRows.push({ id, source: 'shopify', ext_ref: o.name, date: o.createdAt.slice(0, 10), account: cust, spec: tag || '', status, total, user_id: null,
-          pay_status, paid, balance: o.cancelledAt ? 0 : Math.max(0, outst || (total - paid)), terms_days, order_note: note });
+          pay_status, paid, balance, terms_days, order_note: note });
         delIds.push(id);
         for (const l of lis) {
           const isDealPart = l.sku.length >= 4 && lis.some(o2 => o2.sku !== l.sku && o2.sku.length > l.sku.length && o2.sku.includes(l.sku));
