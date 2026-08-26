@@ -67,7 +67,7 @@ export const handler = async (event) => {
     const accounts = {}; // name -> {phone,address}
     for (let page = 0; page < 600; page++) {
       const d = await gql(token,
-        'query($c:String){orders(first:60,after:$c,query:"status:any",sortKey:CREATED_AT){pageInfo{hasNextPage endCursor}edges{node{name createdAt cancelledAt tags note displayFulfillmentStatus displayFinancialStatus totalReceivedSet{shopMoney{amount}}totalOutstandingSet{shopMoney{amount}}customer{displayName phone defaultAddress{address1 city phone}}lineItems(first:60){edges{node{title sku quantity discountedTotalSet{shopMoney{amount}}}}}}}}}',
+        'query($c:String){orders(first:60,after:$c,query:"status:any",sortKey:CREATED_AT){pageInfo{hasNextPage endCursor}edges{node{name createdAt cancelledAt tags note displayFulfillmentStatus displayFinancialStatus totalReceivedSet{shopMoney{amount}}totalOutstandingSet{shopMoney{amount}}customer{displayName phone defaultAddress{address1 city phone}}lineItems(first:60){edges{node{title sku quantity currentQuantity discountedTotalSet{shopMoney{amount}}}}}}}}}',
         { c: cursor });
       const os = d.orders; pages++;
       const orderRows = [], lineRows = [], delIds = [];
@@ -80,7 +80,13 @@ export const handler = async (event) => {
         const lis = [];
         for (const le of o.lineItems.edges) {
           const li = le.node; const sku = (li.sku || '').trim(); if (!sku) continue;
-          lis.push({ sku, title: li.title || sku, qty: li.quantity || 0, amt: Math.round(parseFloat((li.discountedTotalSet && li.discountedTotalSet.shopMoney && li.discountedTotalSet.shopMoney.amount) || '0') || 0) });
+          // order edits: removed lines stay in lineItems with currentQuantity 0 —
+          // count only what the order holds NOW, scale money to the kept quantity
+          const oq = li.quantity || 0;
+          const cq = (li.currentQuantity == null) ? oq : li.currentQuantity;
+          if (!cq) continue;
+          const rawAmt = parseFloat((li.discountedTotalSet && li.discountedTotalSet.shopMoney && li.discountedTotalSet.shopMoney.amount) || '0') || 0;
+          lis.push({ sku, title: li.title || sku, qty: cq, amt: Math.round((oq && cq !== oq) ? rawAmt * cq / oq : rawAmt) });
         }
         if (!lis.length) continue;
         const id = refUuid(o.name);

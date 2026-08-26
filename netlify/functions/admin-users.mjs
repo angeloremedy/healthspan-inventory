@@ -66,7 +66,7 @@ export const handler = async (event) => {
     }
     if (act === 'create') {
       const { email, password, name, role, tag } = p;
-      if (!email || !password || !name || !['admin', 'sales'].includes(role)) return out(400, { error: 'Need email, password, name, role' });
+      if (!email || !password || !name || !['admin', 'manager', 'sales'].includes(role)) return out(400, { error: 'Need email, password, name, role' });
       if (password.length < 8) return out(400, { error: 'Password must be 8+ characters' });
       const u = await svc('/auth/v1/admin/users', 'POST', { email, password, email_confirm: true });
       await svc('/rest/v1/profiles', 'POST', { id: u.id, name, role, specialist_tag: tag || null });
@@ -77,7 +77,7 @@ export const handler = async (event) => {
       if (!id) return out(400, { error: 'Need id' });
       const patch = {};
       if (name != null) patch.name = name;
-      if (role != null) { if (!['admin', 'sales'].includes(role)) return out(400, { error: 'Bad role' }); patch.role = role; }
+      if (role != null) { if (!['admin', 'manager', 'sales'].includes(role)) return out(400, { error: 'Bad role' }); patch.role = role; }
       if (tag !== undefined) patch.specialist_tag = tag || null;
       await fetch(SB_URL + '/rest/v1/profiles?id=eq.' + id, {
         method: 'PATCH', headers: { apikey: SVC, Authorization: 'Bearer ' + SVC, 'Content-Type': 'application/json' }, body: JSON.stringify(patch)

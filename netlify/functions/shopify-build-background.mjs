@@ -100,7 +100,7 @@ export const handler = async (event) => {
     let orders = 0;
     for (let page = 0; page < 300; page++) {
       const d = await gql(token,
-        'query($c:String,$q:String){orders(first:100,after:$c,query:$q){pageInfo{hasNextPage endCursor}edges{node{name createdAt cancelledAt tags customer{displayName}lineItems(first:40){edges{node{sku quantity discountedTotalSet{shopMoney{amount}}}}}}}}}',
+        'query($c:String,$q:String){orders(first:100,after:$c,query:$q){pageInfo{hasNextPage endCursor}edges{node{name createdAt cancelledAt tags customer{displayName}lineItems(first:40){edges{node{sku quantity currentQuantity discountedTotalSet{shopMoney{amount}}}}}}}}}',
         { c: cursor, q });
       const os = d.orders;
       for (const e of os.edges) {
@@ -129,10 +129,16 @@ export const handler = async (event) => {
           const li = le.node;
           const sku = (li.sku || '').trim();
           if (!sku) continue;
+          // order edits: removed lines stay in lineItems with currentQuantity 0 —
+          // count only what the order holds NOW, scale money to the kept quantity
+          const oq = li.quantity || 0;
+          const cq = (li.currentQuantity == null) ? oq : li.currentQuantity;
+          if (!cq) continue;
+          const rawAmt = parseFloat((li.discountedTotalSet && li.discountedTotalSet.shopMoney && li.discountedTotalSet.shopMoney.amount) || '0') || 0;
           lis.push({
             sku,
-            qty: li.quantity || 0,
-            amt: parseFloat((li.discountedTotalSet && li.discountedTotalSet.shopMoney && li.discountedTotalSet.shopMoney.amount) || '0') || 0
+            qty: cq,
+            amt: (oq && cq !== oq) ? rawAmt * cq / oq : rawAmt
           });
         }
         for (const li of lis) {
