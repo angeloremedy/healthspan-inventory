@@ -67,7 +67,7 @@ export const handler = async (event) => {
     const accounts = {}; // name -> {phone,address}
     for (let page = 0; page < 600; page++) {
       const d = await gql(token,
-        'query($c:String){orders(first:60,after:$c,query:"status:any",sortKey:CREATED_AT){pageInfo{hasNextPage endCursor}edges{node{name createdAt cancelledAt tags displayFulfillmentStatus customer{displayName phone defaultAddress{address1 city phone}}lineItems(first:60){edges{node{title sku quantity discountedTotalSet{shopMoney{amount}}}}}}}}}',
+        'query($c:String){orders(first:60,after:$c,query:"status:any",sortKey:CREATED_AT){pageInfo{hasNextPage endCursor}edges{node{name createdAt cancelledAt tags note displayFulfillmentStatus displayFinancialStatus totalReceivedSet{shopMoney{amount}}totalOutstandingSet{shopMoney{amount}}customer{displayName phone defaultAddress{address1 city phone}}lineItems(first:60){edges{node{title sku quantity discountedTotalSet{shopMoney{amount}}}}}}}}}',
         { c: cursor });
       const os = d.orders; pages++;
       const orderRows = [], lineRows = [], delIds = [];
@@ -86,7 +86,17 @@ export const handler = async (event) => {
         const id = refUuid(o.name);
         const total = lis.reduce((a, l) => a + l.amt, 0);
         const status = o.cancelledAt ? 'cancelled' : (o.displayFulfillmentStatus === 'FULFILLED' ? 'fulfilled' : 'pending');
-        orderRows.push({ id, source: 'shopify', ext_ref: o.name, date: o.createdAt.slice(0, 10), account: cust, spec: tag || '', status, total, user_id: null });
+        // payments: Shopify's own financial tracking (accounting marks paid there)
+        const fin = String(o.displayFinancialStatus || '').toUpperCase();
+        const paid = Math.round(parseFloat((o.totalReceivedSet && o.totalReceivedSet.shopMoney.amount) || '0') || 0);
+        const outst = Math.round(parseFloat((o.totalOutstandingSet && o.totalOutstandingSet.shopMoney.amount) || '0') || 0);
+        const pay_status = o.cancelledAt ? 'refunded' : fin === 'PAID' ? 'paid' : fin === 'REFUNDED' || fin === 'PARTIALLY_REFUNDED' ? 'refunded' : fin === 'PARTIALLY_PAID' ? 'partial' : 'pending';
+        const note = String(o.note || '').slice(0, 500) || null;
+        // payment terms live in free-text notes, e.g. "50% down & 50% PDC 30 days"
+        const tm = note && note.match(/(\d{1,3})\s*(?:days?|dys?)\b/i);
+        const terms_days = tm ? parseInt(tm[1], 10) : null;
+        orderRows.push({ id, source: 'shopify', ext_ref: o.name, date: o.createdAt.slice(0, 10), account: cust, spec: tag || '', status, total, user_id: null,
+          pay_status, paid, balance: o.cancelledAt ? 0 : Math.max(0, outst || (total - paid)), terms_days, order_note: note });
         delIds.push(id);
         for (const l of lis) {
           const isDealPart = l.sku.length >= 4 && lis.some(o2 => o2.sku !== l.sku && o2.sku.length > l.sku.length && o2.sku.includes(l.sku));
