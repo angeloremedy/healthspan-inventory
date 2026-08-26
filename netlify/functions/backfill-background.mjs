@@ -67,10 +67,10 @@ export const handler = async (event) => {
     const accounts = {}; // name -> {phone,address}
     for (let page = 0; page < 600; page++) {
       const d = await gql(token,
-        'query($c:String){orders(first:60,after:$c,query:"status:any",sortKey:CREATED_AT){pageInfo{hasNextPage endCursor}edges{node{name createdAt cancelledAt tags note displayFulfillmentStatus displayFinancialStatus totalReceivedSet{shopMoney{amount}}totalOutstandingSet{shopMoney{amount}}customer{displayName phone defaultAddress{address1 city phone}}lineItems(first:60){edges{node{title sku quantity currentQuantity discountedTotalSet{shopMoney{amount}}}}}}}}}',
+        'query($c:String){orders(first:60,after:$c,query:"status:any",sortKey:CREATED_AT){pageInfo{hasNextPage endCursor}edges{node{name createdAt cancelledAt tags note displayFulfillmentStatus displayFinancialStatus totalReceivedSet{shopMoney{amount}}totalOutstandingSet{shopMoney{amount}}fulfillments(first:3){createdAt deliveredAt displayStatus trackingInfo(first:3){company number}}customer{displayName phone defaultAddress{address1 city phone}}lineItems(first:60){edges{node{title sku quantity currentQuantity discountedTotalSet{shopMoney{amount}}}}}}}}}',
         { c: cursor });
       const os = d.orders; pages++;
-      const orderRows = [], lineRows = [], delIds = [];
+      const orderRows = [], shipRows = [], lineRows = [], delIds = [];
       for (const e of os.edges) {
         const o = e.node;
         const tag = (o.tags && o.tags.length ? String(o.tags[0]).trim() : '');
@@ -110,8 +110,22 @@ export const handler = async (event) => {
         // payment terms live in free-text notes, e.g. "50% down & 50% PDC 30 days"
         const tm = note && note.match(/(\d{1,3})\s*(?:days?|dys?)\b/i);
         const terms_days = tm ? parseInt(tm[1], 10) : null;
-        orderRows.push({ id, source: 'shopify', ext_ref: o.name, date: o.createdAt.slice(0, 10), account: cust, spec: tag || '', status, total, user_id: null,
-          pay_status, paid, balance, terms_days, order_note: note });
+        // shipment info from Shopify fulfillments (tracking number, delivered date)
+        const fus = o.fulfillments || [];
+        const fu = fus.find(f => (f.trackingInfo || []).length) || fus[0];
+        const ti = fu && (fu.trackingInfo || [])[0];
+        const ship = fu ? {
+          courier: (ti && ti.company) || null,
+          waybill: (ti && ti.number) || null,
+          dispatched_at: fu.createdAt ? fu.createdAt.slice(0, 10) : null,
+          delivered_at: fu.deliveredAt ? fu.deliveredAt.slice(0, 10)
+            : (fu.displayStatus === 'DELIVERED' && fu.createdAt ? fu.createdAt.slice(0, 10) : null)
+        } : null;
+        const row = { id, source: 'shopify', ext_ref: o.name, date: o.createdAt.slice(0, 10), account: cust, spec: tag || '', status, total, user_id: null,
+          pay_status, paid, balance, terms_days, order_note: note };
+        // only overwrite shipment fields when Shopify actually has a fulfillment —
+        // otherwise manual courier/waybill entries in the app survive re-runs
+        if (ship) { Object.assign(row, ship); shipRows.push(row); } else orderRows.push(row);
         delIds.push(id);
         for (const l of lis) {
           const isDealPart = l.sku.length >= 4 && lis.some(o2 => o2.sku !== l.sku && o2.sku.length > l.sku.length && o2.sku.includes(l.sku));
@@ -126,11 +140,13 @@ export const handler = async (event) => {
           };
         }
       }
-      if (orderRows.length) {
-        await sb('orders?on_conflict=ext_ref', 'POST', orderRows, 'resolution=merge-duplicates,return=minimal');
+      if (orderRows.length || shipRows.length) {
+        // two batches: PostgREST bulk rows must share the same keys
+        if (orderRows.length) await sb('orders?on_conflict=ext_ref', 'POST', orderRows, 'resolution=merge-duplicates,return=minimal');
+        if (shipRows.length) await sb('orders?on_conflict=ext_ref', 'POST', shipRows, 'resolution=merge-duplicates,return=minimal');
         await sb('order_lines?order_id=in.(' + delIds.map(x => '"' + x + '"').join(',') + ')', 'DELETE'); // idempotent lines
         for (let i = 0; i < lineRows.length; i += 400) await sb('order_lines', 'POST', lineRows.slice(i, i + 400));
-        nOrders += orderRows.length; nLines += lineRows.length;
+        nOrders += orderRows.length + shipRows.length; nLines += lineRows.length;
       }
       if (pages % 5 === 0) await setStatus({ state: 'running', pages, orders: nOrders });
       if (!os.pageInfo.hasNextPage) break;
