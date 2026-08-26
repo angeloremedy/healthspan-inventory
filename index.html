@@ -420,6 +420,7 @@ body.role-manager #nav-admin-lbl,body.role-manager .ni[onclick*="'users'"]{displ
     <div class="ni" onclick="showView('branchexpiry',this)"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Remedy expiry watch</div>
     <div class="nlbl" id="nav-admin-lbl">Admin</div>
     <div class="ni" onclick="showView('users',this)"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Team &amp; access</div>
+    <div class="ni" onclick="showView('audit',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Activity log</div>
     <div class="nlbl">Product lines</div>
     <div id="lnav"></div>
   </nav>
@@ -675,6 +676,7 @@ const DESC={
   logvisit:'For the product specialists, from the iPad: log every doctor/clinic visit in ~10 seconds — even when there’s no order. Pick your name once and it’s remembered. Logged visits count toward Field coverage and build Healthspan’s own visit history (the start of our own CRM).',
   ar:'Who owes what, and for how long: every unpaid balance bucketed into current / 31–60 / 61–90 / 90+ days, per account. Ages count from the order date plus any terms noted on the order (e.g. “PDC 30 days” — parsed from Shopify notes automatically). Payment statuses come from Shopify (accounting marks paid there); re-running the backfill syncs them. Record payments on HS-orders from their order page.',
   spec:'One specialist’s whole world: this month vs target, the calendar of planned and logged visits plus orders (tap any day), monthly sales chart with the target line, top products, open follow-ups and recent activity. Specialists land here on sign-in; managers and admins reach it from the Specialists view.',
+  audit:'Every change, logged automatically: orders created and fulfilled, payments recorded, shipments dispatched, accounts merged, users managed — who did it and when. The paper trail for when a number looks off.',
   users:'Create, edit, and disable team accounts without opening Supabase. Add someone with a starter password, change roles and specialist tags, reset passwords, and disable accounts (kept, just blocked from signing in). Disabled accounts can be re-enabled any time.',
   fulfillq:'Verna’s daily worklist: every pending order, oldest first, with age flags (red past a week). Tap an order to fulfill or cancel it, or print the Pick list — a FEFO pull sheet that names the exact batch and bin for every line, doubling as the packing slip / delivery receipt.',
   account:'Everything about one account in one place: booked (Shopify) and shipped (warehouse) totals, the full timeline of orders, visits and shipments, what they buy, and the editable CRM details — contact person, phone, address, specialty, notes — shared by the whole team. Name spellings across systems are merged automatically.',
@@ -947,6 +949,7 @@ function applySync(data){
   else if(currentView==='ar') renderAR();
   else if(currentView==='users') renderUsers();
   else if(currentView==='home') renderHome();
+  else if(currentView==='audit') renderAudit();
   else renderTable();
   injectDesc(currentView);
   injectCalc(currentView);
@@ -1034,7 +1037,7 @@ function showView(v,el){
            simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator',
            simmonte:'Monte Carlo stockout risk',simproject:'12-month projection',simcash:'Cash-flow timeline',simbulk:'Bulk-buy trade-off',simbranch:'Remedy branch rebalancing',
            aged:'Aged inventory',shrinkage:'Shrinkage tracker',cashexpiry:'Cash in expiring stock',branchtransfer:'Remedy branch shipments',branchexpiry:'Remedy branch expiry watch',
-           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home'};
+           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt'};
   $('ptitle').textContent=T[v]||v;
   if(v==='dashboard') renderDashboard();
   else if(v==='action') renderActionCenter();
@@ -1084,6 +1087,7 @@ function showView(v,el){
   else if(v==='ar') renderAR();
   else if(v==='users') renderUsers();
   else if(v==='home') renderHome();
+  else if(v==='audit') renderAudit();
   else renderTable(v);
   injectDesc(v);
   injectCalc(v);
@@ -1672,6 +1676,7 @@ async function submitOrder(){
     const {error:e2}=await SB.from('order_lines').insert(CART.map(l=>({order_id:ord.id,sku:l.sku,name:l.name,qty:l.qty,price:l.price,amount:l.amount,is_free:l.is_free,deal:l.deal})));
     if(e2)throw new Error('Order saved but lines failed: '+e2.message);
     CART=[];NORDERS=null;
+    audit('order.create',{order:fmtOrdNum(ord.num),account,spec,total});
     if(msg){msg.style.color='var(--gr)';msg.textContent='Order '+fmtOrdNum(ord.num)+' submitted.';}
     showOrderPage(ord.id);
   }catch(e){if(msg){msg.style.color='var(--rd)';msg.textContent='Could not submit: '+e.message;}}
@@ -1775,7 +1780,8 @@ async function renderOrderPage(){
     '<a href="#" onclick="showView(\''+esc(ORDER_BACK)+'\');return false" style="color:var(--ac);font-size:12.5px">← Back</a>'+
     stPill(eff)+(inTrash?'<span class="pill prd">in trash</span>':'')+
     '<span style="flex:1"></span>'+
-    (src==='native'?'<button onclick="showPickSlip(\''+o.id+'\')" style="background:var(--bl);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer">🖨 Pick list</button>':'')+
+    (src==='native'?'<button onclick="showPickSlip(\''+o.id+'\')" style="background:var(--bl);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer">🖨 Pick list</button>'+
+    '<button onclick="showDeliveryReceipt(\''+o.id+'\')" style="background:var(--pu);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer">🖨 Delivery receipt</button>':'')+
     actions+
     '</div>'+
     '<div class="metrics" style="margin-bottom:14px">'+
@@ -1795,7 +1801,20 @@ async function renderOrderPage(){
       '<div class="drow"><span class="dlbl">Balance</span><span class="dval" style="font-weight:700;color:'+((o.balance||0)>0?'var(--rd)':'var(--gr)')+'">'+fmtPeso(o.balance||0)+'</span></div>'+
       (o.terms_days?'<div class="drow"><span class="dlbl">Terms</span><span class="dval">'+o.terms_days+' days</span></div>':'')+
       (ROLE==='admin'&&(o.balance||0)>0&&!inTrash?'<button onclick="recordPayment(\''+o.id+'\')" style="width:100%;background:var(--gr);color:#fff;border:none;border-radius:8px;padding:10px;font-size:12.5px;font-weight:600;cursor:pointer;margin-top:8px">+ Record payment</button>':'')+
-      '</div>':'');
+      '</div>':'')+
+    (src==='native'?(function(){
+      const inp='style="flex:1;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;font-size:12.5px;min-width:100px"';
+      const chip=(lbl,val,fld)=>val
+        ?'<div class="drow"><span class="dlbl">'+lbl+'</span><span class="dval"><span class="pill pgr">'+esc(val)+'</span>'+(canManage()?' <a href="#" onclick="shipUnmark(\''+o.id+'\',\''+fld+'\');return false" style="color:var(--tx3);font-size:10px">undo</a>':'')+'</span></div>'
+        :(canManage()&&!inTrash?'<button onclick="shipMark(\''+o.id+'\',\''+fld+'\')" style="width:100%;background:var(--bl);color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:600;cursor:pointer;margin-top:6px">Mark '+(fld==='dispatched_at'?'dispatched':'delivered')+' today</button>':'<div class="drow"><span class="dlbl">'+lbl+'</span><span class="dval mu">—</span></div>');
+      return '<div class="panel" style="padding:14px;margin-top:14px;max-width:480px"><div class="phd">Shipment</div>'+
+        (canManage()&&!inTrash
+          ?'<div style="display:flex;gap:8px;margin-bottom:8px"><input id="sh-courier" placeholder="Courier (e.g. LBC, Lalamove)" value="'+esc(o.courier||'')+'" '+inp+'><input id="sh-waybill" placeholder="Waybill / tracking no." value="'+esc(o.waybill||'')+'" '+inp+'>'+
+           '<button onclick="shipSave(\''+o.id+'\')" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer">Save</button></div>'
+          :((o.courier||o.waybill)?'<div class="drow"><span class="dlbl">Courier</span><span class="dval">'+esc(o.courier||'—')+'</span></div><div class="drow"><span class="dlbl">Waybill</span><span class="dval">'+esc(o.waybill||'—')+'</span></div>':''))+
+        chip('Dispatched',o.dispatched_at,'dispatched_at')+
+        chip('Delivered',o.delivered_at,'delivered_at')+
+        '</div>';})():'');
 }
 /* Status overrides for Shopify-imported orders + trash for everything (admin) */
 let OVR=null;
@@ -1820,6 +1839,7 @@ async function orderAct(src,ref,action){
       const {error}=await SB.from('order_overrides').upsert(patch,{onConflict:'ref'});
       if(error)throw new Error(error.message);
     }
+    audit('order.'+action,{order:ref.slice(0,12),src});
     NORDERS=null;OVR=null;
     if(action==='trash')showView('orders',null);else renderOrderPage();
   }catch(e){alert('Could not update: '+e.message);}
@@ -1829,6 +1849,7 @@ async function orderRestore(src,ref){
   try{
     if(src==='native'){const {error}=await SB.from('orders').update({deleted_at:null}).eq('id',ref);if(error)throw new Error(error.message);}
     else{const {error}=await SB.from('order_overrides').update({deleted_at:null}).eq('ref',ref);if(error)throw new Error(error.message);}
+    audit('order.restore',{order:String(ref).slice(0,12)});
     NORDERS=null;OVR=null;renderOrders();
   }catch(e){alert('Could not restore: '+e.message);}
 }
@@ -1840,8 +1861,166 @@ async function emptyOrderTrash(){
     const os=await loadNativeOrders();
     const delIds=os.filter(o=>o.deleted_at).map(o=>o.id);
     if(delIds.length){const {error}=await SB.from('orders').delete().in('id',delIds);if(error)throw new Error(error.message);}
+    audit('trash.empty',{purged:delIds.length});
     NORDERS=null;OVR=null;window._ordTrash=false;renderOrders();
   }catch(e){alert('Could not empty the trash: '+e.message);}
+}
+
+/* ── AUDIT TRAIL — who changed what, when. Fire-and-forget; never blocks the action ── */
+function audit(action,detail){
+  try{
+    if(!SB||!SBUSER)return;
+    SB.from('audit_log').insert({user_id:SBUSER.id,who:(SBPROFILE&&SBPROFILE.name)||SBUSER.email||'',action,detail:JSON.stringify(detail||{}).slice(0,900)}).then(()=>{});
+  }catch(e){}
+}
+async function renderAudit(){
+  if(!canManage()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only.</div>';return;}
+  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  let rows=[];
+  try{const {data}=await SB.from('audit_log').select('at,who,action,detail').order('at',{ascending:false}).limit(400);rows=data||[];}
+  catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Could not load — has the audit_log table been created? (SUPABASE-SETUP.md)</div>';return;}
+  const fmt=d=>{try{const o=JSON.parse(d||'{}');return Object.keys(o).map(k=>k+': '+String(o[k])).join(' · ');}catch(e){return d||'';}};
+  $('content').innerHTML=
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>When</th><th>Who</th><th>Action</th><th>Details</th></tr></thead><tbody>'+
+    rows.map(r=>'<tr><td class="mu" style="white-space:nowrap;font-size:11px">'+esc(String(r.at||'').slice(0,16).replace('T',' '))+'</td>'+
+      '<td style="font-weight:600">'+esc(r.who||'')+'</td><td><span class="pill pbl">'+esc(r.action)+'</span></td>'+
+      '<td class="mu" style="font-size:11.5px;max-width:420px;overflow:hidden;text-overflow:ellipsis">'+esc(fmt(r.detail))+'</td></tr>').join('')+
+    '</tbody></table></div><div class="tfooter"><span>Latest '+rows.length+' events · orders, payments, shipments, merges, and account management are logged automatically</span></div></div>';
+}
+
+/* ── SHIPMENT TRACKING (courier / waybill / dispatched / delivered) ── */
+async function shipSave(id){
+  if(!canManage())return alert('Admins and sales managers only.');
+  const courier=(($('sh-courier')||{}).value||'').trim(),waybill=(($('sh-waybill')||{}).value||'').trim();
+  try{
+    const {error}=await SB.from('orders').update({courier:courier||null,waybill:waybill||null}).eq('id',id);
+    if(error)throw error;
+    audit('shipment.details',{order:id.slice(0,8),courier,waybill});
+    NORDERS=null;renderOrderPage();
+  }catch(e){alert('Could not save: '+(e.message||e)+(String(e.message||'').includes('courier')?'\n\n(Run the shipment-columns SQL from SUPABASE-SETUP.md first.)':''));}
+}
+async function shipMark(id,field){
+  if(!canManage())return;
+  const label=field==='dispatched_at'?'dispatched':'delivered';
+  if(!confirm('Mark this order '+label+' today?'))return;
+  try{
+    const patch={};patch[field]=new Date().toISOString().slice(0,10);
+    const {error}=await SB.from('orders').update(patch).eq('id',id);
+    if(error)throw error;
+    audit('shipment.'+label,{order:id.slice(0,8)});
+    NORDERS=null;renderOrderPage();
+  }catch(e){alert('Could not update: '+(e.message||e));}
+}
+async function shipUnmark(id,field){
+  if(!canManage())return;
+  try{const patch={};patch[field]=null;
+    const {error}=await SB.from('orders').update(patch).eq('id',id);if(error)throw error;
+    NORDERS=null;renderOrderPage();
+  }catch(e){alert(e.message||e);}
+}
+
+/* ── DELIVERY RECEIPT (printable → PDF via the browser print dialog) ── */
+async function showDeliveryReceipt(ref){
+  currentView='delivery';
+  pushRoute('#/d/'+encodeURIComponent(ref));
+  $('ptitle').textContent='Delivery receipt';
+  $('content').innerHTML='<div class="empty" style="margin-top:40px">Preparing…</div>';
+  let o=null;
+  if(SB&&/^[0-9a-f-]{30,40}$/i.test(ref)){try{const {data}=await SB.from('orders').select('*,order_lines(*)').eq('id',ref).maybeSingle();o=data;}catch(e){}}
+  if(!o&&SB&&/HG-/i.test(ref)){try{const {data}=await SB.from('orders').select('*,order_lines(*)').eq('ext_ref',ref).maybeSingle();o=data;}catch(e){}}
+  if(!o){$('content').innerHTML='<div class="empty" style="margin-top:40px">Order not found.</div>';return;}
+  let acct=null;
+  if(SB){try{const {data}=await SB.from('accounts').select('*').eq('name',acctDedup(o.account||'')).maybeSingle();acct=data;}catch(e){}}
+  const lines=(o.order_lines||[]);
+  $('content').innerHTML=
+    '<div class="no-print" style="display:flex;gap:10px;margin-bottom:12px">'+
+    '<a href="#" onclick="showOrderPage(\''+esc(String(ref)).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac);font-size:12.5px">← Back to order</a><span style="flex:1"></span>'+
+    '<button onclick="window.print()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer">🖨 Print / Save PDF</button></div>'+
+    '<div class="printdoc">'+
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start"><div><div style="font-size:19px;font-weight:800">HEALTHSPAN GLOBAL, INC.</div><div style="font-size:12px;color:#555">Delivery Receipt</div></div>'+
+    '<div style="text-align:right;font-size:12px"><b style="font-size:15px">DR '+esc(ordLabel(o))+'</b><br>Order date: '+esc(o.date)+'<br>Printed: '+new Date().toISOString().slice(0,10)+'</div></div>'+
+    '<div style="display:flex;gap:30px;margin:14px 0;font-size:12.5px">'+
+    '<div style="flex:1"><b>Deliver to</b><br>'+esc(o.account||'—')+
+      (acct&&acct.address?'<br>'+esc(acct.address):'')+(acct&&acct.phone?'<br>'+esc(acct.phone):'')+'</div>'+
+    '<div><b>Specialist</b><br>'+esc(o.spec||'—')+'</div>'+
+    '<div><b>Courier</b><br>'+esc(o.courier||'________________')+'<br><b>Waybill</b> '+esc(o.waybill||'____________')+'</div></div>'+
+    '<table><thead><tr><th>#</th><th>Product</th><th>SKU</th><th style="text-align:center">Qty</th><th style="text-align:right">Amount</th></tr></thead><tbody>'+
+    lines.map((l,i)=>'<tr><td>'+(i+1)+'</td><td><b>'+esc(l.name||l.sku)+'</b>'+(l.is_free?' (FREE)':'')+'</td><td>'+esc(l.sku)+'</td><td style="text-align:center">'+l.qty+'</td><td style="text-align:right">'+((l.amount||0)>0?fmtPeso(l.amount):'₱0')+'</td></tr>').join('')+
+    '</tbody></table>'+
+    '<div style="text-align:right;font-weight:700;font-size:14px;margin-top:6px">Total: '+fmtPeso(o.total)+'</div>'+
+    (o.order_note||o.notes?'<div style="font-size:12px;margin-top:8px"><b>Notes:</b> '+esc(o.order_note||o.notes)+'</div>':'')+
+    '<div style="font-size:11px;color:#555;margin-top:14px">Received the above goods in good order and condition.</div>'+
+    '<div style="display:flex;gap:40px;margin-top:34px;font-size:12px">'+
+    '<div style="flex:1;border-top:1px solid #999;padding-top:4px">Released by · date</div>'+
+    '<div style="flex:1;border-top:1px solid #999;padding-top:4px">Courier / driver · date</div>'+
+    '<div style="flex:1;border-top:1px solid #999;padding-top:4px">Received by (printed name & signature) · date</div></div>'+
+    '</div>';
+}
+
+/* ── CUSTOMER STATEMENT (printable per-account: orders, payments, balance, aging) ── */
+async function showStatement(name){
+  currentView='statement';
+  pushRoute('#/m/'+encodeURIComponent(name));
+  $('ptitle').textContent='Statement';
+  $('content').innerHTML='<div class="empty" style="margin-top:40px">Preparing…</div>';
+  await loadNativeOrders();
+  if(!ACCTBYNORM)buildAcctIdx();
+  const e=ACCTBYNORM[custNorm(acctDedup(name))];
+  if(!e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Account not found.</div>';return;}
+  const nameSet=new Set();
+  const addNames=x=>{for(const n of x.names)nameSet.add(String(n).trim().toLowerCase());};
+  addNames(e);(e.children||[]).forEach(k=>{if(ACCTBYNORM[k])addNames(ACCTBYNORM[k]);});
+  let acct=null;
+  if(SB){try{const {data}=await SB.from('accounts').select('*').eq('name',e.name).maybeSingle();acct=data;}catch(err){}}
+  const os=(NORDERS||[]).filter(o=>!o.deleted_at&&o.status!=='cancelled'&&o.pay_status!=='refunded'&&nameSet.has(String(o.account||'').trim().toLowerCase()))
+    .sort((a,b)=>a.date<b.date?-1:1);
+  const today=Date.now();
+  const bucket=o=>{
+    if((o.balance||0)<=0)return null;
+    const due=new Date(o.date).getTime()+((o.terms_days||0)*864e5);
+    const d=Math.floor((today-due)/864e5);
+    return d<=0?'cur':d<=30?'d30':d<=60?'d60':'d90';
+  };
+  const B={cur:0,d30:0,d60:0,d90:0};let billed=0,paid=0,due=0;
+  os.forEach(o=>{billed+=o.total||0;paid+=o.paid||0;due+=o.balance||0;const b=bucket(o);if(b)B[b]+=o.balance||0;});
+  const stat=o=>o.pay_status==='paid'?'Paid':o.pay_status==='partial'?'Partial':'Unpaid';
+  $('content').innerHTML=
+    '<div class="no-print" style="display:flex;gap:10px;margin-bottom:12px">'+
+    '<a href="#" onclick="showAccountPage(\''+esc(e.name).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac);font-size:12.5px">← Back to account</a><span style="flex:1"></span>'+
+    '<button onclick="window.print()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer">🖨 Print / Save PDF</button></div>'+
+    '<div class="printdoc">'+
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start"><div><div style="font-size:19px;font-weight:800">HEALTHSPAN GLOBAL, INC.</div><div style="font-size:12px;color:#555">Statement of Account</div></div>'+
+    '<div style="text-align:right;font-size:12px">As of <b>'+new Date().toISOString().slice(0,10)+'</b></div></div>'+
+    '<div style="margin:14px 0;font-size:12.5px"><b>'+esc(e.name)+'</b>'+(e.children&&e.children.length?' (incl. '+e.children.length+' branches)':'')+
+    (acct&&acct.address?'<br>'+esc(acct.address):'')+(acct&&acct.phone?'<br>'+esc(acct.phone):'')+'</div>'+
+    '<table><thead><tr><th>Date</th><th>Order</th><th>Status</th><th style="text-align:center">Terms</th><th style="text-align:right">Amount</th><th style="text-align:right">Paid</th><th style="text-align:right">Balance</th></tr></thead><tbody>'+
+    os.map(o=>'<tr'+((o.balance||0)>0?' style="font-weight:600"':'')+'><td>'+esc(o.date)+'</td><td>'+esc(ordLabel(o))+'</td><td>'+stat(o)+'</td>'+
+      '<td style="text-align:center">'+(o.terms_days?o.terms_days+'d':'—')+'</td>'+
+      '<td style="text-align:right">'+fmtPeso(o.total||0)+'</td><td style="text-align:right">'+fmtPeso(o.paid||0)+'</td>'+
+      '<td style="text-align:right">'+((o.balance||0)>0?fmtPeso(o.balance):'—')+'</td></tr>').join('')+
+    '<tr style="font-weight:800;border-top:2px solid #333"><td colspan="4">TOTAL</td><td style="text-align:right">'+fmtPeso(billed)+'</td><td style="text-align:right">'+fmtPeso(paid)+'</td><td style="text-align:right">'+fmtPeso(due)+'</td></tr>'+
+    '</tbody></table>'+
+    (due>0?'<div style="margin-top:14px;font-size:12.5px"><b>Aging of outstanding balance</b>'+
+    '<table style="margin-top:4px"><thead><tr><th>Current</th><th>1–30 days past due</th><th>31–60 days</th><th>Over 60 days</th><th>Total due</th></tr></thead>'+
+    '<tbody><tr><td>'+fmtPeso(B.cur)+'</td><td>'+fmtPeso(B.d30)+'</td><td>'+fmtPeso(B.d60)+'</td><td style="font-weight:700">'+fmtPeso(B.d90)+'</td><td style="font-weight:800">'+fmtPeso(due)+'</td></tr></tbody></table></div>'
+    :'<div style="margin-top:14px;font-size:13px;font-weight:700">No outstanding balance — account fully settled. Thank you!</div>')+
+    '<div style="font-size:10px;color:#777;margin-top:16px">Cancelled and refunded orders excluded · terms per order notes · please contact Healthspan for any discrepancy</div>'+
+    '</div>';
+}
+
+/* ── ACCOUNTING EXPORT — period CSV of the order register ── */
+function acctExportCSV(){
+  const from=($('ax-from')||{}).value||'2000-01-01',to=($('ax-to')||{}).value||'2099-12-31';
+  const os=(NORDERS||[]).filter(o=>!o.deleted_at&&o.date>=from&&o.date<=to).sort((a,b)=>a.date<b.date?-1:1);
+  if(!os.length)return alert('No orders in that date range.');
+  const h=['Order','Ext ref','Date','Account','Specialist','Status','Pay status','Terms (days)','Total','Paid','Balance','Source'];
+  const rows=os.map(o=>[ordLabel(o),o.ext_ref||'',o.date,o.account||'',o.spec||'',o.status,o.pay_status||'',o.terms_days||'',o.total||0,o.paid||0,o.balance||0,o.source||'native']
+    .map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','));
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,﻿'+encodeURIComponent([h.join(','),...rows].join('\n'));
+  a.download='healthspan_orders_'+from+'_to_'+to+'.csv';
+  a.click();
+  audit('accounting.export',{from,to,orders:os.length});
 }
 
 /* ── UNIFIED ACCOUNT INDEX — one entity per customer, merged from every source:
@@ -1954,6 +2133,7 @@ async function linkAccount(fromName,kind,toName){
   try{
     const {error}=await SB.from('account_links').upsert({from_key:fk,from_name:fromName,to_name:target.name,kind,created_by:(SBUSER&&SBUSER.id)||null});
     if(error)throw error;
+    audit('account.'+kind,{from:fromName,to:target.name});
     await loadAcctLinks(true);
     showAccountPage(target.name);
   }catch(e){alert('Could not save the link: '+(e.message||e)+(String(e.message||'').includes('account_links')?'\n\n(The account_links table may not exist yet — run the SQL from SUPABASE-SETUP.md.)':''));}
@@ -1964,6 +2144,7 @@ async function unlinkAccount(fromKey,goName){
   try{
     const {error}=await SB.from('account_links').delete().eq('from_key',fromKey);
     if(error)throw error;
+    audit('account.unlink',{key:fromKey});
     await loadAcctLinks(true);
     showAccountPage(goName);
   }catch(e){alert('Could not remove: '+(e.message||e));}
@@ -2006,6 +2187,8 @@ function applyRoute(){
     if(h.startsWith('#/o/')){const n=decodeURIComponent(h.slice(4));if(n){showOrderPage(n);return;}}
     if(h.startsWith('#/s/')){const n=decodeURIComponent(h.slice(4));if(n){showSpecPage(n);return;}}
     if(h.startsWith('#/p/')){const n=decodeURIComponent(h.slice(4));if(n){showPickSlip(n);return;}}
+    if(h.startsWith('#/d/')){const n=decodeURIComponent(h.slice(4));if(n){showDeliveryReceipt(n);return;}}
+    if(h.startsWith('#/m/')){const n=decodeURIComponent(h.slice(4));if(n){showStatement(n);return;}}
     if(h.startsWith('#/v/')){const v=h.slice(4);if(v){showView(v,document.querySelector('.ni[onclick*="\''+v+'\'"]'));return;}}
   }finally{ROUTING=false;}
 }
@@ -2070,6 +2253,7 @@ async function renderAccountPage(){
     (openFu?'<span class="pill prd">'+openFu+' open follow-up'+(openFu>1?'s':'')+'</span>':'')+
     (aliases.length>1?'<span class="pill pgy" title="'+esc(aliases.join(' / '))+'">'+aliases.length+' name spellings merged</span>':'')+
     '<span style="flex:1"></span>'+
+    '<button onclick="showStatement(\''+esc(name).replace(/'/g,'&#39;')+'\')" title="Printable statement of account: orders, payments, balance, aging" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer">🖨 Statement</button>'+
     (canManage()&&!e.virtual?'<button onclick="linkAccount(\''+esc(name).replace(/'/g,'&#39;')+'\',\'merge\')" title="This is the same customer as another account, under a different spelling" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer">⇢ Merge into…</button>'+
     (e.parentKey?'':'<button onclick="linkAccount(\''+esc(name).replace(/'/g,'&#39;')+'\',\'branch\')" title="Group this account under a parent company" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer">⌂ Set parent…</button>'):'')+
     '<button onclick="window._noAccount=\''+esc(name).replace(/'/g,'&#39;')+'\';showView(\'neworder\',null)" style="background:var(--gr);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:600;cursor:pointer">+ New order</button>'+
@@ -2445,6 +2629,12 @@ async function renderAR(){
     '<div class="met" style="border-left:3px solid var(--rd)"><div class="met-lbl">Over 90 days</div><div class="met-val" style="font-size:15px;color:var(--rd)">'+fmtPeso(T2.d90)+'</div><div class="met-sub">collection risk</div><div class="met-bar"></div></div>'+
     '</div>'+
     '<div style="font-size:11.5px;color:var(--tx3);margin-bottom:12px">Collection rate all-time: <b>'+(booked?(collected/booked*100).toFixed(1):0)+'%</b> ('+fmtPeso(collected)+' of '+fmtPeso(booked)+' booked) · payment statuses sync from Shopify via the backfill; ages count from order date + terms days where noted (e.g. “PDC 30 days”)</div>'+
+    (canManage()?(function(){const m0=new Date();const from=new Date(m0.getFullYear(),m0.getMonth(),1).toISOString().slice(0,10);const to=new Date().toISOString().slice(0,10);
+      const di='style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:7px 9px;font-size:12px"';
+      return '<div class="panel" style="padding:10px 14px;margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:12px">Accounting export</b>'+
+      '<input type="date" id="ax-from" value="'+from+'" '+di+'> <span style="font-size:12px;color:var(--tx3)">to</span> <input type="date" id="ax-to" value="'+to+'" '+di+'>'+
+      '<button onclick="acctExportCSV()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer">Download CSV</button>'+
+      '<span style="font-size:11px;color:var(--tx3)">every order in the period with totals, payments, balances & terms — for the accounting sign-off</span></div>';})():'')+
     (rows.length?'<div class="tcard"><div class="tscroll"><table><thead><tr><th>Account</th><th style="text-align:right">Outstanding</th><th style="text-align:right">Current</th><th style="text-align:right">31–60d</th><th style="text-align:right">61–90d</th><th style="text-align:right">90d+</th><th style="text-align:right">Open</th><th style="text-align:right">Oldest</th></tr></thead><tbody>'+
     rows.slice(0,150).map(r=>'<tr onclick="showAccountPage(\''+esc(r.name).replace(/'/g,'&#39;')+'\')" style="cursor:pointer"><td style="font-weight:600;max-width:240px;overflow:hidden;text-overflow:ellipsis">'+esc(r.name)+'</td>'+
       '<td class="r" style="font-weight:700">'+fmtPeso(r.total)+'</td>'+
@@ -2464,6 +2654,7 @@ async function recordPayment(id){
     const paid=(o.paid||0)+amt;const balance=Math.max(0,(o.total||0)-paid);
     const {error}=await SB.from('orders').update({paid,balance,pay_status:balance<=0?'paid':'partial'}).eq('id',id);
     if(error)throw new Error(error.message);
+    audit('payment.record',{order:ordLabel(o),account:o.account,amount:amt,newBalance:balance});
     NORDERS=null;renderOrderPage();
   }catch(e){alert('Could not record: '+e.message);}
 }
@@ -3018,6 +3209,7 @@ async function prospectMerge(fromName,toName){
   try{
     const {error}=await SB.from('account_links').upsert({from_key:custNorm(acctDedup(fromName)),from_name:fromName,to_name:toName,kind:'merge',created_by:(SBUSER&&SBUSER.id)||null});
     if(error)throw error;
+    audit('account.merge',{from:fromName,to:toName,via:'prospects'});
     await loadAcctLinks(true);
     renderProspects();
   }catch(e){alert('Could not merge: '+(e.message||e));}
