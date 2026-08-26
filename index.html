@@ -1492,11 +1492,15 @@ async function loadNativeOrders(force){
   if(NORDERS&&!force)return NORDERS;
   if(!SB){NORDERS=[];return NORDERS;}
   try{
-    const {data}=await SB.from('orders').select('*,order_lines(*)').order('created_at',{ascending:false}).limit(300);
+    // headers only (+line counts) — full lines are fetched per order page
+    const {data}=await SB.from('orders').select('id,num,date,account,spec,status,notes,total,deleted_at,source,ext_ref,order_lines(count)').order('date',{ascending:false}).limit(10000);
     NORDERS=data||[];
+    window._MIGRATED=NORDERS.some(o=>o.source==='shopify'); // migration done → the table is the register
   }catch(e){NORDERS=NORDERS||[];}
   return NORDERS;
 }
+const ordLabel=o=>o.source==='shopify'?(o.ext_ref||''):fmtOrdNum(o.num);
+const ordItems=o=>Array.isArray(o.order_lines)?(o.order_lines.length&&o.order_lines[0]&&typeof o.order_lines[0].count==='number'?o.order_lines[0].count:o.order_lines.length):0;
 let CART=[];
 function renderNewOrder(){
   if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in with your Healthspan account to take orders.</div>';return;}
@@ -1605,24 +1609,56 @@ async function submitOrder(){
 }
 async function renderOrders(){
   $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
-  const os=await loadNativeOrders(true);
+  const [os]=await Promise.all([loadNativeOrders(true),loadOverrides(true)]);
   const myTag=(SBPROFILE&&SBPROFILE.specialist_tag)||'';
   const mine=o=>!myTag||specCanon(o.spec).toLowerCase()===specCanon(myTag).toLowerCase();
-  // ONE register: native orders + every imported Shopify order
-  const nat=os.map(o=>({ref:o.id,label:fmtOrdNum(o.num),date:o.date,account:o.account,spec:o.spec,items:(o.order_lines||[]).length,total:o.total,status:o.status,native:true}));
-  const shop=((SHOPIFY&&SHOPIFY.recent)||[]).map(s=>({ref:s.n,label:s.n,date:s.dt,account:acctDedup(s.c||''),spec:s.t||'',items:(s.ls||[]).length,total:(s.ls||[]).reduce((a,l)=>a+(l[2]||0),0),status:'imported',native:false}));
-  const rows=[...nat,...shop].filter(mine).sort((a,b)=>a.date<b.date?1:a.date>b.date?-1:0);
-  const shown=rows.slice(0,250);
+  const isAdmin=ROLE==='admin';
+  const trash=!!window._ordTrash&&isAdmin;
+  // ONE register: native orders + every imported Shopify order (overrides applied)
+  const nat=os.map(o=>({ref:o.id,label:ordLabel(o),date:o.date,account:acctDedup(o.account||''),spec:o.spec,items:ordItems(o),total:o.total,status:o.status,native:true,del:!!o.deleted_at,src:o.source}));
+  // pre-migration only: blob-imported Shopify orders (once migrated, the table has them all)
+  const shop=window._MIGRATED?[]:((SHOPIFY&&SHOPIFY.recent)||[]).map(s=>{const v=OVR[s.n]||{};
+    return {ref:s.n,label:s.n,date:s.dt,account:acctDedup(s.c||''),spec:s.t||'',items:(s.ls||[]).length,total:(s.ls||[]).reduce((a,l)=>a+(l[2]||0),0),status:v.status||'imported',native:false,del:!!v.deleted_at};});
+  const rows=[...nat,...shop].filter(mine).filter(o=>trash?o.del:!o.del).sort((a,b)=>a.date<b.date?1:a.date>b.date?-1:0);
+  const trashN=[...nat,...shop].filter(o=>o.del).length;
+  // pagination: 50 per page by default, toggle 50/100/250
+  const per=[50,100,250].includes(window._ordPer)?window._ordPer:50;
+  const pages=Math.max(1,Math.ceil(rows.length/per));
+  const page=Math.min(Math.max(1,window._ordPage||1),pages);
+  window._ordPage=page;
+  const shown=rows.slice((page-1)*per,page*per);
+  const pageBtn=(p,label,on)=>'<button onclick="window._ordPage='+p+';renderOrders()" '+(on?'disabled style="background:var(--ac);color:#fff;':'style="background:var(--sf2);color:var(--tx);')+'border:1px solid var(--bd);border-radius:6px;padding:5px 10px;font-size:11.5px;cursor:pointer;min-width:32px">'+label+'</button>';
+  let pager='';
+  if(pages>1){
+    const around=[...new Set([1,2,page-1,page,page+1,pages-1,pages])].filter(p=>p>=1&&p<=pages).sort((a,b)=>a-b);
+    let items='';let prev=0;
+    for(const p of around){if(prev&&p-prev>1)items+='<span style="color:var(--tx3);padding:0 2px">…</span>';items+=pageBtn(p,p,p===page);prev=p;}
+    pager='<div style="display:flex;gap:5px;align-items:center;justify-content:center;margin-top:14px;flex-wrap:wrap">'+
+      (page>1?pageBtn(page-1,'‹',false):'')+items+(page<pages?pageBtn(page+1,'›',false):'')+
+      '<span style="font-size:11px;color:var(--tx3);margin-left:10px">'+((page-1)*per+1)+'–'+Math.min(rows.length,page*per)+' of '+rows.length.toLocaleString()+'</span>'+
+      '<select onchange="window._ordPer=parseInt(this.value,10);window._ordPage=1;renderOrders()" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:4px 6px;font-size:11px;margin-left:6px">'+
+      [50,100,250].map(n=>'<option value="'+n+'"'+(n===per?' selected':'')+'>'+n+' / page</option>').join('')+'</select></div>';
+  }else{
+    pager='<div style="display:flex;justify-content:flex-end;margin-top:10px"><select onchange="window._ordPer=parseInt(this.value,10);window._ordPage=1;renderOrders()" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:4px 6px;font-size:11px">'+
+      [50,100,250].map(n=>'<option value="'+n+'"'+(n===per?' selected':'')+'>'+n+' / page</option>').join('')+'</select></div>';
+  }
   const stPill=s=>s==='fulfilled'?'<span class="pill pgr">fulfilled</span>':s==='cancelled'?'<span class="pill prd">cancelled</span>':s==='imported'?'<span class="pill pbl">Shopify</span>':'<span class="pill" style="background:var(--am-bg);color:var(--am)">pending</span>';
   $('content').innerHTML=
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">'+
-    '<div style="font-size:12px;color:var(--tx3)">'+rows.length+' orders'+(myTag?' (yours)':'')+' — '+nat.length+' entered here + '+shop.length+' from Shopify (≈6-month import window)'+(rows.length>shown.length?' · showing latest '+shown.length:'')+'</div>'+
-    '<button onclick="showView(\'neworder\',null)" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer">+ New order</button></div>'+
-    (shown.length?'<div class="tcard"><div class="tscroll"><table><thead><tr><th>Order</th><th>Date</th><th>Account</th><th>Specialist</th><th style="text-align:right">Items</th><th style="text-align:right">Total</th><th>Status</th></tr></thead><tbody>'+
-    shown.map(o=>'<tr onclick="showOrderPage(\''+esc(String(o.ref)).replace(/'/g,'&#39;')+'\')" style="cursor:pointer"><td style="font-weight:700">'+esc(o.label)+'</td><td class="mu">'+esc(o.date)+'</td>'+
+    '<div style="font-size:12px;color:var(--tx3)">'+(trash?'Trash — '+rows.length+' deleted orders':'')+
+    (!trash?rows.length.toLocaleString()+' orders'+(myTag?' (yours)':'')+(window._MIGRATED?' — all-time register ('+nat.filter(o=>!o.del&&o.src!=='shopify').length+' entered here, '+nat.filter(o=>!o.del&&o.src==='shopify').length+' migrated from Shopify)':' — '+nat.filter(o=>!o.del).length+' entered here + '+shop.filter(o=>!o.del).length+' from Shopify (≈6-month import window)'):'')+'</div>'+
+    '<div style="display:flex;gap:8px">'+
+    (isAdmin?'<button onclick="window._ordTrash='+(trash?'false':'true')+';window._ordPage=1;renderOrders()" style="background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:9px 14px;font-size:12.5px;cursor:pointer">'+(trash?'← Back to orders':'Trash ('+trashN+')')+'</button>':'')+
+    (trash&&trashN?'<button onclick="emptyOrderTrash()" style="background:var(--rd);color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12.5px;font-weight:600;cursor:pointer">Empty trash</button>':'')+
+    (!trash?'<button onclick="showView(\'neworder\',null)" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer">+ New order</button>':'')+
+    '</div></div>'+
+    (shown.length?'<div class="tcard"><div class="tscroll"><table><thead><tr><th>Order</th><th>Date</th><th>Account</th><th>Specialist</th><th style="text-align:right">Items</th><th style="text-align:right">Total</th><th>Status</th>'+(trash?'<th></th>':'')+'</tr></thead><tbody>'+
+    shown.map(o=>'<tr'+(trash?'':' onclick="showOrderPage(\''+esc(String(o.ref)).replace(/'/g,'&#39;')+'\')" style="cursor:pointer"')+'><td style="font-weight:700">'+esc(o.label)+'</td><td class="mu">'+esc(o.date)+'</td>'+
       '<td style="font-weight:600;max-width:220px;overflow:hidden;text-overflow:ellipsis">'+esc(o.account||'—')+'</td><td>'+esc(o.spec||'—')+'</td>'+
-      '<td class="r mu">'+o.items+'</td><td class="r" style="font-weight:600">'+fmtPeso(o.total)+'</td><td>'+stPill(o.status)+'</td></tr>').join('')+
-    '</tbody></table></div></div>':'<div class="empty" style="margin-top:30px">No orders yet — tap “+ New order” to take the first one.</div>');
+      '<td class="r mu">'+o.items+'</td><td class="r" style="font-weight:600">'+fmtPeso(o.total)+'</td><td>'+stPill(o.status)+'</td>'+
+      (trash?'<td><button onclick="orderRestore(\''+(o.native?'native':'shopify')+'\',\''+esc(String(o.ref)).replace(/'/g,'&#39;')+'\')" style="background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer">Restore</button></td>':'')+'</tr>').join('')+
+    '</tbody></table></div>'+(trash?'<div class="tfooter"><span>Restore puts an order back in the register · Empty trash is permanent for orders entered here; Shopify imports keep a tombstone so they never reappear</span></div>':'')+'</div>'+pager:
+    '<div class="empty" style="margin-top:30px">'+(trash?'Trash is empty.':'No orders yet — tap “+ New order” to take the first one.')+'</div>');
 }
 function showOrderPage(ref){
   if(currentView!=='order')ORDER_BACK=currentView||'orders';
@@ -1635,8 +1671,10 @@ async function renderOrderPage(){
   const ref=CUR_ORDER;if(!ref){showView(ORDER_BACK);return;}
   $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
   let o=null,src='native';
-  if(/^[0-9a-f-]{30,40}$/i.test(ref)){const os=await loadNativeOrders();o=os.find(x=>x.id===ref);
-    if(!o&&SB){try{const {data}=await SB.from('orders').select('*,order_lines(*)').eq('id',ref).maybeSingle();o=data;}catch(e){}}}
+  if(SB&&/^[0-9a-f-]{30,40}$/i.test(ref)){try{const {data}=await SB.from('orders').select('*,order_lines(*)').eq('id',ref).maybeSingle();o=data;}catch(e){}}
+  if(!o&&SB&&/HG-/i.test(ref)){ // migrated Shopify order opened by its number
+    try{const r1=await SB.from('orders').select('*,order_lines(*)').eq('ext_ref',ref).maybeSingle();o=r1.data;
+      if(!o){const r2=await SB.from('orders').select('*,order_lines(*)').eq('ext_ref','#'+ref).maybeSingle();o=r2.data;}}catch(e){}}
   if(!o){ // Shopify order by number (e.g. #HG-10142)
     const s=((SHOPIFY&&SHOPIFY.recent)||[]).find(x=>x.n===ref||x.n===('#'+ref));
     if(s){src='shopify';
@@ -1645,22 +1683,34 @@ async function renderOrderPage(){
         order_lines:(s.ls||[]).map(l=>({sku:l[0],name:skuName(l[0]),qty:l[1]||0,amount:l[2]||0,is_free:(l[2]||0)<=0,deal:null}))};}
   }
   if(!o){$('content').innerHTML='<div class="empty" style="margin-top:40px">Order not found — it may be outside the imported window.</div>';return;}
-  $('ptitle').textContent=src==='shopify'?String(o.id):fmtOrdNum(o.num);
-  const isMgr=ROLE==='admin'||!(SBPROFILE&&SBPROFILE.specialist_tag);
+  $('ptitle').textContent=src==='shopify'?String(o.id):ordLabel(o);
+  await loadOverrides();
+  const ovr=src==='shopify'?(OVR[String(o.id)]||{}):{};
+  const eff=src==='shopify'?(ovr.status||'imported'):o.status;
+  const inTrash=src==='shopify'?!!ovr.deleted_at:!!o.deleted_at;
+  const isAdmin=ROLE==='admin';
   const stPill=s=>s==='fulfilled'?'<span class="pill pgr">fulfilled</span>':s==='cancelled'?'<span class="pill prd">cancelled</span>':s==='imported'?'<span class="pill pbl">Shopify import</span>':'<span class="pill" style="background:var(--am-bg);color:var(--am)">pending</span>';
+  const btn=(label,color,fn)=>'<button onclick="'+fn+'" style="background:'+color+';color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer">'+label+'</button>';
+  const act=a=>'orderAct(\''+src+'\',\''+esc(String(src==='shopify'?o.id:o.id)).replace(/'/g,'&#39;')+'\',\''+a+'\')';
+  let actions='';
+  if(isAdmin&&SB&&!inTrash){
+    if(eff!=='fulfilled'&&eff!=='cancelled')actions+=btn('Mark fulfilled','var(--gr)',act('fulfilled'));
+    if(eff==='fulfilled')actions+=btn('Unfulfill','var(--am)',act('pending'));
+    if(eff!=='cancelled')actions+=btn('Cancel order','var(--rd)',act('cancelled'));
+    if(eff==='cancelled')actions+=btn('Reopen','var(--bl)',act('pending'));
+    actions+=btn('Delete','var(--tx3)',act('trash'));
+  }
   $('content').innerHTML=
     '<div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">'+
     '<a href="#" onclick="showView(\''+esc(ORDER_BACK)+'\');return false" style="color:var(--ac);font-size:12.5px">← Back</a>'+
-    stPill(o.status)+
-    '<span style="flex:1"></span>'+
-    (src==='native'&&o.status==='pending'&&isMgr?'<button onclick="setOrderStatus(\''+o.id+'\',\'fulfilled\')" style="background:var(--gr);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer">Mark fulfilled</button>'+
-      '<button onclick="setOrderStatus(\''+o.id+'\',\'cancelled\')" style="background:var(--rd);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer">Cancel order</button>':'')+
+    stPill(eff)+(inTrash?'<span class="pill prd">in trash</span>':'')+
+    '<span style="flex:1"></span>'+actions+
     '</div>'+
     '<div class="metrics" style="margin-bottom:14px">'+
     '<div class="met gr"><div class="met-lbl">Total</div><div class="met-val" style="font-size:16px">'+fmtPeso(o.total)+'</div><div class="met-sub">'+(o.order_lines||[]).length+' lines</div><div class="met-bar"></div></div>'+
     '<div class="met bl"><div class="met-lbl">Account</div><div class="met-val" style="font-size:13px"><a href="#" onclick="showAccountPage(\''+esc(o.account).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac)">'+esc(o.account||'—')+'</a></div><div class="met-sub">tap for profile</div><div class="met-bar"></div></div>'+
     '<div class="met pu"><div class="met-lbl">Specialist</div><div class="met-val" style="font-size:14px">'+esc(o.spec||'—')+'</div><div class="met-sub">'+esc(o.date)+'</div><div class="met-bar"></div></div>'+
-    '<div class="met am"><div class="met-lbl">Source</div><div class="met-val" style="font-size:13px">'+(src==='shopify'?'Shopify':'Healthspan')+'</div><div class="met-sub">'+(src==='shopify'?'imported order':'entered here')+'</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Source</div><div class="met-val" style="font-size:13px">'+(src==='shopify'?'Shopify':(o.source==='shopify'?'Shopify (migrated)':'Healthspan'))+'</div><div class="met-sub">'+(src==='shopify'?'imported order':(o.source==='shopify'?'in our database now':'entered here'))+'</div><div class="met-bar"></div></div>'+
     '</div>'+
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Product</th><th>SKU</th><th style="text-align:right">Qty</th><th style="text-align:right">Amount</th><th></th></tr></thead><tbody>'+
     (o.order_lines||[]).map(l=>'<tr><td style="font-weight:600">'+esc(l.name)+(l.deal?' <span class="pill pbl">'+esc(l.deal)+'</span>':'')+'</td><td class="mu" style="font-size:11px">'+esc(l.sku)+'</td>'+
@@ -1668,10 +1718,51 @@ async function renderOrderPage(){
       '<td>'+(l.is_free?'<span class="pill" style="background:var(--pu-bg);color:var(--pu)">free</span>':'')+'</td></tr>').join('')+
     '</tbody></table></div>'+(o.notes?'<div class="tfooter"><span>Notes: '+esc(o.notes)+'</span></div>':'')+'</div>';
 }
-async function setOrderStatus(id,st){
-  if(!SB)return;
-  try{const {error}=await SB.from('orders').update({status:st}).eq('id',id);if(error)throw new Error(error.message);
-    NORDERS=null;renderOrderPage();}catch(e){alert('Could not update: '+e.message);}
+/* Status overrides for Shopify-imported orders + trash for everything (admin) */
+let OVR=null;
+async function loadOverrides(force){
+  if(OVR&&!force)return OVR;
+  OVR={};
+  if(SB){try{const {data}=await SB.from('order_overrides').select('*');for(const r of (data||[]))OVR[r.ref]=r;}catch(e){}}
+  return OVR;
+}
+async function orderAct(src,ref,action){
+  if(!SB||ROLE!=='admin')return;
+  const labels={fulfilled:'Mark this order fulfilled?',pending:'Reopen this order (back to pending)?',cancelled:'Cancel this order?',trash:'Move this order to the trash?'};
+  if(!confirm(labels[action]||'Proceed?'))return;
+  try{
+    if(src==='native'){
+      const patch=action==='trash'?{deleted_at:new Date().toISOString()}:{status:action};
+      const {error}=await SB.from('orders').update(patch).eq('id',ref);
+      if(error)throw new Error(error.message);
+    }else{
+      const patch={ref,updated_at:new Date().toISOString(),updated_by:SBUSER?SBUSER.id:null};
+      if(action==='trash')patch.deleted_at=new Date().toISOString();else patch.status=action;
+      const {error}=await SB.from('order_overrides').upsert(patch,{onConflict:'ref'});
+      if(error)throw new Error(error.message);
+    }
+    NORDERS=null;OVR=null;
+    if(action==='trash')showView('orders',null);else renderOrderPage();
+  }catch(e){alert('Could not update: '+e.message);}
+}
+async function orderRestore(src,ref){
+  if(!SB||ROLE!=='admin')return;
+  try{
+    if(src==='native'){const {error}=await SB.from('orders').update({deleted_at:null}).eq('id',ref);if(error)throw new Error(error.message);}
+    else{const {error}=await SB.from('order_overrides').update({deleted_at:null}).eq('ref',ref);if(error)throw new Error(error.message);}
+    NORDERS=null;OVR=null;renderOrders();
+  }catch(e){alert('Could not restore: '+e.message);}
+}
+async function emptyOrderTrash(){
+  if(!SB||ROLE!=='admin')return;
+  if(!confirm('Permanently delete everything in the trash? This cannot be undone.'))return;
+  if(!confirm('Really sure? Native orders and their lines are erased forever.'))return;
+  try{
+    const os=await loadNativeOrders();
+    const delIds=os.filter(o=>o.deleted_at).map(o=>o.id);
+    if(delIds.length){const {error}=await SB.from('orders').delete().in('id',delIds);if(error)throw new Error(error.message);}
+    NORDERS=null;OVR=null;window._ordTrash=false;renderOrders();
+  }catch(e){alert('Could not empty the trash: '+e.message);}
 }
 
 /* ── UNIFIED ACCOUNT INDEX — one entity per customer, merged from every source:
@@ -1795,10 +1886,12 @@ async function renderAccountPage(){
   const inNames=new Set(aliases.map(a=>a.trim()));
   const skuName=(()=>{const m={};DATA.forEach(p=>m[p.sku]=p.name);const bs=Object.keys(m).sort((a,b)=>b.length-a.length);
     return s=>{s=String(s).trim();if(m[s])return m[s];const b=bs.find(x=>s.startsWith(x)&&s.length>x.length)||bs.find(x=>x.length>=4&&s.length>x.length&&s.includes(x));return b?m[b]+' (deal)':s;};})();
-  const orders=((SHOPIFY&&SHOPIFY.recent)||[]).filter(o=>inNames.has((o.c||'').trim()))
+  await loadOverrides();await loadNativeOrders();
+  const orders=window._MIGRATED?[]:((SHOPIFY&&SHOPIFY.recent)||[]).filter(o=>inNames.has((o.c||'').trim())&&!(OVR[o.n]&&OVR[o.n].deleted_at))
     .map(o=>({k:'order',dt:o.dt,who:o.t||'',label:o.n,amt:(o.ls||[]).reduce((x,l)=>x+(l[2]||0),0),ref:o.n}));
-  const natOrders=(await loadNativeOrders()).filter(o=>inNames.has((o.account||'').trim())&&o.status!=='cancelled')
-    .map(o=>({k:'order',dt:o.date,who:o.spec||'',label:fmtOrdNum(o.num),amt:o.total,ref:o.id,native:true}));
+  const natOrders=(NORDERS||[]).filter(o=>inNames.has(acctDedup(o.account||''))||inNames.has((o.account||'').trim()))
+    .filter(o=>o.status!=='cancelled'&&!o.deleted_at)
+    .map(o=>({k:'order',dt:o.date,who:o.spec||'',label:ordLabel(o),amt:o.total,ref:o.id,native:o.source!=='shopify'}));
   orders.push(...natOrders);
   const visits=(VISITS||[]).filter(v=>inNames.has((v.account||'').trim()))
     .map(v=>({k:v.status==='planned'?'plan':'visit',dt:v.date,who:v.spec,label:v.type||'Visit',out:v.outcome,notes:v.notes,fu:v.outcome==='Follow-up needed'&&!v.fu_done}));
@@ -4236,7 +4329,7 @@ function initTheme(){
    The anon key is designed to be public — security lives in row-level policies.
    While these are empty, the dashboard falls back to the old passcode gate. */
 const SUPABASE_URL='https://lesjigujcajxurmsmwwc.supabase.co';
-const SUPABASE_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxlc2ppZ3VqY2FqeHVybXNtd3djIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc1NTc1ODcsImV4cCI6MjEwMzEzMzU4N30.nvVsTd2M5d_HQEON7v_g6gc82HoUgRQ-htg_MyPFGUQ';
+const SUPABASE_ANON='sb_publishable_r9XyNNTaFzNu1msTaHgt-w_FBm-vsI4'; // publishable key (new format) — public by design, RLS is the security
 let SB=null,SBUSER=null,SBPROFILE=null;
 function sbInit(){
   if(SB!==null)return SB;
