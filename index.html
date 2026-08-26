@@ -294,6 +294,8 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
 body.role-sales .nav .nlbl,body.role-sales .nav .ni{display:none}
 body.role-sales .nav .nv-sales{display:flex}
 body.role-sales .nav .nlbl.nv-sales{display:block}
+/* sales managers: everything except account management */
+body.role-manager #nav-admin-lbl,body.role-manager .ni[onclick*="'users'"]{display:none}
 /* sales role keeps the mobile bar — it gets its own items via buildMobileNav() */
 @media print{
   .sb,.mobile-nav,.mobile-topbar,.topbar,.no-print{display:none!important}
@@ -416,7 +418,7 @@ body.role-sales .nav .nlbl.nv-sales{display:block}
     <div class="nlbl">Logistics</div>
     <div class="ni" onclick="showView('branchtransfer',this)"><svg viewBox="0 0 24 24"><path d="M5 17H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v3"/><rect x="9" y="11" width="14" height="10" rx="2"/><line x1="13" y1="16" x2="19" y2="16"/><line x1="16" y1="13" x2="16" y2="19"/></svg>Remedy shipments</div>
     <div class="ni" onclick="showView('branchexpiry',this)"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Remedy expiry watch</div>
-    <div class="nlbl">Admin</div>
+    <div class="nlbl" id="nav-admin-lbl">Admin</div>
     <div class="ni" onclick="showView('users',this)"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Team &amp; access</div>
     <div class="nlbl">Product lines</div>
     <div id="lnav"></div>
@@ -1021,6 +1023,7 @@ async function syncNow(){
 function showView(v,el){
   const SALES_OK=['home','logvisit','followups','account','neworder','orders','order','spec','pickslip']; // non-"sales*" views the sales role may open
   if(typeof ROLE!=='undefined'&&ROLE==='sales'&&!String(v).startsWith('sales')&&!SALES_OK.includes(v)){v='salesoverview';el=document.querySelector('.ni.nv-sales');}
+  if(typeof ROLE!=='undefined'&&ROLE==='manager'&&v==='users'){v='home';el=document.querySelector('.ni[onclick*="\'home\'"]');} // managers: everything except account management
   if(typeof pushRoute==='function')pushRoute('#/v/'+v); // browser back/forward works across views
   currentView=v;fLine='';fSearch='';fTab='all';fBin='';fSup='';
   document.querySelectorAll('.ni').forEach(x=>x.classList.remove('active'));
@@ -1846,11 +1849,25 @@ async function emptyOrderTrash(){
 let ACCTBYNORM=null;
 // Shopify displayName artifact: company name doubled ("X X" or "X X - Branch") → collapse
 function acctDedup(s){const m=String(s||'').match(/^(.{4,}?)\s+\1(\s*-\s*.+)?$/);return m?(m[1]+(m[2]||'')).trim():String(s||'').trim();}
+/* Curated links live in Supabase (account_links): kind 'merge' = same customer under a
+   different spelling → fold into the target; kind 'branch' = child clinic of a parent.
+   Editable in-app by admins & sales managers. */
+let ACCT_LINKS=null;
+async function loadAcctLinks(force){
+  if(ACCT_LINKS&&!force)return ACCT_LINKS;
+  ACCT_LINKS=[];
+  if(SB){try{const {data}=await SB.from('account_links').select('from_key,from_name,to_name,kind');ACCT_LINKS=data||[];}catch(e){}}
+  ACCTBYNORM=null; // next index build applies the links
+  return ACCT_LINKS;
+}
 function buildAcctIdx(){
   ACCTBYNORM={};
+  const alias={};
+  for(const l of (ACCT_LINKS||[]))if(l.kind==='merge')alias[l.from_key]=l.to_name;
   const get=(name)=>{
-    const disp=acctDedup(name);
-    const k=custNorm(disp);if(!k)return null;
+    let disp=acctDedup(name);
+    let k=custNorm(disp);if(!k)return null;
+    if(alias[k]&&custNorm(alias[k])!==k){disp=alias[k];k=custNorm(disp);if(!k)return null;} // merged spelling → target account
     let e=ACCTBYNORM[k];
     if(!e){e=ACCTBYNORM[k]={name:disp,names:new Set(),sheet:null,shop:null,visitN:0,lastVisit:'',isRemedy:false,children:null,parentKey:null};}
     e.names.add(String(name).trim()); // keep RAW spellings for timeline matching
@@ -1897,7 +1914,59 @@ function buildAcctIdx(){
       P.isRemedy=P.isRemedy||e.isRemedy;
     }
   }
+  // curated parent/child links from the database (set in-app by admins & managers)
+  for(const l of (ACCT_LINKS||[])){
+    if(l.kind!=='branch')continue;
+    const ck=l.from_key,pk=custNorm(l.to_name);
+    const C=ACCTBYNORM[ck];
+    if(!C||C.parentKey||!pk||ck===pk)continue;
+    let P=ACCTBYNORM[pk];
+    if(P&&P.parentKey===ck)continue; // no cycles
+    if(!P)P=ACCTBYNORM[pk]={name:l.to_name,names:new Set([l.to_name]),sheet:null,shop:null,visitN:0,lastVisit:'',isRemedy:C.isRemedy,children:null,parentKey:null,virtual:true};
+    (P.children=P.children||[]).push(ck);
+    C.parentKey=pk;
+    P.isRemedy=P.isRemedy||C.isRemedy;
+  }
   return ACCTBYNORM;
+}
+/* ── MERGE / PARENT-CHILD actions (admin & sales manager) ── */
+function canManage(){return ROLE==='admin'||ROLE==='manager';}
+function findAcctByName(t){
+  if(!ACCTBYNORM)buildAcctIdx();
+  const k=custNorm(t);if(!k)return null;
+  if(ACCTBYNORM[k])return ACCTBYNORM[k];
+  const c=Object.values(ACCTBYNORM).filter(e=>!e.parentKey&&custNorm(e.name).includes(k));
+  return c.length===1?c[0]:null;
+}
+async function linkAccount(fromName,kind,toName){
+  if(!canManage())return alert('Admins and sales managers only.');
+  if(!SB)return alert('Sign in first.');
+  let t=toName;
+  if(!t){t=prompt((kind==='merge'?'Merge "'+fromName+'" into which account?':'Which account is the PARENT of "'+fromName+'"?')+'\nType the account name as it appears in the Accounts list:','');if(!t)return;}
+  const target=findAcctByName(t);
+  if(!target)return alert('No single account matches "'+t+'" — check the exact spelling in the Accounts list.');
+  const fk=custNorm(acctDedup(fromName));
+  if(custNorm(target.name)===fk)return alert('That’s the same account.');
+  const msg=kind==='merge'
+    ?'Merge "'+fromName+'" into "'+target.name+'"?\n\nAll its orders, shipments, and visits will show under '+target.name+'. You can undo this from the account page.'
+    :'Make "'+fromName+'" a branch of "'+target.name+'"?\n\nIt stays its own account but rolls up into the parent. You can undo this from the account page.';
+  if(!confirm(msg))return;
+  try{
+    const {error}=await SB.from('account_links').upsert({from_key:fk,from_name:fromName,to_name:target.name,kind,created_by:(SBUSER&&SBUSER.id)||null});
+    if(error)throw error;
+    await loadAcctLinks(true);
+    showAccountPage(target.name);
+  }catch(e){alert('Could not save the link: '+(e.message||e)+(String(e.message||'').includes('account_links')?'\n\n(The account_links table may not exist yet — run the SQL from SUPABASE-SETUP.md.)':''));}
+}
+async function unlinkAccount(fromKey,goName){
+  if(!canManage())return;
+  if(!confirm('Remove this link? The account becomes standalone again.'))return;
+  try{
+    const {error}=await SB.from('account_links').delete().eq('from_key',fromKey);
+    if(error)throw error;
+    await loadAcctLinks(true);
+    showAccountPage(goName);
+  }catch(e){alert('Could not remove: '+(e.message||e));}
 }
 // Aggregate an entity + its branches (for the parent's cards and list row)
 function acctAgg(e){
@@ -2001,6 +2070,8 @@ async function renderAccountPage(){
     (openFu?'<span class="pill prd">'+openFu+' open follow-up'+(openFu>1?'s':'')+'</span>':'')+
     (aliases.length>1?'<span class="pill pgy" title="'+esc(aliases.join(' / '))+'">'+aliases.length+' name spellings merged</span>':'')+
     '<span style="flex:1"></span>'+
+    (canManage()&&!e.virtual?'<button onclick="linkAccount(\''+esc(name).replace(/'/g,'&#39;')+'\',\'merge\')" title="This is the same customer as another account, under a different spelling" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer">⇢ Merge into…</button>'+
+    (e.parentKey?'':'<button onclick="linkAccount(\''+esc(name).replace(/'/g,'&#39;')+'\',\'branch\')" title="Group this account under a parent company" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer">⌂ Set parent…</button>'):'')+
     '<button onclick="window._noAccount=\''+esc(name).replace(/'/g,'&#39;')+'\';showView(\'neworder\',null)" style="background:var(--gr);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:600;cursor:pointer">+ New order</button>'+
     '<button onclick="window._lvAccount=\''+esc(name).replace(/'/g,'&#39;')+'\';showView(\'logvisit\',null)" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:600;cursor:pointer">+ Log visit here</button>'+
     '</div>'+
@@ -2013,7 +2084,11 @@ async function renderAccountPage(){
     ((e.children&&e.children.length)?'<div class="panel" style="padding:12px 16px;margin-bottom:14px"><div class="phd">Branches</div><div style="display:flex;flex-wrap:wrap;gap:8px">'+
       e.children.map(k=>{const c=ACCTBYNORM[k];if(!c)return '';const ca=acctAgg(c);
         return '<a href="#" onclick="showAccountPage(\''+esc(c.name).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac);font-size:12px;background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:6px 10px;text-decoration:none">'+esc(c.name.slice(e.name.length).replace(/^\s*-\s*/,''))+' · '+fmtPeso(ca.booked+ca.shipped)+'</a>';}).join('')+'</div></div>':'')+
-    (e.parentKey&&ACCTBYNORM[e.parentKey]?'<div style="font-size:12px;margin-bottom:12px">Branch of <a href="#" onclick="showAccountPage(\''+esc(ACCTBYNORM[e.parentKey].name).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac);font-weight:600">'+esc(ACCTBYNORM[e.parentKey].name)+'</a></div>':'')+
+    (e.parentKey&&ACCTBYNORM[e.parentKey]?'<div style="font-size:12px;margin-bottom:12px">Branch of <a href="#" onclick="showAccountPage(\''+esc(ACCTBYNORM[e.parentKey].name).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac);font-weight:600">'+esc(ACCTBYNORM[e.parentKey].name)+'</a>'+
+      (canManage()&&(ACCT_LINKS||[]).some(l=>l.kind==='branch'&&l.from_key===custNorm(e.name))?' · <a href="#" onclick="unlinkAccount(\''+custNorm(e.name)+'\',\''+esc(e.name).replace(/'/g,'&#39;')+'\');return false" style="color:var(--rd);font-size:11px">unlink</a>':'')+'</div>':'')+
+    (function(){const merged=(ACCT_LINKS||[]).filter(l=>l.kind==='merge'&&custNorm(l.to_name)===custNorm(e.name));
+      return merged.length?'<div class="panel" style="padding:10px 16px;margin-bottom:14px;font-size:12px"><div class="phd" style="margin-bottom:6px">Merged into this account</div>'+
+        merged.map(l=>'<div style="display:flex;justify-content:space-between;padding:3px 0"><span>'+esc(l.from_name)+'</span>'+(canManage()?'<a href="#" onclick="unlinkAccount(\''+esc(l.from_key).replace(/'/g,'&#39;')+'\',\''+esc(e.name).replace(/'/g,'&#39;')+'\');return false" style="color:var(--rd);font-size:11px">unmerge</a>':'')+'</div>').join('')+'</div>':'';})()+
     '<div class="g2" style="align-items:start">'+
     '<div>'+
     '<div class="panel" style="padding:16px;margin-bottom:14px"><div class="phd">Timeline — orders, visits, shipments'+(e.children?' (all branches)':'')+'</div>'+
@@ -2209,7 +2284,7 @@ function renderHome(){
     '<div class="hmc-ic">'+ic(icon)+'</div><div><div class="hmc-t">'+title+'</div><div class="hmc-s">'+sub+'</div></div></div>';
   const go=v=>'homeGo(\''+v+'\')';
   let sections=[];
-  if(ROLE==='admin'){
+  if(ROLE==='admin'||ROLE==='manager'){
     sections=[
       ['Today',[
         card(go('fulfillq'),'Fulfillment queue','Pending orders, oldest first',HI.truck,1),
@@ -2230,6 +2305,7 @@ function renderHome(){
       ['Admin',[
         card(go('users'),'Team & access','Accounts, roles, passwords',HI.key)]]
     ];
+    if(ROLE==='manager')sections=sections.filter(s=>s[0]!=='Admin');
   }else{
     const today=[];
     today.push(card(go('neworder'),'New order','Take an order in a minute',HI.cart,1));
@@ -2261,7 +2337,7 @@ function renderHome(){
   '</style>'+
   '<div class="hm-hero"><div style="font-size:12px;opacity:.85;position:relative">'+esc(dstr)+'</div>'+
   '<div style="font-size:24px;font-weight:700;margin-top:2px;position:relative">'+greet+', '+esc(first)+'</div>'+
-  '<div style="font-size:12.5px;opacity:.85;margin-top:4px;position:relative">'+(ROLE==='admin'?'Everything Healthspan, in one place.':(myTag?'Signed in as '+esc(myTag)+' — your orders and visits log under your name.':'Manager view — you see the whole team.'))+'</div></div>'+
+  '<div style="font-size:12.5px;opacity:.85;margin-top:4px;position:relative">'+(ROLE==='admin'?'Everything Healthspan, in one place.':ROLE==='manager'?'Sales manager view — the whole team, all accounts.':(myTag?'Signed in as '+esc(myTag)+' — your orders and visits log under your name.':'Manager view — you see the whole team.'))+'</div></div>'+
   sections.map(s=>'<div class="hm-lbl">'+s[0]+'</div><div class="hm-grid">'+s[1].join('')+'</div>').join('');
 }
 
@@ -2289,7 +2365,7 @@ async function renderUsers(){
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Tag</th><th>Last sign-in</th><th></th></tr></thead><tbody>'+
     users.map(u=>'<tr'+(u.banned?' style="opacity:.5"':'')+'><td style="font-weight:600">'+esc(u.name||'—')+(u.banned?' <span class="pill prd">disabled</span>':'')+'</td>'+
       '<td class="mu" style="font-size:11.5px">'+esc(u.email)+'</td>'+
-      '<td>'+(u.role==='admin'?'<span class="pill pbl">admin</span>':u.role==='sales'?'<span class="pill pgr">sales</span>':'<span class="pill prd">'+esc(u.role)+'</span>')+'</td>'+
+      '<td>'+(u.role==='admin'?'<span class="pill pbl">admin</span>':u.role==='manager'?'<span class="pill" style="background:rgba(127,119,221,.15);color:var(--pu)">manager</span>':u.role==='sales'?'<span class="pill pgr">sales</span>':'<span class="pill prd">'+esc(u.role)+'</span>')+'</td>'+
       '<td class="mu">'+esc(u.tag||'—')+'</td>'+
       '<td class="mu" style="font-size:11px">'+(u.last?esc(u.last.slice(0,10)):'never')+'</td>'+
       '<td style="white-space:nowrap">'+
@@ -2303,7 +2379,7 @@ async function renderUsers(){
     '<label '+lbl+'>Name</label><input id="au-name" '+inp+'>'+
     '<label '+lbl+'>Email</label><input id="au-email" type="email" '+inp+'>'+
     '<label '+lbl+'>Starter password (8+ chars)</label><input id="au-pass" '+inp+'>'+
-    '<label '+lbl+'>Role</label><select id="au-role" onchange="var t=$(\'au-tagwrap\');if(t)t.style.display=this.value===\'sales\'?\'block\':\'none\'" '+inp+'><option value="sales">Sales (specialist / manager)</option><option value="admin">Admin</option></select>'+
+    '<label '+lbl+'>Role</label><select id="au-role" onchange="var t=$(\'au-tagwrap\');if(t)t.style.display=this.value===\'sales\'?\'block\':\'none\'" '+inp+'><option value="sales">Product specialist</option><option value="manager">Sales manager — whole team, merges, no user admin</option><option value="admin">Admin — everything</option></select>'+
     '<div id="au-tagwrap"><label '+lbl+'>Specialist tag <span style="text-transform:none;font-weight:400">(blank = manager, sees all)</span></label><input id="au-tag" list="au-tags" '+inp+'>'+
     '<datalist id="au-tags">'+specNames().map(s=>'<option value="'+esc(s)+'">').join('')+'</datalist></div>'+
     '<div id="au-msg" style="min-height:16px;font-size:11.5px;margin:8px 0 4px"></div>'+
@@ -2320,7 +2396,7 @@ async function userCreate(){
 }
 async function userEdit(id,name,role,tag){
   const nn=prompt('Name:',name);if(nn===null)return;
-  const nr=prompt('Role (admin / sales):',role==='(no profile)'?'sales':role);if(nr===null)return;
+  const nr=prompt('Role (admin / manager / sales):',role==='(no profile)'?'sales':role);if(nr===null)return;
   const nt=nr.trim()==='sales'?prompt('Specialist tag (blank = manager, sees all):',tag||''):'';
   if(nt===null)return;
   try{await adminUsers('update',{id,name:nn.trim(),role:nr.trim(),tag:(nt||'').trim()});renderUsers();}
@@ -2886,6 +2962,73 @@ function renderDataHealth(){
 /* ── CUSTOMERS / ACCOUNTS ── */
 // Normalize account names so Verna's OUT destinations match Shopify customer names
 function custNorm(s){return String(s||'').toLowerCase().replace(/\(.*?\)/g,' ').replace(/[^a-z0-9]+/g,' ').replace(/\b(inc|corp|corporation|co|ltd|clinic|clinics|the)\b/g,'').replace(/\s+/g,' ').trim();}
+
+/* ── PROSPECTS working list: Shopify-only accounts, worth chasing or worth merging ── */
+function renderProspects(){
+  const rows=acctList();
+  const sheet=rows.filter(r=>r.src==='sheet'||r.src==='both');
+  const pros=rows.filter(r=>r.src==='shopify'||r.src==='prospect').sort((a,b)=>b.booked-a.booked);
+  // fuzzy candidate: shared name tokens (≥4 chars) with a sheet account → likely the
+  // SAME clinic under a different spelling, not a real prospect
+  const tok=n=>[...new Set(custNorm(n).split(' ').filter(t=>t.length>=4))];
+  const sheetToks=sheet.map(s=>({name:s.name,t:tok(s.name)}));
+  const match=n=>{
+    const a=tok(n);if(!a.length)return null;
+    let best=null,bs=0;
+    for(const s of sheetToks){
+      if(!s.t.length)continue;
+      const hit=s.t.filter(t=>a.includes(t)).length;
+      if(!hit)continue;
+      const score=hit/Math.max(a.length,s.t.length);
+      if(score>bs){bs=score;best=s.name;}
+    }
+    return bs>=0.5?best:null;
+  };
+  const withM=pros.map(r=>({...r,m:match(r.name)}));
+  const dupes=withM.filter(r=>r.m),fresh=withM.filter(r=>!r.m);
+  const y1=new Date(Date.now()-365*864e5).toISOString().slice(0,10);
+  const active=fresh.filter(r=>(r.last||'')>=y1);
+  window._PROSPECTS=withM;
+  const pill=r=>r.src==='prospect'?'<span class="pill" style="background:rgba(127,119,221,.15);color:var(--pu)">visit log only</span>':
+    (r.last||'')>=y1?'<span class="pill pgr">active</span>':'<span class="pill pgy">lapsed</span>';
+  const row=(r,i)=>'<tr onclick="showAccountPage(\''+esc(r.name).replace(/'/g,'&#39;')+'\')" style="cursor:pointer"><td class="mu">'+(i+1)+'</td>'+
+    '<td style="font-weight:600;max-width:250px;overflow:hidden;text-overflow:ellipsis">'+esc(r.name)+'</td>'+
+    '<td>'+pill(r)+'</td>'+
+    '<td class="r" style="font-weight:600">'+(r.booked?fmtPeso(r.booked):'—')+'</td>'+
+    '<td class="r mu">'+(r.v90?fmtPeso(r.v90):'—')+'</td>'+
+    '<td class="r mu" style="font-size:11px">'+esc(r.last||'—')+'</td>'+
+    '<td class="mu" style="font-size:11.5px;max-width:250px;overflow:hidden;text-overflow:ellipsis">'+(r.m?'≈ <a href="#" onclick="event.stopPropagation();showAccountPage(\''+esc(r.m).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac)">'+esc(r.m)+'</a>'+
+      (canManage()?' · <a href="#" onclick="event.stopPropagation();prospectMerge(\''+esc(r.name).replace(/'/g,'&#39;')+'\',\''+esc(r.m).replace(/'/g,'&#39;')+'\');return false" style="color:var(--gr);font-weight:600">merge →</a>':''):'')+'</td></tr>';
+  $('content').innerHTML=
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met pu"><div class="met-lbl">Shopify-only / prospects</div><div class="met-val">'+withM.length+'</div><div class="met-sub">never in the OUT sheet</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Active, real prospects</div><div class="met-val">'+active.length+'</div><div class="met-sub">no sheet match, ordered in the last year</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Likely name mismatches</div><div class="met-val">'+dupes.length+'</div><div class="met-sub">probably an existing account, spelled differently</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Booked value here</div><div class="met-val" style="font-size:15px">'+fmtPeso(withM.reduce((a,r)=>a+r.booked,0))+'</div><div class="met-sub">13-month Shopify bookings</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="tabs" style="margin-bottom:12px">'+[['all','All accounts'],['prospects','Prospects ('+withM.length+')'],['growing','Growing'],['declining','Declining'],['dormant','Dormant'],['shopify','Vs Shopify']].map(([k,l])=>'<div class="tab'+(k==='prospects'?' active':'')+'" onclick="window._custFilter=\''+k+'\';renderCustomers()">'+l+'</div>').join('')+'</div>'+
+    '<div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button onclick="exportProspectsCSV()" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer">Export CSV for the team</button></div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>#</th><th>Account</th><th>Status</th><th style="text-align:right">Booked ₱ (13mo)</th><th style="text-align:right">₱ 90d</th><th style="text-align:right">Last activity</th><th>Possible existing account</th></tr></thead><tbody>'+
+    withM.map(row).join('')+
+    '</tbody></table></div><div class="tfooter"><span>Sorted by booked value · "≈" = shares name words with an OUT-sheet account, so it\'s probably the same clinic under a different spelling (open both to compare) · active = ordered within 12 months → reactivation/regular-account candidates for the specialists · lapsed = one-time buyers worth a follow-up call</span></div></div>';
+}
+async function prospectMerge(fromName,toName){
+  if(!canManage())return;
+  if(!confirm('Merge "'+fromName+'" into "'+toName+'"?\n\nOnly do this if they are the SAME customer (open both pages to compare first). Reversible from the account page.'))return;
+  try{
+    const {error}=await SB.from('account_links').upsert({from_key:custNorm(acctDedup(fromName)),from_name:fromName,to_name:toName,kind:'merge',created_by:(SBUSER&&SBUSER.id)||null});
+    if(error)throw error;
+    await loadAcctLinks(true);
+    renderProspects();
+  }catch(e){alert('Could not merge: '+(e.message||e));}
+}
+function exportProspectsCSV(){
+  const rows=(window._PROSPECTS||[]).map(r=>[r.name,r.src==='prospect'?'visit log only':'shopify only',r.booked||0,r.v90||0,r.last||'',r.m||''].map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','));
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,﻿'+encodeURIComponent(['"Account","Source","Booked 13mo","Booked 90d","Last activity","Possible existing account"',...rows].join('\n'));
+  a.download='healthspan_prospects_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+}
 function renderCustShopifyRecon(all){
   const shopC=(SHOPIFY&&SHOPIFY.customers)||null;
   const tabs='<div class="tabs" style="margin-bottom:12px">'+[['all','Accounts'],['growing','Growing'],['declining','Declining'],['dormant','Dormant'],['shopify','Vs Shopify']].map(([k,l])=>'<div class="tab'+(k==='shopify'?' active':'')+'" onclick="window._custFilter=\''+k+'\';renderCustomers()">'+l+'</div>').join('')+'</div>';
@@ -2935,16 +3078,17 @@ function renderCustomers(){
   if(!all.length){$('content').innerHTML='<div class="empty" style="margin-top:40px">No customer data in the current sync yet — it appears after the next Google Sheets sync.</div>';return;}
   const f=window._custFilter||'all';
   if(f==='shopify')return renderCustShopifyRecon(all);
+  if(f==='prospects')return renderProspects();
   if(f==='all'){ // unified CRM account list: sheet + Shopify + visit-log accounts merged
     ACCTBYNORM=null;
     const rows=acctList();
-    const tabs2=[['all','All accounts ('+rows.length+')'],['growing','Growing'],['declining','Declining'],['dormant','Dormant'],['shopify','Vs Shopify']];
+    const tabs2=[['all','All accounts ('+rows.length+')'],['prospects','Prospects'],['growing','Growing'],['declining','Declining'],['dormant','Dormant'],['shopify','Vs Shopify']];
     $('content').innerHTML=
       '<div class="metrics" style="margin-bottom:14px">'+
       '<div class="met bl"><div class="met-lbl">Accounts</div><div class="met-val">'+rows.length+'</div><div class="met-sub">merged across all systems</div><div class="met-bar"></div></div>'+
       '<div class="met gr"><div class="met-lbl">Booked (13mo)</div><div class="met-val" style="font-size:15px">'+fmtPeso(rows.reduce((a,r)=>a+r.booked,0))+'</div><div class="met-sub">Shopify, all accounts</div><div class="met-bar"></div></div>'+
       '<div class="met am"><div class="met-lbl">Shipped value</div><div class="met-val" style="font-size:15px">'+fmtPeso(rows.reduce((a,r)=>a+r.shipped,0))+'</div><div class="met-sub">warehouse OUT sheet</div><div class="met-bar"></div></div>'+
-      '<div class="met pu"><div class="met-lbl">Shopify-only / prospects</div><div class="met-val">'+rows.filter(r=>r.src==='shopify'||r.src==='prospect').length+'</div><div class="met-sub">not yet in the OUT sheet</div><div class="met-bar"></div></div>'+
+      '<div class="met pu" onclick="window._custFilter=\'prospects\';renderCustomers()" style="cursor:pointer"><div class="met-lbl">Shopify-only / prospects</div><div class="met-val">'+rows.filter(r=>r.src==='shopify'||r.src==='prospect').length+'</div><div class="met-sub">not yet in the OUT sheet — tap to work the list</div><div class="met-bar"></div></div>'+
       '</div>'+
       '<div class="tabs" style="margin-bottom:12px">'+tabs2.map(([k,l])=>'<div class="tab'+(k==='all'?' active':'')+'" onclick="window._custFilter=\''+k+'\';renderCustomers()">'+l+'</div>').join('')+'</div>'+
       '<div class="tcard"><div class="tscroll"><table><thead><tr><th>#</th><th>Account</th><th style="text-align:right">Shipped ₱</th><th style="text-align:right">Booked ₱ (13mo)</th><th style="text-align:right">Booked ₱ 90d</th><th style="text-align:right">Last activity</th></tr></thead><tbody>'+
@@ -4824,7 +4968,8 @@ function buildMobileNav(){
   const home=['home','Home','<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>'];
   const sales=[home,['neworder','New order',I.cart],['orders','Orders',I.bag],['logvisit','Log visit',I.pen],['followups','Follow-ups',I.check],['salesoverview','Sales',I.peso]];
   const admin=[home,['fulfillq','Fulfill',I.check],['orders','Orders',I.bag],['neworder','New order',I.cart],['customers','Accounts',I.users],['salesoverview','Sales',I.peso]];
-  const items=(ROLE==='sales')?sales:admin;
+  const mgr=[home,['orders','Orders',I.bag],['neworder','New order',I.cart],['customers','Accounts',I.users],['salesspec','Team',I.users],['salesoverview','Sales',I.peso]];
+  const items=(ROLE==='sales')?sales:(ROLE==='manager')?mgr:admin;
   let html=items.map(([v,l,svg])=>'<div class="mni'+(currentView===v?' active':'')+'" onclick="showView(\''+v+'\',null);document.querySelectorAll(\'.mni\').forEach(x=>x.classList.remove(\'active\'));this.classList.add(\'active\')"><svg viewBox="0 0 24 24">'+svg+'</svg>'+l+'</div>').join('');
   if(ROLE==='sales'&&SBPROFILE&&SBPROFILE.specialist_tag)
     html='<div class="mni" onclick="showSpecPage(SBPROFILE.specialist_tag)"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>My page</div>'+html;
@@ -4864,11 +5009,13 @@ async function sbLoadProfile(user){
   ROLE=(SBPROFILE&&SBPROFILE.role)||'sales';
   const g=$('rolegate');if(g)g.style.display='none';
   document.body.classList.toggle('role-sales',ROLE==='sales');
+  document.body.classList.toggle('role-manager',ROLE==='manager');
+  try{await loadAcctLinks(true);}catch(e){} // curated merges/branches apply everywhere
   const sf=$('sf-foot');
   const who=(SBPROFILE&&SBPROFILE.name)||user.email||'';
   if(sf){const old=document.getElementById('rolebadge');if(old)old.remove();
     const d=document.createElement('div');d.id='rolebadge';
-    d.innerHTML=esc(who)+' · '+(ROLE==='sales'?'Sales':'Admin')+' · <a href="#" onclick="openChangePassword();return false" style="color:var(--ac)">password</a> · <a href="#" onclick="roleLogout();return false" style="color:var(--ac)">sign out</a>';
+    d.innerHTML=esc(who)+' · '+(ROLE==='sales'?'Sales':ROLE==='manager'?'Sales manager':'Admin')+' · <a href="#" onclick="openChangePassword();return false" style="color:var(--ac)">password</a> · <a href="#" onclick="roleLogout();return false" style="color:var(--ac)">sign out</a>';
     d.style.cssText='padding:6px 14px;border-top:1px solid var(--bd);font-size:10.5px;color:var(--tx3)';
     sf.parentNode.insertBefore(d,sf);}
   buildMobileNav();
