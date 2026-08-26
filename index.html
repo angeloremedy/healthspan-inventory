@@ -1413,8 +1413,14 @@ async function loadVisits(force){
   }catch(e){VISITS=VISITS||[];}
   return VISITS;
 }
+function specNames(){ // picker options: Shopify tags, else Targets tab, so it's never empty
+  let s=Object.keys(specMerged());
+  if(!s.length)s=[...new Set((TARGETS||[]).filter(t=>t.scope==='SPECIALIST').map(t=>t.name))];
+  return s.sort((a,b)=>a.localeCompare(b));
+}
 function renderLogVisit(){
-  const specs=Object.keys(specMerged()).sort((a,b)=>a.localeCompare(b));
+  if(!SHOPIFY)try{loadShopify().then(()=>{if(currentView==='logvisit')renderLogVisit();});}catch(e){}
+  const specs=specNames();
   const accounts=[...new Set([...Object.keys((SHOPIFY&&SHOPIFY.customers)||{}),...(CUSTOMERS||[]).map(c=>c.name)])].filter(a=>a&&!/pull\s*-?\s*out/i.test(a)).sort();
   const today=new Date().toISOString().slice(0,10);
   const preAcct=window._lvAccount||'';window._lvAccount='';
@@ -1494,8 +1500,9 @@ async function loadNativeOrders(force){
 let CART=[];
 function renderNewOrder(){
   if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in with your Healthspan account to take orders.</div>';return;}
+  if(!SHOPIFY)try{loadShopify().then(()=>{if(currentView==='neworder')renderNewOrder();});}catch(e){}
   const myTag=(SBPROFILE&&SBPROFILE.specialist_tag)||'';
-  const specs=Object.keys(specMerged()).sort((a,b)=>a.localeCompare(b));
+  const specs=specNames();
   const accounts=acctList().map(r=>r.name);
   const preAcct=window._noAccount||'';window._noAccount='';
   const inp='style="width:100%;box-sizing:border-box;background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:14px"';
@@ -1591,16 +1598,20 @@ async function renderOrders(){
   const os=await loadNativeOrders(true);
   const myTag=(SBPROFILE&&SBPROFILE.specialist_tag)||'';
   const mine=o=>!myTag||specCanon(o.spec).toLowerCase()===specCanon(myTag).toLowerCase();
-  const rows=os.filter(mine);
-  const stPill=s=>s==='fulfilled'?'<span class="pill pgr">fulfilled</span>':s==='cancelled'?'<span class="pill prd">cancelled</span>':'<span class="pill pam" style="background:var(--am-bg);color:var(--am)">pending</span>';
+  // ONE register: native orders + every imported Shopify order
+  const nat=os.map(o=>({ref:o.id,label:fmtOrdNum(o.num),date:o.date,account:o.account,spec:o.spec,items:(o.order_lines||[]).length,total:o.total,status:o.status,native:true}));
+  const shop=((SHOPIFY&&SHOPIFY.recent)||[]).map(s=>({ref:s.n,label:s.n,date:s.dt,account:acctDedup(s.c||''),spec:s.t||'',items:(s.ls||[]).length,total:(s.ls||[]).reduce((a,l)=>a+(l[2]||0),0),status:'imported',native:false}));
+  const rows=[...nat,...shop].filter(mine).sort((a,b)=>a.date<b.date?1:a.date>b.date?-1:0);
+  const shown=rows.slice(0,250);
+  const stPill=s=>s==='fulfilled'?'<span class="pill pgr">fulfilled</span>':s==='cancelled'?'<span class="pill prd">cancelled</span>':s==='imported'?'<span class="pill pbl">Shopify</span>':'<span class="pill" style="background:var(--am-bg);color:var(--am)">pending</span>';
   $('content').innerHTML=
-    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
-    '<div style="font-size:12px;color:var(--tx3)">'+rows.length+' native orders'+(myTag?' (yours)':'')+' · Shopify-entered orders stay in the account pages & sales views</div>'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">'+
+    '<div style="font-size:12px;color:var(--tx3)">'+rows.length+' orders'+(myTag?' (yours)':'')+' — '+nat.length+' entered here + '+shop.length+' from Shopify (≈6-month import window)'+(rows.length>shown.length?' · showing latest '+shown.length:'')+'</div>'+
     '<button onclick="showView(\'neworder\',null)" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer">+ New order</button></div>'+
-    (rows.length?'<div class="tcard"><div class="tscroll"><table><thead><tr><th>Order</th><th>Date</th><th>Account</th><th>Specialist</th><th style="text-align:right">Items</th><th style="text-align:right">Total</th><th>Status</th></tr></thead><tbody>'+
-    rows.map(o=>'<tr onclick="showOrderPage(\''+o.id+'\')" style="cursor:pointer"><td style="font-weight:700">'+fmtOrdNum(o.num)+'</td><td class="mu">'+esc(o.date)+'</td>'+
-      '<td style="font-weight:600;max-width:220px;overflow:hidden;text-overflow:ellipsis">'+esc(o.account)+'</td><td>'+esc(o.spec)+'</td>'+
-      '<td class="r mu">'+(o.order_lines||[]).length+'</td><td class="r" style="font-weight:600">'+fmtPeso(o.total)+'</td><td>'+stPill(o.status)+'</td></tr>').join('')+
+    (shown.length?'<div class="tcard"><div class="tscroll"><table><thead><tr><th>Order</th><th>Date</th><th>Account</th><th>Specialist</th><th style="text-align:right">Items</th><th style="text-align:right">Total</th><th>Status</th></tr></thead><tbody>'+
+    shown.map(o=>'<tr onclick="showOrderPage(\''+esc(String(o.ref)).replace(/'/g,'&#39;')+'\')" style="cursor:pointer"><td style="font-weight:700">'+esc(o.label)+'</td><td class="mu">'+esc(o.date)+'</td>'+
+      '<td style="font-weight:600;max-width:220px;overflow:hidden;text-overflow:ellipsis">'+esc(o.account||'—')+'</td><td>'+esc(o.spec||'—')+'</td>'+
+      '<td class="r mu">'+o.items+'</td><td class="r" style="font-weight:600">'+fmtPeso(o.total)+'</td><td>'+stPill(o.status)+'</td></tr>').join('')+
     '</tbody></table></div></div>':'<div class="empty" style="margin-top:30px">No orders yet — tap “+ New order” to take the first one.</div>');
 }
 function showOrderPage(ref){
