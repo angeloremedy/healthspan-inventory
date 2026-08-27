@@ -653,6 +653,7 @@ function renderNewOrder(){
   if(!SHOPIFY)try{loadShopify().then(()=>{if(currentView==='neworder')renderNewOrder();});}catch(e){}
   if(!NORDERS)loadNativeOrders().then(()=>{if(currentView==='neworder')noAcctChanged();}); // credit check data
   try{if(SB)loadPromos();}catch(e){} // live promos auto-apply on add-to-order
+  try{if(SB)loadReservations();}catch(e){} // ATP: stock already promised to pending orders
   const myTag=(SBPROFILE&&SBPROFILE.specialist_tag)||'';
   const specs=specNames();
   const accounts=acctList().map(r=>r.name);
@@ -726,6 +727,18 @@ function noProdChanged(){
   let html='<option value="">À la carte'+(p&&p.price>0?' — '+fmtPeso(p.price)+'/u':'')+'</option>';
   if(p&&p.deals)p.deals.forEach((d,i)=>{if(d.setSize&&d.price>0)html+='<option value="'+i+'">'+esc(d.title)+' — '+fmtPeso(d.price)+'/set</option>';});
   sel.innerHTML=html;
+  try{ // ATP hint: what can this order still promise?
+    const msg=$('no-msg');
+    if(p&&msg&&typeof reservedQty==='function'){
+      const onHand=stk(p);
+      if(onHand!==null){
+        const promised=reservedQty(p.sku);
+        const atp=onHand-promised;
+        msg.style.color=atp<=0?'var(--rd)':promised>0?'var(--am)':'var(--tx3)';
+        msg.textContent=onHand+' on hand'+(promised>0?' · '+promised+' promised to pending orders':'')+' · '+Math.max(0,atp)+' available to promise';
+      }
+    }
+  }catch(e){}
 }
 function addCartLine(){
   const p=noProdResolve();
@@ -735,6 +748,21 @@ function addCartLine(){
   const sets=Math.max(1,parseInt(($('no-qty')&&$('no-qty').value)||'1',10)||1);
   const dealIx=($('no-deal')&&$('no-deal').value)||'';
   const free=$('no-free')&&$('no-free').checked;
+  // ── ATP guard: this order commits stock; two orders can't promise the same units
+  try{
+    const onHand=stk(p);
+    if(onHand!==null&&typeof reservedQty==='function'){
+      const addUnits=(dealIx!==''&&p.deals&&p.deals[dealIx])?sets*p.deals[dealIx].setSize:sets;
+      const inCart=CART.filter(l=>l.sku===sku).reduce((a,l)=>a+(l.qty||0),0);
+      const promised=reservedQty(sku);
+      const atp=onHand-promised-inCart;
+      if(addUnits>atp){
+        const info='Only '+Math.max(0,atp)+' available to promise — '+onHand+' on hand, '+promised+' already promised to pending orders'+(inCart?', '+inCart+' in this order':'')+'.';
+        if(!canManage()){if(msg){msg.style.color='var(--rd)';msg.textContent=info+' Reduce the quantity or check with your manager.';}return;}
+        if(!confirm(info+'\n\nAdd anyway? (manager override — the shortfall becomes a backorder problem)'))return;
+      }
+    }
+  }catch(e){}
   if(free){CART.push({sku,name:p.name,qty:sets,price:0,amount:0,is_free:true,deal:null});}
   else if(dealIx!==''&&p.deals&&p.deals[dealIx]){
     const d=p.deals[dealIx];const per=d.setSize-1;
@@ -810,6 +838,7 @@ async function submitOrder(){
       try{
         await SB.from('approvals').insert({kind:holdReason.startsWith('Credit')?'credit':'threshold',order_id:ord.id,order_label:fmtOrdNum(ord.num),account,amount:total,reason:holdReason,requested_by:SBUSER.id,requested_name:(SBPROFILE&&SBPROFILE.name)||spec});
         audit('approval.request',{order:fmtOrdNum(ord.num),reason:holdReason});
+        try{notify({roles:['manager','admin']},'approval','Approval needed: '+fmtOrdNum(ord.num),account+' · '+fmtPeso(total)+' — '+holdReason,'#/v/approvals');}catch(e){}
         if(msg){msg.style.color='var(--am)';msg.textContent='Order '+fmtOrdNum(ord.num)+' saved — HELD for manager approval ('+holdReason+').';}
       }catch(e){}
     }
@@ -817,6 +846,7 @@ async function submitOrder(){
     if(e2)throw new Error('Order saved but lines failed: '+e2.message);
     CART=[];NORDERS=null;
     audit('order.create',{order:fmtOrdNum(ord.num),account,spec,total});
+    if(!holdReason)try{notify({roles:['supply_chain']},'order','New order '+fmtOrdNum(ord.num),account+' · '+fmtPeso(total)+' — ready to pick','#/v/fulfillq');}catch(e){}
     if(msg){msg.style.color='var(--gr)';msg.textContent='Order '+fmtOrdNum(ord.num)+' submitted.';}
     showOrderPage(ord.id);
   }catch(e){if(msg){msg.style.color='var(--rd)';msg.textContent='Could not submit: '+e.message;}}

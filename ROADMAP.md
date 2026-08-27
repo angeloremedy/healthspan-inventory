@@ -88,6 +88,11 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ Customer statements: printable per-account Statement of Account with aging summary
 - ✅ Accounting export: date-range CSV of the register (totals, payments, balances, terms)
 
+**The machine connected (Aug 28)**
+- ✅ Notifications: bell + unread badge; approval holds → managers, decisions → specialist, approved orders → warehouse, fulfillments → order owner (90s poll)
+- ✅ Stock reservations / ATP: order entry shows on-hand · promised · available-to-promise; specialists can't oversell, managers can override; auto-release on fulfill/cancel
+- ✅ Startup fix: sidebar collapse now applies at load (the init call ran before its module loaded) — product lines truly start collapsed
+
 **Order-to-cash & compliance (Aug 28)**
 - ✅ Quotations: formal QT-numbered quotes, printable, win/loss tracked, one-tap convert to order
 - ✅ Promotions engine: configured promos (window + SKUs + mechanic) auto-apply at order entry & quotes
@@ -193,7 +198,7 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ **Pick confirmation** — shipped (FEFO batch-stamped; auto-fulfills the order)
 - ▢ **Returns receiving** — back to stock or quarantine/write-off
 - ▢ **Expiry quarantine & disposal log** — compliance trail for pharma products
-- ▢ **Stock reservations / ATP** — an order commits stock so two orders can't promise the same units (prerequisite for a trustworthy ledger)
+- ✅ **Stock reservations / ATP** — shipped (pending native orders ARE the reservation; order entry shows on-hand / promised / available-to-promise, blocks specialists from overselling, manager override with confirm; releases automatically on fulfill/cancel)
 - ▢ **Backorder management** — short-ship tracking with auto-release when stock arrives
 - ▢ **Wave picking** — batch several orders into one FEFO warehouse pass
 - ▢ **QA hold on receipt** — received stock sits in quarantine until released as sellable
@@ -212,7 +217,7 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ **Permissions matrix doc** — shipped (PERMISSIONS.md; updated with every feature)
 - ✅ **Access levels** — superseded and shipped as the eight-role rollout (super admin / admin / manager / sales / supply_chain / finance / marketing / viewer) + scoped PS-account admin for IT (Justine)
 - ✅ Scheduled jobs — shipped (nightly 2am Manila: backfill sync + sales-cache rebuild)
-- ▢ Notifications: in-app + email for approvals, credit holds, overdue follow-ups
+- ✅ Notifications (in-app): bell + badge; held orders ping managers, decisions ping the specialist, approved orders ping the warehouse, fulfillments ping the order owner. Email later if needed
 - ▢ Reporting layer: saved report definitions + scheduled exports (the NetSuite "saved search" equivalent)
 - ▢ **Forecast accuracy tracking (MAPE)** — record each month's forecast vs what actually sold, per SKU; the foundation for any demand-planning AI and the honest test of the current models
 - ▢ Disable legacy Supabase JWT keys (after confirming new keys) · rotate service keys on a schedule

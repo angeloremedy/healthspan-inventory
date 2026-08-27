@@ -198,6 +198,16 @@ limits on account pages and owns **Commissions** (tiered %-of-target, CSV for
 payroll) and **supplier AP** on purchase orders. The events calendar merges
 campaigns, planned visits, and demos into one month grid.
 
+## 9.5 Notifications & available-to-promise
+
+The bell in the top bar pings you when the machine needs you: a held order
+pings managers, the decision pings the specialist, an approved order pings the
+warehouse, and a fulfillment pings whoever took the order. Tap any ping to jump
+straight to the right view. And at order entry, every product shows *on hand ·
+promised · available to promise* — a submitted order commits its stock, so two
+orders can never promise the same units. Specialists are held to the limit;
+managers can override with a confirmation.
+
 ## 10. Team & access (admin only)
 
 Sidebar → Admin → **Team & access**. Create accounts (name, email, starter

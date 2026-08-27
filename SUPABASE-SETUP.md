@@ -1097,3 +1097,32 @@ Registration edits ride the existing items policies (admin + finance).
 Quotes: everyone signed-in can read; sales/manager/admin create; owner or
 manager/admin update status. Promos: everyone reads (order entry applies
 them); admin + marketing configure.
+
+## Notifications (2026-08-28)
+
+SQL Editor → Run:
+
+```sql
+create table if not exists public.notifications (
+  id bigint generated always as identity primary key,
+  user_id uuid,            -- direct recipient, or…
+  role text,               -- …broadcast to everyone with this role
+  kind text not null,      -- approval / decision / order / fulfilled
+  title text not null,
+  body text,
+  link text,               -- in-app hash route
+  created_by uuid,
+  created_at timestamptz not null default now()
+);
+alter table public.notifications enable row level security;
+create policy "notif read mine" on public.notifications for select to authenticated
+  using (user_id = auth.uid()
+     or (role is not null and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = notifications.role)));
+create policy "notif insert" on public.notifications for insert to authenticated
+  with check (auth.uid() = created_by);
+```
+
+Unread state is a per-device watermark (localStorage) — no read-tracking table
+needed. Stock reservations / ATP need **no SQL**: pending native orders ARE the
+reservation (derived live from order_lines), so reservations release
+automatically on fulfill/cancel.

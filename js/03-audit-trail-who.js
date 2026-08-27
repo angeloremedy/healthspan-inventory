@@ -606,7 +606,7 @@ async function confirmPick(orderRef){
     // gear 2: the warehouse action drives the order status too
     if(o.status==='pending'&&canFulfil()&&confirm('Picked ✓ ('+rows.length+' line'+(rows.length>1?'s':'')+' in the ledger).\n\nAlso mark '+ordLabel(o)+' as FULFILLED?')){
       const {error:e2}=await SB.from('orders').update({status:'fulfilled'}).eq('id',o.id);
-      if(!e2){audit('order.fulfilled',{order:ordLabel(o),via:'pick-confirm'});NORDERS=null;}
+      if(!e2){audit('order.fulfilled',{order:ordLabel(o),via:'pick-confirm'});NORDERS=null;try{notifyOrderOwner(o.id,'fulfilled','Order fulfilled: '+ordLabel(o),(o.account||'')+' — picked and shipped from the warehouse','#/v/orders');}catch(ex){}}
       alert(e2?('Ledger saved, but the status update failed: '+e2.message):'Fulfilled ✓ — ledger and order updated together.');
     }else{
       alert('Picked ✓ — '+rows.length+' line'+(rows.length>1?'s':'')+' recorded in the ledger.');
@@ -686,7 +686,7 @@ async function pickFinish(){
     let ftxt='';
     if(canManage()){
       const {error}=await SB.from('orders').update({status:'fulfilled'}).eq('id',P.id);
-      if(!error){audit('order.fulfilled',{order:P.label,via:'scan-pick'});NORDERS=null;ftxt=' and marked fulfilled';}
+      if(!error){audit('order.fulfilled',{order:P.label,via:'scan-pick'});NORDERS=null;ftxt=' and marked fulfilled';try{notifyOrderOwner(P.id,'fulfilled','Order fulfilled: '+P.label,'Every unit scanned and shipped','#/v/orders');}catch(ex){}}
     }
     window._scanHandler=null;scanStop();
     alert('✓ '+P.label+' picked'+ftxt+' — every unit scanned and in the ledger.');

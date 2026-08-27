@@ -217,6 +217,7 @@ Self-disable is rejected. Three privilege tiers:
 | `comm_rules` | Commission tiers (single row) | finance-editable `min:pct` tiers |
 | `quotes` / `quote_lines` | Quotations (QT-numbering) | draft/sent/accepted/lost, expiry, convert→order |
 | `promos` | Promotions engine | window, SKU list or `*`, `nplusm` or `pct`, auto-applied at order entry |
+| `notifications` | In-app pings (bell) | `user_id` direct or `role` broadcast; unread = per-device watermark |
 
 `profiles.role` spans 7 roles (admin/manager/sales/supply_chain/finance/
 marketing/viewer) + `is_super` + `can_manage_ps` — the full matrix lives in
@@ -259,5 +260,7 @@ from `profiles` at sign-in and drive everything (`ROLE`, `SBPROFILE`).
 - Modular restructure Phase 1 done (10 modules, byte-identical); Phase 2 =
   Vite proper, post-cutover.
 - Client-side pagination (~2 MB register at 9k orders) → server-side later.
+- ATP note: reservations are DERIVED (pending native order lines), not a table —
+  they release automatically when an order fulfills or cancels.
 - Supabase free tier until cutover → Pro (backups, PITR, no pause).
 - Legacy Supabase JWT keys to disable after verifying the new keys.

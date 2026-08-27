@@ -584,6 +584,10 @@ async function approvalAct(id,decision){
       else await SB.from('orders').update({status:'cancelled',approved:true}).eq('id',r.order_id);
     }
     audit('approval.'+decision,{order:r.order_label,account:r.account,amount:r.amount});
+    try{
+      if(r.requested_by)notify({user_id:r.requested_by},'decision','Order '+(decision==='approved'?'APPROVED':'REJECTED')+': '+r.order_label,r.account+' · '+fmtPeso(r.amount||0)+(decision==='rejected'?' — cancelled':''),'#/v/orders');
+      if(decision==='approved')notify({roles:['supply_chain']},'order','New order '+r.order_label,r.account+' · '+fmtPeso(r.amount||0)+' — approved, ready to pick','#/v/fulfillq');
+    }catch(e){}
     NORDERS=null;renderApprovals();
   }catch(e){alert('Could not decide: '+(e.message||e));}
 }
@@ -1047,3 +1051,89 @@ async function regEdit(sku){
     renderRegs();
   }catch(err){alert(err.message||err);}
 }
+
+/* ══════════ NOTIFICATIONS — the machine pings you (gap #2 closed) ══════════ */
+let NOTIFS=null;
+async function notify(target,kind,title,body,link){ // fire-and-forget; target={user_id} or {roles:[...]}
+  if(!SB||!SBUSER)return;
+  try{
+    const base={kind,title,body:body||null,link:link||null,created_by:SBUSER.id};
+    const rows=target.roles?target.roles.map(r=>Object.assign({role:r},base)):[Object.assign({user_id:target.user_id},base)];
+    await SB.from('notifications').insert(rows);
+  }catch(e){}
+}
+async function notifyOrderOwner(orderId,kind,title,body,link){
+  if(!SB)return;
+  try{
+    const {data:o}=await SB.from('orders').select('user_id').eq('id',orderId).maybeSingle();
+    if(o&&o.user_id&&o.user_id!==(SBUSER&&SBUSER.id))await notify({user_id:o.user_id},kind,title,body,link);
+  }catch(e){}
+}
+async function loadNotifs(force){
+  if(NOTIFS&&!force)return NOTIFS;
+  if(!SB||!SBUSER)return NOTIFS=[];
+  try{
+    const {data}=await SB.from('notifications').select('*')
+      .or('user_id.eq.'+SBUSER.id+(ROLE?',role.eq.'+ROLE:''))
+      .order('created_at',{ascending:false}).limit(30);
+    NOTIFS=data||[];
+  }catch(e){NOTIFS=NOTIFS||[];}
+  return NOTIFS;
+}
+function nSeen(){try{return localStorage.getItem('hs_notif_seen')||'';}catch(e){return'';}}
+function nBadge(){
+  const b=$('nbadge');if(!b)return;
+  const seen=nSeen();
+  const n=(NOTIFS||[]).filter(x=>x.created_at>seen).length;
+  b.style.display=n?'block':'none';
+  b.textContent=n>9?'9+':String(n);
+}
+async function nPoll(){await loadNotifs(true);nBadge();}
+function nAgo(ts){
+  const m=Math.floor((Date.now()-new Date(ts).getTime())/60000);
+  if(m<1)return'now';if(m<60)return m+'m';const h=Math.floor(m/60);if(h<24)return h+'h';return Math.floor(h/24)+'d';
+}
+async function toggleNotifs(){
+  if(!SB||!SBUSER)return;
+  await loadNotifs(true);
+  const seen=nSeen();
+  const icon=k=>k==='approval'?'⏳':k==='decision'?'✅':k==='order'?'🧾':k==='fulfilled'?'📦':'🔔';
+  $('dbody').innerHTML=
+    '<div class="dsku">NOTIFICATIONS</div><div class="dname">What needs you</div>'+
+    '<div class="dsec">'+
+    ((NOTIFS||[]).length?(NOTIFS||[]).map(x=>
+      '<div class="drow" onclick="'+(x.link?'closeDrawer&&closeDrawer();$(\'overlay\').classList.remove(\'open\');$(\'drawer\').classList.remove(\'open\');location.hash=\''+esc(x.link)+'\';':'')+'" style="align-items:flex-start;border-bottom:1px solid var(--bd);padding:10px 0;'+(x.link?'cursor:pointer':'')+'">'+
+      '<span class="dlbl" style="max-width:85%">'+icon(x.kind)+' <b'+(x.created_at>seen?' style="color:var(--ac)"':'')+'>'+esc(x.title)+'</b>'+
+      (x.body?'<br><span style="color:var(--tx3);font-size:11.5px">'+esc(x.body)+'</span>':'')+'</span>'+
+      '<span class="dval" style="color:var(--tx3);font-size:10.5px">'+nAgo(x.created_at)+'</span></div>').join(''):
+      '<div style="font-size:12.5px;color:var(--tx3);padding:14px 0">Nothing yet — approvals, new orders, and fulfillments land here the moment they happen.</div>')+
+    '</div>'+
+    '<div style="font-size:10.5px;color:var(--tx3);margin-top:10px">Held orders ping managers · decisions ping the specialist · approved orders ping the warehouse · fulfillments ping the order owner. Checked every 90 seconds.</div>';
+  $('overlay').classList.add('open');$('drawer').classList.add('open');
+  try{localStorage.setItem('hs_notif_seen',new Date().toISOString());}catch(e){}
+  nBadge();
+}
+
+/* ── late INIT (js/10 loads last, so calls here see every module) ── */
+try{navApplyCollapse();}catch(e){} // the js/09 call runs before this file loads — THIS one is the real startup apply
+try{
+  setTimeout(()=>{if(SB&&SBUSER)nPoll();},5000);
+  setInterval(()=>{if(SB&&SBUSER)nPoll();},90000);
+}catch(e){}
+
+
+/* ── STOCK RESERVATIONS / ATP (gap #3 closed): pending native orders ARE the reservation ── */
+let RESV=null,_resvTs=0;
+async function loadReservations(force){
+  if(RESV&&!force&&Date.now()-_resvTs<60000)return RESV;
+  if(!SB)return RESV=RESV||{};
+  try{
+    const {data}=await SB.from('order_lines')
+      .select('sku,qty,orders!inner(status,source,deleted_at)')
+      .eq('orders.status','pending').eq('orders.source','native').is('orders.deleted_at',null);
+    const m={};for(const l of (data||[]))m[String(l.sku).toLowerCase()]=(m[String(l.sku).toLowerCase()]||0)+(l.qty||0);
+    RESV=m;_resvTs=Date.now();
+  }catch(e){RESV=RESV||{};}
+  return RESV;
+}
+function reservedQty(sku){return (RESV&&RESV[String(sku).toLowerCase()])||0;}
