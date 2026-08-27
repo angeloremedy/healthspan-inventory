@@ -57,16 +57,29 @@ export const handler = async (event) => {
   try { p = JSON.parse(event.body || '{}'); } catch (e) {}
   const act = p.action;
 
+  // ── SUPER ADMIN PROTECTION: nobody may disable, delete, demote, or reset the
+  // password of the super admin account except the super admin themself.
+  if (['disable', 'delete', 'password', 'update'].includes(act) && p.id && p.id !== caller.id) {
+    try {
+      const t = await svc('/rest/v1/profiles?id=eq.' + p.id + '&select=is_super');
+      if (t && t[0] && t[0].is_super) {
+        await log('user.PROTECTED', { attempted: act, target: p.id.slice(0, 8) });
+        return out(403, { error: 'The super admin account is protected — only Angelo can modify it.' });
+      }
+    } catch (e) {}
+  }
+
   try {
     if (act === 'list') {
       const users = await svc('/auth/v1/admin/users?per_page=200');
-      const profs = await svc('/rest/v1/profiles?select=id,name,role,specialist_tag');
+      const profs = await svc('/rest/v1/profiles?select=id,name,role,specialist_tag,is_super');
       const pm = {}; for (const x of (profs || [])) pm[x.id] = x;
       const list = ((users && users.users) || []).map(u => ({
         id: u.id, email: u.email,
         name: (pm[u.id] && pm[u.id].name) || '',
         role: (pm[u.id] && pm[u.id].role) || '(no profile)',
         tag: (pm[u.id] && pm[u.id].specialist_tag) || '',
+        is_super: !!(pm[u.id] && pm[u.id].is_super),
         last: u.last_sign_in_at || '',
         banned: !!(u.banned_until && new Date(u.banned_until) > new Date())
       })).sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email));

@@ -186,7 +186,10 @@ function navToggle(el){
 function navApplyCollapse(){
   document.querySelectorAll('.nav .nlbl').forEach(lbl=>{
     let collapsed=false;
-    try{collapsed=localStorage.getItem(navKey(lbl))==='1';}catch(e){}
+    try{
+      const v=localStorage.getItem(navKey(lbl));
+      collapsed=v===null?navKey(lbl)==='hs_nav_productlines':v==='1'; // product lines: collapsed by default
+    }catch(e){}
     lbl.classList.toggle('collapsed',collapsed);
     let n=lbl.nextElementSibling;
     while(n&&!n.classList.contains('nlbl')){

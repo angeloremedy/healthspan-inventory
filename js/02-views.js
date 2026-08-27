@@ -11,7 +11,8 @@ function showView(v,el){
     if(common.includes(v)||(per[ROLE]||[]).includes(v)){v='home';el=document.querySelector('.ni[onclick*="\'home\'"]');}
   }
   if(typeof pushRoute==='function')pushRoute('#/v/'+v); // browser back/forward works across views
-  currentView=v;fLine='';fSearch='';fTab='all';fBin='';fSup='';
+  currentView=v;
+  try{const _c=$('content');if(_c){_c.style.animation='none';void _c.offsetHeight;_c.style.animation='viewin .18s ease';}}catch(e){}fLine='';fSearch='';fTab='all';fBin='';fSup='';
   document.querySelectorAll('.ni').forEach(x=>x.classList.remove('active'));
   if(el) el.classList.add('active');
   const T={dashboard:'Dashboard',action:'Action center',customers:'Accounts (CRM)',health:'Data health',all:'All SKUs',oos:'Out of stock',low:'Low stock',neg:'Negative stock',

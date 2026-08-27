@@ -118,17 +118,18 @@ async function renderUsers(){
   $('content').innerHTML=
     '<div class="g2" style="align-items:start;gap:14px">'+
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Tag</th><th>Last sign-in</th><th></th></tr></thead><tbody>'+
-    users.map(u=>'<tr'+(u.banned?' style="opacity:.5"':'')+'><td style="font-weight:600">'+esc(u.name||'—')+(u.banned?' <span class="pill prd">disabled</span>':'')+'</td>'+
+    users.map(u=>'<tr'+(u.banned?' style="opacity:.5"':'')+'><td style="font-weight:600">'+esc(u.name||'—')+(u.is_super?' <span class="pill pbl">super</span>':'')+(u.banned?' <span class="pill prd">disabled</span>':'')+'</td>'+
       '<td class="mu" style="font-size:11.5px">'+esc(u.email)+'</td>'+
       '<td>'+(u.role==='admin'?'<span class="pill pbl">admin</span>':u.role==='manager'?'<span class="pill" style="background:rgba(127,119,221,.15);color:var(--pu)">manager</span>':u.role==='sales'?'<span class="pill pgr">sales</span>':['supply_chain','finance','marketing','viewer'].includes(u.role)?'<span class="pill pgy">'+esc(u.role.replace('_',' '))+'</span>':'<span class="pill prd">'+esc(u.role)+'</span>')+'</td>'+
       '<td class="mu">'+esc(u.tag||'—')+'</td>'+
       '<td class="mu" style="font-size:11px">'+(u.last?esc(u.last.slice(0,10)):'never')+'</td>'+
       '<td style="white-space:nowrap">'+
+      (u.is_super&&u.id!==(SBUSER&&SBUSER.id)?'<span class="pill pbl" title="The super admin account cannot be modified by other admins">🛡 protected</span>':
       '<a href="#" onclick="userEdit(\''+u.id+'\',\''+esc(u.name).replace(/'/g,'&#39;')+'\',\''+esc(u.role)+'\',\''+esc(u.tag).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac);font-size:11.5px">edit</a> · '+
       '<a href="#" onclick="userPass(\''+u.id+'\',\''+esc(u.name||u.email).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac);font-size:11.5px">password</a> · '+
       (isSuper()&&u.id!==(SBUSER&&SBUSER.id)?'<a href="#" onclick="userDelete(\''+u.id+'\',\''+esc(u.name||u.email).replace(/'/g,'&#39;')+'\');return false" style="color:var(--rd);font-size:11.5px;font-weight:700">delete</a> · ':'')+
       (u.banned?'<a href="#" onclick="userToggle(\''+u.id+'\',\'enable\');return false" style="color:var(--gr);font-size:11.5px">enable</a>':
-      '<a href="#" onclick="userToggle(\''+u.id+'\',\'disable\');return false" style="color:var(--rd);font-size:11.5px">disable</a>')+
+      '<a href="#" onclick="userToggle(\''+u.id+'\',\'disable\');return false" style="color:var(--rd);font-size:11.5px">disable</a>'))+
       '</td></tr>').join('')+
     '</tbody></table></div><div class="tfooter"><span>'+users.length+' accounts · disabling blocks sign-in immediately (data is kept) · you can’t disable yourself</span></div></div>'+
     '<div class="panel" style="padding:16px"><div class="phd">Add account</div>'+

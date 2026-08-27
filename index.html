@@ -2,10 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
 <title>Healthspan HQ</title>
 <link rel="icon" type="image/png" href="/favicon.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#00168F">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="HQ">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -308,6 +313,28 @@ body.role-sales .nav .nlbl.nv-sales{display:block}
 .nav .nlbl::after{content:" ▾";opacity:.5;font-size:9px}
 .nav .nlbl.collapsed::after{content:" ▸"}
 body.role-manager #nav-admin-lbl,body.role-manager .ni[onclick*="'users'"],body.role-manager .ni[onclick*="'cutover'"]{display:none}
+/* ── PWA / TOUCH POLISH ── */
+*{-webkit-tap-highlight-color:transparent}
+button,a,.ni,.mni,.hmc,.tab,select{touch-action:manipulation}
+.ni,.mni,.nlbl,.hmc,.tab{-webkit-user-select:none;user-select:none}
+.ni:active,.mni:active,.hmc:active,.tab:active{transform:scale(.97);transition:transform .08s}
+button:active{transform:scale(.97)}
+.main{overscroll-behavior-y:contain}
+/* content view transition: gentle fade + rise */
+@keyframes viewin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+/* full-screen mobile menu: slide up */
+@keyframes menuin{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
+#mmenu{animation:menuin .22s cubic-bezier(.2,.8,.3,1)}
+/* drawer: smooth slide (transform-based) */
+.drawer{transition:transform .25s cubic-bezier(.2,.8,.3,1)}
+/* standalone (added to home screen): respect the notch, feel native */
+@media (display-mode: standalone){
+  .mobile-topbar{padding-top:calc(10px + env(safe-area-inset-top))}
+  body{overscroll-behavior:none}
+}
+@media (prefers-reduced-motion: reduce){
+  *,#mmenu{animation:none!important;transition:none!important}
+}
 /* sales role keeps the mobile bar — it gets its own items via buildMobileNav() */
 @media print{
   .sb,.mobile-nav,.mobile-topbar,.topbar,.no-print{display:none!important}
