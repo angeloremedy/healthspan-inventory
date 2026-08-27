@@ -12,7 +12,7 @@ function showView(v,el){
   }
   if(typeof pushRoute==='function')pushRoute('#/v/'+v); // browser back/forward works across views
   currentView=v;
-  try{const _c=$('content');if(_c){_c.style.animation='none';void _c.offsetHeight;_c.style.animation='viewin .18s ease';}}catch(e){}fLine='';fSearch='';fTab='all';fBin='';fSup='';
+  try{if(window._animReady){const _c=$('content');_c.style.animation='none';void _c.offsetHeight;_c.style.animation='viewin .18s ease';}}catch(e){}fLine='';fSearch='';fTab='all';fBin='';fSup='';
   document.querySelectorAll('.ni').forEach(x=>x.classList.remove('active'));
   if(el) el.classList.add('active');
   const T={dashboard:'Dashboard',action:'Action center',customers:'Accounts (CRM)',health:'Data health',all:'All SKUs',oos:'Out of stock',low:'Low stock',neg:'Negative stock',
@@ -539,7 +539,7 @@ function renderLogVisit(){
     '<select id="lv-type" '+inp+'><option>Clinic visit</option><option>Call / follow-up</option><option>Product demo</option><option>Delivery / after-sales</option><option>Event / congress</option></select>'+
     '<label '+lbl+'>Outcome</label>'+
     '<select id="lv-out" '+inp+'><option>Ordered</option><option>Follow-up needed</option><option>Left samples</option><option>No order</option><option>New account opened</option></select>'+
-    '<label '+lbl+'>Products endorsed <span style="text-transform:none;font-weight:400">(binida to the doctor — tap to add)</span></label>'+
+    '<label '+lbl+'>Products endorsed <span style="text-transform:none;font-weight:400">(pitched to the doctor — tap to add)</span></label>'+
     '<input id="lv-prod" list="lv-prods" placeholder="Start typing a product…" onchange="lvAddProd()" '+inp+'>'+
     '<datalist id="lv-prods">'+DATA.map(p=>'<option value="'+esc(p.name)+'">').join('')+'</datalist>'+
     '<div id="lv-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>'+
@@ -572,7 +572,7 @@ async function renderRecentVisits(){
   const show=vs.filter(v=>!mine||v.spec===mine).slice(0,10);
   if(!$('lv-recent'))return;
   box.innerHTML=show.length?'<div class="panel" style="padding:14px"><div class="phd">Recent logged visits'+(mine?' — '+esc(mine):'')+'</div>'+
-    show.map(v=>'<div class="drow" style="align-items:flex-start"><span class="dlbl" style="max-width:280px"><b>'+esc(v.account)+'</b> · '+esc(v.date)+'<br><span style="color:var(--tx3)">'+esc(v.type)+' · '+esc(v.outcome)+(v.products?' · <b>bida:</b> '+esc(v.products):'')+(v.notes?' · '+esc(v.notes):'')+'</span></span><span class="dval">'+esc(v.spec)+'</span></div>').join('')+'</div>':'';
+    show.map(v=>'<div class="drow" style="align-items:flex-start"><span class="dlbl" style="max-width:280px"><b>'+esc(v.account)+'</b> · '+esc(v.date)+'<br><span style="color:var(--tx3)">'+esc(v.type)+' · '+esc(v.outcome)+(v.products?' · <b>endorsed:</b> '+esc(v.products):'')+(v.notes?' · '+esc(v.notes):'')+'</span></span><span class="dval">'+esc(v.spec)+'</span></div>').join('')+'</div>':'';
 }
 async function submitVisit(){
   const g=id=>($(id)&&$(id).value||'').trim();

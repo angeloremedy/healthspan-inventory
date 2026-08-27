@@ -204,6 +204,7 @@ async function sbLoadProfile(user){
       const lbl=document.getElementById('nav-admin-lbl');if(lbl&&ROLE!=='finance')lbl.style.display='none';
     }
   }catch(e){}
+  setTimeout(()=>{window._animReady=true;},400); // animations start after login settles (no boot flicker)
   if(location.hash&&location.hash.startsWith('#/'))applyRoute(); // deep link / refresh keeps the page
   else showView('home',document.querySelector('.ni[onclick*="\'home\'"]')); // everyone lands on the role-aware home
 }

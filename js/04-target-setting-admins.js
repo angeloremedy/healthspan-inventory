@@ -421,7 +421,7 @@ async function renderAccountPage(){
     .map(o=>({k:'order',dt:o.date,who:o.spec||'',label:ordLabel(o),amt:o.total,ref:o.id,native:o.source!=='shopify'}));
   orders.push(...natOrders);
   const visits=(VISITS||[]).filter(v=>inNames.has((v.account||'').trim()))
-    .map(v=>({k:v.status==='planned'?'plan':'visit',dt:v.date,who:v.spec,label:v.type||'Visit',out:v.outcome,notes:(v.products?'bida: '+v.products+(v.notes?' · '+v.notes:''):v.notes),fu:v.outcome==='Follow-up needed'&&!v.fu_done}));
+    .map(v=>({k:v.status==='planned'?'plan':'visit',dt:v.date,who:v.spec,label:v.type||'Visit',out:v.outcome,notes:(v.products?'endorsed: '+v.products+(v.notes?' · '+v.notes:''):v.notes),fu:v.outcome==='Follow-up needed'&&!v.fu_done}));
   const ship=[e,...((e.children||[]).map(k=>ACCTBYNORM[k]).filter(Boolean))]
     .flatMap(x=>(x.sheet&&x.sheet.recent||[]).map(r=>({k:'ship',dt:r.date,who:'warehouse',label:r.qty+' × '+r.name,amt:null})));
   const tl=[...orders,...visits,...ship].sort((a,b)=>a.dt<b.dt?1:a.dt>b.dt?-1:0).slice(0,60);
@@ -539,7 +539,7 @@ async function openAccountDrawer_legacy(name){
   const orders=((SHOPIFY&&SHOPIFY.recent)||[]).filter(o=>(o.c||'').trim()===name)
     .map(o=>({k:'order',dt:o.dt,t:o.t||'',label:o.n,amt:(o.ls||[]).reduce((x,l)=>x+(l[2]||0),0)}));
   const visits=(VISITS||[]).filter(v=>(v.account||'').trim()===name)
-    .map(v=>({k:v.status==='planned'?'plan':'visit',dt:v.date,t:v.spec,label:v.type||'Visit',out:v.outcome,notes:(v.products?'bida: '+v.products+(v.notes?' · '+v.notes:''):v.notes)}));
+    .map(v=>({k:v.status==='planned'?'plan':'visit',dt:v.date,t:v.spec,label:v.type||'Visit',out:v.outcome,notes:(v.products?'endorsed: '+v.products+(v.notes?' · '+v.notes:''):v.notes)}));
   const tl=[...orders,...visits].sort((a,b)=>a.dt<b.dt?1:a.dt>b.dt?-1:0).slice(0,30);
   const pill=k=>k==='order'?'<span class="pill pgr">order</span>':k==='plan'?'<span class="pill pbl">planned</span>':'<span class="pill pam" style="background:rgba(186,117,23,.15);color:var(--am)">visit</span>';
   const f=(id,label,val,ph)=>'<label style="font-size:10.5px;color:var(--tx3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin:8px 0 3px">'+label+'</label>'+

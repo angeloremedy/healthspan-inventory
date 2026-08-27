@@ -59,7 +59,7 @@ body.dark[data-theme="healthspan"]{
   --ac:#8fa0ff;--bl:#8fa0ff;--bl-bg:#131a3a;--bl-lt:#b7c2ff;--pu:#b3adf0;--pu-bg:#191645;
 }
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--tx);font-size:14px;line-height:1.5;min-height:100vh}
-.shell{display:flex;height:100vh;overflow:hidden}
+.shell{display:flex;height:100vh;height:100dvh;overflow:hidden}
 .sb{width:228px;flex-shrink:0;background:var(--sf);border-right:1px solid var(--bd);display:flex;flex-direction:column;overflow:hidden}
 .main{flex:1;overflow-y:auto;display:flex;flex-direction:column;min-width:0}
 .brand{padding:16px 16px 12px;border-bottom:1px solid var(--bd)}
@@ -260,7 +260,7 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
   .topbar{display:none!important}
   .mobile-topbar{display:flex!important}
   .mobile-nav{display:block!important}
-  .main{padding-bottom:calc(68px + env(safe-area-inset-bottom))}
+  .main{padding-bottom:calc(88px + env(safe-area-inset-bottom))}
   .content{padding:12px 14px}
   .metrics{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}
   .met-val{font-size:22px}
@@ -299,6 +299,12 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>
+<script>/* pre-paint theme: kills the refresh flash */
+try{
+  if((localStorage.getItem('hs_theme')||'healthspan')==='healthspan')document.body.setAttribute('data-theme','healthspan');
+  var m=localStorage.getItem('hs_mode')||'system';
+  if(m==='dark'||(m==='system'&&matchMedia('(prefers-color-scheme: dark)').matches))document.body.classList.add('dark');
+}catch(e){}</script>
 <!-- ── SIGN-IN GATE: Supabase accounts only (the login form is rendered by showSbLogin) -->
 <div id="rolegate" style="display:flex;position:fixed;inset:0;z-index:1000;background:var(--bg);align-items:center;justify-content:center">
   <div style="font-size:13px;color:var(--tx3)">Loading…</div>
@@ -314,6 +320,9 @@ body.role-sales .nav .nlbl.nv-sales{display:block}
 .nav .nlbl.collapsed::after{content:" ▸"}
 body.role-manager #nav-admin-lbl,body.role-manager .ni[onclick*="'users'"],body.role-manager .ni[onclick*="'cutover'"]{display:none}
 /* ── PWA / TOUCH POLISH ── */
+/* iOS: date/month inputs ignore width:100% without this — stops the "lampas" overflow */
+input[type="date"],input[type="month"],input[type="time"]{-webkit-appearance:none;appearance:none;min-width:0;max-width:100%;min-height:1.4em}
+.g2>div,.g3>div{min-width:0}
 *{-webkit-tap-highlight-color:transparent}
 button,a,.ni,.mni,.hmc,.tab,select{touch-action:manipulation}
 .ni,.mni,.nlbl,.hmc,.tab{-webkit-user-select:none;user-select:none}
@@ -329,7 +338,10 @@ button:active{transform:scale(.97)}
 .drawer{transition:transform .25s cubic-bezier(.2,.8,.3,1)}
 /* standalone (added to home screen): respect the notch, feel native */
 @media (display-mode: standalone){
+  /* solid backdrop behind the iPhone status bar — content scrolls underneath it */
+  body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top);background:var(--sf);z-index:600}
   .mobile-topbar{padding-top:calc(10px + env(safe-area-inset-top))}
+  #mmenu > div:first-child{padding-top:calc(12px + env(safe-area-inset-top))}
   body{overscroll-behavior:none}
 }
 @media (prefers-reduced-motion: reduce){
