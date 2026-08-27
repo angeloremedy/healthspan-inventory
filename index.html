@@ -291,7 +291,7 @@ body.role-sales .nav .nlbl,body.role-sales .nav .ni{display:none}
 body.role-sales .nav .nv-sales{display:flex}
 body.role-sales .nav .nlbl.nv-sales{display:block}
 /* sales managers: everything except account management */
-body.role-manager #nav-admin-lbl,body.role-manager .ni[onclick*="'users'"]{display:none}
+body.role-manager #nav-admin-lbl,body.role-manager .ni[onclick*="'users'"],body.role-manager .ni[onclick*="'cutover'"]{display:none}
 /* sales role keeps the mobile bar — it gets its own items via buildMobileNav() */
 @media print{
   .sb,.mobile-nav,.mobile-topbar,.topbar,.no-print{display:none!important}
@@ -369,6 +369,7 @@ body.role-manager #nav-admin-lbl,body.role-manager .ni[onclick*="'users'"]{displ
     <div class="ni nv-sales" onclick="showView('salestarget',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>Sales vs target</div>
     <div class="ni nv-sales" onclick="showView('salesspec',this)"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Specialists</div>
     <div class="ni nv-sales" onclick="showView('salespace',this)"><svg viewBox="0 0 24 24"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v4a5 5 0 0 1-10 0z"/><path d="M17 5h3a2 2 0 0 1-2 4h-1"/><path d="M7 5H4a2 2 0 0 0 2 4h1"/></svg>Leaderboard &amp; pace</div>
+    <div class="ni nv-sales" onclick="showView('salesdue',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/><path d="M12 2v2"/></svg>Reorder due</div>
     <div class="ni nv-sales" onclick="showView('salesdeals',this)"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Deals vs à la carte</div>
     <div class="ni nv-sales" onclick="showView('salesfree',this)"><svg viewBox="0 0 24 24"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>Free items</div>
     <div class="ni nv-sales" onclick="showView('salesfield',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.4 8 12 8 12s8-6.6 8-12a8 8 0 0 0-8-8z"/></svg>Field coverage</div>
@@ -377,9 +378,11 @@ body.role-manager #nav-admin-lbl,body.role-manager .ni[onclick*="'users'"]{displ
     <div class="ni" onclick="showView('fulfillq',this)"><svg viewBox="0 0 24 24"><path d="M16 3h5v5"/><path d="M21 3l-7 7"/><path d="M21 16v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3"/></svg>Fulfillment queue</div>
     <div class="ni" onclick="showView('branchtransfer',this)"><svg viewBox="0 0 24 24"><path d="M5 17H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v3"/><rect x="9" y="11" width="14" height="10" rx="2"/><line x1="13" y1="16" x2="19" y2="16"/><line x1="16" y1="13" x2="16" y2="19"/></svg>Remedy shipments</div>
     <div class="ni" onclick="showView('branchexpiry',this)"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Remedy expiry watch</div>
+    <div class="ni" onclick="showView('scan',this)"><svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="12" x2="7" y2="12.01"/><line x1="10" y1="12" x2="10" y2="12.01"/><line x1="13" y1="12" x2="13" y2="12.01"/><line x1="16" y1="12" x2="16" y2="12.01"/></svg>Scan (receive/pick/count)</div>
     <div class="nlbl">Finance</div>
     <div class="ni" onclick="showView('ar',this)"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><circle cx="12" cy="15" r="2"/></svg>AR aging</div>
     <div class="ni" onclick="showView('pdc',this)"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h6"/><path d="M6 14h3"/><circle cx="17" cy="12" r="2.5"/></svg>PDC register</div>
+    <div class="ni" onclick="showView('returns',this)"><svg viewBox="0 0 24 24"><polyline points="9 14 4 9 9 4"/><path d="M4 9h11a5 5 0 0 1 5 5v1a5 5 0 0 1-5 5H9"/></svg>Returns &amp; credit memos</div>
     <div class="ni" onclick="showView('aged',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Aged inventory</div>
     <div class="ni" onclick="showView('shrinkage',this)"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r="1" fill="currentColor"/></svg>Shrinkage tracker</div>
     <div class="ni" onclick="showView('cashexpiry',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Cash in expiring stock</div>
@@ -388,6 +391,7 @@ body.role-manager #nav-admin-lbl,body.role-manager .ni[onclick*="'users'"]{displ
     <div class="ni" onclick="showView('action',this)"><svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Action center<span class="nbadge" id="b-action">0</span></div>
     <div class="ni" onclick="showView('all',this)"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="1" fill="currentColor"/><circle cx="3" cy="12" r="1" fill="currentColor"/><circle cx="3" cy="18" r="1" fill="currentColor"/></svg>All SKUs</div>
     <div class="ni" onclick="showView('batches',this)"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>Batch view (FEFO)</div>
+    <div class="ni" onclick="showView('catalog',this)"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Item master</div>
     <div class="nlbl">Alerts</div>
     <div class="ni" onclick="showView('oos',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg>Out of stock<span class="nbadge" id="b-oos">0</span></div>
     <div class="ni" onclick="showView('low',this)"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>Low stock<span class="nbadge w" id="b-low">0</span></div>
@@ -424,6 +428,7 @@ body.role-manager #nav-admin-lbl,body.role-manager .ni[onclick*="'users'"]{displ
     <div class="nlbl" id="nav-admin-lbl">Admin</div>
     <div class="ni" onclick="showView('users',this)"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Team &amp; access</div>
     <div class="ni" onclick="showView('audit',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Activity log</div>
+    <div class="ni" onclick="showView('cutover',this)"><svg viewBox="0 0 24 24"><rect x="1" y="7" width="22" height="10" rx="5"/><circle cx="8" cy="12" r="3"/></svg>Cutover switches</div>
     <div class="nlbl">Product lines</div>
     <div id="lnav"></div>
   </nav>
@@ -692,6 +697,11 @@ const DESC={
   logvisit:'For the product specialists, from the iPad: log every doctor/clinic visit in ~10 seconds — even when there’s no order. Pick your name once and it’s remembered. Logged visits count toward Field coverage and build Healthspan’s own visit history (the start of our own CRM).',
   ar:'Who owes what, and for how long: every unpaid balance bucketed into current / 31–60 / 61–90 / 90+ days, per account. Ages count from the order date plus any terms noted on the order (e.g. “PDC 30 days” — parsed from Shopify notes automatically). Payment statuses come from Shopify (accounting marks paid there); re-running the backfill syncs them. Record payments on HS-orders from their order page.',
   spec:'One specialist’s whole world: this month vs target, the calendar of planned and logged visits plus orders (tap any day), monthly sales chart with the target line, top products, open follow-ups and recent activity. Specialists land here on sign-in; managers and admins reach it from the Specialists view.',
+  salesdue:'Accounts past their usual buying rhythm. The cycle is learned from each account’s own order history (median gap between orders, 3+ orders needed). They buy on rhythm — a call today is the reminder that beats the competitor’s. Specialists see their own accounts; managers see everyone’s.',
+  catalog:'The item master — products, prices, costs, and barcodes owned in-app. While in shadow mode, Shopify still prices the app; use this page to fix drift (⚠ rows) and add costs, then declare pricing independence on the Cutover switches page. Costs entered here unlock margin reporting.',
+  returns:'Returns and credit memos with permanent CM numbers. Record what came back, whether it restocks or gets written off, and print the CM for accounting. Admins can apply a CM against the linked order’s balance so AR stays honest. During the parallel run, process the return in Shopify too.',
+  scan:'Warehouse scanning: receive stock in, pick orders out, or record physical counts — by camera (Chrome/Android) or by typing the code. Movements build the platform’s stock ledger. Until independence is declared, this ledger is a SHADOW for comparison; Verna’s sheet remains the truth.',
+  cutover:'The declaration of independence. Each switch moves one source of truth from the legacy system (Shopify pricing, Shopify order entry, Verna’s sheet) to this platform — with the readiness case shown beside it. Flips are reversible, audited, and should follow the cutover playbooks in the roadmap.',
   salespace:'The month-to-date race and the finish-line projection. Pace = what you’ve booked ÷ how much of the month has passed, against your target — green means on pace for 100%. Managers: coach the amber and red rows while the month can still be saved. Tap any row for the specialist’s page.',
   pdc:'Every post-dated cheque, tracked to maturity: who issued it, which bank, how much, and when it can be deposited. Highlighted rows are due — deposit them. Mark cleared once the bank confirms (and record the payment on the order), or bounced to keep it visible until replaced.',
   fcastacc:'The honest test of the forecast: at the start of each month the model’s prediction per SKU is frozen; a month later it’s scored against what actually moved. MAPE = average % miss per SKU. Big misses at the top are where the model — or an unplanned event — needs a look. This history is what any smarter forecasting must beat.',
@@ -919,6 +929,7 @@ function applySync(data){
   TARGETS=data.targets||[];
   try{mergeSpecTargets();}catch(e){} // in-app targets override sheet targets
   try{maybeSnapshotForecast();}catch(e){} // monthly forecast freeze for MAPE scoring
+  try{applyCatalog();}catch(e){} // item-master pricing override when independent
   ACCT=data.acctBooked||null;
   if(SHOPIFY)mergeShopify(); else loadShopify();
   $('psub').textContent='Healthspan Global, Inc.';
@@ -978,6 +989,11 @@ function applySync(data){
   else if(currentView==='fcastacc') renderFcastAcc();
   else if(currentView==='salespace') renderSalesPace();
   else if(currentView==='pdc') renderPDC();
+  else if(currentView==='salesdue') renderSalesDue();
+  else if(currentView==='catalog') renderCatalog();
+  else if(currentView==='returns') renderReturns();
+  else if(currentView==='scan') renderScan();
+  else if(currentView==='cutover') renderCutover();
   else if(currentView==='campaigns') renderCampaigns();
   else if(currentView==='planreview') renderPlanReview();
   else renderTable();
@@ -1067,7 +1083,7 @@ function showView(v,el){
            simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator',
            simmonte:'Monte Carlo stockout risk',simproject:'12-month projection',simcash:'Cash-flow timeline',simbulk:'Bulk-buy trade-off',simbranch:'Remedy branch rebalancing',
            aged:'Aged inventory',shrinkage:'Shrinkage tracker',cashexpiry:'Cash in expiring stock',branchtransfer:'Remedy branch shipments',branchexpiry:'Remedy branch expiry watch',
-           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt',targets:'Set targets',fcastacc:'Forecast accuracy',campaigns:'Campaign calendar',planreview:'AI planning review',salespace:'Leaderboard & pace',pdc:'PDC register'};
+           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt',targets:'Set targets',fcastacc:'Forecast accuracy',campaigns:'Campaign calendar',planreview:'AI planning review',salespace:'Leaderboard & pace',pdc:'PDC register',salesdue:'Reorder due',catalog:'Item master',returns:'Returns & credit memos',scan:'Scan — receive / pick / count',cutover:'Cutover switches',creditmemo:'Credit memo'};
   $('ptitle').textContent=T[v]||v;
   if(v==='dashboard') renderDashboard();
   else if(v==='action') renderActionCenter();
@@ -1122,6 +1138,11 @@ function showView(v,el){
   else if(v==='fcastacc') renderFcastAcc();
   else if(v==='salespace') renderSalesPace();
   else if(v==='pdc') renderPDC();
+  else if(v==='salesdue') renderSalesDue();
+  else if(v==='catalog') renderCatalog();
+  else if(v==='returns') renderReturns();
+  else if(v==='scan') renderScan();
+  else if(v==='cutover') renderCutover();
   else if(v==='campaigns') renderCampaigns();
   else if(v==='planreview') renderPlanReview();
   else renderTable(v);
@@ -1717,7 +1738,7 @@ function renderNewOrder(){
     '<label '+lbl+'>Order notes (optional)</label><textarea id="no-notes" rows="2" '+inp+'>'+esc((E&&E.notes)||'')+'</textarea>'+
     '<div id="no-msg" style="min-height:18px;font-size:12px;margin:10px 0 4px"></div>'+
     '<button id="no-btn" onclick="submitOrder()" style="width:100%;background:var(--ac);color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:700;cursor:pointer">'+(E?'Save changes to '+esc(E.label):'Submit order')+'</button>'+
-    '<div style="font-size:10.5px;color:var(--tx3);margin-top:10px">Pilot: keep entering the order in Shopify too — we cut over once the parallel run checks out.</div>'+
+    (flagOn('native_only_orders')?'':'<div style="font-size:10.5px;color:var(--tx3);margin-top:10px">Pilot: keep entering the order in Shopify too — we cut over once the parallel run checks out.</div>')+
     '</div></div>';
   if(E&&E.spec&&$('no-spec'))$('no-spec').value=E.spec;
   renderCart();
@@ -2195,8 +2216,413 @@ async function runPlanReview(){
   btn.disabled=false;btn.textContent='Run planning review';
 }
 
-/* ── CRM/ERP BATCH: dupe guard · upsell recs · health score · leaderboard & pace ·
-      contacts · PDC register ── */
+/* ── INDEPENDENCE MODULE: cutover flags · item master · reorder-due · returns/CM ·
+      shadow stock ledger · pick confirmation · barcode scanning ──
+   PARALLEL-RUN RULE: Shopify (pricing/orders) and Verna's sheet (stock) stay the
+   source of truth until the matching flag is flipped on the Cutover switches page. */
+
+// Cutover flags — the "declare independence" switches
+let FLAGS={};
+async function loadFlags(force){
+  if(window._flagsLoaded&&!force)return FLAGS;
+  try{const {data}=await SB.from('app_settings').select('key,value');FLAGS={};(data||[]).forEach(r=>FLAGS[r.key]=r.value);window._flagsLoaded=true;}catch(e){}
+  return FLAGS;
+}
+const flagOn=k=>FLAGS[k]==='on';
+async function setFlag(k,v,label){
+  if(ROLE!=='admin')return alert('Admins only.');
+  if(!confirm((v==='on'?'TURN ON: ':'TURN OFF: ')+label+'\n\nThis changes which system the app treats as the truth. Proceed?'))return;
+  try{
+    const {error}=await SB.from('app_settings').upsert({key:k,value:v,updated_by:(SBUSER&&SBUSER.id)||null,updated_at:new Date().toISOString()});
+    if(error)throw error;
+    audit('cutover.'+k,{value:v});
+    await loadFlags(true);
+    applyCatalog();
+    renderCutover();
+  }catch(e){alert('Could not save: '+(e.message||e)+(String(e.message||'').includes('app_settings')?'\n\n(Run the independence SQL from SUPABASE-SETUP.md.)':''));}
+}
+async function renderCutover(){
+  if(ROLE!=='admin'){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins only.</div>';return;}
+  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  await loadFlags(true);await loadItems();
+  let moves=0,rets=0;
+  try{const {count}=await SB.from('stock_moves').select('id',{count:'exact',head:true});moves=count||0;}catch(e){}
+  try{const {count}=await SB.from('returns').select('id',{count:'exact',head:true});rets=count||0;}catch(e){}
+  const items=Object.values(ITEMS||{});
+  const drift=items.filter(it=>{const p=DATA.find(d=>d.sku===it.sku);return p&&p.price&&it.price!=null&&Math.round(p.price)!==it.price;}).length;
+  const sw=(k,label,desc,ready)=>{
+    const on=flagOn(k);
+    return '<div class="panel" style="padding:14px 16px;margin-bottom:12px;border-left:3px solid '+(on?'var(--gr)':'var(--am)')+'">'+
+      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><b style="font-size:13.5px">'+label+'</b>'+
+      (on?'<span class="pill pgr">INDEPENDENT</span>':'<span class="pill" style="background:var(--am-bg);color:var(--am)">parallel run — legacy is truth</span>')+
+      '<span style="flex:1"></span>'+
+      '<button onclick="setFlag(\''+k+'\',\''+(on?'off':'on')+'\',\''+label+'\')" style="background:'+(on?'var(--am)':'var(--gr)')+';color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer">'+(on?'Revert to legacy':'Declare independence')+'</button></div>'+
+      '<div style="font-size:12px;color:var(--tx2);margin-top:6px">'+desc+'</div>'+
+      '<div style="font-size:11.5px;margin-top:6px;color:var(--tx3)"><b>Readiness:</b> '+ready+'</div></div>';
+  };
+  $('content').innerHTML=
+    '<div style="max-width:820px">'+
+    '<div class="panel" style="padding:14px 16px;margin-bottom:14px;font-size:12.5px;color:var(--tx2)"><b style="color:var(--tx)">The declaration of independence, one system at a time.</b><br>Everything below is built and testable while Shopify and Verna’s sheet remain the truth. Flip a switch only when its readiness case is proven — each flip is reversible and audited.</div>'+
+    sw('use_catalog_pricing','Pricing truth: Item master (replaces Shopify pricing)',
+      'OFF: order entry and analytics price from Shopify. ON: prices come from your Item master; Shopify becomes reference-only.',
+      items.length+' items in the master · '+(items.length?drift+' price(s) differ from Shopify right now (review in Item master before flipping)':'seed the Item master first (Item master → Import current catalog)'))+
+    sw('native_only_orders','Order entry: platform only (stop double-entry in Shopify)',
+      'OFF: pilot rule — specialists enter orders here AND in Shopify. ON: the “also enter in Shopify” reminder disappears; this platform is the sole order register going forward.',
+      'Requires: a full parallel month reconciling to accounting, and the accounting export + credit memos signed off')+
+    sw('ledger_is_truth','Stock truth: platform ledger (replaces Verna’s sheet)',
+      'OFF: the scan/pick ledger records shadow movements for comparison only; the sheet remains stock truth. ON: the ledger is authoritative (WMS Stage 2 endgame — flip LAST).',
+      moves+' shadow movements recorded so far · requires receiving + pick confirmation + two matching cycle counts, and Verna’s sign-off')+
+    '<div class="panel" style="padding:12px 16px;font-size:12px;color:var(--tx3)">Also live in shadow mode: Returns & credit memos ('+rets+' recorded — process in Shopify too while parallel) · re-running the backfill stays the Shopify sync until "platform only" is on.</div>'+
+    '</div>';
+}
+
+// ── ITEM MASTER (catalog): shadow until use_catalog_pricing is ON
+let ITEMS=null;
+async function loadItems(force){
+  if(ITEMS&&!force)return ITEMS;
+  ITEMS={};
+  try{const {data}=await SB.from('items').select('*');(data||[]).forEach(r=>ITEMS[r.sku]=r);}catch(e){}
+  return ITEMS;
+}
+function applyCatalog(){ // when independent, the item master overrides prices everywhere
+  try{
+    if(!flagOn('use_catalog_pricing')||!ITEMS||!(DATA&&DATA.length))return;
+    for(const p of DATA){const it=ITEMS[p.sku];if(it&&it.active!==false&&it.price!=null){p.price=it.price;p.priceSrc='catalog';}}
+  }catch(e){}
+}
+async function renderCatalog(){
+  if(!canManage()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only.</div>';return;}
+  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  await loadFlags();await loadItems(true);
+  const items=Object.values(ITEMS).sort((a,b)=>String(a.sku).localeCompare(String(b.sku)));
+  const on=flagOn('use_catalog_pricing');
+  const shopP={};DATA.forEach(p=>shopP[p.sku]=p.price);
+  const inp='style="width:110px;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:7px 9px;font-size:12.5px;text-align:right"';
+  $('content').innerHTML=
+    '<div class="panel" style="padding:12px 16px;margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-left:3px solid '+(on?'var(--gr)':'var(--am)')+'">'+
+    (on?'<span class="pill pgr">TRUTH — this catalog prices the app</span>':'<span class="pill" style="background:var(--am-bg);color:var(--am)">shadow — Shopify still prices the app</span>')+
+    '<span style="font-size:12px;color:var(--tx3)">'+items.length+' items · edit prices/costs here, compare against Shopify, flip the switch on the Cutover page when clean</span>'+
+    '<span style="flex:1"></span>'+
+    '<button onclick="catalogSeed()" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer">⇩ Import current catalog</button>'+
+    '<button onclick="catalogAdd()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer">+ New item</button></div>'+
+    '<div id="cat-msg" style="min-height:14px;font-size:12px;margin-bottom:6px"></div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>SKU</th><th>Name</th><th>Line</th><th style="text-align:right">Price ₱</th><th style="text-align:right">Shopify ₱</th><th style="text-align:right">Cost ₱</th><th style="text-align:right">Margin</th><th>Barcode</th><th></th></tr></thead><tbody>'+
+    (items.length?items.map(it=>{
+      const sp=shopP[it.sku];
+      const drift=sp&&it.price!=null&&Math.round(sp)!==it.price;
+      const mg=it.price&&it.cost?((it.price-it.cost)/it.price*100).toFixed(0)+'%':'—';
+      return '<tr'+(it.active===false?' style="opacity:.45"':'')+'><td style="font-weight:600">'+esc(it.sku)+'</td>'+
+      '<td style="max-width:230px;overflow:hidden;text-overflow:ellipsis">'+esc(it.name||'')+(it.active===false?' <span class="pill pgy">inactive</span>':'')+'</td>'+
+      '<td class="mu" style="font-size:11px">'+esc(it.line||'')+'</td>'+
+      '<td class="r"><input type="number" value="'+(it.price!=null?it.price:'')+'" onchange="catalogSet(\''+esc(it.sku)+'\',\'price\',this.value)" '+inp+'></td>'+
+      '<td class="r '+(drift?'':'mu')+'" style="'+(drift?'color:var(--am);font-weight:700':'')+'">'+(sp?fmtPeso(sp):'—')+(drift?' ⚠':'')+'</td>'+
+      '<td class="r"><input type="number" value="'+(it.cost!=null?it.cost:'')+'" onchange="catalogSet(\''+esc(it.sku)+'\',\'cost\',this.value)" '+inp+'></td>'+
+      '<td class="r" style="font-weight:600">'+mg+'</td>'+
+      '<td><input value="'+esc(it.barcode||'')+'" placeholder="scan code" onchange="catalogSet(\''+esc(it.sku)+'\',\'barcode\',this.value)" style="width:120px;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:7px 9px;font-size:11.5px"></td>'+
+      '<td><a href="#" onclick="catalogSet(\''+esc(it.sku)+'\',\'active\','+(it.active===false?'true':'false')+');return false" style="color:'+(it.active===false?'var(--gr)':'var(--tx3)')+';font-size:11px">'+(it.active===false?'activate':'deactivate')+'</a></td></tr>';
+    }).join(''):'<tr><td colspan="9"><div class="empty">Empty — tap “Import current catalog” to seed every product with its current sheet/Shopify data, then add costs.</div></td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>⚠ = price here differs from Shopify (drift to resolve before independence) · costs enable true margin reporting · barcode links a scan code to the SKU for the Scan view · edits save instantly and are audited</span></div></div>';
+}
+async function catalogSeed(){
+  if(!canManage())return;
+  if(!DATA.length)return alert('Wait for the sheet sync first.');
+  if(!confirm('Seed/refresh the item master from the current catalog ('+DATA.length+' products)?\n\nPrices you have already edited here are kept; only missing items and empty prices are filled.'))return;
+  try{
+    await loadItems(true);
+    const rows=DATA.map(p=>{
+      const ex=ITEMS[p.sku]||{};
+      return {sku:p.sku,name:p.name||p.sku,line:p.line||null,category:p.category||null,
+        price:(ex.price!=null?ex.price:(p.price!=null?Math.round(p.price):null)),
+        cost:ex.cost!=null?ex.cost:null,barcode:ex.barcode||null,
+        active:ex.active!==false,updated_by:(SBUSER&&SBUSER.id)||null,updated_at:new Date().toISOString()};
+    });
+    for(let i=0;i<rows.length;i+=200){const {error}=await SB.from('items').upsert(rows.slice(i,i+200));if(error)throw error;}
+    audit('catalog.seed',{items:rows.length});
+    renderCatalog();
+  }catch(e){alert('Could not seed: '+(e.message||e)+(String(e.message||'').includes('items')?'\n\n(Run the independence SQL from SUPABASE-SETUP.md.)':''));}
+}
+async function catalogSet(sku,field,val){
+  if(!canManage())return;
+  try{
+    const patch={updated_by:(SBUSER&&SBUSER.id)||null,updated_at:new Date().toISOString()};
+    if(field==='active')patch.active=(val===true||val==='true');
+    else if(field==='barcode')patch.barcode=String(val||'').trim()||null;
+    else patch[field]=val===''?null:Math.round(parseFloat(val));
+    const {error}=await SB.from('items').update(patch).eq('sku',sku);
+    if(error)throw error;
+    audit('catalog.edit',{sku,field,val:String(val).slice(0,40)});
+    await loadItems(true);applyCatalog();
+    const m=$('cat-msg');if(m){m.style.color='var(--gr)';m.textContent=sku+' saved.';}
+    if(field==='active')renderCatalog();
+  }catch(e){alert('Could not save: '+(e.message||e));}
+}
+async function catalogAdd(){
+  if(!canManage())return;
+  const sku=prompt('New SKU code:','');if(!sku||!sku.trim())return;
+  const name=prompt('Product name:','');if(name===null)return;
+  try{
+    const {error}=await SB.from('items').insert({sku:sku.trim(),name:(name||sku).trim(),active:true,updated_by:(SBUSER&&SBUSER.id)||null});
+    if(error)throw error;
+    audit('catalog.add',{sku:sku.trim()});
+    renderCatalog();
+  }catch(e){alert('Could not add: '+(e.message||e));}
+}
+
+// ── REORDER-DUE ALERTS: each account's buying rhythm vs the calendar
+function renderSalesDue(){
+  const recent=(SHOPIFY&&SHOPIFY.recent)||[];
+  if(!recent.length){$('content').innerHTML='<div class="empty" style="margin-top:40px">Waiting for the sales cache…</div>';try{loadShopify().then(()=>{if(currentView==='salesdue')renderSalesDue();});}catch(e){}return;}
+  const byC={};
+  for(const o of recent){
+    const c=acctDedup(o.c||'');if(!c||/pull\s*-?\s*out/i.test(c))continue;
+    const k=custNorm(c);if(!k)continue;
+    const e=byC[k]||(byC[k]={name:c,dates:new Set(),spec:{},val:0});
+    e.dates.add(o.dt);e.val+=(o.ls||[]).reduce((a,l)=>a+(l[2]||0),0);
+    const t=specCanon(o.t||'');if(t&&!INTERNAL_TAG.test(t))e.spec[t]=(e.spec[t]||0)+1;
+  }
+  for(const o of (NORDERS||[])){ // native orders count toward the rhythm too
+    if(o.deleted_at||o.status==='cancelled')continue;
+    const k=custNorm(acctDedup(o.account||''));if(!k||!byC[k])continue;
+    byC[k].dates.add(o.date);
+  }
+  const today=Date.now();
+  const myTag=(ROLE==='sales'&&SBPROFILE&&SBPROFILE.specialist_tag)||'';
+  const rows=[];
+  for(const k in byC){
+    const e=byC[k];
+    const ds=[...e.dates].sort();
+    if(ds.length<3)continue; // need a rhythm
+    const gaps=[];for(let i=1;i<ds.length;i++){const g=(new Date(ds[i])-new Date(ds[i-1]))/864e5;if(g>=1)gaps.push(g);}
+    if(gaps.length<2)continue;
+    gaps.sort((a,b)=>a-b);
+    const cycle=Math.round(gaps[Math.floor(gaps.length/2)]); // median gap
+    if(cycle<7||cycle>200)continue; // not a meaningful rhythm
+    const last=ds[ds.length-1];
+    const since=Math.floor((today-new Date(last).getTime())/864e5);
+    if(since<cycle*1.25)continue; // not overdue yet
+    if(since>cycle*6)continue;    // long-lost — that's the dormant list's job
+    const spec=Object.entries(e.spec).sort((a,b)=>b[1]-a[1]).map(x=>x[0])[0]||'';
+    if(myTag&&specCanon(spec).toLowerCase()!==specCanon(myTag).toLowerCase())continue; // specialists see their own
+    rows.push({name:e.name,cycle,last,since,over:since-cycle,spec,val:e.val,orders:ds.length});
+  }
+  rows.sort((a,b)=>b.val-a.val);
+  $('content').innerHTML=
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met am"><div class="met-lbl">Accounts due to reorder</div><div class="met-val">'+rows.length+'</div><div class="met-sub">past their usual cycle</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Value at play</div><div class="met-val" style="font-size:15px">'+fmtPeso(rows.reduce((a,r)=>a+r.val,0))+'</div><div class="met-sub">their 13-month bookings</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">The play</div><div class="met-val" style="font-size:13px">Call today</div><div class="met-sub">they buy on rhythm — be the reminder</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    (rows.length?'<div class="tcard"><div class="tscroll"><table><thead><tr><th>Account</th><th>Specialist</th><th style="text-align:right">Usual cycle</th><th style="text-align:right">Last order</th><th style="text-align:right">Days over</th><th style="text-align:right">13-mo value</th><th></th></tr></thead><tbody>'+
+    rows.map(r=>'<tr onclick="showAccountPage(\''+esc(r.name).replace(/'/g,'&#39;')+'\')" style="cursor:pointer"><td style="font-weight:600;max-width:230px;overflow:hidden;text-overflow:ellipsis">'+esc(r.name)+'</td>'+
+      '<td class="mu">'+esc(r.spec||'—')+'</td>'+
+      '<td class="r mu">~'+r.cycle+'d ('+r.orders+' orders)</td>'+
+      '<td class="r mu" style="font-size:11px">'+esc(r.last)+'</td>'+
+      '<td class="r" style="font-weight:700;color:'+(r.over>r.cycle?'var(--rd)':'var(--am)')+'">+'+r.over+'d</td>'+
+      '<td class="r">'+fmtPeso(r.val)+'</td>'+
+      '<td style="white-space:nowrap"><a href="#" onclick="event.stopPropagation();window._lvAccount=\''+esc(r.name).replace(/'/g,'&#39;')+'\';showView(\'logvisit\',null);return false" style="color:var(--ac);font-size:11.5px">log visit</a> · '+
+      '<a href="#" onclick="event.stopPropagation();window._noAccount=\''+esc(r.name).replace(/'/g,'&#39;')+'\';showView(\'neworder\',null);return false" style="color:var(--gr);font-size:11.5px">order</a></td></tr>').join('')+
+    '</tbody></table></div><div class="tfooter"><span>Rhythm = median gap between this account’s orders (needs 3+ orders) · listed when 25% past their cycle, dropped after 6 cycles (that’s the dormant list) · specialists see their own accounts, managers see all</span></div></div>':
+    '<div class="empty" style="margin-top:30px">Nobody is overdue against their buying rhythm right now. 🎉</div>');
+}
+
+// ── RETURNS & CREDIT MEMOS (shadow: also process in Shopify while parallel)
+async function renderReturns(){
+  if(!canManage()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only.</div>';return;}
+  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  await loadFlags();
+  let rows=[];
+  try{const {data}=await SB.from('returns').select('*').order('id',{ascending:false}).limit(300);rows=data||[];}
+  catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Could not load — run the independence SQL from SUPABASE-SETUP.md first.</div>';return;}
+  const acctOpts=acctList().map(r=>'<option value="'+esc(r.name)+'">').join('');
+  const inp='style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;font-size:12.5px"';
+  $('content').innerHTML=
+    (!flagOn('native_only_orders')?'<div class="panel" style="padding:9px 14px;margin-bottom:12px;border-left:3px solid var(--am);font-size:12px">Parallel run: record the return here <b>and</b> process the refund/return in Shopify — this register becomes the only one at cutover.</div>':'')+
+    '<div class="panel" style="padding:12px 16px;margin-bottom:14px"><div class="phd">Record a return / credit memo</div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+
+    '<input id="rt-acct" list="rt-accts" placeholder="Account" '+inp+' style="flex:1;min-width:150px;'+inp.slice(7,-1)+'"><datalist id="rt-accts">'+acctOpts+'</datalist>'+
+    '<input id="rt-ref" placeholder="Order ref (opt.)" '+inp+' style="width:110px;'+inp.slice(7,-1)+'">'+
+    '<input id="rt-items" placeholder="Items returned (e.g. 2× TD042)" '+inp+' style="flex:1;min-width:150px;'+inp.slice(7,-1)+'">'+
+    '<input id="rt-amt" type="number" placeholder="CM amount ₱" '+inp+' style="width:120px;'+inp.slice(7,-1)+'">'+
+    '<select id="rt-act" '+inp+'><option value="restock">Back to stock (sellable)</option><option value="writeoff">Write off (damaged/expired)</option></select>'+
+    '<input id="rt-why" placeholder="Reason" '+inp+' style="width:140px;'+inp.slice(7,-1)+'">'+
+    '<button onclick="returnAdd()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer">Record</button></div></div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>CM no.</th><th>Date</th><th>Account</th><th>Items</th><th style="text-align:right">Amount</th><th>Disposition</th><th>Reason</th><th></th></tr></thead><tbody>'+
+    (rows.length?rows.map(r=>'<tr><td style="font-weight:700">CM-'+String(1000+r.id)+'</td><td class="mu" style="font-size:11px">'+esc(String(r.created_at||'').slice(0,10))+'</td>'+
+      '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis"><a href="#" onclick="showAccountPage(\''+esc(r.account).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac)">'+esc(r.account)+'</a></td>'+
+      '<td class="mu" style="font-size:11.5px;max-width:200px;overflow:hidden;text-overflow:ellipsis">'+esc(r.items||'—')+(r.order_ref?' · '+esc(r.order_ref):'')+'</td>'+
+      '<td class="r" style="font-weight:700">'+fmtPeso(r.amount||0)+'</td>'+
+      '<td>'+(r.action==='restock'?'<span class="pill pgr">restocked</span>':'<span class="pill prd">written off</span>')+(r.applied?' <span class="pill pbl">applied to AR</span>':'')+'</td>'+
+      '<td class="mu" style="font-size:11.5px">'+esc(r.reason||'')+'</td>'+
+      '<td style="white-space:nowrap"><a href="#" onclick="printCM('+r.id+');return false" style="color:var(--ac);font-size:11px">🖨 CM</a>'+
+      (!r.applied&&r.order_ref&&ROLE==='admin'?' · <a href="#" onclick="applyCM('+r.id+');return false" style="color:var(--gr);font-size:11px">apply to order balance</a>':'')+'</td></tr>').join(''):
+      '<tr><td colspan="8"><div class="empty">No returns recorded yet.</div></td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>CM numbers are permanent · "apply to order balance" (admin) reduces the linked native order’s balance by the CM amount · restocked items re-enter the shadow ledger; write-offs are logged for the disposal trail</span></div></div>';
+}
+async function returnAdd(){
+  if(!canManage())return;
+  const g=id=>($(id)&&$(id).value||'').trim();
+  if(!g('rt-acct')||!g('rt-amt'))return alert('Need at least the account and the CM amount.');
+  try{
+    const {data,error}=await SB.from('returns').insert({account:g('rt-acct'),order_ref:g('rt-ref')||null,items:g('rt-items')||null,amount:Math.round(parseFloat(g('rt-amt'))),action:($('rt-act')||{}).value||'restock',reason:g('rt-why')||null,created_by:(SBUSER&&SBUSER.id)||null}).select().single();
+    if(error)throw error;
+    audit('return.record',{cm:'CM-'+String(1000+data.id),account:g('rt-acct'),amount:g('rt-amt'),action:($('rt-act')||{}).value});
+    if((($('rt-act')||{}).value)==='restock'&&g('rt-items')){ // shadow ledger note (free-text items)
+      try{await SB.from('stock_moves').insert({sku:'(return)',qty:0,kind:'return',ref:'CM-'+String(1000+data.id),note:g('rt-items'),by_name:(SBPROFILE&&SBPROFILE.name)||'',user_id:(SBUSER&&SBUSER.id)||null});}catch(e){}
+    }
+    renderReturns();
+  }catch(e){alert('Could not record: '+(e.message||e));}
+}
+async function applyCM(id){
+  if(ROLE!=='admin')return;
+  try{
+    const {data:r}=await SB.from('returns').select('*').eq('id',id).maybeSingle();
+    if(!r||r.applied)return;
+    let o=null;
+    const ref=r.order_ref;
+    if(/^[0-9a-f-]{30,40}$/i.test(ref)){const q=await SB.from('orders').select('*').eq('id',ref).maybeSingle();o=q.data;}
+    if(!o){const q=await SB.from('orders').select('*').eq('ext_ref',ref).maybeSingle();o=q.data;}
+    if(!o){const q=await SB.from('orders').select('*').eq('ext_ref','#'+ref).maybeSingle();o=q.data;}
+    if(!o&&/^HS-\d+$/i.test(ref)){const num=parseInt(ref.replace(/\D/g,''),10)-1000;const q=await SB.from('orders').select('*').eq('num',num).maybeSingle();o=q.data;}
+    if(!o)return alert('Order "'+ref+'" not found in the register.');
+    if(!confirm('Apply CM-'+String(1000+id)+' ('+fmtPeso(r.amount)+') against '+ordLabel(o)+'?\nBalance '+fmtPeso(o.balance||0)+' → '+fmtPeso(Math.max(0,(o.balance||0)-r.amount))))return;
+    const balance=Math.max(0,(o.balance||0)-r.amount);
+    const {error}=await SB.from('orders').update({balance,pay_status:balance<=0?'paid':o.pay_status==='pending'?'partial':o.pay_status}).eq('id',o.id);
+    if(error)throw error;
+    await SB.from('returns').update({applied:true}).eq('id',id);
+    audit('return.apply',{cm:'CM-'+String(1000+id),order:ordLabel(o),amount:r.amount,newBalance:balance});
+    NORDERS=null;renderReturns();
+  }catch(e){alert('Could not apply: '+(e.message||e));}
+}
+async function printCM(id){
+  const {data:r}=await SB.from('returns').select('*').eq('id',id).maybeSingle();
+  if(!r)return;
+  let acct=null;try{const q=await SB.from('accounts').select('*').eq('name',acctDedup(r.account)).maybeSingle();acct=q.data;}catch(e){}
+  currentView='creditmemo';
+  $('ptitle').textContent='Credit memo';
+  const net=Math.round((r.amount||0)/1.12);
+  $('content').innerHTML=
+    '<div class="no-print" style="display:flex;gap:10px;margin-bottom:12px"><a href="#" onclick="showView(\'returns\',null);return false" style="color:var(--ac);font-size:12.5px">← Back</a><span style="flex:1"></span>'+
+    '<button onclick="window.print()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer">🖨 Print / Save PDF</button></div>'+
+    '<div class="printdoc">'+
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start"><div><div style="font-size:19px;font-weight:800">HEALTHSPAN GLOBAL, INC.</div><div style="font-size:12px;color:#555">Credit Memo</div></div>'+
+    '<div style="text-align:right;font-size:12px"><b style="font-size:15px">CM-'+String(1000+r.id)+'</b><br>Date: '+esc(String(r.created_at||'').slice(0,10))+'</div></div>'+
+    '<div style="margin:14px 0;font-size:12.5px"><b>'+esc(r.account)+'</b>'+(acct&&acct.address?'<br>'+esc(acct.address):'')+'</div>'+
+    '<table><thead><tr><th>Reference</th><th>Items</th><th>Disposition</th><th>Reason</th><th style="text-align:right">Amount</th></tr></thead><tbody>'+
+    '<tr><td>'+esc(r.order_ref||'—')+'</td><td>'+esc(r.items||'—')+'</td><td>'+(r.action==='restock'?'Returned to stock':'Written off')+'</td><td>'+esc(r.reason||'—')+'</td><td style="text-align:right;font-weight:700">'+fmtPeso(r.amount||0)+'</td></tr>'+
+    '</tbody></table>'+
+    '<div style="text-align:right;font-size:12px;margin-top:6px;color:#333">VATable: '+fmtPeso(net)+'<br>12% VAT: '+fmtPeso((r.amount||0)-net)+'</div>'+
+    '<div style="text-align:right;font-weight:700;font-size:14px;margin-top:2px">CREDIT TOTAL: '+fmtPeso(r.amount||0)+'</div>'+
+    '<div style="display:flex;gap:40px;margin-top:36px;font-size:12px">'+
+    '<div style="flex:1;border-top:1px solid #999;padding-top:4px">Prepared by · date</div>'+
+    '<div style="flex:1;border-top:1px solid #999;padding-top:4px">Approved by · date</div>'+
+    '<div style="flex:1;border-top:1px solid #999;padding-top:4px">Received / acknowledged by · date</div></div>'+
+    '</div>';
+}
+
+// ── SHADOW STOCK LEDGER: pick confirmation + barcode scan (receive / pick / count)
+async function ledgerAdd(rows){
+  const base={by_name:(SBPROFILE&&SBPROFILE.name)||'',user_id:(SBUSER&&SBUSER.id)||null};
+  const {error}=await SB.from('stock_moves').insert(rows.map(r=>({...base,...r})));
+  if(error)throw error;
+}
+async function confirmPick(orderRef){
+  if(!SBUSER)return;
+  let o=null;
+  try{const {data}=await SB.from('orders').select('*,order_lines(*)').eq('id',orderRef).maybeSingle();o=data;}catch(e){}
+  if(!o)return alert('Order not found.');
+  if(!confirm('Confirm this order as PICKED?\n\nEvery line is recorded as an outbound movement in the platform ledger'+(flagOn('ledger_is_truth')?'.':' (shadow — Verna’s sheet stays the stock truth until cutover).')))return;
+  try{
+    const rows=(o.order_lines||[]).map(l=>({sku:l.sku,qty:-Math.abs(l.qty||0),kind:'pick',ref:ordLabel(o),note:l.name||null}));
+    if(!rows.length)return;
+    await ledgerAdd(rows);
+    audit('ledger.pick',{order:ordLabel(o),lines:rows.length});
+    alert('Picked ✓ — '+rows.length+' line'+(rows.length>1?'s':'')+' recorded in the ledger.');
+  }catch(e){alert('Could not record: '+(e.message||e)+(String(e.message||'').includes('stock_moves')?'\n\n(Run the independence SQL from SUPABASE-SETUP.md.)':''));}
+}
+let SCAN_MODE='pick',SCAN_STREAM=null;
+async function renderScan(){
+  const supported='BarcodeDetector' in window;
+  await loadItems();
+  $('content').innerHTML=
+    '<div style="max-width:640px">'+
+    '<div class="panel" style="padding:14px 16px;margin-bottom:12px;border-left:3px solid '+(flagOn('ledger_is_truth')?'var(--gr)':'var(--am)')+';font-size:12px">'+
+    (flagOn('ledger_is_truth')?'Ledger is the stock truth — every scan moves real inventory.':'Shadow mode: scans build the platform ledger for comparison; <b>Verna’s sheet remains the stock truth</b> until independence is declared on the Cutover page.')+'</div>'+
+    '<div class="panel" style="padding:16px">'+
+    '<div style="display:flex;gap:8px;margin-bottom:12px">'+['receive','pick','count'].map(m=>'<button onclick="SCAN_MODE=\''+m+'\';renderScan()" style="flex:1;padding:10px;border-radius:10px;border:1px solid var(--bd);font-weight:700;font-size:13px;cursor:pointer;background:'+(SCAN_MODE===m?'var(--ac)':'var(--sf)')+';color:'+(SCAN_MODE===m?'#fff':'var(--tx)')+'">'+(m==='receive'?'📦 Receive':m==='pick'?'📤 Pick':'🔢 Count')+'</button>').join('')+'</div>'+
+    (supported?'<button id="scan-btn" onclick="scanStart()" style="width:100%;background:var(--gr);color:#fff;border:none;border-radius:10px;padding:12px;font-size:13.5px;font-weight:700;cursor:pointer;margin-bottom:10px">📷 Start camera scan</button>'+
+      '<video id="scan-video" playsinline style="display:none;width:100%;border-radius:12px;margin-bottom:10px"></video>':
+      '<div style="font-size:12px;color:var(--tx3);margin-bottom:10px">Camera scanning needs Chrome/Edge (or Android). On this browser, type or paste the code below — same result.</div>')+
+    '<label style="font-size:11px;color:var(--tx3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">Barcode / SKU</label>'+
+    '<input id="scan-code" placeholder="Scan, type, or paste a code…" onkeydown="if(event.key===\'Enter\')scanResolve(this.value)" style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:12px;font-size:15px">'+
+    '<div id="scan-hit" style="margin-top:12px"></div>'+
+    '</div>'+
+    '<div class="panel" style="padding:14px 16px;margin-top:12px" id="scan-log"><div class="phd">Recent movements</div><div class="mu" style="font-size:12px">Loading…</div></div></div>';
+  scanLog();
+}
+async function scanLog(){
+  const box=$('scan-log');if(!box)return;
+  let rows=[];
+  try{const {data}=await SB.from('stock_moves').select('at,sku,qty,kind,ref,by_name').order('id',{ascending:false}).limit(15);rows=data||[];}catch(e){}
+  box.innerHTML='<div class="phd">Recent movements ('+(flagOn('ledger_is_truth')?'live ledger':'shadow ledger')+')</div>'+
+    (rows.length?rows.map(r=>'<div class="drow"><span class="dlbl" style="font-size:12px"><b>'+esc(r.sku)+'</b> · '+esc(r.kind)+(r.ref?' · '+esc(r.ref):'')+'<br><span style="color:var(--tx3);font-size:11px">'+esc(String(r.at||'').slice(0,16).replace('T',' '))+' · '+esc(r.by_name||'')+'</span></span><span class="dval" style="font-weight:700;color:'+(r.qty>0?'var(--gr)':r.qty<0?'var(--rd)':'var(--tx3)')+'">'+(r.qty>0?'+':'')+r.qty+'</span></div>').join(''):'<div class="mu" style="font-size:12px">Nothing recorded yet.</div>');
+}
+async function scanStart(){
+  const v=$('scan-video'),btn=$('scan-btn');
+  if(!v)return;
+  try{
+    SCAN_STREAM=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    v.srcObject=SCAN_STREAM;v.style.display='block';await v.play();
+    if(btn){btn.textContent='Scanning… point at a barcode';btn.disabled=true;}
+    const det=new window.BarcodeDetector();
+    const tick=async()=>{
+      if(!SCAN_STREAM||currentView!=='scan')return scanStop();
+      try{const codes=await det.detect(v);if(codes&&codes.length){scanStop();scanResolve(codes[0].rawValue);return;}}catch(e){}
+      requestAnimationFrame(tick);
+    };
+    tick();
+  }catch(e){alert('Camera unavailable: '+(e.message||e)+' — type the code instead.');}
+}
+function scanStop(){
+  try{if(SCAN_STREAM){SCAN_STREAM.getTracks().forEach(t=>t.stop());SCAN_STREAM=null;}}catch(e){}
+  const v=$('scan-video');if(v)v.style.display='none';
+  const btn=$('scan-btn');if(btn){btn.textContent='📷 Start camera scan';btn.disabled=false;}
+}
+function scanResolve(code){
+  code=String(code||'').trim();if(!code)return;
+  const hit=$('scan-hit');if(!hit)return;
+  // match: item barcode → item sku → DATA sku (case-insensitive)
+  let sku=null,name=null;
+  const items=Object.values(ITEMS||{});
+  const byBc=items.find(i=>i.barcode&&i.barcode.toLowerCase()===code.toLowerCase());
+  if(byBc){sku=byBc.sku;name=byBc.name;}
+  if(!sku){const bySku=items.find(i=>String(i.sku).toLowerCase()===code.toLowerCase())||DATA.find(p=>String(p.sku).toLowerCase()===code.toLowerCase());if(bySku){sku=bySku.sku;name=bySku.name;}}
+  if(!sku){
+    hit.innerHTML='<div style="background:var(--rd-bg);color:var(--rd);border-radius:10px;padding:10px 14px;font-size:12.5px">Code “'+esc(code)+'” doesn’t match any SKU or barcode. Link it to a product in the Item master (Barcode column), then scan again.</div>';
+    return;
+  }
+  const p=DATA.find(x=>x.sku===sku);
+  hit.innerHTML='<div style="background:var(--gr-bg);border-radius:10px;padding:12px 14px">'+
+    '<b style="font-size:14px">'+esc(name||sku)+'</b> <span class="mu" style="font-size:11px">'+esc(sku)+(p?' · sheet stock: '+(stk(p)??'—'):'')+'</span>'+
+    '<div style="display:flex;gap:8px;margin-top:8px;align-items:center">'+
+    '<input id="scan-qty" type="number" min="1" value="1" style="width:90px;background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:9px;font-size:14px;text-align:center">'+
+    (SCAN_MODE==='pick'?'<input id="scan-ref" placeholder="Order ref (opt.)" style="flex:1;background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:9px;font-size:12.5px">':'')+
+    '<button onclick="scanRecord(\''+esc(sku)+'\')" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer">'+(SCAN_MODE==='receive'?'+ Receive':SCAN_MODE==='pick'?'− Pick':'Set count')+'</button></div></div>';
+  const q=$('scan-qty');if(q){q.focus();q.select();}
+}
+async function scanRecord(sku){
+  const qty=parseInt(($('scan-qty')||{}).value||'0',10);
+  if(!qty||qty<1)return;
+  try{
+    const row=SCAN_MODE==='receive'?{sku,qty:qty,kind:'receive'}:
+      SCAN_MODE==='pick'?{sku,qty:-qty,kind:'pick',ref:(($('scan-ref')||{}).value||'').trim()||null}:
+      {sku,qty:qty,kind:'count',note:'physical count'};
+    await ledgerAdd([row]);
+    audit('ledger.'+SCAN_MODE,{sku,qty});
+    const hit=$('scan-hit');if(hit)hit.innerHTML='<div style="background:var(--gr-bg);color:var(--gr);border-radius:10px;padding:10px 14px;font-size:13px;font-weight:600">✓ '+esc(sku)+' '+(SCAN_MODE==='pick'?'−':'+')+qty+' recorded — scan the next one.</div>';
+    const c=$('scan-code');if(c){c.value='';c.focus();}
+    scanLog();
+  }catch(e){alert('Could not record: '+(e.message||e)+(String(e.message||'').includes('stock_moves')?'\n\n(Run the independence SQL from SUPABASE-SETUP.md.)':''));}
+}
+
 
 // Duplicate-entry guard: typed a name that isn't an existing account but looks like one?
 function acctSuggest(v){
@@ -3504,6 +3930,7 @@ async function showPickSlip(ref){
   $('content').innerHTML=
     '<div class="no-print" style="display:flex;gap:10px;margin-bottom:12px">'+
     '<a href="#" onclick="showOrderPage(\''+esc(String(ref)).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac);font-size:12.5px">← Back to order</a><span style="flex:1"></span>'+
+    '<button onclick="confirmPick(\''+esc(String(o.id))+'\')" style="background:var(--gr);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer">✓ Confirm picked</button>'+
     '<button onclick="window.print()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer">🖨 Print</button></div>'+
     '<div class="printdoc">'+
     '<div style="display:flex;justify-content:space-between;align-items:flex-start"><div><div style="font-size:19px;font-weight:800">HEALTHSPAN GLOBAL, INC.</div><div style="font-size:12px;color:#555">Pick List & Packing Slip</div></div>'+
@@ -5910,6 +6337,7 @@ async function sbLoadProfile(user){
   try{await loadAcctLinks(true);}catch(e){} // curated merges/branches apply everywhere
   try{loadSpecTargets(true);}catch(e){}     // in-app specialist targets (override sheet)
   try{loadSpecRoster(true);}catch(e){}      // added/deactivated specialists for pickers
+  try{await loadFlags(true);if(flagOn('use_catalog_pricing')){await loadItems(true);applyCatalog();}}catch(e){} // cutover switches
   try{maybeSnapshotForecast();}catch(e){}   // monthly forecast freeze (runs if data is ready)
   // endpoints are session-locked: pull anything that failed before sign-in
   try{if(!DATA||!DATA.length)syncNow();}catch(e){}
