@@ -275,8 +275,16 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
 .mobile-sync.spin svg{animation:spin 1s linear infinite}
 .mobile-sync.ok{color:var(--gr);background:var(--gr-bg)}
 .mobile-sync.err{color:var(--rd);background:var(--rd-bg)}
-html,body{position:fixed;inset:0;width:100%;height:100%;overflow:hidden;overscroll-behavior:none}
-@media print{html,body{position:static;overflow:visible;width:auto;height:auto}}
+/* Scroll lock WITHOUT position:fixed on the root: iOS 26.0 has a WebKit bug
+   where viewport-sized fixed containers leave a phantom "browser controls"
+   gap at the bottom of standalone web apps (fixed in Safari 26.1). Plain
+   overflow:hidden is enough here — .shell is exactly 100dvh and .main is the
+   only scroller, so the document itself never has anything to scroll. */
+html,body{width:100%;height:100%;overflow:hidden;overscroll-behavior:none}
+/* canvas behind/beyond the page = bar color, so any OS-induced strip below
+   the viewport blends into the bottom bar instead of floating it */
+html{background:var(--sf)}
+@media print{html,body{overflow:visible;width:auto;height:auto}}
 .content{overflow-x:hidden}
 @media(max-width:760px){
   input,select,textarea{font-size:16px!important} /* stops iOS auto-zoom on focus */
@@ -336,7 +344,7 @@ document.addEventListener('gesturestart',function(e){e.preventDefault();},{passi
 document.addEventListener('gesturechange',function(e){e.preventDefault();},{passive:false});
 </script>
 <!-- ── SIGN-IN GATE: Supabase accounts only (the login form is rendered by showSbLogin) -->
-<div id="rolegate" style="display:flex;position:fixed;inset:0;z-index:1000;background:var(--bg);align-items:center;justify-content:center">
+<div id="rolegate" style="display:flex;position:absolute;inset:0;z-index:1000;background:var(--bg);align-items:center;justify-content:center">
   <div style="font-size:13px;color:var(--tx3)">Loading…</div>
 </div>
 <style>
@@ -573,7 +581,7 @@ button:active{transform:scale(.97)}
   <div class="askfoot">Answers come from the live warehouse data · stock is warehouse-level, not per-branch</div>
 </div>
 
-<div id="mmenu" style="display:none;position:fixed;inset:0;z-index:500;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch">
+<div id="mmenu" style="display:none;position:absolute;inset:0;z-index:500;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch">
   <div id="mmenu-head" style="position:sticky;top:0;background:var(--sf);border-bottom:1px solid var(--bd);padding:12px 16px 10px;display:flex;gap:10px;align-items:center;z-index:2">
     <b style="font-size:15px">All views</b>
     <input id="mmq" placeholder="Search…" oninput="buildMobileMenu(this.value)" style="flex:1;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;font-size:16px">
