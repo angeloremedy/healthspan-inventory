@@ -377,6 +377,7 @@ body.role-manager #nav-admin-lbl,body.role-manager .ni[onclick*="'users'"]{displ
     <div class="ni nv-sales" onclick="showView('salesoverview',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Sales overview</div>
     <div class="ni nv-sales" onclick="showView('salestarget',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>Sales vs target</div>
     <div class="ni nv-sales" onclick="showView('salesspec',this)"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Specialists</div>
+    <div class="ni nv-sales" onclick="showView('salespace',this)"><svg viewBox="0 0 24 24"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v4a5 5 0 0 1-10 0z"/><path d="M17 5h3a2 2 0 0 1-2 4h-1"/><path d="M7 5H4a2 2 0 0 0 2 4h1"/></svg>Leaderboard &amp; pace</div>
     <div class="ni nv-sales" onclick="showView('salesdeals',this)"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Deals vs à la carte</div>
     <div class="ni nv-sales" onclick="showView('salesfree',this)"><svg viewBox="0 0 24 24"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>Free items</div>
     <div class="ni nv-sales" onclick="showView('salesfield',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.4 8 12 8 12s8-6.6 8-12a8 8 0 0 0-8-8z"/></svg>Field coverage</div>
@@ -387,6 +388,7 @@ body.role-manager #nav-admin-lbl,body.role-manager .ni[onclick*="'users'"]{displ
     <div class="ni" onclick="showView('branchexpiry',this)"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Remedy expiry watch</div>
     <div class="nlbl">Finance</div>
     <div class="ni" onclick="showView('ar',this)"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><circle cx="12" cy="15" r="2"/></svg>AR aging</div>
+    <div class="ni" onclick="showView('pdc',this)"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h6"/><path d="M6 14h3"/><circle cx="17" cy="12" r="2.5"/></svg>PDC register</div>
     <div class="ni" onclick="showView('aged',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Aged inventory</div>
     <div class="ni" onclick="showView('shrinkage',this)"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r="1" fill="currentColor"/></svg>Shrinkage tracker</div>
     <div class="ni" onclick="showView('cashexpiry',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Cash in expiring stock</div>
@@ -439,7 +441,7 @@ body.role-manager #nav-admin-lbl,body.role-manager .ni[onclick*="'users'"]{displ
 </aside>
 <div class="main">
   <header class="topbar">
-    <div><div class="ptitle" id="ptitle">Dashboard</div><div class="psub" id="psub">Healthspan Global, Inc. — warehouse inventory</div></div>
+    <div><div class="ptitle" id="ptitle">Home</div><div class="psub" id="psub">Healthspan Global, Inc.</div></div>
     <div class="tbr">
       <button class="btn" onclick="toggleAsk()" title="Ask the inventory anything in plain language"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>Ask AI</button>
       <button class="btn" id="tipsBtn" onclick="toggleTips()" title="Show or hide the plain-language explanation on each tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><circle cx="12" cy="8" r="1" fill="currentColor"/></svg>Tips</button>
@@ -638,7 +640,7 @@ function randn(){ // standard normal (Box-Muller with cached spare)
   const m=Math.sqrt(-2*Math.log(s)/s);_randSpare=v*m;return u*m;
 }
 let sortCol='stock', sortDir=-1;
-let currentView='dashboard';
+let currentView='home';
 let fLine='',fCat='',fSearch='',fTab='all',fBin='',fSup='';
 let catInst=null, movInst=null;
 const COLORS=['#1D9E75','#378ADD','#7F77DD','#D85A30','#BA7517','#D4537E','#0F6E56','#639922','#185FA5','#854F0B','#993556','#3B6D11','#27500A','#5D4A8F','#8B3A3A'];
@@ -686,6 +688,8 @@ const DESC={
   logvisit:'For the product specialists, from the iPad: log every doctor/clinic visit in ~10 seconds — even when there’s no order. Pick your name once and it’s remembered. Logged visits count toward Field coverage and build Healthspan’s own visit history (the start of our own CRM).',
   ar:'Who owes what, and for how long: every unpaid balance bucketed into current / 31–60 / 61–90 / 90+ days, per account. Ages count from the order date plus any terms noted on the order (e.g. “PDC 30 days” — parsed from Shopify notes automatically). Payment statuses come from Shopify (accounting marks paid there); re-running the backfill syncs them. Record payments on HS-orders from their order page.',
   spec:'One specialist’s whole world: this month vs target, the calendar of planned and logged visits plus orders (tap any day), monthly sales chart with the target line, top products, open follow-ups and recent activity. Specialists land here on sign-in; managers and admins reach it from the Specialists view.',
+  salespace:'The month-to-date race and the finish-line projection. Pace = what you’ve booked ÷ how much of the month has passed, against your target — green means on pace for 100%. Managers: coach the amber and red rows while the month can still be saved. Tap any row for the specialist’s page.',
+  pdc:'Every post-dated cheque, tracked to maturity: who issued it, which bank, how much, and when it can be deposited. Highlighted rows are due — deposit them. Mark cleared once the bank confirms (and record the payment on the order), or bounced to keep it visible until replaced.',
   fcastacc:'The honest test of the forecast: at the start of each month the model’s prediction per SKU is frozen; a month later it’s scored against what actually moved. MAPE = average % miss per SKU. Big misses at the top are where the model — or an unplanned event — needs a look. This history is what any smarter forecasting must beat.',
   campaigns:'Planned promos and campaigns as a demand signal. Anything added here shows as a banner on the stockout forecast and feeds the AI planning review, so a "10+8 anniversary promo" stops being a forecast surprise. Precursor to the full promotions engine.',
   planreview:'Demand planning AI: walks every SKU (stock, velocity, days-to-stockout, expiry) plus the campaign calendar and recent forecast misses, then reports the exceptions — stockout risks, expiry money, and 5 prioritized actions. An analyst, not an oracle: sanity-check quantities before ordering.',
@@ -913,7 +917,7 @@ function applySync(data){
   try{maybeSnapshotForecast();}catch(e){} // monthly forecast freeze for MAPE scoring
   ACCT=data.acctBooked||null;
   if(SHOPIFY)mergeShopify(); else loadShopify();
-  $('psub').textContent='Healthspan Global, Inc. \u00b7 '+DATA.length+' SKUs \u00b7 '+BATCHES.length+' batches';
+  $('psub').textContent='Healthspan Global, Inc.';
   updateMobileBadges();
   refreshSidebar();
   if(currentView==='action') renderActionCenter();
@@ -968,6 +972,8 @@ function applySync(data){
   else if(currentView==='audit') renderAudit();
   else if(currentView==='targets') renderTargets();
   else if(currentView==='fcastacc') renderFcastAcc();
+  else if(currentView==='salespace') renderSalesPace();
+  else if(currentView==='pdc') renderPDC();
   else if(currentView==='campaigns') renderCampaigns();
   else if(currentView==='planreview') renderPlanReview();
   else renderTable();
@@ -1057,7 +1063,7 @@ function showView(v,el){
            simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator',
            simmonte:'Monte Carlo stockout risk',simproject:'12-month projection',simcash:'Cash-flow timeline',simbulk:'Bulk-buy trade-off',simbranch:'Remedy branch rebalancing',
            aged:'Aged inventory',shrinkage:'Shrinkage tracker',cashexpiry:'Cash in expiring stock',branchtransfer:'Remedy branch shipments',branchexpiry:'Remedy branch expiry watch',
-           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt',targets:'Set targets',fcastacc:'Forecast accuracy',campaigns:'Campaign calendar',planreview:'AI planning review'};
+           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt',targets:'Set targets',fcastacc:'Forecast accuracy',campaigns:'Campaign calendar',planreview:'AI planning review',salespace:'Leaderboard & pace',pdc:'PDC register'};
   $('ptitle').textContent=T[v]||v;
   if(v==='dashboard') renderDashboard();
   else if(v==='action') renderActionCenter();
@@ -1110,6 +1116,8 @@ function showView(v,el){
   else if(v==='audit') renderAudit();
   else if(v==='targets') renderTargets();
   else if(v==='fcastacc') renderFcastAcc();
+  else if(v==='salespace') renderSalesPace();
+  else if(v==='pdc') renderPDC();
   else if(v==='campaigns') renderCampaigns();
   else if(v==='planreview') renderPlanReview();
   else renderTable(v);
@@ -1510,19 +1518,38 @@ function renderLogVisit(){
     (lockSpec?'<input id="lv-spec" value="'+esc(myTag)+'" readonly '+inp.slice(0,-1)+';opacity:.75">':
     '<select id="lv-spec" '+inp+'>'+'<option value=""></option>'+specs.map(s=>'<option'+(s===last?' selected':'')+'>'+esc(s)+'</option>').join('')+'</select>')+
     '<label '+lbl+'>Account / doctor / clinic</label>'+
-    '<input id="lv-acct" list="lv-accts" value="'+esc(preAcct)+'" placeholder="Start typing — or enter a new account" '+inp+'>'+
+    '<input id="lv-acct" list="lv-accts" value="'+esc(preAcct)+'" placeholder="Start typing — or enter a new account" onchange="dupeHint(\'lv-acct\',\'lv-dupe\')" '+inp+'>'+
     '<datalist id="lv-accts">'+accounts.map(a=>'<option value="'+esc(a)+'">').join('')+'</datalist>'+
+    '<div id="lv-dupe"></div>'+
     '<label '+lbl+'>Visit type</label>'+
     '<select id="lv-type" '+inp+'><option>Clinic visit</option><option>Call / follow-up</option><option>Product demo</option><option>Delivery / after-sales</option><option>Event / congress</option></select>'+
     '<label '+lbl+'>Outcome</label>'+
     '<select id="lv-out" '+inp+'><option>Ordered</option><option>Follow-up needed</option><option>Left samples</option><option>No order</option><option>New account opened</option></select>'+
+    '<label '+lbl+'>Products endorsed <span style="text-transform:none;font-weight:400">(binida to the doctor — tap to add)</span></label>'+
+    '<input id="lv-prod" list="lv-prods" placeholder="Start typing a product…" onchange="lvAddProd()" '+inp+'>'+
+    '<datalist id="lv-prods">'+DATA.map(p=>'<option value="'+esc(p.name)+'">').join('')+'</datalist>'+
+    '<div id="lv-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>'+
     '<label '+lbl+'>Date <span style="text-transform:none;font-weight:400">(a future date = planned visit)</span></label><input id="lv-date" type="date" value="'+esc(window._lvDate||today)+'" '+inp+'>'+
     '<label '+lbl+'>Notes (optional)</label><textarea id="lv-notes" rows="2" placeholder="e.g. interested in Cosmelan, follow up next week" '+inp+'></textarea>'+
     '<div id="lv-msg" style="min-height:18px;font-size:12px;margin-top:8px"></div>'+
     '<button id="lv-btn" onclick="submitVisit()" style="width:100%;background:var(--ac);color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:600;cursor:pointer;margin-top:4px">Log visit</button>'+
     '</div>'+
     '<div id="lv-recent" style="margin-top:14px"></div></div>';
+  window._lvProds=[];
   renderRecentVisits();
+}
+function lvAddProd(){
+  const el=$('lv-prod');if(!el)return;
+  const v=el.value.trim();if(!v)return;
+  window._lvProds=window._lvProds||[];
+  if(!window._lvProds.includes(v))window._lvProds.push(v);
+  el.value='';
+  lvChips();
+}
+function lvDelProd(i){(window._lvProds||[]).splice(i,1);lvChips();}
+function lvChips(){
+  const box=$('lv-chips');if(!box)return;
+  box.innerHTML=(window._lvProds||[]).map((p,i)=>'<span style="display:inline-flex;align-items:center;gap:5px;background:var(--bl-bg);color:var(--bl);border-radius:14px;padding:4px 10px;font-size:12px">'+esc(p)+'<a href="#" onclick="lvDelProd('+i+');return false" style="color:var(--bl);font-weight:700;text-decoration:none">×</a></span>').join('');
 }
 async function renderRecentVisits(){
   const box=$('lv-recent');if(!box)return;
@@ -1531,7 +1558,7 @@ async function renderRecentVisits(){
   const show=vs.filter(v=>!mine||v.spec===mine).slice(0,10);
   if(!$('lv-recent'))return;
   box.innerHTML=show.length?'<div class="panel" style="padding:14px"><div class="phd">Recent logged visits'+(mine?' — '+esc(mine):'')+'</div>'+
-    show.map(v=>'<div class="drow" style="align-items:flex-start"><span class="dlbl" style="max-width:280px"><b>'+esc(v.account)+'</b> · '+esc(v.date)+'<br><span style="color:var(--tx3)">'+esc(v.type)+' · '+esc(v.outcome)+(v.notes?' · '+esc(v.notes):'')+'</span></span><span class="dval">'+esc(v.spec)+'</span></div>').join('')+'</div>':'';
+    show.map(v=>'<div class="drow" style="align-items:flex-start"><span class="dlbl" style="max-width:280px"><b>'+esc(v.account)+'</b> · '+esc(v.date)+'<br><span style="color:var(--tx3)">'+esc(v.type)+' · '+esc(v.outcome)+(v.products?' · <b>bida:</b> '+esc(v.products):'')+(v.notes?' · '+esc(v.notes):'')+'</span></span><span class="dval">'+esc(v.spec)+'</span></div>').join('')+'</div>':'';
 }
 async function submitVisit(){
   const g=id=>($(id)&&$(id).value||'').trim();
@@ -1543,7 +1570,8 @@ async function submitVisit(){
     if(SB&&SBUSER){
       const dt=g('lv-date')||new Date().toISOString().slice(0,10);
       const planned=dt>new Date().toISOString().slice(0,10); // future date = planned visit
-      const {error}=await SB.from('visits').insert({spec,account,type:g('lv-type'),outcome:planned?'Planned':g('lv-out'),date:dt,notes:g('lv-notes'),user_id:SBUSER.id,status:planned?'planned':'done'});
+      const prods=(window._lvProds||[]).join(', ')||null;
+      const {error}=await SB.from('visits').insert({spec,account,type:g('lv-type'),outcome:planned?'Planned':g('lv-out'),date:dt,notes:g('lv-notes'),products:prods,user_id:SBUSER.id,status:planned?'planned':'done'});
       if(error)throw new Error(error.message);
     }else{
       const r=await fetch('/.netlify/functions/visits',{method:'POST',headers:{'Content-Type':'application/json'},
@@ -1554,6 +1582,7 @@ async function submitVisit(){
     localStorage.setItem('hs_visit_spec',spec);
     if(msg){msg.style.color='var(--gr)';msg.textContent='Saved — '+account+' logged.';}
     if($('lv-acct'))$('lv-acct').value='';if($('lv-notes'))$('lv-notes').value='';
+    window._lvProds=[];lvChips();
     VISITS=null;renderRecentVisits();
   }catch(e){if(msg){msg.style.color='var(--rd)';msg.textContent='Could not save: '+e.message;}}
   if(btn){btn.disabled=false;btn.textContent='Log visit';}
@@ -2115,6 +2144,272 @@ async function runPlanReview(){
   btn.disabled=false;btn.textContent='Run planning review';
 }
 
+/* ── CRM/ERP BATCH: dupe guard · upsell recs · health score · leaderboard & pace ·
+      contacts · PDC register ── */
+
+// Duplicate-entry guard: typed a name that isn't an existing account but looks like one?
+function acctSuggest(v){
+  try{
+    if(!v)return null;
+    if(!ACCTBYNORM)buildAcctIdx();
+    const k=custNorm(acctDedup(v));
+    if(!k||ACCTBYNORM[k])return null; // exact existing account — fine
+    const a=[...new Set(k.split(' ').filter(t=>t.length>=4))];
+    let best=null,bs=0;
+    for(const key in ACCTBYNORM){
+      const e=ACCTBYNORM[key];if(e.parentKey)continue;
+      const ek=custNorm(e.name);
+      if(ek.length>=6&&k.length>=6&&(ek.includes(k)||k.includes(ek)))return e.name;
+      if(!a.length)continue;
+      const b=ek.split(' ').filter(t=>t.length>=4);
+      const hit=b.filter(t=>a.includes(t)).length;
+      if(!hit)continue;
+      const score=hit/Math.max(a.length,b.length);
+      if(score>bs){bs=score;best=e.name;}
+    }
+    return bs>=0.5?best:null;
+  }catch(e){return null;}
+}
+function dupeHint(inId,outId,rerun){
+  const el=$(outId);if(!el)return;
+  const v=($(inId)&&$(inId).value||'').trim();
+  const m=v?acctSuggest(v):null;
+  el.innerHTML=m?'<div style="background:var(--am-bg);color:var(--am);border-radius:8px;padding:8px 12px;font-size:12px;margin-top:6px">⚠ Not an existing account — did you mean '+
+    '<a href="#" onclick="$(\''+inId+'\').value=\''+esc(m).replace(/'/g,'&#39;')+'\';'+(rerun||'')+'dupeHint(\''+inId+'\',\''+outId+'\');return false" style="color:var(--am);font-weight:700">'+esc(m)+'</a>? Tap to use it, or continue if this really is a new account.</div>':'';
+}
+
+// Upsell recommendations: co-occurrence mined from our own 13-month order history
+function upsellIdx(){
+  if(window._UPS)return window._UPS;
+  const recent=(SHOPIFY&&SHOPIFY.recent)||[];
+  if(!recent.length)return null;
+  const m={};DATA.forEach(p=>m[p.sku]=p.name);
+  const bs=Object.keys(m).sort((a,b)=>b.length-a.length);
+  const baseOf=t=>{t=String(t||'').trim();if(!t)return null;if(m[t])return t;
+    return bs.find(x=>t.startsWith(x)&&t.length>x.length)||bs.find(x=>x.length>=4&&t.length>x.length&&t.includes(x))||null;};
+  const byCust={};
+  for(const o of recent){
+    const c=custNorm(acctDedup(o.c||''));
+    if(!c||/pull\s*-?\s*out/i.test(o.c||''))continue;
+    const s=byCust[c]||(byCust[c]=new Set());
+    for(const l of (o.ls||[])){const b=baseOf(l[0]);if(b)s.add(b);}
+  }
+  const cnt={},pair={};
+  for(const c in byCust){
+    const arr=[...byCust[c]];
+    for(const x of arr){cnt[x]=(cnt[x]||0)+1;
+      const px=pair[x]||(pair[x]={});
+      for(const y of arr)if(y!==x)px[y]=(px[y]||0)+1;}
+  }
+  return window._UPS={byCust,cnt,pair,nameOf:m};
+}
+function upsellFor(acctName,n){
+  const U=upsellIdx();if(!U)return[];
+  const have=U.byCust[custNorm(acctDedup(acctName))];
+  if(!have||!have.size)return[];
+  const best={};
+  for(const a of have){
+    if((U.cnt[a]||0)<5)continue; // need real support
+    const pa=U.pair[a]||{};
+    for(const b in pa){
+      if(have.has(b)||pa[b]<4)continue;
+      const conf=pa[b]/U.cnt[a];
+      if(conf<0.25)continue;
+      if(!best[b]||conf>best[b].conf)best[b]={conf,anchor:a,n:pa[b]};
+    }
+  }
+  return Object.keys(best).map(b=>({sku:b,name:U.nameOf[b]||b,conf:best[b].conf,anchor:U.nameOf[best[b].anchor]||best[b].anchor}))
+    .sort((a,b)=>b.conf-a.conf).slice(0,n||5);
+}
+function upsellPanelHTML(name){
+  const recs=upsellFor(name,5);
+  if(!recs.length)return'';
+  return '<div class="panel" style="padding:16px;margin-top:14px"><div class="phd">Worth offering next</div>'+
+    recs.map(r=>'<div class="drow"><span class="dlbl">'+esc(r.name)+'<br><span style="color:var(--tx3);font-size:11px">'+Math.round(r.conf*100)+'% of clinics buying '+esc(r.anchor)+' also buy this</span></span><span class="dval mu">'+r.n+' clinics</span></div>').join('')+
+    '<div style="font-size:10px;color:var(--tx3);margin-top:8px">Mined from our own order history — products this account doesn’t buy yet, bought by similar clinics</div></div>';
+}
+
+// Customer health score: one number per account, with reasons
+function arOverdueSet(){
+  if(window._ARSET&&Date.now()-(window._ARSETts||0)<120000)return window._ARSET;
+  const s=new Set();
+  try{for(const r of arRows())if((r.d30+r.d60+r.d90)>0)s.add(custNorm(r.name));}catch(e){}
+  window._ARSET=s;window._ARSETts=Date.now();
+  return s;
+}
+function healthOf(r,arSet){
+  let s=100;const why=[];
+  const days=r.last?Math.floor((Date.now()-new Date(r.last).getTime())/864e5):9999;
+  if(days>9000){s-=45;why.push('no recorded activity');}
+  else if(days>180){s-=45;why.push('quiet '+days+' days');}
+  else if(days>90){s-=25;why.push('quiet '+days+' days');}
+  else if(days>45){s-=10;why.push(days+' days since activity');}
+  if(!r.v90){s-=20;why.push('no bookings in 90d');}
+  if(arSet&&arSet.has(custNorm(r.name))){s-=20;why.push('overdue balance');}
+  if(r.e&&!r.e.visitN){s-=10;why.push('never visited');}
+  s=Math.max(0,s);
+  return {s,why:why.join(' · ')||'active & current',c:s>=75?'var(--gr)':s>=45?'var(--am)':'var(--rd)'};
+}
+
+// Leaderboard & pace: MTD race + projected month-end attainment per specialist
+function renderSalesPace(){
+  const recent=(SHOPIFY&&SHOPIFY.recent)||[];
+  if(!recent.length){$('content').innerHTML='<div class="empty" style="margin-top:40px">Waiting for the sales cache…</div>';try{loadShopify().then(()=>{if(currentView==='salespace')renderSalesPace();});}catch(e){}return;}
+  if(!VISITS){loadVisits().then(()=>{if(currentView==='salespace')renderSalesPace();});}
+  const now=new Date();
+  const ym=now.toISOString().slice(0,7);
+  const dim=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
+  const elapsed=Math.min(1,Math.max(0.03,now.getDate()/dim));
+  const S={},disp={};
+  for(const o of recent){
+    const raw=specCanon(o.t||'');
+    if(!raw||INTERNAL_TAG.test(raw)||/pull\s*-?\s*out/i.test(o.c||''))continue;
+    if((o.dt||'').slice(0,7)!==ym)continue;
+    const t=raw.toLowerCase();if(!disp[t])disp[t]=raw;
+    S[t]=(S[t]||0)+(o.ls||[]).reduce((a,l)=>a+(l[2]||0),0);
+  }
+  for(const x of (TARGETS||[])){ // specialists with a target but no sales yet still race
+    if(x.month!==ym||x.scope!=='SPECIALIST')continue;
+    const t=specCanon(x.name||'').toLowerCase();
+    if(t&&!(t in S)){S[t]=0;if(!disp[t])disp[t]=specCanon(x.name);}
+  }
+  const V={};
+  for(const v of (VISITS||[])){
+    if(v.status==='planned'||(v.date||'').slice(0,7)!==ym)continue;
+    const t=specCanon(v.spec||'').toLowerCase();if(t)V[t]=(V[t]||0)+1;
+  }
+  const tgtOf=t=>{const x=(TARGETS||[]).find(x=>x.month===ym&&x.scope==='SPECIALIST'&&specCanon(x.name||'').toLowerCase()===t);return x?x.value:null;};
+  const rows=Object.keys(S).map(t=>{
+    const mtd=S[t],T=tgtOf(t),proj=Math.round(mtd/elapsed);
+    return {t,name:disp[t],mtd,T,proj,att:T?proj/T*100:null,cur:T?mtd/T*100:null,visits:V[t]||0};
+  }).sort((a,b)=>b.mtd-a.mtd);
+  const medal=i=>i===0?'🥇':i===1?'🥈':i===2?'🥉':'<span class="mu">'+(i+1)+'</span>';
+  const paceP=a=>a==null?'<span class="mu">no target</span>':'<span style="font-weight:700;color:'+(a>=100?'var(--gr)':a>=80?'var(--am)':'var(--rd)')+'">'+a.toFixed(0)+'%</span>';
+  $('content').innerHTML=
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met bl"><div class="met-lbl">Month</div><div class="met-val">'+ym+'</div><div class="met-sub">'+Math.round(elapsed*100)+'% elapsed</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Team MTD</div><div class="met-val" style="font-size:15px">'+fmtPeso(rows.reduce((a,r)=>a+r.mtd,0))+'</div><div class="met-sub">booked so far</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Projected month-end</div><div class="met-val" style="font-size:15px">'+fmtPeso(rows.reduce((a,r)=>a+r.proj,0))+'</div><div class="met-sub">at the current pace</div><div class="met-bar"></div></div>'+
+    '<div class="met pu"><div class="met-lbl">On pace for target</div><div class="met-val">'+rows.filter(r=>r.att!=null&&r.att>=100).length+' / '+rows.filter(r=>r.att!=null).length+'</div><div class="met-sub">specialists with targets</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th></th><th>Specialist</th><th style="text-align:right">MTD booked</th><th style="text-align:right">Target</th><th style="text-align:right">Now at</th><th style="text-align:right">Projected finish</th><th style="text-align:right">Pace</th><th style="text-align:right">Visits MTD</th></tr></thead><tbody>'+
+    rows.map((r,i)=>'<tr onclick="showSpecPage(\''+esc(r.name).replace(/'/g,'&#39;')+'\')" style="cursor:pointer'+(i<3?';font-weight:600':'')+'">'+
+      '<td style="font-size:15px">'+medal(i)+'</td><td>'+esc(r.name)+'</td>'+
+      '<td class="r" style="font-weight:700">'+fmtPeso(r.mtd)+'</td>'+
+      '<td class="r mu">'+(r.T!=null?fmtPeso(r.T):'—')+'</td>'+
+      '<td class="r">'+(r.cur!=null?r.cur.toFixed(0)+'%':'—')+'</td>'+
+      '<td class="r">'+fmtPeso(r.proj)+'</td>'+
+      '<td class="r">'+paceP(r.att)+'</td>'+
+      '<td class="r mu">'+r.visits+'</td></tr>').join('')+
+    '</tbody></table></div><div class="tfooter"><span>Pace = MTD ÷ share of the month elapsed, vs target — green ≥100%, amber ≥80% · coach while the month can still be saved · tap a row for the specialist’s page · targets from Set targets (overrides) or the sheet</span></div></div>';
+}
+
+// Multiple contacts per account (doctor, purchaser, nurse…)
+async function fillContacts(key,name){
+  const box=$('ac-contacts');if(!box)return;
+  let list=[];
+  try{const {data}=await SB.from('account_contacts').select('*').eq('acct_key',key).order('id');list=data||[];}
+  catch(e){box.innerHTML='';return;}
+  const inp='style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:7px 9px;font-size:12px"';
+  box.innerHTML='<div class="phd">Contacts</div>'+
+    (list.length?list.map(c=>'<div class="drow" style="align-items:flex-start"><span class="dlbl"><b>'+esc(c.name)+'</b>'+(c.role?' · '+esc(c.role):'')+'<br><span style="color:var(--tx3);font-size:11.5px">'+esc(c.phone||'')+(c.email?' · '+esc(c.email):'')+'</span></span>'+
+      '<span class="dval"><a href="#" onclick="acDelContact('+c.id+',\''+esc(key)+'\',\''+esc(name).replace(/'/g,'&#39;')+'\');return false" style="color:var(--rd);font-size:11px">remove</a></span></div>').join(''):'<div style="font-size:12px;color:var(--tx3);margin-bottom:6px">No contacts yet — add the doctor, purchaser, or clinic staff.</div>')+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">'+
+    '<input id="ac-cn" placeholder="Name" '+inp+' style="flex:1;min-width:110px;'+inp.slice(7,-1)+'">'+
+    '<input id="ac-cr" placeholder="Role (doctor…)" '+inp+' style="width:110px;'+inp.slice(7,-1)+'">'+
+    '<input id="ac-cp" placeholder="Phone" '+inp+' style="width:110px;'+inp.slice(7,-1)+'">'+
+    '<button onclick="acAddContact(\''+esc(key)+'\',\''+esc(name).replace(/'/g,'&#39;')+'\')" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;cursor:pointer">Add</button></div>';
+}
+async function acAddContact(key,name){
+  const g=id=>($(id)&&$(id).value||'').trim();
+  if(!g('ac-cn'))return;
+  try{
+    const {error}=await SB.from('account_contacts').insert({acct_key:key,account:name,name:g('ac-cn'),role:g('ac-cr')||null,phone:g('ac-cp')||null,created_by:(SBUSER&&SBUSER.id)||null});
+    if(error)throw error;
+    audit('contact.add',{account:name,contact:g('ac-cn')});
+    fillContacts(key,name);
+  }catch(e){alert('Could not save: '+(e.message||e)+(String(e.message||'').includes('account_contacts')?'\n\n(Run the account_contacts SQL from SUPABASE-SETUP.md.)':''));}
+}
+async function acDelContact(id,key,name){
+  if(!confirm('Remove this contact?'))return;
+  try{const {error}=await SB.from('account_contacts').delete().eq('id',id);if(error)throw error;fillContacts(key,name);}catch(e){alert(e.message||e);}
+}
+
+// PDC register: every post-dated cheque, tracked to maturity
+const PDC_ST={on_hand:'on hand',deposited:'deposited',cleared:'cleared',bounced:'bounced'};
+async function renderPDC(){
+  if(!canManage()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only.</div>';return;}
+  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  let rows=[];
+  try{const {data}=await SB.from('pdcs').select('*').order('maturity');rows=data||[];}
+  catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Could not load — has the pdcs table been created? (SUPABASE-SETUP.md)</div>';return;}
+  const today=new Date().toISOString().slice(0,10);
+  const wk=new Date(Date.now()+7*864e5).toISOString().slice(0,10);
+  const d30=new Date(Date.now()+30*864e5).toISOString().slice(0,10);
+  const open=rows.filter(r=>r.status==='on_hand'||r.status==='deposited');
+  const sum=a=>a.reduce((x,r)=>x+(r.amount||0),0);
+  const pill=s=>s==='cleared'?'<span class="pill pgr">cleared</span>':s==='bounced'?'<span class="pill prd">bounced</span>':s==='deposited'?'<span class="pill pbl">deposited</span>':'<span class="pill" style="background:var(--am-bg);color:var(--am)">on hand</span>';
+  const acctOpts=acctList().map(r=>'<option value="'+esc(r.name)+'">').join('');
+  const inp='style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;font-size:12.5px"';
+  const act=r=>{
+    const L=[];
+    if(r.status==='on_hand')L.push(['deposited','deposit']);
+    if(r.status==='deposited'){L.push(['cleared','cleared ✓']);L.push(['bounced','bounced ✗']);}
+    if(r.status==='bounced')L.push(['deposited','redeposit']);
+    return L.map(([s,l])=>'<a href="#" onclick="pdcSet('+r.id+',\''+s+'\');return false" style="color:'+(s==='bounced'?'var(--rd)':'var(--ac)')+';font-size:11px">'+l+'</a>').join(' · ')+
+      ' · <a href="#" onclick="pdcDel('+r.id+');return false" style="color:var(--tx3);font-size:11px">del</a>';
+  };
+  $('content').innerHTML=
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met bl"><div class="met-lbl">Cheques open</div><div class="met-val">'+open.length+'</div><div class="met-sub">'+fmtPeso(sum(open))+' on hand / in bank</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Maturing this week</div><div class="met-val" style="font-size:15px">'+fmtPeso(sum(open.filter(r=>r.maturity<=wk)))+'</div><div class="met-sub">deposit these now</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Next 30 days</div><div class="met-val" style="font-size:15px">'+fmtPeso(sum(open.filter(r=>r.maturity<=d30)))+'</div><div class="met-sub">expected collections</div><div class="met-bar"></div></div>'+
+    '<div class="met" style="border-left:3px solid var(--rd)"><div class="met-lbl">Bounced (open)</div><div class="met-val" style="font-size:15px;color:var(--rd)">'+fmtPeso(sum(rows.filter(r=>r.status==='bounced')))+'</div><div class="met-sub">chase or replace</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="panel" style="padding:12px 16px;margin-bottom:14px"><div class="phd">Record a cheque</div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+
+    '<input id="pd-acct" list="pd-accts" placeholder="Account" '+inp+' style="flex:1;min-width:150px;'+inp.slice(7,-1)+'"><datalist id="pd-accts">'+acctOpts+'</datalist>'+
+    '<input id="pd-bank" placeholder="Bank" '+inp+' style="width:110px;'+inp.slice(7,-1)+'">'+
+    '<input id="pd-no" placeholder="Cheque no." '+inp+' style="width:110px;'+inp.slice(7,-1)+'">'+
+    '<input id="pd-amt" type="number" placeholder="Amount ₱" '+inp+' style="width:120px;'+inp.slice(7,-1)+'">'+
+    '<input id="pd-mat" type="date" title="Maturity date" '+inp+'>'+
+    '<input id="pd-ref" placeholder="Order ref (opt.)" '+inp+' style="width:120px;'+inp.slice(7,-1)+'">'+
+    '<button onclick="pdcAdd()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer">Add</button></div></div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Maturity</th><th>Account</th><th>Bank · cheque no.</th><th style="text-align:right">Amount</th><th>Status</th><th>Order</th><th></th></tr></thead><tbody>'+
+    (rows.length?rows.map(r=>'<tr'+(r.status!=='cleared'&&r.maturity<=today?' style="background:var(--am-bg)"':'')+'><td style="font-weight:600">'+esc(r.maturity)+(r.status!=='cleared'&&r.status!=='bounced'&&r.maturity<=today?' <span class="pill prd" style="font-size:9px">due</span>':'')+'</td>'+
+      '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis"><a href="#" onclick="showAccountPage(\''+esc(r.account).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac)">'+esc(r.account)+'</a></td>'+
+      '<td class="mu" style="font-size:11.5px">'+esc(r.bank||'—')+' · '+esc(r.cheque_no||'—')+'</td>'+
+      '<td class="r" style="font-weight:700">'+fmtPeso(r.amount||0)+'</td>'+
+      '<td>'+pill(r.status)+'</td>'+
+      '<td class="mu" style="font-size:11px">'+(r.order_ref?'<a href="#" onclick="showOrderPage(\''+esc(r.order_ref).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac)">'+esc(r.order_ref)+'</a>':'—')+'</td>'+
+      '<td style="white-space:nowrap">'+act(r)+'</td></tr>').join(''):'<tr><td colspan="7"><div class="empty">No cheques recorded yet — PDCs from order notes ("50% PDC 30 days") belong here.</div></td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>Highlighted rows are at/past maturity and not yet cleared · deposit → cleared marks the cash real (record the payment on the order too) · bounced cheques stay visible until replaced</span></div></div>';
+}
+async function pdcAdd(){
+  if(!canManage()||!SB)return;
+  const g=id=>($(id)&&$(id).value||'').trim();
+  if(!g('pd-acct')||!g('pd-amt')||!g('pd-mat'))return alert('Need at least the account, amount, and maturity date.');
+  try{
+    const {error}=await SB.from('pdcs').insert({account:g('pd-acct'),bank:g('pd-bank')||null,cheque_no:g('pd-no')||null,amount:Math.round(parseFloat(g('pd-amt'))),maturity:g('pd-mat'),order_ref:g('pd-ref')||null,status:'on_hand',created_by:(SBUSER&&SBUSER.id)||null});
+    if(error)throw error;
+    audit('pdc.add',{account:g('pd-acct'),amount:g('pd-amt'),maturity:g('pd-mat')});
+    renderPDC();
+  }catch(e){alert('Could not save: '+(e.message||e)+(String(e.message||'').includes('pdcs')?'\n\n(Run the pdcs SQL from SUPABASE-SETUP.md.)':''));}
+}
+async function pdcSet(id,status){
+  if(!canManage()||!SB)return;
+  if(status==='bounced'&&!confirm('Mark this cheque bounced?'))return;
+  try{
+    const {error}=await SB.from('pdcs').update({status,updated_at:new Date().toISOString()}).eq('id',id);
+    if(error)throw error;
+    audit('pdc.'+status,{id});
+    renderPDC();
+  }catch(e){alert(e.message||e);}
+}
+async function pdcDel(id){
+  if(!canManage()||!SB||!confirm('Delete this cheque record?'))return;
+  try{const {error}=await SB.from('pdcs').delete().eq('id',id);if(error)throw error;audit('pdc.delete',{id});renderPDC();}catch(e){alert(e.message||e);}
+}
+
 /* ── TARGET SETTING — admins & sales managers set monthly ₱ targets per specialist.
    In-app targets OVERRIDE the sheet/corporate numbers for the same specialist+month;
    every target view and specialist page picks them up automatically. ── */
@@ -2252,7 +2547,8 @@ async function showDeliveryReceipt(ref){
     '<table><thead><tr><th>#</th><th>Product</th><th>SKU</th><th style="text-align:center">Qty</th><th style="text-align:right">Amount</th></tr></thead><tbody>'+
     lines.map((l,i)=>'<tr><td>'+(i+1)+'</td><td><b>'+esc(l.name||l.sku)+'</b>'+(l.is_free?' (FREE)':'')+'</td><td>'+esc(l.sku)+'</td><td style="text-align:center">'+l.qty+'</td><td style="text-align:right">'+((l.amount||0)>0?fmtPeso(l.amount):'₱0')+'</td></tr>').join('')+
     '</tbody></table>'+
-    '<div style="text-align:right;font-weight:700;font-size:14px;margin-top:6px">Total: '+fmtPeso(o.total)+'</div>'+
+    '<div style="text-align:right;font-size:12px;margin-top:6px;color:#333">VATable sales: '+fmtPeso(Math.round((o.total||0)/1.12))+'<br>12% VAT: '+fmtPeso((o.total||0)-Math.round((o.total||0)/1.12))+'</div>'+
+    '<div style="text-align:right;font-weight:700;font-size:14px;margin-top:2px">TOTAL (VAT inclusive): '+fmtPeso(o.total)+'</div>'+
     (o.order_note||o.notes?'<div style="font-size:12px;margin-top:8px"><b>Notes:</b> '+esc(o.order_note||o.notes)+'</div>':'')+
     '<div style="font-size:11px;color:#555;margin-top:14px">Received the above goods in good order and condition.</div>'+
     '<div style="display:flex;gap:40px;margin-top:34px;font-size:12px">'+
@@ -2318,9 +2614,10 @@ function acctExportCSV(){
   const from=($('ax-from')||{}).value||'2000-01-01',to=($('ax-to')||{}).value||'2099-12-31';
   const os=(NORDERS||[]).filter(o=>!o.deleted_at&&o.date>=from&&o.date<=to).sort((a,b)=>a.date<b.date?-1:1);
   if(!os.length)return alert('No orders in that date range.');
-  const h=['Order','Ext ref','Date','Account','Specialist','Status','Pay status','Terms (days)','Total','Paid','Balance','Source'];
-  const rows=os.map(o=>[ordLabel(o),o.ext_ref||'',o.date,o.account||'',o.spec||'',o.status,o.pay_status||'',o.terms_days||'',o.total||0,o.paid||0,o.balance||0,o.source||'native']
-    .map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','));
+  const h=['Order','Ext ref','Date','Account','Specialist','Status','Pay status','Terms (days)','Total (VAT inc)','VATable (net)','VAT 12%','Paid','Balance','Source'];
+  const rows=os.map(o=>{const net=Math.round((o.total||0)/1.12);
+    return [ordLabel(o),o.ext_ref||'',o.date,o.account||'',o.spec||'',o.status,o.pay_status||'',o.terms_days||'',o.total||0,net,(o.total||0)-net,o.paid||0,o.balance||0,o.source||'native']
+    .map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',');});
   const a=document.createElement('a');
   a.href='data:text/csv;charset=utf-8,﻿'+encodeURIComponent([h.join(','),...rows].join('\n'));
   a.download='healthspan_orders_'+from+'_to_'+to+'.csv';
@@ -2529,7 +2826,7 @@ async function renderAccountPage(){
     .map(o=>({k:'order',dt:o.date,who:o.spec||'',label:ordLabel(o),amt:o.total,ref:o.id,native:o.source!=='shopify'}));
   orders.push(...natOrders);
   const visits=(VISITS||[]).filter(v=>inNames.has((v.account||'').trim()))
-    .map(v=>({k:v.status==='planned'?'plan':'visit',dt:v.date,who:v.spec,label:v.type||'Visit',out:v.outcome,notes:v.notes,fu:v.outcome==='Follow-up needed'&&!v.fu_done}));
+    .map(v=>({k:v.status==='planned'?'plan':'visit',dt:v.date,who:v.spec,label:v.type||'Visit',out:v.outcome,notes:(v.products?'bida: '+v.products+(v.notes?' · '+v.notes:''):v.notes),fu:v.outcome==='Follow-up needed'&&!v.fu_done}));
   const ship=[e,...((e.children||[]).map(k=>ACCTBYNORM[k]).filter(Boolean))]
     .flatMap(x=>(x.sheet&&x.sheet.recent||[]).map(r=>({k:'ship',dt:r.date,who:'warehouse',label:r.qty+' × '+r.name,amt:null})));
   const tl=[...orders,...visits,...ship].sort((a,b)=>a.dt<b.dt?1:a.dt>b.dt?-1:0).slice(0,60);
@@ -2589,9 +2886,12 @@ async function renderAccountPage(){
         '<span class="dval">'+(t.amt!=null?fmtPeso(t.amt):'')+'</span></div>';
       }).join(''):'<div style="font-size:12px;color:var(--tx3)">Nothing recorded yet — log the first visit.</div>')+'</div>'+
     (buys.length?'<div class="panel" style="padding:16px"><div class="phd">What they buy</div>'+buys.map(b=>'<div class="drow"><span class="dlbl">'+esc(b.name)+'</span><span class="dval">'+(b.q?b.q.toLocaleString()+' u':'')+(b.v?' · '+fmtPeso(b.v):'')+'</span></div>').join('')+'</div>':'')+
+    upsellPanelHTML(e.name)+
     '</div>'+
-    '<div class="panel" style="padding:16px" id="ac-panel">'+acctDetailsHTML(e.name,acct,false)+'</div>'+
+    '<div><div class="panel" style="padding:16px" id="ac-panel">'+acctDetailsHTML(e.name,acct,false)+'</div>'+
+    '<div class="panel" style="padding:16px;margin-top:14px" id="ac-contacts"><div class="phd">Contacts</div><div style="font-size:12px;color:var(--tx3)">Loading…</div></div></div>'+
     '</div>';
+  try{fillContacts(custNorm(e.name),e.name);}catch(ex){}
 }
 /* Details panel: read-only by default, Edit button switches to the form (per Angelo) */
 let ACCT_REC=null;
@@ -2642,7 +2942,7 @@ async function openAccountDrawer_legacy(name){
   const orders=((SHOPIFY&&SHOPIFY.recent)||[]).filter(o=>(o.c||'').trim()===name)
     .map(o=>({k:'order',dt:o.dt,t:o.t||'',label:o.n,amt:(o.ls||[]).reduce((x,l)=>x+(l[2]||0),0)}));
   const visits=(VISITS||[]).filter(v=>(v.account||'').trim()===name)
-    .map(v=>({k:v.status==='planned'?'plan':'visit',dt:v.date,t:v.spec,label:v.type||'Visit',out:v.outcome,notes:v.notes}));
+    .map(v=>({k:v.status==='planned'?'plan':'visit',dt:v.date,t:v.spec,label:v.type||'Visit',out:v.outcome,notes:(v.products?'bida: '+v.products+(v.notes?' · '+v.notes:''):v.notes)}));
   const tl=[...orders,...visits].sort((a,b)=>a.dt<b.dt?1:a.dt>b.dt?-1:0).slice(0,30);
   const pill=k=>k==='order'?'<span class="pill pgr">order</span>':k==='plan'?'<span class="pill pbl">planned</span>':'<span class="pill pam" style="background:rgba(186,117,23,.15);color:var(--am)">visit</span>';
   const f=(id,label,val,ph)=>'<label style="font-size:10.5px;color:var(--tx3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin:8px 0 3px">'+label+'</label>'+
@@ -2972,7 +3272,16 @@ function noAcctChanged(){
   const open=(NORDERS||[]).filter(o=>!o.deleted_at&&o.status!=='cancelled'&&(o.balance||0)>0&&acctDedup(o.account||'')===name);
   const owe=open.reduce((a,o)=>a+o.balance,0);
   const overdue=open.filter(o=>(Date.now()-new Date(o.date).getTime())/864e5>((o.terms_days||0)+30)).reduce((a,o)=>a+o.balance,0);
-  el.innerHTML=owe?'<div style="background:'+(overdue?'var(--rd-bg)':'var(--am-bg)')+';color:'+(overdue?'var(--rd)':'var(--am)')+';border-radius:8px;padding:8px 12px;font-size:12px;margin-top:6px"><b>Credit check:</b> this account owes '+fmtPeso(owe)+' across '+open.length+' unpaid order'+(open.length>1?'s':'')+(overdue?' — '+fmtPeso(overdue)+' overdue':'')+'</div>':'';
+  let html=owe?'<div style="background:'+(overdue?'var(--rd-bg)':'var(--am-bg)')+';color:'+(overdue?'var(--rd)':'var(--am)')+';border-radius:8px;padding:8px 12px;font-size:12px;margin-top:6px"><b>Credit check:</b> this account owes '+fmtPeso(owe)+' across '+open.length+' unpaid order'+(open.length>1?'s':'')+(overdue?' — '+fmtPeso(overdue)+' overdue':'')+'</div>':'';
+  // duplicate-entry guard
+  const sug=acctSuggest(($('no-acct')&&$('no-acct').value||'').trim());
+  if(sug)html+='<div style="background:var(--am-bg);color:var(--am);border-radius:8px;padding:8px 12px;font-size:12px;margin-top:6px">⚠ Not an existing account — did you mean <a href="#" onclick="$(\'no-acct\').value=\''+esc(sug).replace(/'/g,'&#39;')+'\';noAcctChanged();return false" style="color:var(--am);font-weight:700">'+esc(sug)+'</a>? Tap to use it, or continue if it’s truly new.</div>';
+  // upsell nudge for the chosen account
+  try{
+    const recs=name&&!sug?upsellFor(name,3):[];
+    if(recs.length)html+='<div style="background:var(--bl-bg);color:var(--bl);border-radius:8px;padding:8px 12px;font-size:12px;margin-top:6px"><b>Worth offering:</b> '+recs.map(r=>esc(r.name)+' ('+Math.round(r.conf*100)+'% of similar clinics buy it)').join(' · ')+'</div>';
+  }catch(e){}
+  el.innerHTML=html;
 }
 
 /* ── SPECIALIST PROFILE + CALENDAR (full page) ── */
@@ -3590,13 +3899,17 @@ function renderCustomers(){
       '<div class="met pu" onclick="window._custFilter=\'prospects\';renderCustomers()" style="cursor:pointer"><div class="met-lbl">Shopify-only / prospects</div><div class="met-val">'+rows.filter(r=>r.src==='shopify'||r.src==='prospect').length+'</div><div class="met-sub">not yet in the OUT sheet — tap to work the list</div><div class="met-bar"></div></div>'+
       '</div>'+
       '<div class="tabs" style="margin-bottom:12px">'+tabs2.map(([k,l])=>'<div class="tab'+(k==='all'?' active':'')+'" onclick="window._custFilter=\''+k+'\';renderCustomers()">'+l+'</div>').join('')+'</div>'+
-      '<div class="tcard"><div class="tscroll"><table><thead><tr><th>#</th><th>Account</th><th style="text-align:right">Shipped ₱</th><th style="text-align:right">Booked ₱ (13mo)</th><th style="text-align:right">Booked ₱ 90d</th><th style="text-align:right">Last activity</th></tr></thead><tbody>'+
-      rows.map((r,i)=>'<tr onclick="showAccountPage(\''+esc(r.name).replace(/\'/g,'&#39;')+'\')" style="cursor:pointer'+(r.e.isRemedy?';background:var(--sf2)':'')+'"><td class="mu">'+(i+1)+'</td>'+
+      '<div class="tcard"><div class="tscroll"><table><thead><tr><th>#</th><th>Account</th><th style="text-align:center">Health</th><th style="text-align:right">Shipped ₱</th><th style="text-align:right">Booked ₱ (13mo)</th><th style="text-align:right">Booked ₱ 90d</th><th style="text-align:right">Last activity</th></tr></thead><tbody>'+
+      (function(){const arSet=NORDERS?arOverdueSet():null;
+      return rows.map((r,i)=>{const h=healthOf(r,arSet);
+        return '<tr onclick="showAccountPage(\''+esc(r.name).replace(/\'/g,'&#39;')+'\')" style="cursor:pointer'+(r.e.isRemedy?';background:var(--sf2)':'')+'"><td class="mu">'+(i+1)+'</td>'+
         '<td style="font-weight:600;max-width:250px;overflow:hidden;text-overflow:ellipsis">'+esc(r.name)+(r.branches?' <span class="pill pbl">'+r.branches+' branches</span>':'')+(r.e.isRemedy?' <span class="pill pbl">sister co.</span>':'')+(r.src==='prospect'?' <span class="pill" style="background:rgba(127,119,221,.15);color:var(--pu)">prospect</span>':'')+'</td>'+
+        '<td style="text-align:center"><span title="'+esc(h.why)+'" style="font-weight:700;color:'+h.c+'">'+h.s+'</span></td>'+
         '<td class="r">'+(r.shipped?fmtPeso(r.shipped):'—')+'</td><td class="r" style="font-weight:600">'+(r.booked?fmtPeso(r.booked):'—')+'</td>'+
         '<td class="r mu">'+(r.v90?fmtPeso(r.v90):'—')+'</td>'+
-        '<td class="r mu" style="font-size:11px">'+esc(r.last||'—')+'</td></tr>').join('')+
-      '</tbody></table></div><div class="tfooter"><span>One row per account, merged by name across Verna’s OUT sheet, Shopify, and the visit log · tap a row for the full profile · prospects = accounts that exist only in the visit log so far</span></div></div>';
+        '<td class="r mu" style="font-size:11px">'+esc(r.last||'—')+'</td></tr>';}).join('');})()+
+      '</tbody></table></div><div class="tfooter"><span>One row per account, merged by name across Verna’s OUT sheet, Shopify, and the visit log · Health 0–100: recency + 90-day bookings + overdue AR + visit history (hover the number for reasons) — green ≥75, amber ≥45 · tap a row for the full profile</span></div></div>';
+    if(!NORDERS)loadNativeOrders().then(()=>{if(currentView==='customers'&&(window._custFilter||'all')==='all')renderCustomers();}); // health improves once AR data lands
     return;
   }
   const totVal=all.reduce((a,c)=>a+c.value,0);
@@ -5612,8 +5925,8 @@ function roleLogout(){
 
 /* ── INIT ── */
 refreshSidebar();
-renderDashboard();
-injectDesc('dashboard');
+renderHome();
+injectDesc('home');
 initTheme();
 initAuth();
 (function(){const b=document.getElementById('tipsBtn');if(b)b.style.opacity=TIPS_ON?'1':'0.55';})();
