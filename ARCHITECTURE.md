@@ -223,10 +223,13 @@ super admin only (tightened 2026-08-28).
 
 ### 3.7 View-writers map & the generated home
 `VIEW_WRITERS` (js/10) records which roles write in each view: it renders the
-read-only banners inside views AND the 👁 badges on home cards. The home screen
-itself is curated action sections + an auto-generated catalog of every
-`viewAllowed()` page, cloned (title + unique svg icon) from the sidebar DOM —
-so new nav items appear on Home automatically.
+read-only banners inside views AND the 👁 badges on home cards. Home = one
+curated action row per role + the sidebar's own categories listing every
+`viewAllowed()` page (title minus badge counts, svg cloned with explicit
+stroke attrs) — home and sidebar share one structure, and new nav items appear
+on Home automatically. The old `role-sales` CSS nav filter is gone; `navSync`
+drives sidebar visibility for every role, so sales get the same collapsible
+categories.
 
 ### 4.6 Role-scoped Ask AI
 `ask.mjs` derives the caller's role/tag server-side (unspoofable) and passes it

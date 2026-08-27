@@ -206,17 +206,21 @@ function navApplyCollapse(){
 function navSync(){
   try{
     document.querySelectorAll('.nav .ni').forEach(el=>{
-      const m=(el.getAttribute('onclick')||'').match(/showView\('([a-z]+)'/);
-      if(!m)return;
-      const deny=typeof viewAllowed==='function'&&!viewAllowed(m[1]);
+      const oc=el.getAttribute('onclick')||'';
+      const m=oc.match(/showView\('([a-z]+)'/);
+      let deny;
+      if(m)deny=typeof viewAllowed==='function'&&!viewAllowed(m[1]);
+      else deny=(ROLE==='sales');  // product-line filters open inventory views — not for sales
       el.dataset.deny=deny?'1':'0';
       el.style.display=deny?'none':'';
     });
+    const ln=document.getElementById('lnav');
+    if(ln){ln.dataset.deny=(ROLE==='sales')?'1':'0';if(ROLE==='sales')ln.style.display='none';}
     // a section whose every item is denied disappears entirely (e.g. Admin for finance)
     document.querySelectorAll('.nav .nlbl').forEach(lbl=>{
       let n=lbl.nextElementSibling,any=false;
       while(n&&!n.classList.contains('nlbl')){
-        if((n.classList.contains('ni')&&n.dataset.deny!=='1')||n.id==='lnav')any=true;
+        if((n.classList.contains('ni')||n.id==='lnav')&&n.dataset.deny!=='1')any=true;
         n=n.nextElementSibling;
       }
       lbl.style.display=any?'':'none';

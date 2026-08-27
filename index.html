@@ -238,14 +238,14 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
 
 /* ── MOBILE ── */
 .mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--sf);border-top:1px solid var(--bd);z-index:300;padding:0 0 env(safe-area-inset-bottom)}
-.mobile-nav-inner{display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:4px 8px}
+.mobile-nav-inner{display:flex;overflow-x:hidden;padding:4px 6px}
 .mobile-nav-inner::-webkit-scrollbar{display:none}
-.mni{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 10px;border-radius:var(--rs);cursor:pointer;color:var(--tx3);font-size:9px;font-weight:500;white-space:nowrap;flex-shrink:0;min-width:52px;transition:all .12s}
+.mni{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px;border-radius:var(--rs);cursor:pointer;color:var(--tx3);font-size:9px;font-weight:500;white-space:nowrap;flex:1 1 0;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;transition:all .12s}
 .mni:hover{background:var(--sf2);color:var(--tx)}
 .mni.active{color:var(--ac);background:var(--gr-bg)}
 .mni svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .mni .mni-badge{background:var(--rd);color:#fff;font-size:8px;font-weight:700;padding:1px 4px;border-radius:8px;margin-top:-2px}
-.mobile-topbar{display:none;background:var(--sf);border-bottom:1px solid var(--bd);padding:10px 16px;align-items:center;justify-content:space-between;flex-shrink:0}
+.mobile-topbar{display:none;background:var(--sf);border-bottom:1px solid var(--bd);padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;align-items:center;justify-content:space-between;flex-shrink:0}
 .mobile-topbar .ptitle{font-size:15px;font-weight:700}
 .mobile-topbar .psub{font-size:10px;color:var(--tx3)}
 .mobile-sync{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--bl);cursor:pointer;padding:5px 8px;border-radius:var(--rs);background:var(--bl-bg)}
@@ -253,6 +253,8 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
 .mobile-sync.spin svg{animation:spin 1s linear infinite}
 .mobile-sync.ok{color:var(--gr);background:var(--gr-bg)}
 .mobile-sync.err{color:var(--rd);background:var(--rd-bg)}
+html,body{overflow-x:hidden;max-width:100vw}
+.content{overflow-x:hidden}
 @media(max-width:760px){
   input,select,textarea{font-size:16px!important} /* stops iOS auto-zoom on focus */
   button{min-height:40px} /* comfortable tap targets */
@@ -314,11 +316,7 @@ document.addEventListener('gesturechange',function(e){e.preventDefault();},{pass
   <div style="font-size:13px;color:var(--tx3)">Loading…</div>
 </div>
 <style>
-/* Sales role: only the Sales nav group (and the gate/footer) is visible */
-body.role-sales .nav .nlbl,body.role-sales .nav .ni{display:none}
-body.role-sales .nav .nv-sales{display:flex}
-body.role-sales .nav .nlbl.nv-sales{display:block}
-/* sales managers: everything except account management */
+/* nav visibility is driven by navSync()/viewAllowed() for every role */
 .nav .nlbl{cursor:pointer;user-select:none}
 .nav .nlbl::after{content:" ▾";opacity:.5;font-size:9px}
 .nav .nlbl.collapsed::after{content:" ▸"}
@@ -345,7 +343,7 @@ button:active{transform:scale(.97)}
 @media (display-mode: standalone){
   /* solid backdrop behind the iPhone status bar — content scrolls underneath it */
   body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top);background:var(--sf);z-index:600}
-  .mobile-topbar{padding-top:calc(10px + env(safe-area-inset-top))}
+  #rolegate{padding-top:calc(24px + env(safe-area-inset-top))!important;box-sizing:border-box}
   #mmenu > div:first-child{padding-top:calc(12px + env(safe-area-inset-top))}
   body{overscroll-behavior:none}
 }

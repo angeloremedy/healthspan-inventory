@@ -93,7 +93,8 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ Transfer orders: branch shipments as documents with FEFO ledger writes and in-transit state
 - ✅ Manual VIEWER in-app (iframe + download + full-screen) — every role, one tap
 - ✅ View-only clarity: read-only views banner who actually edits them (VIEW_WRITERS map); same map badges the home cards
-- ✅ Home shows EVERY page the role can open (auto-generated from the sidebar, unique icon each, 👁 view-only badges) under the curated action sections
+- ✅ Home = the role's action row + the sidebar's own categories with every page the role can open (icons per view, 👁 view-only badges, badge-count-free titles) — home and sidebar share one structure
+- ✅ Sidebar unified: navSync drives every role (sales now get the same collapsible categories instead of a flat CSS-filtered list)
 - ✅ HD home-screen icons: white logo on brand blue (192/512/maskable/apple-touch)
 
 **Procure-to-pay + platform polish (Aug 28)**

@@ -128,13 +128,14 @@ function buildMobileNav(){
     users:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>',
     list:'<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>'};
   const home=['home','Home','<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>'];
-  const sales=[home,['neworder','New order',I.cart],['orders','Orders',I.bag],['logvisit','Log visit',I.pen],['followups','Follow-ups',I.check],['salesoverview','Sales',I.peso]];
-  const admin=[home,['fulfillq','Fulfill',I.check],['orders','Orders',I.bag],['neworder','New order',I.cart],['customers','Accounts',I.users],['salesoverview','Sales',I.peso]];
-  const mgr=[home,['orders','Orders',I.bag],['neworder','New order',I.cart],['customers','Accounts',I.users],['salesspec','Team',I.users],['salesoverview','Sales',I.peso]];
-  const sc=[home,['fulfillq','Fulfill',I.check],['scan','Scan',I.list],['po','POs',I.bag],['orders','Orders',I.bag],['all','SKUs',I.list]];
-  const fin=[home,['ar','AR',I.peso],['pdc','PDCs',I.peso],['returns','Returns',I.bag],['orders','Orders',I.bag],['salesoverview','Sales',I.peso]];
-  const mkt=[home,['campaigns','Campaigns',I.check],['pipeline','Pipeline',I.users],['customers','Accounts',I.users],['salesoverview','Sales',I.peso]];
-  const vwr=[home,['salesoverview','Sales',I.peso],['dashboard','Inventory',I.grid],['customers','Accounts',I.users],['ar','AR',I.peso]];
+  // ≤5 items per role + Menu — the bar must never scroll sideways
+  const sales=[home,['neworder','Order',I.cart],['logvisit','Visit',I.pen],['followups','To-dos',I.check]];
+  const admin=[home,['approvals','Approve',I.check],['orders','Orders',I.bag],['fulfillq','Fulfill',I.check],['ar','AR',I.peso]];
+  const mgr=[home,['approvals','Approve',I.check],['orders','Orders',I.bag],['salespace','Pace',I.peso],['customers','Accounts',I.users]];
+  const sc=[home,['fulfillq','Fulfill',I.check],['scan','Scan',I.list],['cyclecount','Count',I.check],['po','POs',I.bag]];
+  const fin=[home,['ar','AR',I.peso],['pdc','PDCs',I.peso],['cashflow','Cash',I.peso],['returns','Returns',I.bag]];
+  const mkt=[home,['campaigns','Campaigns',I.check],['promos','Promos',I.check],['salesoverview','Sales',I.peso],['pipeline','Pipeline',I.users]];
+  const vwr=[home,['salesoverview','Sales',I.peso],['dashboard','Inventory',I.grid],['ar','AR',I.peso]];
   const items=(ROLE==='sales')?sales:(ROLE==='manager')?mgr:(ROLE==='supply_chain')?sc:(ROLE==='finance')?fin:(ROLE==='marketing')?mkt:(ROLE==='viewer')?vwr:admin;
   let html=items.map(([v,l,svg])=>'<div class="mni'+(currentView===v?' active':'')+'" onclick="showView(\''+v+'\',null);document.querySelectorAll(\'.mni\').forEach(x=>x.classList.remove(\'active\'));this.classList.add(\'active\')"><svg viewBox="0 0 24 24">'+svg+'</svg>'+l+'</div>').join('');
   if(ROLE==='sales'&&SBPROFILE&&SBPROFILE.specialist_tag)
@@ -175,7 +176,7 @@ async function sbLoadProfile(user){
   try{const {data}=await SB.from('profiles').select('name,role,specialist_tag,is_super,can_manage_ps').eq('id',user.id).single();SBPROFILE=data||null;}
   catch(e){try{const {data}=await SB.from('profiles').select('name,role,specialist_tag').eq('id',user.id).single();SBPROFILE=data||null;}catch(e2){SBPROFILE=null;}}
   ROLE=(SBPROFILE&&SBPROFILE.role)||'sales';
-  try{localStorage.setItem('hs_role_cache',ROLE);}catch(e){}
+  try{localStorage.setItem('hs_role_cache',ROLE);localStorage.setItem('hs_name_cache',(SBPROFILE&&SBPROFILE.name)||'');}catch(e){}
   const g=$('rolegate');if(g)g.style.display='none';
   document.body.classList.toggle('role-sales',ROLE==='sales');
   document.body.classList.toggle('role-manager',ROLE==='manager');
@@ -235,7 +236,7 @@ let ROLE='';try{ROLE=localStorage.getItem('hs_role_cache')||'';}catch(e){} // la
 try{localStorage.removeItem('hs_role');}catch(e){} // clear any legacy passcode sessions
 function roleLogout(){
   try{if(SB)SB.auth.signOut();}catch(e){}
-  SBUSER=null;SBPROFILE=null;ROLE='';try{localStorage.removeItem('hs_role_cache');}catch(e){}
+  SBUSER=null;SBPROFILE=null;ROLE='';try{localStorage.removeItem('hs_role_cache');localStorage.removeItem('hs_name_cache');}catch(e){}
   location.reload();
 }
 

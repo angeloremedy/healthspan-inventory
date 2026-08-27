@@ -6,10 +6,11 @@ function homeGo(v){
 function renderHome(){
   // stable shell: during sync the app re-renders repeatedly — if the home shell is
   // already on screen for this role, just refresh the live numbers (no flicker)
-  if($('hm-live')&&window._homeRole===ROLE){try{homeLive();}catch(e){}return;}
-  window._homeRole=ROLE;
-  const name=(SBPROFILE&&SBPROFILE.name)||'';
-  const first=(name.split(' ')[0])||'there';
+  let name=(SBPROFILE&&SBPROFILE.name)||'';
+  if(!name)try{name=localStorage.getItem('hs_name_cache')||'';}catch(e){} // first paint, before the profile loads
+  if($('hm-live')&&window._homeRole===ROLE&&window._homeName===name){try{homeLive();}catch(e){}return;}
+  window._homeRole=ROLE;window._homeName=name;
+  const first=(name.split(' ')[0])||''; // no name yet? greet without one — never “there”
   const h=new Date().getHours();
   const greet=h<12?'Good morning':h<18?'Good afternoon':'Good evening';
   const myTag=(ROLE==='sales'&&SBPROFILE&&SBPROFILE.specialist_tag)||'';
@@ -183,7 +184,9 @@ function renderHome(){
         card(go('complaints'),'Complaints log','File a quality report',HI.list)]]
     ];
   }
-  // ── everything you can open, straight from the sidebar (its svg = the unique icon)
+  // ── ONE structure: the role's action row on top, then the sidebar's own
+  //    categories with every page this role can open (icons cloned per view).
+  sections=sections.slice(0,1); // keep only the curated action section
   const curated=new Set();
   sections.forEach(sec=>sec[1].forEach(c=>{const m=c.match(/homeGo\('([a-z]+)'\)/);if(m)curated.add(m[1]);}));
   const SUBS={dashboard:'Stock health at a glance',action:'Prioritized to-dos',customers:'Unified customer profiles',health:'Feed & reconciliation checks',all:'Full product list',oos:'Out of stock now',low:'Running low',neg:'Negative stock',expiry:'Expiry tracker',value:'Inventory value by line',dealvalue:'Deal scenarios',movement:'Monthly in/out chart',reorder:'Reorder alerts',batches:'FEFO batches & bins',forecast:'Days to stockout',coverage:'Stock coverage',reorderplan:'Reorder plan',ropoint:'Reorder points',variability:'Demand variability',abc:'ABC analysis',writeoff:'Write-off forecast',whatif:'What-if simulator',simpromo:'Promo rescue',simbudget:'Budget optimizer',simservice:'Service level',simsurge:'Campaign surge',simmonte:'Monte Carlo risk',simproject:'12-month projection',simcash:'Cash-flow timeline',simbulk:'Bulk-buy trade-off',simbranch:'Branch rebalancing',salesoverview:'Units, value, deals split',salesfree:'True giveaways',salestarget:'Monthly attainment',salesspec:'Per-PS performance',salesdeals:'Deals vs à la carte',salesrecon:'Vs the accounting sheet',salesfield:'Reach vs universe',logvisit:'~10 seconds per visit',followups:'To-dos & planned visits',neworder:'Take an order in a minute',orders:'The all-time register',fulfillq:'Pick these, oldest first',ar:'Who owes what, 30/60/90',users:'Accounts, roles, passwords',audit:'Who did what, when',targets:'Monthly ₱ per specialist',fcastacc:'Forecast self-grading (MAPE)',campaigns:'Demand signals & windows',planreview:'AI monthly review',salespace:'Race + projected month-end',pdc:'Cheques to maturity',salesdue:'Accounts past their rhythm',catalog:'Prices, costs, deals, regs',returns:'CMs, restock or write-off',scan:'Receive · pick · count',cutover:'Independence switches',scorecards:'Quarterly reviews',scanpick:'Scan every unit',recall:'Any lot → every clinic',pipeline:'Staged funnel & opportunities',po:'Ordering & receiving',approvals:'Held orders, decided',commissions:'Tiers & payroll CSV',salesevents:'Campaigns, demos, visits',quotes:'Formal quotes & win rate',promos:'Mechanics that apply themselves',regs:'CPR/FDA with countdowns',cyclecount:'Blind counts — cutover evidence',cashflow:'Collections, week by week',quarantine:'Held stock & disposals',whkpi:'Cycle time, fill rate',complaints:'Quality reports with batch',suppliers:'Lead times & on the water',valuation:'True margins, value at cost',transfers:'Branch shipments as documents',manual:'Your role\u2019s guide, in-app'};
@@ -199,16 +202,21 @@ function renderHome(){
       if(v==='home'||curated.has(v))return;
       if(typeof viewAllowed==='function'&&!viewAllowed(v))return;
       const svg=el.querySelector('svg');
-      const title=el.textContent.trim();
+      // title = the item's text WITHOUT badge counts (the nbadge span)
+      let title='';el.childNodes.forEach(n=>{if(n.nodeType===3)title+=n.textContent;else if(n.nodeType===1&&!n.classList.contains('nbadge')&&n.tagName!=='SVG'&&!n.querySelector('svg'))title+=n.textContent;});
+      title=title.trim()||el.textContent.replace(/\d+$/,'').trim();
       const ro=(typeof roFor==='function'&&roFor(v));
+      // clone the icon WITH the sidebar's stroke styling (CSS doesn't follow the clone)
+      const icon=svg?svg.outerHTML.replace('<svg ','<svg style="width:22px;height:22px" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" '):ic(HI.grid);
+      const sub=(SUBS[v]&&SUBS[v].toLowerCase()!==title.toLowerCase())?SUBS[v]:'';
       cards.push('<div class="hmc" onclick="homeGo(\''+v+'\')">'+
-        '<div class="hmc-ic">'+(svg?svg.outerHTML.replace('<svg ','<svg style="width:22px;height:22px" '):ic(HI.grid))+'</div>'+
+        '<div class="hmc-ic">'+icon+'</div>'+
         '<div><div class="hmc-t">'+esc(title)+(ro?' <span style="font-size:9px;font-weight:700;color:var(--tx3);border:1px solid var(--bd);border-radius:6px;padding:1px 5px;vertical-align:middle" title="View-only for your role">👁 VIEW</span>':'')+'</div>'+
-        '<div class="hmc-s">'+(SUBS[v]||'')+'</div></div></div>');
+        (sub?'<div class="hmc-s">'+sub+'</div>':'')+'</div></div>');
     });
     flush();
     autoSec=out.map(sec=>'<div class="hm-lbl">'+esc(sec[0])+'</div><div class="hm-grid">'+sec[1].join('')+'</div>').join('');
-    if(autoSec)autoSec='<div class="hm-lbl" style="margin-top:26px;color:var(--tx2)">EVERYTHING ELSE YOU CAN OPEN'+(ROLE!=='admin'?' · 👁 = view-only for your role':'')+'</div>'+autoSec;
+    if(autoSec&&ROLE!=='admin')autoSec+='<div style="font-size:10.5px;color:var(--tx3);margin-top:14px">👁 = view-only for your role — the page says who edits it.</div>';
   }catch(e){}
   $('content').innerHTML=
   '<style>'+
@@ -226,7 +234,7 @@ function renderHome(){
   '@media(max-width:640px){.hm-hero{padding:20px 18px}.hm-grid{grid-template-columns:1fr 1fr}}'+
   '</style>'+
   '<div class="hm-hero"><div style="font-size:12px;opacity:.85;position:relative">'+esc(dstr)+'</div>'+
-  '<div style="font-size:24px;font-weight:700;margin-top:2px;position:relative">'+greet+', '+esc(first)+'</div>'+
+  '<div style="font-size:24px;font-weight:700;margin-top:2px;position:relative">'+greet+(first?', '+esc(first):'')+'</div>'+
   '<div style="font-size:12.5px;opacity:.85;margin-top:4px;position:relative">'+(ROLE==='admin'?'Everything Healthspan, in one place.':ROLE==='manager'?'Sales manager view — the whole team, all accounts.':ROLE==='supply_chain'?'Supply chain view — warehouse, POs, and inventory.':ROLE==='finance'?'Finance view — receivables, cheques, and exports.':ROLE==='marketing'?'Marketing view — campaigns, pipeline, and analytics.':ROLE==='viewer'?'Viewer — the weekly-meeting numbers, live.':(myTag?'Signed in as '+esc(myTag)+' — your orders and visits log under your name.':'Manager view — you see the whole team.'))+'</div></div>'+
   '<div id="hm-live" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:4px"></div>'+
   '<div id="hm-attn"></div>'+
