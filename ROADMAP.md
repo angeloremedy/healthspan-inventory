@@ -88,6 +88,13 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ Customer statements: printable per-account Statement of Account with aging summary
 - ✅ Accounting export: date-range CSV of the register (totals, payments, balances, terms)
 
+**Second-switch pack (Aug 28)**
+- ✅ DR numbering series (BIR-friendly, atomic, permanent per order) — order-paper blocker for platform-only orders cleared
+- ✅ Server-side register pagination + search — the register scales past the parallel run
+- ✅ Quote ↔ pipeline linking (accepted → won + active; lost → reason on the opportunity)
+- ✅ Weekly Monday digest (per specialist + team) via the bell
+- ✅ Communication log: Call / Viber quick-log on account pages
+
 **Automation layer (Aug 28)**
 - ✅ Nightly full backup: every table → dated JSON in Netlify Blobs (14 kept), super-admin download on the Cutover page — the free-tier safety net until Supabase Pro
 - ✅ Five workflow automation rules (nightly sweep → bell + follow-up tasks, deduped via auto_log)
@@ -141,7 +148,7 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ **Returns & credit memos** — shipped (Finance → Returns & credit memos; parallel-run banner until cutover)
 - ✅ **Commissions** — shipped (tiered %-of-target rules, per-specialist monthly compute, finance-editable tiers, CSV export for payroll)
 - 🔨 **Accounting export → QBO bridge** — period CSV shipped; field mapping + credit-memo flow to design with accounting
-- ▢ **Invoice/DR numbering series** — configurable, BIR-friendly document numbering
+- ✅ **Invoice/DR numbering series** — shipped (doc_series table + atomic RPC; permanent DR numbers assigned at first print, configurable prefix/next/pad on the Cutover page; falls back to HS numbers when unconfigured)
 - ✅ **Quotations** — shipped (QT-numbered quotes with catalog/deal/promo pricing, validity dates, printable, sent/accepted/lost tracking with win rate, one-tap convert to a prefilled order)
 - ▢ **Standing orders** — recurring monthly orders per account, auto-drafted for specialist confirmation
 - ✅ **Promotions engine** — shipped (promos as configuration: window + SKU list + buy-N-get-M or %-off; auto-applies in order entry and quotations, lines tagged with the promo name)
@@ -172,9 +179,10 @@ platform feeds it via the accounting export; it does not replace it.
 - ▢ **Activity cadences** — "no touch in X days" alerts per account tier; call-cycle planning on the calendar
 - ▢ **Attachments** — photos, signed DRs, licenses on visits/accounts (Supabase Storage)
 - 🔨 **Account tiers & segmentation** — tier field (A/B/C) shipped on accounts; tier-based service levels/cadences still open
-- ▢ **Weekly digest** — visits, coverage, orders, open follow-ups per specialist (email or Slack digest — moved from early phases because Slack isn't in daily use yet)
+- ✅ **Weekly digest** — shipped (Monday bell digest per specialist: booked, orders, visits, open follow-ups; plus a team digest for managers/admin — no email/Slack dependency)
 - ✅ **Multiple contacts per account** — shipped (account pages)
 - ✅ **Reorder-due alerts** — shipped (Reorder due; routes to the account owner)
+- ✅ **Quote ↔ pipeline linking** — shipped (accepted quote → open opportunities marked won + account stage → active; lost quote → opportunities lost with the reason; audited)
 - ▢ **Sample / FOC budgets** — monthly FOC cap per specialist, approval required above it
 - ✅ **Events calendar** — shipped (month grid merging campaigns, planned visits, and demo/training visits; specialists see their own). Cost-vs-revenue per event still open
 - ▢ **Customer ordering portal** (later) — clinics reorder themselves against their price list; orders land in the fulfillment queue
@@ -190,11 +198,11 @@ platform feeds it via the accounting export; it does not replace it.
 
 *Nice-to-haves:*
 - ✅ Leaderboards — shipped (Leaderboard & pace)
-- ▢ Communication log — quick-log buttons for calls/Viber touches on accounts
+- ✅ Communication log — shipped (Call / Viber quick-log buttons on account pages; touches count for timeline, coverage, and the dormancy rule)
 - ✅ Anomaly alerts — shipped (order submit checks 3× the account's median total and >30%-below-list lines; pings managers, non-blocking, audited)
 - ▢ AI next-best-action — per-account nudge via the Ask AI worker (extends reorder-due alerts)
 
-*Considered and skipped:* conversation intelligence (no recorded calls), partner relationship management (no channel partners), CPQ beyond planned quotations, email sequence automation (reps visit, not email), geo check-in / route planner / proof of delivery (third-party couriers deliver — no field-delivery ops to verify)
+*Considered and skipped:* conversation intelligence (no recorded calls), partner relationship management (no channel partners), CPQ beyond planned quotations, email sequence automation (reps visit, not email), geo check-in / route planner / proof of delivery (third-party couriers deliver — no field-delivery ops to verify), trip manifests (same reason — couriers run their own routes)
 
 ## Workstream C — WMS (the Verna's-sheet replacement; migrate LAST)
 
@@ -214,7 +222,6 @@ platform feeds it via the accounting export; it does not replace it.
 - ▢ **Backorder management** — short-ship tracking with auto-release when stock arrives
 - ▢ **Wave picking** — batch several orders into one FEFO warehouse pass
 - ▢ **QA hold on receipt** — received stock sits in quarantine until released as sellable
-- ▢ **Trip manifests** — several DRs grouped per courier run/route
 - ▢ **Courier tracking auto-pull** — LBC/Lalamove status APIs update dispatched/delivered automatically
 - ▢ **Warehouse KPIs** — order cycle time, fill rate, on-time-in-full
 - ▢ **Multi-bin putaway rules** — several bins per SKU with putaway suggestions
@@ -224,7 +231,7 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ **Close public endpoints** — shipped (session-verified server-side; JOB_KEY jobs; access codes removed)
 - 🔨 **Modular restructure** — Phase 1 DONE: the single 15k-line file is split into `index.html` (shell/CSS) + 9 ordered script modules in `js/`, proven byte-identical on reassembly; zero build step, drag-drop deploys unchanged. Phase 2 (post-cutover): Vite proper — ES modules, per-view code splitting, minification, git-based deploys
 - 🔨 **Supabase Pro** at cutover — checklist + restore drill documented in SUPABASE-SETUP.md (decided: staying on Supabase; plain-Postgres portability is the exit strategy). Remaining: Angelo upgrades + runs the drill
-- ▢ Server-side pagination & filtering for the register (~2 MB/load at 9k orders)
+- ✅ Server-side pagination & filtering for the register — shipped (page-by-page queries with search on account/specialist/order no.; finance computations unchanged)
 - ✅ Custom domain (hq.healthspan.ph) + PWA install — shipped (manifest, icons, standalone, touch polish, zoom lock; no offline cache by design)
 - ✅ **Permissions matrix doc** — shipped (PERMISSIONS.md; updated with every feature)
 - ✅ **Access levels** — superseded and shipped as the eight-role rollout (super admin / admin / manager / sales / supply_chain / finance / marketing / viewer) + scoped PS-account admin for IT (Justine)

@@ -1205,3 +1205,46 @@ or /.netlify/functions/backup — super admin session required) and
 **automations-background** (the five workflow rules → bell pings + planned
 visits, deduped via auto_log). No new env vars — both use JOB_KEY +
 SUPABASE_SERVICE_KEY already in Netlify.
+
+## DR numbering series + register pagination (2026-08-28)
+
+SQL Editor → Run:
+
+```sql
+-- BIR-friendly document numbering (atomic, race-safe)
+create table if not exists public.doc_series (
+  kind text primary key,
+  prefix text not null default 'DR-',
+  next_no bigint not null default 1001,
+  pad int not null default 6
+);
+insert into public.doc_series (kind) values ('dr') on conflict do nothing;
+alter table public.doc_series enable row level security;
+create policy "series read" on public.doc_series for select to authenticated using (true);
+create policy "series write" on public.doc_series for insert to authenticated
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_super));
+create policy "series update" on public.doc_series for update to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_super));
+
+-- atomic number assignment (callable by fulfillment roles)
+create or replace function public.next_doc_no(k text)
+returns text language plpgsql security definer as $$
+declare r record;
+begin
+  if not exists (select 1 from public.profiles p where p.id = auth.uid()
+                 and p.role in ('admin','manager','supply_chain')) then
+    raise exception 'not allowed';
+  end if;
+  update public.doc_series set next_no = next_no + 1 where kind = k
+    returning prefix, next_no - 1 as issued, pad into r;
+  if r is null then raise exception 'series % not configured', k; end if;
+  return r.prefix || lpad(r.issued::text, r.pad, '0');
+end $$;
+
+-- permanent DR number on the order
+alter table public.orders add column if not exists dr_no text;
+```
+
+Register pagination needs no SQL — the register now queries page-by-page
+server-side (search on account/specialist/order no.). If the dr_no column is
+missing, the register quietly falls back to the old client-side mode.

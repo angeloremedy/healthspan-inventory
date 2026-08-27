@@ -208,13 +208,26 @@ promised · available to promise* — a submitted order commits its stock, so tw
 orders can never promise the same units. Specialists are held to the limit;
 managers can override with a confirmation.
 
+## 9.55 Order paper & the register
+
+Delivery receipts carry a permanent, BIR-friendly **DR number** from a
+configurable series (assigned the first time a DR is printed; the order keeps
+it forever). The orders register is served page-by-page with a search box —
+account, specialist, or order number. Account pages also have **Call / Viber**
+quick-log buttons: a phone touch counts like a visit for the timeline,
+coverage, and the going-quiet alert. And an accepted quotation now moves the
+account's pipeline automatically — opportunity won, stage active; a lost quote
+records the reason.
+
 ## 9.6 The machine works nights
 
 At 2am the system syncs Shopify, rebuilds the sales cache, exports a full
 backup, and runs the automation rules: a fulfilled order becomes a follow-up
 task two weeks later, a first order becomes a welcome call, a balance past 60
 days pings finance and the account owner, a quiet account alerts its owner,
-and a campaign launch pings the field. Unusual orders (3× an account's usual
+and a campaign launch pings the field. Monday mornings, every specialist gets
+their week in one ping — booked, orders, visits, open follow-ups — and
+managers get the team version. Unusual orders (3× an account's usual
 size, or deep discounts) ping managers the moment they're submitted. Finance
 also gets a **Cash-flow forecast** — expected collections week by week from
 payment terms and cheque maturities.

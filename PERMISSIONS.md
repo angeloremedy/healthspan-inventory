@@ -87,7 +87,7 @@ therefore a floor — implementation grants the full circle read to all three.
 | Commissions (tiers, monthly compute, CSV) | ✅ | ✖ | ✖ | ✖ | ✅ | ✖ |
 | Supplier bills / AP (terms, proforma, FX, payments on POs) | ✅ | 👁 | ✖ | 👁 | ✅ | ✖ |
 | Events calendar | ✅ | ✅ | ✅ own | ✅ | ✅ | ✅ |
-| Quotations (create, send, convert to order) | ✅ | ✅ | ✅ own | ✖ | 👁 | 👁 |
+| Quotations (create, send, convert to order) | ✅ | ✅ | ✅ own | 👁 | 👁 | 👁 |
 | Promotions engine (configure promos) | ✅ | 👁 | auto-applied | 👁 | 👁 | ✅ |
 | Product registrations (CPR/FDA per SKU) | ✅ | 👁 | ✖ | 👁 | ✅ (rides item master) | 👁 |
 | Notifications (bell) | ✅ own+role | ✅ own+role | ✅ own | ✅ own+role | ✅ own+role | ✅ own+role |
@@ -96,6 +96,9 @@ therefore a floor — implementation grants the full circle read to all three.
 | Opening-balance freeze (Cutover) | super admin only | ✖ | ✖ | ✖ | ✖ | ✖ |
 | Cash-flow forecast | ✅ | ✅ | ✖ | 👁 | ✅ | 👁 |
 | Backup download (Cutover) | super admin only | ✖ | ✖ | ✖ | ✖ | ✖ |
+| DR series config (Cutover) | super admin only | ✖ | ✖ | ✖ | ✖ | ✖ |
+| DR number assignment (first print) | ✅ | ✅ | ✖ | ✅ | ✖ | ✖ |
+| Communication log (Call/Viber on accounts) | ✅ | ✅ | ✅ own | ✖ | ✖ | ✖ |
 | Team & access (users) | ✅ | ✖ | ✖ | ✖ | ✖ | ✖ (Justine: PS accounts only) |
 | Cutover switches | ✅ | ✖ | ✖ | ✖ | ✖ | ✖ |
 

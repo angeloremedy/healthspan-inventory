@@ -870,6 +870,83 @@ async function submitOrder(){
   if(btn){btn.disabled=false;btn.textContent='Submit order';}
 }
 async function renderOrders(){
+  // SERVER-SIDE register: once the history is migrated, each page is its own query
+  // (range + search + count) — no more shipping the whole register to the browser.
+  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  if(window._MIGRATED===undefined&&SB){
+    try{const {count}=await SB.from('orders').select('id',{count:'exact',head:true}).eq('source','shopify');window._MIGRATED=(count||0)>0;}catch(e){}
+  }
+  if(window._MIGRATED&&SB){return renderOrdersServer();}
+  return renderOrdersLocal(); // pre-migration fallback: blob-imported Shopify orders need the merge
+}
+async function renderOrdersServer(){
+  const myTag=(ROLE==='sales'&&SBPROFILE&&SBPROFILE.specialist_tag)||'';
+  const isAdmin=ROLE==='admin';
+  const trash=!!window._ordTrash&&isAdmin;
+  const per=[50,100,250].includes(window._ordPer)?window._ordPer:50;
+  const page=Math.max(1,window._ordPage||1);
+  const q=String(window._ordQ||'').trim();
+  const COLS='id,num,date,account,spec,status,total,deleted_at,source,ext_ref,dr_no';
+  let query=SB.from('orders').select(COLS,{count:'exact'});
+  query=trash?query.not('deleted_at','is',null):query.is('deleted_at',null);
+  if(myTag){
+    const names=[myTag,...Object.keys(SPEC_ALIAS).filter(k=>(SPEC_ALIAS[k]||'').toLowerCase()===myTag.toLowerCase())];
+    query=query.or(names.map(n=>'spec.ilike.'+n.replace(/[,()]/g,'')).join(','));
+  }
+  if(q){
+    const safe=q.replace(/[,()]/g,' ').trim();
+    const ors=['account.ilike.%'+safe+'%','spec.ilike.%'+safe+'%','ext_ref.ilike.%'+safe+'%'];
+    const m=q.match(/^#?(?:HS-?)?(\d{2,})$/i);
+    if(m)ors.push('num.eq.'+m[1]);
+    query=query.or(ors.join(','));
+  }
+  let rows=[],total=0;
+  try{
+    const {data,count,error}=await query.order('date',{ascending:false}).order('id',{ascending:true}).range((page-1)*per,page*per-1);
+    if(error)throw error;
+    rows=data||[];total=count||0;
+  }catch(e){
+    if(String(e.message||'').includes('dr_no')){window._noDrCol=true;return renderOrdersLocal();} // DR-series SQL not run yet
+    $('content').innerHTML='<div class="empty" style="margin-top:40px">Could not load: '+esc(e.message||e)+'</div>';return;
+  }
+  let trashN=0;
+  if(isAdmin){try{const {count}=await SB.from('orders').select('id',{count:'exact',head:true}).not('deleted_at','is',null);trashN=count||0;}catch(e){}}
+  const pages=Math.max(1,Math.ceil(total/per));
+  window._ordPage=Math.min(page,pages);
+  const pageBtn=(p,label,on)=>'<button onclick="window._ordPage='+p+';renderOrders()" '+(on?'disabled style="background:var(--ac);color:#fff;':'style="background:var(--sf2);color:var(--tx);')+'border:1px solid var(--bd);border-radius:6px;padding:5px 10px;font-size:11.5px;cursor:pointer;min-width:32px">'+label+'</button>';
+  let pager='';
+  if(pages>1){
+    const around=[...new Set([1,2,page-1,page,page+1,pages-1,pages])].filter(p=>p>=1&&p<=pages).sort((a,b)=>a-b);
+    let items='';let prev=0;
+    for(const p of around){if(prev&&p-prev>1)items+='<span style="color:var(--tx3);padding:0 2px">…</span>';items+=pageBtn(p,p,p===page);prev=p;}
+    pager='<div style="display:flex;gap:5px;align-items:center;justify-content:center;margin-top:14px;flex-wrap:wrap">'+
+      (page>1?pageBtn(page-1,'‹',false):'')+items+(page<pages?pageBtn(page+1,'›',false):'')+
+      '<span style="font-size:11px;color:var(--tx3);margin-left:10px">'+((page-1)*per+1)+'–'+Math.min(total,page*per)+' of '+total.toLocaleString()+'</span>'+
+      '<select onchange="window._ordPer=parseInt(this.value,10);window._ordPage=1;renderOrders()" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:4px 6px;font-size:11px;margin-left:6px">'+
+      [50,100,250].map(n=>'<option value="'+n+'"'+(n===per?' selected':'')+'>'+n+' / page</option>').join('')+'</select></div>';
+  }
+  const stPill=st=>st==='fulfilled'?'<span class="pill pgr">fulfilled</span>':st==='cancelled'?'<span class="pill prd">cancelled</span>':'<span class="pill" style="background:var(--am-bg);color:var(--am)">pending</span>';
+  $('content').innerHTML=
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">'+
+    '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
+    '<input id="ord-q" value="'+esc(q)+'" placeholder="Search account / specialist / order no." onkeydown="if(event.key===\'Enter\'){window._ordQ=this.value;window._ordPage=1;renderOrders();}" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:9px 12px;font-size:12.5px;width:260px">'+
+    '<button onclick="window._ordQ=$(\'ord-q\').value;window._ordPage=1;renderOrders()" style="background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:9px 12px;font-size:12px;cursor:pointer">Search</button>'+
+    (q?'<a href="#" onclick="window._ordQ=\'\';window._ordPage=1;renderOrders();return false" style="color:var(--rd);font-size:11.5px">clear</a>':'')+
+    '<span style="font-size:12px;color:var(--tx3)">'+(trash?'Trash — ':'')+total.toLocaleString()+' orders'+(myTag?' (yours)':'')+' — served page by page</span></div>'+
+    '<div style="display:flex;gap:8px">'+
+    (isAdmin?'<button onclick="window._ordTrash='+(trash?'false':'true')+';window._ordPage=1;renderOrders()" style="background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:9px 14px;font-size:12.5px;cursor:pointer">'+(trash?'← Back to orders':'Trash ('+trashN+')')+'</button>':'')+
+    (trash&&trashN?'<button onclick="emptyOrderTrash()" style="background:var(--rd);color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12.5px;font-weight:600;cursor:pointer">Empty trash</button>':'')+
+    (!trash?'<button onclick="showView(\'neworder\',null)" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer">+ New order</button>':'')+
+    '</div></div>'+
+    (rows.length?'<div class="tcard"><div class="tscroll"><table><thead><tr><th>Order</th><th>DR</th><th>Date</th><th>Account</th><th>Specialist</th><th style="text-align:right">Total</th><th>Status</th>'+(trash?'<th></th>':'')+'</tr></thead><tbody>'+
+    rows.map(o=>'<tr'+(trash?'':' onclick="showOrderPage(\''+esc(String(o.id)).replace(/'/g,'&#39;')+'\')" style="cursor:pointer"')+'><td style="font-weight:700">'+esc(ordLabel(o))+'</td><td class="mu" style="font-size:11px">'+esc(o.dr_no||'—')+'</td><td class="mu">'+esc(o.date)+'</td>'+
+      '<td style="font-weight:600;max-width:220px;overflow:hidden;text-overflow:ellipsis">'+esc(acctDedup(o.account||'')||'—')+'</td><td>'+esc(o.spec||'—')+'</td>'+
+      '<td class="r" style="font-weight:600">'+fmtPeso(o.total)+'</td><td>'+stPill(o.status)+'</td>'+
+      (trash?'<td><button onclick="orderRestore(\'native\',\''+esc(String(o.id)).replace(/'/g,'&#39;')+'\')" style="background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer">Restore</button></td>':'')+'</tr>').join('')+
+    '</tbody></table></div>'+(trash?'<div class="tfooter"><span>Restore puts an order back in the register · Empty trash is permanent</span></div>':'')+'</div>'+pager:
+    '<div class="empty" style="margin-top:30px">'+(q?'Nothing matches “'+esc(q)+'”.':trash?'Trash is empty.':'No orders yet.')+'</div>');
+}
+async function renderOrdersLocal(){
   $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
   const [os]=await Promise.all([loadNativeOrders(true),loadOverrides(true)]);
   const myTag=(SBPROFILE&&SBPROFILE.specialist_tag)||'';

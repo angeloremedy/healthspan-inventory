@@ -145,6 +145,38 @@ export const handler = async (event) => {
     }
   } catch (e) { errors.push('campaign: ' + e.message); }
 
+  // 6 · Monday weekly digest — per specialist + a team digest for managers/admin
+  try {
+    const dow = manila().getUTCDay(); // manila() is already +8, so UTC fields are Manila-local
+    if (dow === 1) {
+      const week = today; // Monday's date identifies the week
+      const since = daysAgo(7);
+      const os = await q('orders?select=spec,total,account&source=eq.native&deleted_at=is.null&status=neq.cancelled&created_at=gte.' + since);
+      const vs = await q('visits?select=spec,status,outcome,fu_done,date&date=gte.' + since);
+      const open = await q('visits?select=spec&or=(and(status.eq.planned),and(outcome.eq.Follow-up needed,fu_done.eq.false))&limit=1000');
+      const agg = {};
+      const T = t => String(t || '').toLowerCase();
+      for (const o of os) { const k = T(o.spec); if (!k) continue; (agg[k] = agg[k] || { o: 0, v: 0, vis: 0, open: 0 }); agg[k].o++; agg[k].v += o.total || 0; }
+      for (const v of vs) { const k = T(v.spec); if (!k) continue; (agg[k] = agg[k] || { o: 0, v: 0, vis: 0, open: 0 }); if (v.status !== 'planned') agg[k].vis++; }
+      for (const v of open) { const k = T(v.spec); if (!k) continue; (agg[k] = agg[k] || { o: 0, v: 0, vis: 0, open: 0 }); agg[k].open++; }
+      let tO = 0, tV = 0, tVis = 0;
+      for (const p of profiles) {
+        if (!p.specialist_tag) continue;
+        const a = agg[T(p.specialist_tag)] || { o: 0, v: 0, vis: 0, open: 0 };
+        tO += a.o; tV += a.v; tVis += a.vis;
+        if (!(await fresh('digest', T(p.specialist_tag) + '@' + week))) continue;
+        await notif({ user_id: p.id }, 'auto', 'Your week: ₱' + Math.round(a.v).toLocaleString() + ' booked',
+          a.o + ' orders · ' + a.vis + ' visits logged · ' + a.open + ' open follow-ups waiting', '#/v/followups');
+        fired.digest = (fired.digest || 0) + 1;
+      }
+      if (await fresh('digest', 'team@' + week)) {
+        for (const role of ['manager', 'admin']) await notif({ role }, 'auto', 'Team week: ₱' + Math.round(tV).toLocaleString() + ' booked',
+          tO + ' orders · ' + tVis + ' visits across the team — pace and coverage have the detail', '#/v/salespace');
+        fired.digest = (fired.digest || 0) + 1;
+      }
+    }
+  } catch (e) { errors.push('digest: ' + e.message); }
+
   console.log('automations', today, JSON.stringify(fired), errors.length ? 'errors: ' + JSON.stringify(errors) : 'clean');
   return { statusCode: 200, body: JSON.stringify({ ok: true, fired, errors }) };
 };

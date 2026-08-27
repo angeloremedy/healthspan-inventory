@@ -125,6 +125,16 @@ async function showDeliveryReceipt(ref){
   if(!o){$('content').innerHTML='<div class="empty" style="margin-top:40px">Order not found.</div>';return;}
   let acct=null;
   if(SB){try{const {data}=await SB.from('accounts').select('*').eq('name',acctDedup(o.account||'')).maybeSingle();acct=data;}catch(e){}}
+  // BIR-friendly DR series: assign a permanent DR number on first print (atomic via RPC)
+  if(SB&&o.id&&o.source!=='shopify'&&!o.dr_no&&typeof canFulfil==='function'&&canFulfil()){
+    try{
+      const {data:no,error}=await SB.rpc('next_doc_no',{k:'dr'});
+      if(!error&&no){
+        const {error:e2}=await SB.from('orders').update({dr_no:no}).eq('id',o.id).is('dr_no',null);
+        if(!e2){o.dr_no=no;audit('dr.assign',{order:ordLabel(o),dr:no});}
+      }
+    }catch(e){} // series not configured yet — DR shows the HS number as before
+  }
   const lines=(o.order_lines||[]);
   $('content').innerHTML=
     '<div class="no-print" style="display:flex;gap:10px;margin-bottom:12px">'+
@@ -132,7 +142,7 @@ async function showDeliveryReceipt(ref){
     '<button onclick="window.print()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer">🖨 Print / Save PDF</button></div>'+
     '<div class="printdoc">'+
     '<div style="display:flex;justify-content:space-between;align-items:flex-start"><div>'+hsLogo(34,'#00168F')+'<div style="font-size:19px;font-weight:800;margin-top:5px">HEALTHSPAN GLOBAL, INC.</div><div style="font-size:12px;color:#555">Delivery Receipt</div></div>'+
-    '<div style="text-align:right;font-size:12px"><b style="font-size:15px">DR '+esc(ordLabel(o))+'</b><br>Order date: '+esc(o.date)+'<br>Printed: '+new Date().toISOString().slice(0,10)+'</div></div>'+
+    '<div style="text-align:right;font-size:12px"><b style="font-size:15px">DR '+esc(o.dr_no||ordLabel(o))+'</b>'+(o.dr_no?'<br>Order: '+esc(ordLabel(o)):'')+'<br>Order date: '+esc(o.date)+'<br>Printed: '+new Date().toISOString().slice(0,10)+'</div></div>'+
     '<div style="display:flex;gap:30px;margin:14px 0;font-size:12.5px">'+
     '<div style="flex:1"><b>Deliver to</b><br>'+esc(o.account||'—')+
       (acct&&acct.address?'<br>'+esc(acct.address):'')+(acct&&acct.phone?'<br>'+esc(acct.phone):'')+
@@ -461,6 +471,8 @@ async function renderAccountPage(){
     (e.parentKey?'':'<button onclick="linkAccount(\''+esc(name).replace(/'/g,'&#39;')+'\',\'branch\')" title="Group this account under a parent company" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer">⌂ Set parent…</button>'):'')+
     '<button onclick="window._noAccount=\''+esc(name).replace(/'/g,'&#39;')+'\';showView(\'neworder\',null)" style="background:var(--gr);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:600;cursor:pointer">+ New order</button>'+
     '<button onclick="window._lvAccount=\''+esc(name).replace(/'/g,'&#39;')+'\';showView(\'logvisit\',null)" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:600;cursor:pointer">+ Log visit here</button>'+
+    '<button onclick="commLog(\''+esc(name).replace(/'/g,'&#39;')+'\',\'Call\')" title="Log a phone touch — counts like a visit for coverage and dormancy" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer">📞 Call</button>'+
+    '<button onclick="commLog(\''+esc(name).replace(/'/g,'&#39;')+'\',\'Viber\')" title="Log a Viber touch" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer">Viber</button>'+
     '</div>'+
     '<div class="metrics" style="margin-bottom:14px">'+
     '<div class="met gr"><div class="met-lbl">Booked (13mo)</div><div class="met-val" style="font-size:15px">'+fmtPeso(AGG.booked)+'</div><div class="met-sub">'+AGG.orders+' Shopify orders'+(e.children?' · all branches':'')+'</div><div class="met-bar"></div></div>'+

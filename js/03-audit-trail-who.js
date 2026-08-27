@@ -302,6 +302,20 @@ async function setFlag(k,v,label){
     renderCutover();
   }catch(e){alert('Could not save: '+(e.message||e)+(String(e.message||'').includes('app_settings')?'\n\n(Run the independence SQL from SUPABASE-SETUP.md.)':''));}
 }
+async function cutoverDocSeries(){
+  if(!isSuper())return;
+  let cur=null;try{const {data}=await SB.from('doc_series').select('*').eq('kind','dr').maybeSingle();cur=data;}catch(e){}
+  const prefix=prompt('DR number prefix:',cur?cur.prefix:'DR-');if(prefix===null)return;
+  const next=prompt('Next number to issue:',cur?String(cur.next_no):'1001');if(next===null)return;
+  const pad=prompt('Zero-pad to how many digits? (e.g. 6 → DR-000123)',cur?String(cur.pad):'6');if(pad===null)return;
+  try{
+    const {error}=await SB.from('doc_series').upsert({kind:'dr',prefix:prefix.trim(),next_no:parseInt(next,10)||1,pad:parseInt(pad,10)||0});
+    if(error)throw error;
+    audit('cutover.doc_series',{kind:'dr',prefix:prefix.trim(),next:next,pad});
+    alert('DR series saved — the next printed DR gets '+prefix.trim()+String(parseInt(next,10)).padStart(parseInt(pad,10)||0,'0'));
+    renderCutover();
+  }catch(e){alert('Could not save: '+(e.message||e)+(String(e.message||'').includes('doc_series')?'\n\n(Run the DR-series SQL from SUPABASE-SETUP.md.)':''));}
+}
 async function downloadBackup(){
   try{
     const r=await fetch('/.netlify/functions/backup',{headers:await sbAuthHeaders()});
@@ -320,6 +334,7 @@ async function renderCutover(){
   try{const {count}=await SB.from('returns').select('id',{count:'exact',head:true});rets=count||0;}catch(e){}
   try{const {data}=await SB.from('count_sessions').select('*').order('id',{ascending:false}).limit(2);cc=data||[];}catch(e){}
   let bk=null;try{const r=await fetch('/.netlify/functions/backup?info=1',{headers:await sbAuthHeaders()});if(r.ok)bk=await r.json();}catch(e){}
+  let ds=null;try{const {data}=await SB.from('doc_series').select('*').eq('kind','dr').maybeSingle();ds=data;}catch(e){}
   const epoch=(FLAGS&&FLAGS.ledger_epoch)||null;
   const items=Object.values(ITEMS||{});
   const drift=items.filter(it=>{const p=DATA.find(d=>d.sku===it.sku);return p&&p.price&&it.price!=null&&Math.round(p.price)!==it.price;}).length;
@@ -354,6 +369,7 @@ async function renderCutover(){
         return '<span style="color:'+(pct===100?'var(--gr)':'var(--am)')+';font-weight:600">'+esc((x.closed_at||'').slice(0,10))+' — '+pct+'% matched ('+x.matched+'/'+x.skus+(x.variance_units?' · '+x.variance_units+'u variance':'')+')</span>';
       }).join(' · ')+(cc.length>=2&&cc.every(x=>x.skus&&x.matched===x.skus)?' — <b style="color:var(--gr)">two clean counts ✓</b>':' — need two consecutive 100% counts'):'<span style="color:var(--am)">no cycle counts yet</span> — run them from Logistics → Cycle counts')+'</div>'+
       '<div style="font-size:12px;color:var(--tx2);margin-top:5px"><b>3 · Verna signs off</b> — then flip the ledger switch above. stk() everywhere becomes opening + ledger movements.</div></div>'+
+    '<div class="panel" style="padding:12px 16px;margin-bottom:12px;font-size:12px;color:var(--tx2)"><b>DR numbering series:</b> '+(ds?'<span style="color:var(--gr);font-weight:600">'+esc(ds.prefix)+String(ds.next_no).padStart(ds.pad||0,'0')+' next</span>':'<span style="color:var(--am)">not configured — DRs show the HS number</span>')+' · <a href="#" onclick="cutoverDocSeries();return false" style="color:var(--ac)">configure</a> — BIR-friendly document numbers, assigned permanently at first DR print</div>'+
     '<div class="panel" style="padding:12px 16px;margin-bottom:12px;font-size:12px;color:var(--tx2)"><b>Nightly backup:</b> '+(bk?'<span style="color:var(--gr);font-weight:600">last export '+esc(bk.day||'')+'</span> ('+Object.keys(bk.counts||{}).length+' tables) · <a href="#" onclick="downloadBackup();return false" style="color:var(--ac)">download JSON</a>':'<span style="color:var(--am)">none yet — runs at 2am Manila</span>')+' · free-tier safety net until Supabase Pro at cutover (restore drill in SUPABASE-SETUP.md)</div>'+
     '<div class="panel" style="padding:12px 16px;font-size:12px;color:var(--tx3)">Also live in shadow mode: Returns & credit memos ('+rets+' recorded — process in Shopify too while parallel) · re-running the backfill stays the Shopify sync until "platform only" is on.</div>'+
     '</div>';

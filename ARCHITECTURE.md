@@ -208,7 +208,8 @@ backfill (order/payment/shipment sync), the sales-cache rebuild,
 "backups" store, 14 dated snapshots kept; `backup.mjs` serves the latest to a
 verified super-admin session), and **automations-background** (the five
 workflow rules — follow-up after fulfillment, welcome call on first order,
-collection at 60d past terms, dormant-account alert, campaign-start ping —
+collection at 60d past terms, dormant-account alert, campaign-start ping,
+Monday weekly digests —
 writing notifications and planned visits, deduped via `auto_log`).
 
 ## 5. Supabase schema (see SUPABASE-SETUP.md for exact SQL)
@@ -238,6 +239,7 @@ writing notifications and planned visits, deduped via `auto_log`).
 | `notifications` | In-app pings (bell) | `user_id` direct or `role` broadcast; unread = per-device watermark |
 | `count_sessions` / `count_lines` | Cycle counts (cutover evidence) | blind counts graded on close; variances → ledger adjustments |
 | `auto_log` | Automation dedup memory | unique(rule, entity); service-role only |
+| `doc_series` | BIR document numbering | atomic `next_doc_no()` RPC (security definer, role-checked); `orders.dr_no` permanent |
 
 `profiles.role` spans 7 roles (admin/manager/sales/supply_chain/finance/
 marketing/viewer) + `is_super` + `can_manage_ps` — the full matrix lives in
@@ -279,7 +281,8 @@ from `profiles` at sign-in and drive everything (`ROLE`, `SBPROFILE`).
   zoom lock, iOS fixes; deliberately no offline service worker).
 - Modular restructure Phase 1 done (10 modules, byte-identical); Phase 2 =
   Vite proper, post-cutover.
-- Client-side pagination (~2 MB register at 9k orders) → server-side later.
+- ~~Client-side pagination~~ DONE — the register queries page-by-page server-side
+  (search included); AR/cash-flow computations still use the bulk load.
 - ATP note: reservations are DERIVED (pending native order lines), not a table —
   they release automatically when an order fulfills or cancels.
 - Supabase free tier until cutover → Pro (backups, PITR, no pause).

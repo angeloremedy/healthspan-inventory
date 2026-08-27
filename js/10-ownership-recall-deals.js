@@ -892,6 +892,14 @@ async function qtSave(){
     QCART=[];showView('quotes',null);
   }catch(e){if(msg){msg.style.color='var(--rd)';msg.textContent='Could not save: '+(e.message||e)+(String(e.message||'').includes('quotes')?' (run the quotations SQL from SUPABASE-SETUP.md)':'');}}
 }
+async function qpSync(account,outcome,reason){ // quote decision → pipeline (opportunities + stage)
+  try{
+    const upd=outcome==='won'?{stage:'won'}:{stage:'lost',lost_reason:(reason||'quote lost')};
+    const {data}=await SB.from('opportunities').update(upd).eq('account',account).eq('stage','open').select('id');
+    if(data&&data.length)audit('quote.pipeline',{account,outcome,opps:data.length});
+    if(outcome==='won'&&typeof setStage==='function'&&typeof canStage==='function'&&canStage(account))try{await setStage(account,'active','quote accepted');}catch(e){}
+  }catch(e){}
+}
 async function quoteStatus(id,status){
   let reason=null;
   if(status==='lost'){reason=prompt('Lost — why? (price / competitor / timing / no response / other)');if(reason===null)return;}
@@ -900,6 +908,8 @@ async function quoteStatus(id,status){
     const {error}=await SB.from('quotes').update(upd).eq('id',id);if(error)throw error;
     const q=(QUOTES||[]).find(x=>x.id===id);
     audit('quote.'+status,{quote:q?qtLabel(q):id.slice(0,8),reason:reason||''});
+    if(q&&status==='accepted')qpSync(q.account,'won');
+    if(q&&status==='lost')qpSync(q.account,'lost',reason);
     renderQuotes();
   }catch(e){alert(e.message||e);}
 }
@@ -908,6 +918,7 @@ async function quoteConvert(id){
   if(!confirm('Convert '+qtLabel(q)+' into an order for '+q.account+'? The order form opens prefilled — review, then submit.'))return;
   if(q.status!=='accepted'){try{await SB.from('quotes').update({status:'accepted'}).eq('id',id);}catch(e){}}
   audit('quote.convert',{quote:qtLabel(q),account:q.account});
+  qpSync(q.account,'won');
   window._noAccount=q.account;
   CART=(q.quote_lines||[]).map(l=>({sku:l.sku,name:l.name,qty:l.qty,price:l.price,amount:l.amount,is_free:l.is_free,deal:l.deal}));
   showView('neworder',null);
@@ -1252,4 +1263,19 @@ async function renderCashflow(){
       '<td class="r" style="font-weight:700">'+((b.ar+b.pdc)?fmtPeso(b.ar+b.pdc):'—')+'</td>'+
       '<td><div style="height:10px;border-radius:5px;background:var(--sf2);overflow:hidden"><div style="height:100%;width:'+Math.round((b.ar+b.pdc)/maxW*100)+'%;background:var(--ac)"></div></div></td></tr>').join('')+
     '</tbody></table></div><div class="tfooter"><span>AR lands in the week its terms mature (order date + terms) · accounts with a cheque in hand count via the cheque, not double · overdue AR is excluded from the weekly bars — it\'s in the red card · bounced/cleared cheques excluded</span></div></div>';
+}
+
+
+/* ── COMMUNICATION LOG: 2-tap call/Viber touches on account pages ── */
+async function commLog(account,kind){
+  if(!SB||!SBUSER)return;
+  const note=prompt(kind+' with '+account+' — what happened? (optional)','');
+  if(note===null)return;
+  try{
+    const {error}=await SB.from('visits').insert({user_id:SBUSER.id,spec:(SBPROFILE&&SBPROFILE.specialist_tag)||(SBPROFILE&&SBPROFILE.name)||'',account,date:new Date().toISOString().slice(0,10),type:kind,outcome:'Contacted',notes:(note||'').trim()||null,status:'done'});
+    if(error)throw error;
+    audit('comm.log',{account,kind});
+    alert(kind+' logged ✓ — it counts as a touch (timeline, coverage, dormancy).');
+    if(typeof showAccountPage==='function')showAccountPage(account);
+  }catch(e){alert('Could not log: '+(e.message||e));}
 }
