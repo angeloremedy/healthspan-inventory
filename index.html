@@ -261,7 +261,7 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
 .mni.active{color:var(--ac);background:var(--gr-bg)}
 .mni svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .mni .mni-badge{background:var(--rd);color:#fff;font-size:8px;font-weight:700;padding:1px 4px;border-radius:8px;margin-top:-2px}
-.mobile-topbar{display:none;position:sticky;top:0;z-index:260;background:var(--sf);border-bottom:1px solid var(--bd);padding:calc(10px + var(--sat)) 16px 10px;align-items:center;justify-content:space-between;flex-shrink:0}
+.mobile-topbar{display:none;position:fixed;top:0;left:0;right:0;z-index:260;background:var(--sf);border-bottom:1px solid var(--bd);height:calc(56px + var(--sat));box-sizing:border-box;padding:var(--sat) 16px 0;align-items:center;justify-content:space-between}
 .mobile-topbar .ptitle{font-size:15px;font-weight:700}
 .mobile-topbar .psub{font-size:10px;color:var(--tx3)}
 .mobile-sync{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--bl);cursor:pointer;padding:5px 8px;border-radius:var(--rs);background:var(--bl-bg)}
@@ -269,7 +269,8 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
 .mobile-sync.spin svg{animation:spin 1s linear infinite}
 .mobile-sync.ok{color:var(--gr);background:var(--gr-bg)}
 .mobile-sync.err{color:var(--rd);background:var(--rd-bg)}
-html,body{overflow-x:hidden;max-width:100vw}
+html,body{position:fixed;inset:0;width:100%;height:100%;overflow:hidden;overscroll-behavior:none}
+@media print{html,body{position:static;overflow:visible;width:auto;height:auto}}
 .content{overflow-x:hidden}
 @media(max-width:760px){
   input,select,textarea{font-size:16px!important} /* stops iOS auto-zoom on focus */
@@ -277,6 +278,7 @@ html,body{overflow-x:hidden;max-width:100vw}
   .sb{display:none!important}
   .topbar{display:none!important}
   .mobile-topbar{display:flex!important}
+  .main{padding-top:calc(56px + var(--sat))}
   .mobile-nav{display:block!important}
   .main{padding-bottom:calc(88px + env(safe-area-inset-bottom))}
   .content{padding:12px 14px}
