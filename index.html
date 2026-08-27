@@ -269,6 +269,17 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
   .toolbar select{font-size:11px;padding:5px 7px}
   .toolbar input[type=text]{font-size:12px}
   .exp-section-hd{font-size:10px}
+  .tscroll table{min-width:640px} /* tables swipe sideways instead of crushing columns */
+  .tcard .tfooter{font-size:10px}
+  .mobile-nav .mni{min-height:52px} /* comfortable thumb targets */
+  .hm-hero{padding:18px 16px;margin-bottom:12px}
+  .printdoc{padding:14px}
+}
+/* iPad / small laptop: keep 3-up metrics and 2-up grids instead of desktop 4/3 */
+@media(min-width:761px) and (max-width:1120px){
+  .metrics{grid-template-columns:repeat(3,1fr)}
+  .g3{grid-template-columns:1fr 1fr}
+  .hm-grid{grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}
 }
 
 .sync-progress{display:none;padding:8px 16px;background:var(--sf);border-bottom:1px solid var(--bd);flex-shrink:0}
@@ -293,6 +304,9 @@ body.role-sales .nav .nlbl,body.role-sales .nav .ni{display:none}
 body.role-sales .nav .nv-sales{display:flex}
 body.role-sales .nav .nlbl.nv-sales{display:block}
 /* sales managers: everything except account management */
+.nav .nlbl{cursor:pointer;user-select:none}
+.nav .nlbl::after{content:" ▾";opacity:.5;font-size:9px}
+.nav .nlbl.collapsed::after{content:" ▸"}
 body.role-manager #nav-admin-lbl,body.role-manager .ni[onclick*="'users'"],body.role-manager .ni[onclick*="'cutover'"]{display:none}
 /* sales role keeps the mobile bar — it gets its own items via buildMobileNav() */
 @media print{
@@ -357,52 +371,55 @@ body.role-manager #nav-admin-lbl,body.role-manager .ni[onclick*="'users'"],body.
     <svg id="sicon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
     <span id="slbl">Sync from Google Sheets</span>
   </div>
+  <div style="padding:8px 10px 2px"><input id="navq" placeholder="Find a view…" oninput="navFilter(this.value)" style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:7px 10px;font-size:12px"></div>
   <nav class="nav">
     <div class="ni nv-sales active" onclick="showView('home',this)"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Home</div>
-    <div class="nlbl nv-sales">Sales &amp; CRM</div>
+    <div class="nlbl nv-sales" onclick="navToggle(this)" title="Click to collapse/expand">Sales &amp; CRM</div>
     <div class="ni nv-sales" onclick="showView('neworder',this)"><svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1" fill="currentColor"/><circle cx="20" cy="21" r="1" fill="currentColor"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>New order</div>
     <div class="ni nv-sales" onclick="showView('orders',this)"><svg viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>Orders</div>
     <div class="ni nv-sales" onclick="showView('logvisit',this)"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>Log visit</div>
     <div class="ni nv-sales" onclick="showView('followups',this)"><svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Follow-ups &amp; plans</div>
     <div class="ni" onclick="showView('customers',this)"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Accounts (CRM)</div>
     <div class="ni" onclick="showView('targets',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M12 2v4"/></svg>Set targets</div>
-    <div class="nlbl nv-sales">Sales analytics</div>
+    <div class="nlbl nv-sales" onclick="navToggle(this)" title="Click to collapse/expand">Sales analytics</div>
     <div class="ni nv-sales" onclick="showView('salesoverview',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Sales overview</div>
     <div class="ni nv-sales" onclick="showView('salestarget',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>Sales vs target</div>
     <div class="ni nv-sales" onclick="showView('salesspec',this)"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Specialists</div>
     <div class="ni nv-sales" onclick="showView('salespace',this)"><svg viewBox="0 0 24 24"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v4a5 5 0 0 1-10 0z"/><path d="M17 5h3a2 2 0 0 1-2 4h-1"/><path d="M7 5H4a2 2 0 0 0 2 4h1"/></svg>Leaderboard &amp; pace</div>
     <div class="ni nv-sales" onclick="showView('salesdue',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/><path d="M12 2v2"/></svg>Reorder due</div>
+    <div class="ni nv-sales" onclick="showView('pipeline',this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="5" height="18" rx="1"/><rect x="10" y="7" width="5" height="14" rx="1"/><rect x="17" y="11" width="5" height="10" rx="1"/></svg>Pipeline</div>
     <div class="ni nv-sales" onclick="showView('salesdeals',this)"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Deals vs à la carte</div>
     <div class="ni nv-sales" onclick="showView('salesfree',this)"><svg viewBox="0 0 24 24"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>Free items</div>
     <div class="ni nv-sales" onclick="showView('salesfield',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.4 8 12 8 12s8-6.6 8-12a8 8 0 0 0-8-8z"/></svg>Field coverage</div>
     <div class="ni nv-sales" onclick="showView('salesrecon',this)"><svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Vs accounting</div>
     <div class="ni" onclick="showView('scorecards',this)"><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/></svg>Review scorecards</div>
-    <div class="nlbl">Logistics</div>
+    <div class="nlbl" onclick="navToggle(this)" title="Click to collapse/expand">Logistics</div>
     <div class="ni" onclick="showView('fulfillq',this)"><svg viewBox="0 0 24 24"><path d="M16 3h5v5"/><path d="M21 3l-7 7"/><path d="M21 16v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3"/></svg>Fulfillment queue</div>
     <div class="ni" onclick="showView('branchtransfer',this)"><svg viewBox="0 0 24 24"><path d="M5 17H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v3"/><rect x="9" y="11" width="14" height="10" rx="2"/><line x1="13" y1="16" x2="19" y2="16"/><line x1="16" y1="13" x2="16" y2="19"/></svg>Remedy shipments</div>
     <div class="ni" onclick="showView('branchexpiry',this)"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Remedy expiry watch</div>
     <div class="ni" onclick="showView('scan',this)"><svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="12" x2="7" y2="12.01"/><line x1="10" y1="12" x2="10" y2="12.01"/><line x1="13" y1="12" x2="13" y2="12.01"/><line x1="16" y1="12" x2="16" y2="12.01"/></svg>Scan (receive/pick/count)</div>
+    <div class="ni" onclick="showView('po',this)"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="7.5 4.21 12 6.81 16.5 4.21"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>Purchase orders</div>
     <div class="ni" onclick="showView('recall',this)"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="12"/><circle cx="11" cy="14.5" r="0.8" fill="currentColor"/></svg>Batch recall trace</div>
-    <div class="nlbl">Finance</div>
+    <div class="nlbl" onclick="navToggle(this)" title="Click to collapse/expand">Finance</div>
     <div class="ni" onclick="showView('ar',this)"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><circle cx="12" cy="15" r="2"/></svg>AR aging</div>
     <div class="ni" onclick="showView('pdc',this)"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h6"/><path d="M6 14h3"/><circle cx="17" cy="12" r="2.5"/></svg>PDC register</div>
     <div class="ni" onclick="showView('returns',this)"><svg viewBox="0 0 24 24"><polyline points="9 14 4 9 9 4"/><path d="M4 9h11a5 5 0 0 1 5 5v1a5 5 0 0 1-5 5H9"/></svg>Returns &amp; credit memos</div>
     <div class="ni" onclick="showView('aged',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Aged inventory</div>
     <div class="ni" onclick="showView('shrinkage',this)"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r="1" fill="currentColor"/></svg>Shrinkage tracker</div>
     <div class="ni" onclick="showView('cashexpiry',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Cash in expiring stock</div>
-    <div class="nlbl">Inventory</div>
+    <div class="nlbl" onclick="navToggle(this)" title="Click to collapse/expand">Inventory</div>
     <div class="ni" onclick="showView('dashboard',this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>Dashboard</div>
     <div class="ni" onclick="showView('action',this)"><svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Action center<span class="nbadge" id="b-action">0</span></div>
     <div class="ni" onclick="showView('all',this)"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="1" fill="currentColor"/><circle cx="3" cy="12" r="1" fill="currentColor"/><circle cx="3" cy="18" r="1" fill="currentColor"/></svg>All SKUs</div>
     <div class="ni" onclick="showView('batches',this)"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>Batch view (FEFO)</div>
     <div class="ni" onclick="showView('catalog',this)"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Item master</div>
-    <div class="nlbl">Alerts</div>
+    <div class="nlbl" onclick="navToggle(this)" title="Click to collapse/expand">Alerts</div>
     <div class="ni" onclick="showView('oos',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg>Out of stock<span class="nbadge" id="b-oos">0</span></div>
     <div class="ni" onclick="showView('low',this)"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>Low stock<span class="nbadge w" id="b-low">0</span></div>
     <div class="ni" onclick="showView('neg',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg>Negative stock<span class="nbadge" id="b-neg">0</span></div>
     <div class="ni" onclick="showView('expiry',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Expiry tracker<span class="nbadge w" id="b-exp">0</span></div>
     <div class="ni" onclick="showView('reorder',this)"><svg viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>Reorder alerts<span class="nbadge" id="b-reorder">0</span></div>
-    <div class="nlbl">Planning</div>
+    <div class="nlbl" onclick="navToggle(this)" title="Click to collapse/expand">Planning</div>
     <div class="ni" onclick="showView('forecast',this)"><svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>Stockout forecast<span class="nbadge" id="b-so30">0</span></div>
     <div class="ni" onclick="showView('coverage',this)"><svg viewBox="0 0 24 24"><rect x="3" y="12" width="4" height="9"/><rect x="10" y="7" width="4" height="14"/><rect x="17" y="3" width="4" height="18"/></svg>Stock coverage</div>
     <div class="ni" onclick="showView('reorderplan',this)"><svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1" fill="currentColor"/><circle cx="20" cy="21" r="1" fill="currentColor"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>Reorder plan</div>
@@ -413,7 +430,7 @@ body.role-manager #nav-admin-lbl,body.role-manager .ni[onclick*="'users'"],body.
     <div class="ni" onclick="showView('fcastacc',this)"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 12l3 3 7-7"/></svg>Forecast accuracy</div>
     <div class="ni" onclick="showView('campaigns',this)"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 15l2 2 4-4"/></svg>Campaign calendar</div>
     <div class="ni" onclick="showView('planreview',this)"><svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 1 7 7c0 2.5-1.5 4-2.5 5.5S15 17 15 18H9c0-1-.5-2-1.5-3.5S5 11.5 5 9a7 7 0 0 1 7-7z"/><line x1="9" y1="21" x2="15" y2="21"/></svg>AI planning review</div>
-    <div class="nlbl">Simulators</div>
+    <div class="nlbl" onclick="navToggle(this)" title="Click to collapse/expand">Simulators</div>
     <div class="ni" onclick="showView('whatif',this)"><svg viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>What-if simulator</div>
     <div class="ni" onclick="showView('simpromo',this)"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Promo rescue</div>
     <div class="ni" onclick="showView('simbudget',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Budget optimizer</div>
@@ -424,16 +441,16 @@ body.role-manager #nav-admin-lbl,body.role-manager .ni[onclick*="'users'"],body.
     <div class="ni" onclick="showView('simcash',this)"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>Cash-flow timeline</div>
     <div class="ni" onclick="showView('simbulk',this)"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>Bulk-buy trade-off</div>
     <div class="ni" onclick="showView('simbranch',this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><path d="M10 6.5h4a3 3 0 0 1 3 3v4.5"/></svg>Remedy rebalancing</div>
-    <div class="nlbl">Analytics</div>
+    <div class="nlbl" onclick="navToggle(this)" title="Click to collapse/expand">Analytics</div>
     <div class="ni" onclick="showView('health',this)"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Data health<span class="nbadge" id="b-health">0</span></div>
     <div class="ni" onclick="showView('movement',this)"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Monthly movement</div>
     <div class="ni" onclick="showView('value',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Inventory value</div>
     <div class="ni" onclick="showView('dealvalue',this)"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/><line x1="13" y1="11" x2="17" y2="15"/></svg>Deal scenarios</div>
-    <div class="nlbl" id="nav-admin-lbl">Admin</div>
+    <div class="nlbl" id="nav-admin-lbl" onclick="navToggle(this)" title="Click to collapse/expand">Admin</div>
     <div class="ni" onclick="showView('users',this)"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Team &amp; access</div>
     <div class="ni" onclick="showView('audit',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Activity log</div>
     <div class="ni" onclick="showView('cutover',this)"><svg viewBox="0 0 24 24"><rect x="1" y="7" width="22" height="10" rx="5"/><circle cx="8" cy="12" r="3"/></svg>Cutover switches</div>
-    <div class="nlbl">Product lines</div>
+    <div class="nlbl" onclick="navToggle(this)" title="Click to collapse/expand">Product lines</div>
     <div id="lnav"></div>
   </nav>
   <div class="sf-foot" id="sf-foot">Loading...</div>
@@ -476,6 +493,14 @@ body.role-manager #nav-admin-lbl,body.role-manager .ni[onclick*="'users'"],body.
   <div class="askfoot">Answers come from the live warehouse data · stock is warehouse-level, not per-branch</div>
 </div>
 
+<div id="mmenu" style="display:none;position:fixed;inset:0;z-index:500;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch">
+  <div style="position:sticky;top:0;background:var(--sf);border-bottom:1px solid var(--bd);padding:12px 16px calc(10px);display:flex;gap:10px;align-items:center;z-index:1">
+    <b style="font-size:15px">All views</b>
+    <input id="mmq" placeholder="Search…" oninput="buildMobileMenu(this.value)" style="flex:1;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;font-size:16px">
+    <button onclick="closeMobileMenu()" style="background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 14px;font-size:14px;font-weight:700">✕</button>
+  </div>
+  <div id="mmenu-list" style="padding:4px 0 90px"></div>
+</div>
 <nav class="mobile-nav">
   <div class="mobile-nav-inner">
     <div class="mni active" id="mni-dashboard" onclick="mobileNav('dashboard',this)">

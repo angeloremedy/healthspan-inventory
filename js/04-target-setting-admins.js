@@ -449,6 +449,7 @@ async function renderAccountPage(){
     (e.shop?'':'<span class="pill pgy">no Shopify orders</span>')+
     (openFu?'<span class="pill prd">'+openFu+' open follow-up'+(openFu>1?'s':'')+'</span>':'')+
     (canManage()?ownerSelHTML(name):(ownerOf(name)?'<span class="pill pbl">owner: '+esc(ownerOf(name))+'</span>':''))+
+    (function(){try{const st=stageOf({name:e.name,booked:AGG.booked,shipped:AGG.shipped,last:AGG.last,src:e.shop?'shopify':'prospect'});return '<span class="pill" style="background:var(--pu-bg);color:var(--pu)" title="Pipeline stage - manage in the Pipeline view">'+st+'</span>';}catch(ex){return '';}})()+
     (aliases.length>1?'<span class="pill pgy" title="'+esc(aliases.join(' / '))+'">'+aliases.length+' name spellings merged</span>':'')+
     '<span style="flex:1"></span>'+
     '<button onclick="showStatement(\''+esc(name).replace(/'/g,'&#39;')+'\')" title="Printable statement of account: orders, payments, balance, aging" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer">🖨 Statement</button>'+

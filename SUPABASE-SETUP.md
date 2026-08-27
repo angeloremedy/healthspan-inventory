@@ -318,6 +318,73 @@ alter table public.accounts add column if not exists owner_tag text;
 alter table public.items add column if not exists deals text;  -- JSON: [{"buy":5,"free":1,"price":237500}]
 ```
 
+## Pipeline (PRD Phases B–C) + Purchase orders & receiving
+
+```sql
+-- pipeline stages on accounts
+alter table public.accounts add column if not exists stage text
+  check (stage in ('lead','contacted','qualified','active','dormant','lost'));
+alter table public.accounts add column if not exists stage_since timestamptz;
+alter table public.accounts add column if not exists lost_reason text;
+
+-- opportunities (big deals with value + expected close)
+create table if not exists public.opportunities (
+  id bigint generated always as identity primary key,
+  acct_key text not null,
+  account text not null,
+  title text not null,
+  owner_tag text,
+  est_value bigint,
+  expected_month text,
+  stage text not null default 'open' check (stage in ('open','won','lost')),
+  lost_reason text,
+  notes text,
+  created_by uuid references auth.users,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz
+);
+alter table public.opportunities enable row level security;
+create policy "read opps" on public.opportunities for select
+  using (auth.role() = 'authenticated');
+create policy "insert opps" on public.opportunities for insert
+  with check (auth.role() = 'authenticated');
+create policy "update opps" on public.opportunities for update
+  using (auth.role() = 'authenticated');
+
+-- purchase orders + lines (receiving writes into stock_moves)
+create table if not exists public.pos (
+  id bigint generated always as identity primary key,
+  supplier text not null,
+  status text not null default 'draft' check (status in ('draft','ordered','partial','received','cancelled')),
+  eta date,
+  notes text,
+  created_by uuid references auth.users,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz
+);
+create table if not exists public.po_lines (
+  id bigint generated always as identity primary key,
+  po_id bigint not null references public.pos(id) on delete cascade,
+  sku text not null,
+  name text,
+  qty int not null check (qty > 0),
+  unit_cost bigint,
+  received int not null default 0
+);
+alter table public.pos enable row level security;
+alter table public.po_lines enable row level security;
+create policy "read pos" on public.pos for select using (auth.role() = 'authenticated');
+create policy "write pos" on public.pos for insert
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','manager')));
+create policy "update pos" on public.pos for update
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','manager')));
+create policy "read po lines" on public.po_lines for select using (auth.role() = 'authenticated');
+create policy "write po lines" on public.po_lines for insert
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','manager')));
+create policy "update po lines" on public.po_lines for update
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','manager')));
+```
+
 ## Review scorecards (quarterly performance reviews)
 
 ```sql

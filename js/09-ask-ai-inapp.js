@@ -135,6 +135,7 @@ function buildMobileNav(){
   let html=items.map(([v,l,svg])=>'<div class="mni'+(currentView===v?' active':'')+'" onclick="showView(\''+v+'\',null);document.querySelectorAll(\'.mni\').forEach(x=>x.classList.remove(\'active\'));this.classList.add(\'active\')"><svg viewBox="0 0 24 24">'+svg+'</svg>'+l+'</div>').join('');
   if(ROLE==='sales'&&SBPROFILE&&SBPROFILE.specialist_tag)
     html='<div class="mni" onclick="showSpecPage(SBPROFILE.specialist_tag)"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>My page</div>'+html;
+  html+='<div class="mni" onclick="openMobileMenu()"><svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>Menu</div>';
   bar.innerHTML=html;
 }
 
@@ -239,4 +240,5 @@ initAuth();
 (function(){const b=document.getElementById('tipsBtn');if(b)b.style.opacity=TIPS_ON?'1':'0.55';})();
 $('sf-foot').innerHTML='Loading... <a href="#" onclick="syncNow();return false" style="color:var(--ac)">load data</a>';
 // boot sync removed: endpoints are session-locked — sbLoadProfile() syncs right after sign-in
+try{navApplyCollapse();}catch(e){}
 

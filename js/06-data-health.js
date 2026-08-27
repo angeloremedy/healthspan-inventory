@@ -84,7 +84,7 @@ function renderProspects(){
     '<td class="r mu">'+(r.v90?fmtPeso(r.v90):'—')+'</td>'+
     '<td class="r mu" style="font-size:11px">'+esc(r.last||'—')+'</td>'+
     '<td class="mu" style="font-size:11.5px;max-width:250px;overflow:hidden;text-overflow:ellipsis">'+(r.m?'≈ <a href="#" onclick="event.stopPropagation();showAccountPage(\''+esc(r.m).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac)">'+esc(r.m)+'</a>'+
-      (canManage()?' · <a href="#" onclick="event.stopPropagation();prospectMerge(\''+esc(r.name).replace(/'/g,'&#39;')+'\',\''+esc(r.m).replace(/'/g,'&#39;')+'\');return false" style="color:var(--gr);font-weight:600">merge →</a>':''):'')+'</td></tr>';
+      (canManage()?' · <a href="#" onclick="event.stopPropagation();prospectMerge(\''+esc(r.name).replace(/'/g,'&#39;')+'\',\''+esc(r.m).replace(/'/g,'&#39;')+'\');return false" style="color:var(--gr);font-weight:600">merge →</a>':''):'')+(canStage(r.name)?' · <a href="#" onclick="event.stopPropagation();setStage(\''+esc(r.name).replace(/'/g,'&#39;')+'\',\'qualified\');return false" style="color:var(--pu);font-size:11px">→ pipeline</a>':'')+'</td></tr>';
   $('content').innerHTML=
     '<div class="metrics" style="margin-bottom:14px">'+
     '<div class="met pu"><div class="met-lbl">Shopify-only / prospects</div><div class="met-val">'+withM.length+'</div><div class="met-sub">never in the OUT sheet</div><div class="met-bar"></div></div>'+

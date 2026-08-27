@@ -245,6 +245,8 @@ const DESC={
   logvisit:'For the product specialists, from the iPad: log every doctor/clinic visit in ~10 seconds — even when there’s no order. Pick your name once and it’s remembered. Logged visits count toward Field coverage and build Healthspan’s own visit history (the start of our own CRM).',
   ar:'Who owes what, and for how long: every unpaid balance bucketed into current / 31–60 / 61–90 / 90+ days, per account. Ages count from the order date plus any terms noted on the order (e.g. “PDC 30 days” — parsed from Shopify notes automatically). Payment statuses come from Shopify (accounting marks paid there); re-running the backfill syncs them. Record payments on HS-orders from their order page.',
   spec:'One specialist’s whole world: this month vs target, the calendar of planned and logged visits plus orders (tap any day), monthly sales chart with the target line, top products, open follow-ups and recent activity. Specialists land here on sign-in; managers and admins reach it from the Specialists view.',
+  pipeline:'The funnel, staged: lead → contacted → qualified → active. Stages start from real behavior and every manual move is audited. Add opportunities (big deals) with estimated value and expected close month — cards show weighted pipeline value and win rate. Specialists see their own; managers see everyone.',
+  po:'Purchase orders and receiving. Draft the PO, add lines, mark it ordered; when stock arrives, receive per line — batch and expiry captured at the door, written straight into the stock ledger. Statuses roll to partially received / received automatically. Unit costs feed margin reporting.',
   recall:'The one-bad-day feature: enter a SKU and/or batch number and get every clinic that ever received it — dates, quantities, order refs — as a printable contact list. Sources: every OUT-sheet shipment row plus the platform ledger. Fast, complete, and audited.',
   scorecards:'Quarterly performance reviews, filled from the numbers instead of memory: booked vs target, trend vs the previous quarter, visits, accounts touched, and peso-per-visit efficiency — plus a rating and comments per specialist that save per quarter. Print all for the review meeting. Managers and admins only; comments are never shown to specialists in-app.',
   salesdue:'Accounts past their usual buying rhythm. The cycle is learned from each account’s own order history (median gap between orders, 3+ orders needed). They buy on rhythm — a call today is the reminder that beats the competitor’s. Specialists see their own accounts; managers see everyone’s.',
@@ -546,6 +548,8 @@ function applySync(data){
   else if(currentView==='cutover') renderCutover();
   else if(currentView==='scorecards') renderScorecards();
   else if(currentView==='recall') renderRecall();
+  else if(currentView==='pipeline') renderPipeline();
+  else if(currentView==='po') renderPOs();
   else if(currentView==='campaigns') renderCampaigns();
   else if(currentView==='planreview') renderPlanReview();
   else renderTable();

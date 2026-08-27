@@ -587,7 +587,11 @@ async function confirmPick(orderRef){
   if(!o)return alert('Order not found.');
   if(!confirm('Confirm this order as PICKED?\n\nEvery line is recorded as an outbound movement in the platform ledger'+(flagOn('ledger_is_truth')?'.':' (shadow — Verna’s sheet stays the stock truth until cutover).')))return;
   try{
-    const rows=(o.order_lines||[]).map(l=>({sku:l.sku,qty:-Math.abs(l.qty||0),kind:'pick',ref:ordLabel(o),note:l.name||null}));
+    const rows=[];
+    for(const l of (o.order_lines||[])){
+      for(const a of fefoAlloc(l.sku,Math.abs(l.qty||0)))
+        rows.push({sku:l.sku,qty:-a.take,kind:'pick',ref:ordLabel(o),batch:a.batch,note:l.name||null});
+    }
     if(!rows.length)return;
     await ledgerAdd(rows);
     audit('ledger.pick',{order:ordLabel(o),lines:rows.length});
@@ -663,7 +667,11 @@ function pickCode(code){
 async function pickFinish(){
   const P=window._PICK;if(!P)return;
   try{
-    const rows=P.lines.map(l=>({sku:l.sku,qty:-Math.abs(l.qty),kind:'pick',ref:P.label,note:l.name}));
+    const rows=[];
+    for(const l of P.lines){
+      for(const a of fefoAlloc(l.sku,Math.abs(l.qty)))
+        rows.push({sku:l.sku,qty:-a.take,kind:'pick',ref:P.label,batch:a.batch,note:l.name});
+    }
     await ledgerAdd(rows);
     audit('ledger.scanpick',{order:P.label,lines:rows.length});
     let ftxt='';
@@ -771,7 +779,7 @@ async function scanRecord(sku){
         '✓ '+esc(sku)+' counted '+qty+' (no sheet figure to compare).';
     }else{
       row=SCAN_MODE==='receive'?{sku,qty:qty,kind:'receive'}:
-        {sku,qty:-qty,kind:'pick',ref:(($('scan-ref')||{}).value||'').trim()||null};
+        {sku,qty:-qty,kind:'pick',ref:(($('scan-ref')||{}).value||'').trim()||null,batch:(fefoAlloc(sku,qty)[0]||{}).batch||null};
     }
     await ledgerAdd([row]);
     audit('ledger.'+SCAN_MODE,{sku,qty});

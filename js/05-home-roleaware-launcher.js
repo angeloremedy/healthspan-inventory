@@ -90,7 +90,10 @@ function renderHome(){
   '<div class="hm-hero"><div style="font-size:12px;opacity:.85;position:relative">'+esc(dstr)+'</div>'+
   '<div style="font-size:24px;font-weight:700;margin-top:2px;position:relative">'+greet+', '+esc(first)+'</div>'+
   '<div style="font-size:12.5px;opacity:.85;margin-top:4px;position:relative">'+(ROLE==='admin'?'Everything Healthspan, in one place.':ROLE==='manager'?'Sales manager view — the whole team, all accounts.':(myTag?'Signed in as '+esc(myTag)+' — your orders and visits log under your name.':'Manager view — you see the whole team.'))+'</div></div>'+
+  '<div id="hm-live" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:4px"></div>'+
+  '<div id="hm-attn"></div>'+
   sections.map(s=>'<div class="hm-lbl">'+s[0]+'</div><div class="hm-grid">'+s[1].join('')+'</div>').join('');
+  try{homeLive();}catch(e){}
 }
 
 /* ── TEAM & ACCESS — in-app account management (admin) ── */
