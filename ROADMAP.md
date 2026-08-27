@@ -3,7 +3,7 @@
 **The vision: one system that fully replaces Zoho, Shopify, and Verna's sheet —
 Healthspan's own NetSuite: ERP + CRM + WMS in a single platform.**
 Live at hq.healthspan.ph (installable as an app). The living copy of this plan is
-on Notion — update both as things ship. Last updated: 2026-08-27.
+on Notion — update both as things ship. Last updated: 2026-08-28.
 
 Legend: ✅ done · 🔨 in progress · ⏭ next up · ▢ planned
 
@@ -88,6 +88,12 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ Customer statements: printable per-account Statement of Account with aging summary
 - ✅ Accounting export: date-range CSV of the register (totals, payments, balances, terms)
 
+**Order-to-cash & compliance (Aug 28)**
+- ✅ Quotations: formal QT-numbered quotes, printable, win/loss tracked, one-tap convert to order
+- ✅ Promotions engine: configured promos (window + SKUs + mechanic) auto-apply at order entry & quotes
+- ✅ Product registrations: CPR/FDA number + expiry per SKU with renewal alerts
+- ✅ Role dropdown separated (super admin / admin / sales manager / product specialist / supply chain / finance / marketing / viewer / IT) — no personal names; IT = viewer + PS-account admin
+
 **Finance suite (Aug 27)**
 - ✅ Approvals: credit limits per account (finance-set) + approval threshold (super-admin flag); over-limit/over-threshold sales orders auto-hold for manager sign-off, audited
 - ✅ Commissions: tiered %-of-target rules, monthly per-specialist compute, CSV export
@@ -119,9 +125,9 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ **Commissions** — shipped (tiered %-of-target rules, per-specialist monthly compute, finance-editable tiers, CSV export for payroll)
 - 🔨 **Accounting export → QBO bridge** — period CSV shipped; field mapping + credit-memo flow to design with accounting
 - ▢ **Invoice/DR numbering series** — configurable, BIR-friendly document numbering
-- ▢ **Quotations** — formal quotes for clinics, one-click convert to order, expiry dates, win/loss tracking
+- ✅ **Quotations** — shipped (QT-numbered quotes with catalog/deal/promo pricing, validity dates, printable, sent/accepted/lost tracking with win rate, one-tap convert to a prefilled order)
 - ▢ **Standing orders** — recurring monthly orders per account, auto-drafted for specialist confirmation
-- ▢ **Promotions engine** — promos as configuration (e.g. "Anniversary 10+8", validity window, eligible SKUs) instead of free-typed deal lines
+- ✅ **Promotions engine** — shipped (promos as configuration: window + SKU list + buy-N-get-M or %-off; auto-applies in order entry and quotations, lines tagged with the promo name)
 - ✅ **PDC register** — shipped (Finance → PDC register; finance-owned writes)
 - ▢ **Cash-flow forecast** — expected collections per week from AR terms + PDC maturities
 - ▢ **Consignment inventory** — stock parked at a clinic, billed on use, counted separately
@@ -129,7 +135,7 @@ platform feeds it via the accounting export; it does not replace it.
 
 ### Compliance (pharma)
 - ✅ **Batch recall trace** — shipped (OUT-sheet history + ledger picks; survives sheet retirement)
-- ▢ **Product registration tracking** — CPR/FDA registration per SKU with expiry alerts
+- ✅ **Product registration tracking** — shipped (CPR/FDA number + expiry per SKU on the item master; expired/expiring-soon float to the top with red/amber flags)
 - ✅ **Customer license capture** — shipped (LTO + PRC numbers with expiry dates on the account; red/amber expiry pills)
 - ▢ **Complaints log** — product quality reports with batch reference, feeding the recall trace
 

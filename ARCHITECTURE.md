@@ -2,7 +2,7 @@
 
 How the app is built, in detail. Companion to [README.md](README.md) (usage) and
 [SUPABASE-SETUP.md](SUPABASE-SETUP.md) (every SQL migration, in order).
-Last updated: 2026-08-26.
+Last updated: 2026-08-28.
 
 ---
 
@@ -10,8 +10,8 @@ Last updated: 2026-08-26.
 
 | Layer | Technology | Notes |
 |---|---|---|
-| Frontend | **Single-file SPA** — `index.html` (~13k lines, vanilla JS, no framework, no build step) | Deployed by uploading the file to the repo root |
-| Hosting | **Netlify** (site: healthspan-inventory.netlify.app) | Auto-deploys from the GitHub repo `angeloremedy/healthspan-inventory` |
+| Frontend | **Modular SPA, no build step** — `index.html` (shell + CSS) + 10 ordered classic scripts in `js/01…10` (vanilla JS, shared global scope, load order matters) | Deployed by uploading files to the repo; PWA-installable |
+| Hosting | **Netlify** — live at **hq.healthspan.ph** (healthspan-inventory.netlify.app underneath) | Auto-deploys from the GitHub repo `angeloremedy/healthspan-inventory` |
 | Serverless | **Netlify Functions** (`netlify/functions/*.mjs`, Node ESM) | Background functions for long jobs |
 | Blob cache | **Netlify Blobs** | Shopify sales cache, job status, question logs |
 | Database & auth | **Supabase** (Postgres + GoTrue) — project `lesjigujcajxurmsmwwc` | Row-level security everywhere |
@@ -185,10 +185,13 @@ to a Netlify Blob (`shopify/backfill`).
 ### 4.4 `admin-users.mjs` security model
 The browser never holds the service key. The function receives the caller's
 Supabase session token (`Authorization: Bearer`), verifies it against
-`/auth/v1/user`, checks the caller's `profiles.role === 'admin'`, and only then
+`/auth/v1/user`, checks the caller's profile, and only then
 uses the service key for GoTrue admin endpoints (create user, set password,
 `ban_duration` for disable/enable — `876000h` ≈ 100 years, `none` to lift).
-Self-disable is rejected.
+Self-disable is rejected. Three privilege tiers:
+- **admin** — full user management (7 assignable roles; `can_manage_ps` grantable on viewers = the "IT" pseudo-role).
+- **super admin** (`profiles.is_super`, Angelo only) — additionally: permanent user deletion. The super account itself is protected server-side: disable/delete/password/role-change targeting it by anyone else → 403 + audit `user.PROTECTED`.
+- **scoped PS-admin** (`profiles.can_manage_ps`, Justine/IT) — list, create (forced `role='sales'`), and disable/enable *sales-role targets only*; everything else 403.
 
 ## 5. Supabase schema (see SUPABASE-SETUP.md for exact SQL)
 
@@ -201,6 +204,23 @@ Self-disable is rejected.
 | `accounts` | CRM fields per customer | `name` unique + contact/details |
 | `account_links` | Curated merges & parent/child | `from_key` (normalized) PK, `to_name`, `kind merge/branch` |
 | `order_overrides` | Status/tombstones for cache-era Shopify orders | keyed by order `ref` |
+| `account_contacts` | Multiple contacts per account | `acct_key`, name/role/phone/email/viber |
+| `audit_log` | Append-only trail of every mutation | `who`, `action`, `detail` |
+| `spec_targets` / `spec_roster` | In-app monthly ₱ targets · PS roster | overrides sheet targets |
+| `app_settings` | Feature flags (cutover switches, `approval_threshold`) | super-admin writes only |
+| `items` | Item master (catalog) | prices, costs, barcodes, `deals` JSON, `reg_type/reg_no/reg_expiry` (CPR/FDA) |
+| `pos` / `po_lines` | Purchase orders + receiving | plus AP: `terms/proforma/currency/fx_total/amount_paid/peso_value` |
+| `opportunities` | Pipeline opportunities | est. value, expected close, weighted |
+| `campaigns` / `pdcs` / `returns` | Campaign calendar · PDC register · credit memos | |
+| `stock_moves` | Append-only shadow stock ledger | receive/pick/count/adjust, batch-stamped |
+| `approvals` | Credit/threshold order holds | `kind`, `status`, decided_by — mgmt decides |
+| `comm_rules` | Commission tiers (single row) | finance-editable `min:pct` tiers |
+| `quotes` / `quote_lines` | Quotations (QT-numbering) | draft/sent/accepted/lost, expiry, convert→order |
+| `promos` | Promotions engine | window, SKU list or `*`, `nplusm` or `pct`, auto-applied at order entry |
+
+`profiles.role` spans 7 roles (admin/manager/sales/supply_chain/finance/
+marketing/viewer) + `is_super` + `can_manage_ps` — the full matrix lives in
+[PERMISSIONS.md](PERMISSIONS.md) (design: circle read, role write).
 
 ### RLS philosophy
 - Reads: any authenticated user.
@@ -232,10 +252,12 @@ from `profiles` at sign-in and drive everything (`ROLE`, `SBPROFILE`).
 
 ## 7. Known gaps / engineering track
 
-- **Public endpoints** (sheet feed, Shopify cache JSON, Ask AI) are not yet
-  behind auth — top security gap, on the roadmap.
-- Single-file SPA → Vite modular restructure planned.
+- ~~Public endpoints~~ CLOSED — all data endpoints verify the Supabase session
+  server-side; background jobs gated by `JOB_KEY`.
+- ~~Custom domain~~ DONE — hq.healthspan.ph + PWA (manifest, icons, standalone,
+  zoom lock, iOS fixes; deliberately no offline service worker).
+- Modular restructure Phase 1 done (10 modules, byte-identical); Phase 2 =
+  Vite proper, post-cutover.
 - Client-side pagination (~2 MB register at 9k orders) → server-side later.
-- Supabase free tier until cutover → Pro (backups, no pause).
+- Supabase free tier until cutover → Pro (backups, PITR, no pause).
 - Legacy Supabase JWT keys to disable after verifying the new keys.
-- Custom domain (e.g. crm.healthspan.ph) pending.

@@ -1,7 +1,8 @@
 # Healthspan Platform — User Guide
 
 The all-in-one system for Healthspan: inventory, sales analytics, CRM, order-taking,
-receivables, and fulfillment. Live at **https://healthspan-inventory.netlify.app**.
+receivables, and fulfillment. Live at **https://hq.healthspan.ph** — on a phone
+or iPad, use *Add to Home Screen* to install it as an app.
 
 This guide explains how to *use* the app. For how it's *built*, see
 [ARCHITECTURE.md](ARCHITECTURE.md). For the plan, see [ROADMAP.md](ROADMAP.md)
@@ -22,11 +23,19 @@ Open the site and sign in with your Healthspan email and password.
 
 ### Access levels
 
-| Role | Who | What they see |
-|---|---|---|
-| **Product specialist** (`sales`) | The PS team | Their own page, orders, visits, follow-ups, and the sales views. Orders and visits are locked to their own name — the database enforces it. |
-| **Sales manager** (`manager`) | Jojo, Marj | Everything except user management. Whole team's data, all accounts, can merge accounts and set parent/child groupings. |
-| **Admin** | Angelo, Paul | Everything, plus Team & access, order delete/trash, payment recording. |
+| Role | What they see |
+|---|---|
+| **Super admin** | Everything + Cutover switches + permanent user deletion. One account, protected — no other admin can touch it. |
+| **Admin** | Everything operational, plus Team & access, order trash, payment recording. |
+| **Sales manager** | Whole team's data, all accounts, merges, targets, scorecards, approvals. No costs/margins, no user management. |
+| **Product specialist** | Their own page, orders, quotes, visits, follow-ups, pipeline, and the sales views — locked to their own name by the database. |
+| **Supply chain** | Warehouse suite: fulfillment, scan, ledger, POs + receiving, recall — plus the weekly-meeting numbers. |
+| **Finance** | AR, payments, PDCs, returns, exports, costs/margins, commissions, credit limits, supplier AP — plus the circle read. |
+| **Marketing** | Campaigns, promotions, events calendar, pipeline + analytics read. |
+| **Viewer** | The weekly-meeting numbers, read-only. |
+| **IT** | Viewer, plus Team & access limited to creating and disabling product-specialist accounts. |
+
+Full matrix: [PERMISSIONS.md](PERMISSIONS.md).
 
 Everyone lands on the **Home page** — a launcher with the tools for their role.
 
@@ -160,13 +169,45 @@ views. Synced from Verna's master Google Sheet every 15 minutes; every view
 has a plain-language description, a "how is this calculated" section, and CSV
 export.
 
+## 9.1 Quotations
+
+**Sales & CRM → Quotations.** Build a formal quote exactly like an order (same
+catalog prices, deals, live promos), set a validity date, print it for the
+clinic, then track it: draft → sent → accepted or lost (with a reason — win
+rate shows on the view). One tap converts an accepted quote into a prefilled
+order. Specialists see their own quotes.
+
+## 9.2 Promotions (marketing + admin)
+
+**Promotions** = deals as configuration. Define a name, a start/end window, the
+eligible SKUs (or `*` for all), and a mechanic — *buy N get M free* or *% off*.
+While the promo is live, order entry and quotations apply it automatically and
+tag the lines with the promo name. Turn promos off or delete them anytime.
+
+## 9.3 Product registrations (compliance)
+
+**Inventory → Product registrations.** CPR/FDA registration number and expiry
+per SKU. Expired and expiring-within-6-months float to the top with red/amber
+flags so renewals start early. Editing rides item-master permissions.
+
+## 9.4 Approvals, credit limits & commissions
+
+Over-limit or over-threshold specialist orders **hold automatically** and land
+in **Approvals**, where managers/admins approve or reject. Finance sets credit
+limits on account pages and owns **Commissions** (tiered %-of-target, CSV for
+payroll) and **supplier AP** on purchase orders. The events calendar merges
+campaigns, planned visits, and demos into one month grid.
+
 ## 10. Team & access (admin only)
 
 Sidebar → Admin → **Team & access**. Create accounts (name, email, starter
 password, role, specialist tag), edit roles/tags, reset passwords, and
 disable/enable accounts — no Supabase console needed. Disabling blocks sign-in
 immediately but keeps all their data; re-enable anytime. You can't disable
-yourself. Send starter passwords privately; people change them in-app.
+yourself, nobody can touch the super admin account, and only the super admin
+can permanently delete a login. IT (`can_manage_ps`) sees this page too, but
+only to create and disable/enable product-specialist accounts. Send starter
+passwords privately; people change them in-app.
 
 ## 11. Odds and ends
 

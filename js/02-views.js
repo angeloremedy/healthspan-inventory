@@ -1,6 +1,6 @@
 /* ── VIEWS ── */
 function showView(v,el){
-  const SALES_OK=['home','logvisit','followups','account','neworder','orders','order','spec','pickslip','pipeline']; // non-"sales*" views the sales role may open
+  const SALES_OK=['home','logvisit','followups','account','neworder','orders','order','spec','pickslip','pipeline','quotes','salesevents']; // non-"sales*" views the sales role may open
   if(typeof ROLE!=='undefined'&&ROLE==='sales'&&!String(v).startsWith('sales')&&!SALES_OK.includes(v)){v='salesoverview';el=document.querySelector('.ni.nv-sales');}
   if(typeof ROLE!=='undefined'&&ROLE==='manager'&&v==='users'&&!(typeof canUserAdmin==='function'&&canUserAdmin())){v='home';el=document.querySelector('.ni[onclick*="\'home\'"]');} // managers: no account management (unless scoped PS-admin)
   if(v==='cutover'&&typeof isSuper==='function'&&!isSuper()){v='home';el=document.querySelector('.ni[onclick*="\'home\'"]');} // cutover: super admin only
@@ -22,7 +22,7 @@ function showView(v,el){
            simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator',
            simmonte:'Monte Carlo stockout risk',simproject:'12-month projection',simcash:'Cash-flow timeline',simbulk:'Bulk-buy trade-off',simbranch:'Remedy branch rebalancing',
            aged:'Aged inventory',shrinkage:'Shrinkage tracker',cashexpiry:'Cash in expiring stock',branchtransfer:'Remedy branch shipments',branchexpiry:'Remedy branch expiry watch',
-           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt',targets:'Set targets',fcastacc:'Forecast accuracy',campaigns:'Campaign calendar',planreview:'AI planning review',salespace:'Leaderboard & pace',pdc:'PDC register',salesdue:'Reorder due',catalog:'Item master',returns:'Returns & credit memos',scan:'Scan — receive / pick / count',cutover:'Cutover switches',creditmemo:'Credit memo',scorecards:'Review scorecards',scanpick:'Scan to pick',recall:'Batch recall trace',pipeline:'Pipeline',po:'Purchase orders',approvals:'Approvals',commissions:'Commissions',salesevents:'Events calendar'};
+           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt',targets:'Set targets',fcastacc:'Forecast accuracy',campaigns:'Campaign calendar',planreview:'AI planning review',salespace:'Leaderboard & pace',pdc:'PDC register',salesdue:'Reorder due',catalog:'Item master',returns:'Returns & credit memos',scan:'Scan — receive / pick / count',cutover:'Cutover switches',creditmemo:'Credit memo',scorecards:'Review scorecards',scanpick:'Scan to pick',recall:'Batch recall trace',pipeline:'Pipeline',po:'Purchase orders',approvals:'Approvals',commissions:'Commissions',salesevents:'Events calendar',quotes:'Quotations',promos:'Promotions',regs:'Product registrations'};
   $('ptitle').textContent=T[v]||v;
   if(v==='dashboard') renderDashboard();
   else if(v==='action') renderActionCenter();
@@ -89,6 +89,9 @@ function showView(v,el){
   else if(v==='approvals') renderApprovals();
   else if(v==='commissions') renderCommissions();
   else if(v==='salesevents') renderEvents();
+  else if(v==='quotes') renderQuotes();
+  else if(v==='promos') renderPromos();
+  else if(v==='regs') renderRegs();
   else if(v==='campaigns') renderCampaigns();
   else if(v==='planreview') renderPlanReview();
   else renderTable(v);
@@ -649,6 +652,7 @@ function renderNewOrder(){
   if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in with your Healthspan account to take orders.</div>';return;}
   if(!SHOPIFY)try{loadShopify().then(()=>{if(currentView==='neworder')renderNewOrder();});}catch(e){}
   if(!NORDERS)loadNativeOrders().then(()=>{if(currentView==='neworder')noAcctChanged();}); // credit check data
+  try{if(SB)loadPromos();}catch(e){} // live promos auto-apply on add-to-order
   const myTag=(SBPROFILE&&SBPROFILE.specialist_tag)||'';
   const specs=specNames();
   const accounts=acctList().map(r=>r.name);
@@ -738,9 +742,20 @@ function addCartLine(){
     CART.push({sku,name:p.name,qty:sets,price:0,amount:0,is_free:true,deal:(d.title.match(/\d+\s*\+\s*\d+/)||[d.title])[0]});
   }else{
     if(!(p.price>0)){if(msg){msg.style.color='var(--rd)';msg.textContent='No price on file — tick “free of charge” or fix the price first.';}return;}
-    CART.push({sku,name:p.name,qty:sets,price:p.price,amount:Math.round(sets*p.price),is_free:false,deal:null});
+    const pr=(typeof promoFor==='function')?promoFor(sku):null; // live promo? applies automatically
+    if(pr&&pr.mechanic==='pct'&&pr.pct>0){
+      const up=Math.round(p.price*(1-pr.pct/100));
+      CART.push({sku,name:p.name,qty:sets,price:up,amount:Math.round(sets*up),is_free:false,deal:pr.name});
+      window._promoMsg='Promo applied: '+pr.name+' ('+pr.pct+'% off)';
+    }else{
+      CART.push({sku,name:p.name,qty:sets,price:p.price,amount:Math.round(sets*p.price),is_free:false,deal:null});
+      if(pr&&pr.mechanic==='nplusm'&&pr.buy_n>0&&sets>=pr.buy_n){
+        const fq=Math.floor(sets/pr.buy_n)*(pr.free_m||0);
+        if(fq>0){CART.push({sku,name:p.name,qty:fq,price:0,amount:0,is_free:true,deal:pr.name});window._promoMsg='Promo applied: '+pr.name+' — +'+fq+' free';}
+      }
+    }
   }
-  if(msg)msg.textContent='';
+  if(msg){if(window._promoMsg){msg.style.color='var(--gr)';msg.textContent=window._promoMsg;window._promoMsg=null;}else msg.textContent='';}
   if($('no-free'))$('no-free').checked=false;
   renderCart();
 }

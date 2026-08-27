@@ -180,16 +180,19 @@ function navFilter(q){
 function navKey(el){return 'hs_nav_'+String(el.textContent||'').trim().toLowerCase().replace(/[^a-z]/g,'');}
 function navToggle(el){
   const collapsed=!el.classList.contains('collapsed');
-  try{localStorage.setItem(navKey(el),collapsed?'1':'0');}catch(e){}
+  if(navKey(el)==='hs_nav_productlines'){window._plOpen=!collapsed;} // session-only: always collapsed again next load
+  else try{localStorage.setItem(navKey(el),collapsed?'1':'0');}catch(e){}
   navApplyCollapse();
 }
 function navApplyCollapse(){
   document.querySelectorAll('.nav .nlbl').forEach(lbl=>{
     let collapsed=false;
-    try{
-      const v=localStorage.getItem(navKey(lbl));
-      collapsed=v===null?navKey(lbl)==='hs_nav_productlines':v==='1'; // product lines: collapsed by default
-    }catch(e){}
+    if(navKey(lbl)==='hs_nav_productlines'){
+      collapsed=!window._plOpen; // ALWAYS collapsed on load, regardless of old saved state
+      try{localStorage.removeItem('hs_nav_productlines');}catch(e){} // clear stale pre-fix value
+    }else{
+      try{const v=localStorage.getItem(navKey(lbl));collapsed=v==='1';}catch(e){}
+    }
     lbl.classList.toggle('collapsed',collapsed);
     let n=lbl.nextElementSibling;
     while(n&&!n.classList.contains('nlbl')){
@@ -738,4 +741,309 @@ function apBlock(p){
     '<div class="drow"><span class="dlbl">Balance</span><span class="dval" style="font-weight:700;color:'+(bal>0?'var(--rd)':'var(--gr)')+'">'+(bal!=null?Number(bal).toLocaleString():'—')+'</span></div>'+
     cell('peso_value','Est. value in ₱ (open)',p.peso_value,v=>fmtPeso(v))+
     '</div>';
+}
+
+/* ══════════ QUOTATIONS — formal quotes, print, convert to order ══════════ */
+let QUOTES=null,QCART=[];
+async function loadQuotes(force){
+  if(QUOTES&&!force)return QUOTES;
+  try{const {data}=await SB.from('quotes').select('*,quote_lines(*)').order('created_at',{ascending:false}).limit(500);QUOTES=data||[];}
+  catch(e){QUOTES=[];}
+  return QUOTES;
+}
+const qtLabel=q=>'QT-'+String(q.num||0).padStart(4,'0');
+function qtMine(q){
+  const myTag=(ROLE==='sales'&&SBPROFILE&&SBPROFILE.specialist_tag)||'';
+  return !myTag||specCanon(q.spec||'').toLowerCase()===specCanon(myTag).toLowerCase();
+}
+async function renderQuotes(){
+  if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
+  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  await loadQuotes(true);try{loadPromos();}catch(e){}
+  const rows=QUOTES.filter(qtMine);
+  const open=rows.filter(q=>['draft','sent'].includes(q.status));
+  const acc=rows.filter(q=>q.status==='accepted').length,lost=rows.filter(q=>q.status==='lost').length;
+  const today=new Date().toISOString().slice(0,10);
+  const stPill=q=>{
+    if(q.status==='accepted')return'<span class="pill pgr">accepted</span>';
+    if(q.status==='lost')return'<span class="pill prd">lost</span>'+(q.lost_reason?' <span class="mu" style="font-size:10.5px">'+esc(q.lost_reason)+'</span>':'');
+    const exp=q.expiry&&q.expiry<today;
+    return'<span class="pill '+(q.status==='sent'?'pbl':'pgy')+'">'+q.status+'</span>'+(exp?' <span class="pill pam" style="background:rgba(186,117,23,.15);color:var(--am)">expired</span>':'');
+  };
+  const canW=roleIn('admin','manager','sales');
+  $('content').innerHTML=
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met bl"><div class="met-lbl">Open quotes</div><div class="met-val">'+open.length+'</div><div class="met-sub">'+fmtPeso(open.reduce((a,q)=>a+(q.total||0),0))+' quoted</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Accepted</div><div class="met-val">'+acc+'</div><div class="met-sub">all time</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Win rate</div><div class="met-val">'+((acc+lost)?Math.round(acc/(acc+lost)*100)+'%':'—')+'</div><div class="met-sub">'+lost+' lost</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    (canW?'<div style="margin-bottom:14px"><button onclick="quoteNew()" style="background:var(--ac);color:#fff;border:none;border-radius:10px;padding:11px 20px;font-size:13.5px;font-weight:700;cursor:pointer">+ New quotation</button></div>':'')+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Quote</th><th>Account</th><th>Specialist</th><th>Date</th><th>Valid until</th><th>Status</th><th class="r">Total</th><th></th></tr></thead><tbody>'+
+    (rows.length?rows.map(q=>'<tr><td style="font-weight:700">'+qtLabel(q)+'</td><td>'+esc(q.account)+'</td><td class="mu">'+esc(q.spec||'')+'</td><td class="mu">'+esc(q.date||'')+'</td><td class="mu">'+esc(q.expiry||'—')+'</td>'+
+      '<td>'+stPill(q)+'</td><td class="r" style="font-weight:600">'+fmtPeso(q.total||0)+'</td>'+
+      '<td style="white-space:nowrap;font-size:11.5px">'+
+      '<a href="#" onclick="quotePrint(\''+q.id+'\');return false" style="color:var(--ac)">print</a>'+
+      (canW&&['draft','sent'].includes(q.status)?
+        ' · <a href="#" onclick="quoteStatus(\''+q.id+'\',\''+(q.status==='draft'?'sent':'accepted')+'\');return false" style="color:var(--gr)">'+(q.status==='draft'?'mark sent':'mark accepted')+'</a>'+
+        ' · <a href="#" onclick="quoteStatus(\''+q.id+'\',\'lost\');return false" style="color:var(--rd)">lost</a>'+
+        ' · <a href="#" onclick="quoteConvert(\''+q.id+'\');return false" style="color:var(--ac);font-weight:700">→ order</a>':'')+
+      '</td></tr>').join(''):'<tr><td colspan="8" class="mu">No quotations yet'+(canW?' — make the first one.':'.')+'</td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>Quotes use the same catalog pricing, deals, and live promos as order entry · accepted quotes convert to an order in one tap · win rate = accepted ÷ (accepted + lost)</span></div></div>';
+}
+function quoteNew(){
+  QCART=[];
+  const accounts=acctList().map(r=>r.name);
+  const myTag=(SBPROFILE&&SBPROFILE.specialist_tag)||'';
+  const specs=specNames();
+  const inp='style="width:100%;box-sizing:border-box;background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:14px"';
+  const lbl='style="font-size:11.5px;color:var(--tx3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin:12px 0 5px;display:block"';
+  const prodOpts=DATA.filter(p=>p.price>0).map(p=>'<option value="'+esc(p.name)+' ('+esc(p.sku)+')">'+fmtPeso(p.price)+'</option>').join('');
+  const exp=new Date(Date.now()+30*864e5).toISOString().slice(0,10);
+  $('content').innerHTML='<div style="max-width:680px">'+
+    '<div class="panel" style="padding:18px;margin-bottom:14px"><div class="phd">New quotation</div>'+
+    '<label '+lbl+'>Account / clinic</label><input id="qt-acct" list="qt-accts" placeholder="Start typing…" '+inp+'>'+
+    '<datalist id="qt-accts">'+accounts.map(a=>'<option value="'+esc(a)+'">').join('')+'</datalist>'+
+    '<div class="g2" style="gap:10px"><div><label '+lbl+'>Specialist</label>'+
+    (myTag&&ROLE==='sales'?'<input id="qt-spec" value="'+esc(myTag)+'" readonly '+inp.slice(0,-1)+';opacity:.75">':'<select id="qt-spec" '+inp+'>'+specs.map(s=>'<option>'+esc(s)+'</option>').join('')+'</select>')+
+    '</div><div><label '+lbl+'>Valid until</label><input id="qt-exp" type="date" value="'+exp+'" '+inp+'></div></div></div>'+
+    '<div class="panel" style="padding:18px;margin-bottom:14px"><div class="phd">Items</div>'+
+    '<label '+lbl+'>Product</label><input id="qt-prod" list="qt-prods" oninput="qtProdChanged()" placeholder="Start typing or select…" '+inp+'>'+
+    '<datalist id="qt-prods">'+prodOpts+'</datalist>'+
+    '<div class="g2" style="gap:10px"><div><label '+lbl+'>Pricing</label><select id="qt-deal" '+inp+'><option value="">À la carte</option></select></div>'+
+    '<div><label '+lbl+'>Qty (sets, for deals)</label><input id="qt-qty" type="number" min="1" value="1" '+inp+'></div></div>'+
+    '<button onclick="qtAdd()" style="width:100%;background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13.5px;font-weight:600;cursor:pointer;margin-top:10px">+ Add to quote</button>'+
+    '<div id="qt-cart" style="margin-top:12px"></div></div>'+
+    '<div class="panel" style="padding:18px">'+
+    '<label '+lbl+'>Notes for the client (optional)</label><textarea id="qt-notes" rows="2" '+inp+'></textarea>'+
+    '<div id="qt-msg" style="min-height:18px;font-size:12px;margin:10px 0 4px"></div>'+
+    '<button onclick="qtSave()" style="width:100%;background:var(--ac);color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:700;cursor:pointer">Save quotation</button>'+
+    '<a href="#" onclick="showView(\'quotes\',null);return false" style="display:block;text-align:center;color:var(--tx3);font-size:12px;margin-top:10px">Cancel</a>'+
+    '</div></div>';
+  qtRender();
+}
+function qtResolve(){
+  const v=(($('qt-prod')&&$('qt-prod').value)||'').trim();if(!v)return null;
+  const m=v.match(/\(([^()]+)\)\s*$/);
+  if(m){const p=DATA.find(x=>x.sku.toLowerCase()===m[1].trim().toLowerCase());if(p)return p;}
+  let p=DATA.find(x=>x.sku.toLowerCase()===v.toLowerCase());if(p)return p;
+  const c=DATA.filter(x=>x.name.toLowerCase().startsWith(v.toLowerCase()));
+  return c.length===1?c[0]:null;
+}
+function qtProdChanged(){
+  const p=qtResolve();const sel=$('qt-deal');if(!sel)return;
+  let html='<option value="">À la carte'+(p&&p.price>0?' — '+fmtPeso(p.price)+'/u':'')+'</option>';
+  if(p&&p.deals)p.deals.forEach((d,i)=>{if(d.setSize&&d.price>0)html+='<option value="'+i+'">'+esc(d.title)+' — '+fmtPeso(d.price)+'/set</option>';});
+  sel.innerHTML=html;
+}
+function qtAdd(){
+  const p=qtResolve();const msg=$('qt-msg');
+  if(!p){if(msg){msg.style.color='var(--rd)';msg.textContent='Pick a product from the list.';}return;}
+  const sets=Math.max(1,parseInt(($('qt-qty')&&$('qt-qty').value)||'1',10)||1);
+  const dealIx=($('qt-deal')&&$('qt-deal').value)||'';
+  if(dealIx!==''&&p.deals&&p.deals[dealIx]){
+    const d=p.deals[dealIx];const per=d.setSize-1;
+    QCART.push({sku:p.sku,name:p.name,qty:sets*per,price:Math.round(d.price/per),amount:Math.round(sets*d.price),is_free:false,deal:(d.title.match(/\d+\s*\+\s*\d+/)||[d.title])[0]});
+    QCART.push({sku:p.sku,name:p.name,qty:sets,price:0,amount:0,is_free:true,deal:(d.title.match(/\d+\s*\+\s*\d+/)||[d.title])[0]});
+  }else{
+    const pr=(typeof promoFor==='function')?promoFor(p.sku):null;
+    if(pr&&pr.mechanic==='pct'&&pr.pct>0){
+      const up=Math.round(p.price*(1-pr.pct/100));
+      QCART.push({sku:p.sku,name:p.name,qty:sets,price:up,amount:Math.round(sets*up),is_free:false,deal:pr.name});
+      if(msg){msg.style.color='var(--gr)';msg.textContent='Promo applied: '+pr.name+' ('+pr.pct+'% off)';}
+    }else{
+      QCART.push({sku:p.sku,name:p.name,qty:sets,price:p.price,amount:Math.round(sets*p.price),is_free:false,deal:null});
+      if(pr&&pr.mechanic==='nplusm'&&pr.buy_n>0&&sets>=pr.buy_n){
+        const fq=Math.floor(sets/pr.buy_n)*(pr.free_m||0);
+        if(fq>0){QCART.push({sku:p.sku,name:p.name,qty:fq,price:0,amount:0,is_free:true,deal:pr.name});
+          if(msg){msg.style.color='var(--gr)';msg.textContent='Promo applied: '+pr.name+' — +'+fq+' free';}}
+      }
+    }
+  }
+  qtRender();
+}
+function qtRm(i){QCART.splice(i,1);qtRender();}
+function qtRender(){
+  const box=$('qt-cart');if(!box)return;
+  if(!QCART.length){box.innerHTML='<div style="font-size:12px;color:var(--tx3)">No items yet.</div>';return;}
+  const tot=QCART.reduce((a,l)=>a+l.amount,0);
+  box.innerHTML='<table style="width:100%;font-size:12.5px"><thead><tr><th style="text-align:left">Item</th><th style="text-align:right">Qty</th><th style="text-align:right">Amount</th><th></th></tr></thead><tbody>'+
+    QCART.map((l,i)=>'<tr><td>'+esc(l.name)+(l.deal?' <span class="pill pbl">'+esc(l.deal)+'</span>':'')+(l.is_free?' <span class="pill" style="background:var(--pu-bg);color:var(--pu)">free</span>':'')+'</td>'+
+      '<td style="text-align:right">'+l.qty+'</td><td style="text-align:right">'+(l.amount?fmtPeso(l.amount):'₱0')+'</td>'+
+      '<td style="text-align:right"><a href="#" onclick="qtRm('+i+');return false" style="color:var(--rd)">✕</a></td></tr>').join('')+
+    '</tbody></table><div style="text-align:right;font-weight:700;font-size:15px;margin-top:10px">Total '+fmtPeso(tot)+'</div>';
+}
+async function qtSave(){
+  const msg=$('qt-msg');
+  const account=($('qt-acct')&&$('qt-acct').value||'').trim();
+  const spec=($('qt-spec')&&$('qt-spec').value||'').trim();
+  if(!account){if(msg){msg.style.color='var(--rd)';msg.textContent='Pick the account.';}return;}
+  if(!QCART.length){if(msg){msg.style.color='var(--rd)';msg.textContent='Add at least one item.';}return;}
+  const total=QCART.reduce((a,l)=>a+l.amount,0);
+  try{
+    const {data:q,error}=await SB.from('quotes').insert({account,spec,date:new Date().toISOString().slice(0,10),expiry:($('qt-exp')&&$('qt-exp').value)||null,status:'draft',total,notes:($('qt-notes')&&$('qt-notes').value||'').trim()||null,created_by:SBUSER.id}).select().single();
+    if(error)throw error;
+    const {error:e2}=await SB.from('quote_lines').insert(QCART.map(l=>({quote_id:q.id,sku:l.sku,name:l.name,qty:l.qty,price:l.price,amount:l.amount,is_free:l.is_free,deal:l.deal})));
+    if(e2)throw e2;
+    audit('quote.create',{quote:qtLabel(q),account,total});
+    QCART=[];showView('quotes',null);
+  }catch(e){if(msg){msg.style.color='var(--rd)';msg.textContent='Could not save: '+(e.message||e)+(String(e.message||'').includes('quotes')?' (run the quotations SQL from SUPABASE-SETUP.md)':'');}}
+}
+async function quoteStatus(id,status){
+  let reason=null;
+  if(status==='lost'){reason=prompt('Lost — why? (price / competitor / timing / no response / other)');if(reason===null)return;}
+  try{
+    const upd={status};if(reason!==null)upd.lost_reason=reason.trim()||null;
+    const {error}=await SB.from('quotes').update(upd).eq('id',id);if(error)throw error;
+    const q=(QUOTES||[]).find(x=>x.id===id);
+    audit('quote.'+status,{quote:q?qtLabel(q):id.slice(0,8),reason:reason||''});
+    renderQuotes();
+  }catch(e){alert(e.message||e);}
+}
+async function quoteConvert(id){
+  const q=(QUOTES||[]).find(x=>x.id===id);if(!q)return;
+  if(!confirm('Convert '+qtLabel(q)+' into an order for '+q.account+'? The order form opens prefilled — review, then submit.'))return;
+  if(q.status!=='accepted'){try{await SB.from('quotes').update({status:'accepted'}).eq('id',id);}catch(e){}}
+  audit('quote.convert',{quote:qtLabel(q),account:q.account});
+  window._noAccount=q.account;
+  CART=(q.quote_lines||[]).map(l=>({sku:l.sku,name:l.name,qty:l.qty,price:l.price,amount:l.amount,is_free:l.is_free,deal:l.deal}));
+  showView('neworder',null);
+}
+async function quotePrint(id){
+  const q=(QUOTES||[]).find(x=>x.id===id);if(!q)return;
+  let acct=null;try{const {data}=await SB.from('accounts').select('*').eq('name',acctDedup(q.account||'')).maybeSingle();acct=data;}catch(e){}
+  const lines=q.quote_lines||[];
+  $('ptitle').textContent='Quotation';
+  $('content').innerHTML=
+    '<div class="no-print" style="display:flex;gap:10px;margin-bottom:12px">'+
+    '<a href="#" onclick="showView(\'quotes\',null);return false" style="color:var(--ac);font-size:12.5px">← Back to quotations</a><span style="flex:1"></span>'+
+    '<button onclick="window.print()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer">🖨 Print / Save PDF</button></div>'+
+    '<div class="printdoc">'+
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start"><div>'+hsLogo(34,'#00168F')+'<div style="font-size:19px;font-weight:800;margin-top:5px">HEALTHSPAN GLOBAL, INC.</div><div style="font-size:12px;color:#555">Quotation</div></div>'+
+    '<div style="text-align:right;font-size:12px"><b style="font-size:15px">'+qtLabel(q)+'</b><br>Date: '+esc(q.date||'')+'<br>Valid until: <b>'+esc(q.expiry||'—')+'</b></div></div>'+
+    '<div style="display:flex;gap:30px;margin:14px 0;font-size:12.5px">'+
+    '<div style="flex:1"><b>Prepared for</b><br>'+esc(q.account||'—')+(acct&&acct.address?'<br>'+esc(acct.address):'')+(acct&&acct.contact_person?'<br>Attn: '+esc(acct.contact_person):'')+'</div>'+
+    '<div><b>Prepared by</b><br>'+esc(q.spec||'—')+'</div></div>'+
+    '<table><thead><tr><th>#</th><th>Product</th><th>SKU</th><th style="text-align:center">Qty</th><th style="text-align:right">Unit price</th><th style="text-align:right">Amount</th></tr></thead><tbody>'+
+    lines.map((l,i)=>'<tr><td>'+(i+1)+'</td><td><b>'+esc(l.name||l.sku)+'</b>'+(l.is_free?' (FREE)':'')+(l.deal?' — '+esc(l.deal):'')+'</td><td>'+esc(l.sku)+'</td><td style="text-align:center">'+l.qty+'</td><td style="text-align:right">'+(l.price?fmtPeso(l.price):'₱0')+'</td><td style="text-align:right">'+(l.amount?fmtPeso(l.amount):'₱0')+'</td></tr>').join('')+
+    '</tbody></table>'+
+    '<div style="text-align:right;font-size:12px;margin-top:6px;color:#333">VATable sales: '+fmtPeso(Math.round((q.total||0)/1.12))+'<br>12% VAT: '+fmtPeso((q.total||0)-Math.round((q.total||0)/1.12))+'</div>'+
+    '<div style="text-align:right;font-weight:700;font-size:14px;margin-top:2px">TOTAL (VAT inclusive): '+fmtPeso(q.total||0)+'</div>'+
+    (q.notes?'<div style="font-size:12px;margin-top:8px"><b>Notes:</b> '+esc(q.notes)+'</div>':'')+
+    '<div style="font-size:11px;color:#555;margin-top:14px">Prices are VAT-inclusive and valid until the date above. This quotation is not an invoice.</div>'+
+    '</div>';
+}
+
+/* ══════════ PROMOTIONS ENGINE — promos as configuration ══════════ */
+let PROMOS=null;
+async function loadPromos(force){
+  if(PROMOS&&!force)return PROMOS;
+  try{const {data}=await SB.from('promos').select('*').order('start_date',{ascending:false});PROMOS=data||[];}
+  catch(e){PROMOS=PROMOS||[];}
+  return PROMOS;
+}
+function promoFor(sku){ // first live promo covering this SKU (today inside window, active)
+  const today=new Date().toISOString().slice(0,10);
+  return (PROMOS||[]).find(p=>p.active&&p.start_date<=today&&p.end_date>=today&&
+    (String(p.skus||'').trim()==='*'||String(p.skus||'').toLowerCase().split(/[,\n]/).map(x=>x.trim()).includes(String(sku).toLowerCase())))||null;
+}
+async function renderPromos(){
+  if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
+  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  await loadPromos(true);
+  const canW=roleIn('admin','marketing');
+  const today=new Date().toISOString().slice(0,10);
+  const live=PROMOS.filter(p=>p.active&&p.start_date<=today&&p.end_date>=today);
+  const inp='style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:9px 10px;font-size:13px"';
+  const lbl='style="font-size:10.5px;color:var(--tx3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin:8px 0 3px"';
+  const mech=p=>p.mechanic==='pct'?(p.pct+'% off'):('buy '+p.buy_n+' get '+p.free_m+' free');
+  $('content').innerHTML=
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met gr"><div class="met-lbl">Live now</div><div class="met-val">'+live.length+'</div><div class="met-sub">applies automatically at order entry</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">All promos</div><div class="met-val">'+PROMOS.length+'</div><div class="met-sub">past + scheduled</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="g2" style="align-items:start;gap:14px">'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Promo</th><th>Window</th><th>Mechanic</th><th>SKUs</th><th>Status</th>'+(canW?'<th></th>':'')+'</tr></thead><tbody>'+
+    (PROMOS.length?PROMOS.map(p=>{
+      const st=!p.active?'<span class="pill pgy">off</span>':p.start_date>today?'<span class="pill pbl">scheduled</span>':p.end_date<today?'<span class="pill pgy">ended</span>':'<span class="pill pgr">LIVE</span>';
+      return '<tr><td style="font-weight:600">'+esc(p.name)+'</td><td class="mu" style="font-size:11.5px">'+esc(p.start_date)+' → '+esc(p.end_date)+'</td>'+
+      '<td>'+mech(p)+'</td><td class="mu" style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(p.skus||'')+'">'+(String(p.skus||'').trim()==='*'?'all products':esc(p.skus||''))+'</td>'+
+      '<td>'+st+'</td>'+
+      (canW?'<td style="white-space:nowrap;font-size:11.5px"><a href="#" onclick="promoToggle('+p.id+','+(p.active?'false':'true')+');return false" style="color:'+(p.active?'var(--am)':'var(--gr)')+'">'+(p.active?'turn off':'turn on')+'</a> · <a href="#" onclick="promoDel('+p.id+');return false" style="color:var(--rd)">delete</a></td>':'')+
+      '</tr>';}).join(''):'<tr><td colspan="6" class="mu">No promotions configured yet.</td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>A LIVE promo applies automatically in order entry and quotations for its SKUs — no more free-typed deal lines · buy-N-get-M adds the free units; %-off discounts the unit price (tagged with the promo name, audited with the order)</span></div></div>'+
+    (canW?'<div class="panel" style="padding:16px"><div class="phd">New promotion</div>'+
+      '<label '+lbl+'>Name (shows on order lines)</label><input id="pm-name" placeholder="e.g. Anniversary 10+8" '+inp+'>'+
+      '<div class="g2" style="gap:10px"><div><label '+lbl+'>Starts</label><input id="pm-start" type="date" '+inp+'></div><div><label '+lbl+'>Ends</label><input id="pm-end" type="date" '+inp+'></div></div>'+
+      '<label '+lbl+'>Eligible SKUs (comma-separated, or * for all)</label><input id="pm-skus" placeholder="SKU1, SKU2, …" '+inp+'>'+
+      '<label '+lbl+'>Mechanic</label><select id="pm-mech" onchange="$(\'pm-nm\').style.display=this.value===\'nplusm\'?\'flex\':\'none\';$(\'pm-pw\').style.display=this.value===\'pct\'?\'block\':\'none\'" '+inp+'><option value="nplusm">Buy N, get M free</option><option value="pct">% off unit price</option></select>'+
+      '<div id="pm-nm" class="g2" style="gap:10px;display:flex"><div style="flex:1"><label '+lbl+'>Buy N</label><input id="pm-n" type="number" min="1" value="10" '+inp+'></div><div style="flex:1"><label '+lbl+'>Get M free</label><input id="pm-m" type="number" min="1" value="8" '+inp+'></div></div>'+
+      '<div id="pm-pw" style="display:none"><label '+lbl+'>% off</label><input id="pm-pct" type="number" min="1" max="90" value="10" '+inp+'></div>'+
+      '<div id="pm-msg" style="min-height:14px;font-size:11px;margin:8px 0 4px"></div>'+
+      '<button onclick="promoAdd()" style="width:100%;background:var(--ac);color:#fff;border:none;border-radius:8px;padding:11px;font-size:13px;font-weight:600;cursor:pointer">Create promo</button></div>':'')+
+    '</div>';
+}
+async function promoAdd(){
+  const g=id=>($(id)&&$(id).value||'').trim();const msg=$('pm-msg');
+  if(!g('pm-name')||!g('pm-start')||!g('pm-end')||!g('pm-skus')){if(msg){msg.style.color='var(--rd)';msg.textContent='Name, window, and SKUs are required.';}return;}
+  const mech=g('pm-mech');
+  try{
+    const {error}=await SB.from('promos').insert({name:g('pm-name'),start_date:g('pm-start'),end_date:g('pm-end'),skus:g('pm-skus'),mechanic:mech,
+      buy_n:mech==='nplusm'?parseInt(g('pm-n'),10)||null:null,free_m:mech==='nplusm'?parseInt(g('pm-m'),10)||null:null,pct:mech==='pct'?parseFloat(g('pm-pct'))||null:null,
+      active:true,created_by:SBUSER.id});
+    if(error)throw error;
+    audit('promo.create',{name:g('pm-name'),mech,window:g('pm-start')+'→'+g('pm-end')});
+    renderPromos();
+  }catch(e){if(msg){msg.style.color='var(--rd)';msg.textContent=(e.message||e)+(String(e.message||'').includes('promos')?' (run the promotions SQL from SUPABASE-SETUP.md)':'');}}
+}
+async function promoToggle(id,on){
+  try{const {error}=await SB.from('promos').update({active:on}).eq('id',id);if(error)throw error;audit('promo.'+(on?'on':'off'),{id});renderPromos();}catch(e){alert(e.message||e);}
+}
+async function promoDel(id){
+  if(!confirm('Delete this promo? Past orders keep their promo-tagged lines.'))return;
+  try{const {error}=await SB.from('promos').delete().eq('id',id);if(error)throw error;audit('promo.delete',{id});renderPromos();}catch(e){alert(e.message||e);}
+}
+
+/* ══════════ PRODUCT REGISTRATION TRACKING — CPR/FDA per SKU ══════════ */
+async function renderRegs(){
+  if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
+  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  let items=[];
+  try{const {data,error}=await SB.from('items').select('sku,name,reg_type,reg_no,reg_expiry').order('sku');if(error)throw error;items=data||[];}
+  catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Needs the item master + registration SQL (SUPABASE-SETUP.md): '+esc(e.message||e)+'</div>';return;}
+  const today=Date.now();
+  const dLeft=x=>x.reg_expiry?Math.floor((new Date(x.reg_expiry).getTime()-today)/864e5):null;
+  items.sort((a,b)=>{const da=dLeft(a),db=dLeft(b);return (da===null?1e9:da)-(db===null?1e9:db);});
+  const expd=items.filter(x=>dLeft(x)!==null&&dLeft(x)<0).length;
+  const soon=items.filter(x=>{const d=dLeft(x);return d!==null&&d>=0&&d<=180;}).length;
+  const regd=items.filter(x=>x.reg_no).length;
+  const canW=typeof canCatalogEdit==='function'?canCatalogEdit():roleIn('admin','finance');
+  const pill=x=>{const d=dLeft(x);
+    if(d===null)return x.reg_no?'<span class="pill pgy">no expiry set</span>':'<span class="pill pgy">unregistered / n-a</span>';
+    if(d<0)return'<span class="pill prd">EXPIRED '+Math.abs(d)+'d ago</span>';
+    if(d<=180)return'<span class="pill pam" style="background:rgba(186,117,23,.15);color:var(--am)">'+d+'d left</span>';
+    return'<span class="pill pgr">'+esc(x.reg_expiry)+'</span>';};
+  $('content').innerHTML=
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met rd"><div class="met-lbl">Expired</div><div class="met-val">'+expd+'</div><div class="met-sub">renew before the next import</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Expiring ≤ 6 months</div><div class="met-val">'+soon+'</div><div class="met-sub">start renewal now — FDA takes months</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Registered</div><div class="met-val">'+regd+' / '+items.length+'</div><div class="met-sub">SKUs with a CPR/FDA number</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>SKU</th><th>Product</th><th>Type</th><th>Registration no.</th><th>Status</th>'+(canW?'<th></th>':'')+'</tr></thead><tbody>'+
+    items.map(x=>'<tr><td style="font-weight:600">'+esc(x.sku)+'</td><td>'+esc(x.name||'')+'</td><td class="mu">'+esc(x.reg_type||'—')+'</td><td>'+esc(x.reg_no||'—')+'</td><td>'+pill(x)+'</td>'+
+      (canW?'<td><a href="#" onclick="regEdit(\''+esc(x.sku).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac);font-size:11.5px">edit</a></td>':'')+
+      '</tr>').join('')+
+    '</tbody></table></div><div class="tfooter"><span>CPR/FDA registration per SKU — expired and expiring-soon float to the top · alerts at 6 months because renewals take time · registration data lives on the item master</span></div></div>';
+}
+async function regEdit(sku){
+  const {data:x}=await SB.from('items').select('sku,reg_type,reg_no,reg_expiry').eq('sku',sku).maybeSingle();
+  if(!x)return alert('SKU not in the item master yet — seed the catalog first (Item master → seed).');
+  const t=prompt('Registration type (CPR / FDA / NA):',x.reg_type||'CPR');if(t===null)return;
+  const n=prompt('Registration number:',x.reg_no||'');if(n===null)return;
+  const e=prompt('Expiry date (YYYY-MM-DD, blank if none):',x.reg_expiry||'');if(e===null)return;
+  try{
+    const {error}=await SB.from('items').update({reg_type:t.trim()||null,reg_no:n.trim()||null,reg_expiry:e.trim()||null}).eq('sku',sku);
+    if(error)throw error;
+    audit('reg.update',{sku,no:n.trim(),expiry:e.trim()});
+    renderRegs();
+  }catch(err){alert(err.message||err);}
 }

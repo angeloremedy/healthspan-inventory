@@ -175,6 +175,7 @@ async function sbLoadProfile(user){
   try{const {data}=await SB.from('profiles').select('name,role,specialist_tag,is_super,can_manage_ps').eq('id',user.id).single();SBPROFILE=data||null;}
   catch(e){try{const {data}=await SB.from('profiles').select('name,role,specialist_tag').eq('id',user.id).single();SBPROFILE=data||null;}catch(e2){SBPROFILE=null;}}
   ROLE=(SBPROFILE&&SBPROFILE.role)||'sales';
+  try{localStorage.setItem('hs_role_cache',ROLE);}catch(e){}
   const g=$('rolegate');if(g)g.style.display='none';
   document.body.classList.toggle('role-sales',ROLE==='sales');
   document.body.classList.toggle('role-manager',ROLE==='manager');
@@ -238,11 +239,11 @@ async function sbLogin(){
 }
 
 /* ── ROLE state: set ONLY from the Supabase profile after sign-in (passcodes removed) ── */
-let ROLE='';
+let ROLE='';try{ROLE=localStorage.getItem('hs_role_cache')||'';}catch(e){} // last-known role: first paint matches the post-profile render (kills the profile-load flicker)
 try{localStorage.removeItem('hs_role');}catch(e){} // clear any legacy passcode sessions
 function roleLogout(){
   try{if(SB)SB.auth.signOut();}catch(e){}
-  SBUSER=null;SBPROFILE=null;ROLE='';
+  SBUSER=null;SBPROFILE=null;ROLE='';try{localStorage.removeItem('hs_role_cache');}catch(e){}
   location.reload();
 }
 

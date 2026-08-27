@@ -1027,3 +1027,73 @@ alter table public.account_contacts add column if not exists viber text;
 No RLS changes — these ride the existing accounts / account_contacts policies.
 Delivery notes print on the DR under "Deliver to"; LTO/PRC expiries show
 red/amber pills on the account page.
+
+## Quotations + Promotions engine + Product registrations (2026-08-28)
+
+SQL Editor → Run:
+
+```sql
+-- 1) Quotations
+create table if not exists public.quotes (
+  id uuid primary key default gen_random_uuid(),
+  num bigint generated always as identity,
+  account text not null,
+  spec text,
+  date date not null default current_date,
+  expiry date,
+  status text not null default 'draft' check (status in ('draft','sent','accepted','lost')),
+  lost_reason text,
+  total bigint not null default 0,
+  notes text,
+  created_by uuid,
+  created_at timestamptz not null default now()
+);
+create table if not exists public.quote_lines (
+  id bigint generated always as identity primary key,
+  quote_id uuid not null references public.quotes(id) on delete cascade,
+  sku text, name text, qty int, price bigint, amount bigint,
+  is_free boolean not null default false, deal text
+);
+alter table public.quotes enable row level security;
+alter table public.quote_lines enable row level security;
+create policy "quotes read" on public.quotes for select to authenticated using (true);
+create policy "quotes insert" on public.quotes for insert to authenticated
+  with check (auth.uid() = created_by and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','manager','sales')));
+create policy "quotes update" on public.quotes for update to authenticated
+  using (created_by = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','manager')));
+create policy "qlines read" on public.quote_lines for select to authenticated using (true);
+create policy "qlines insert" on public.quote_lines for insert to authenticated
+  with check (exists (select 1 from public.quotes q where q.id = quote_id and q.created_by = auth.uid()));
+
+-- 2) Promotions engine
+create table if not exists public.promos (
+  id bigint generated always as identity primary key,
+  name text not null,
+  start_date date not null,
+  end_date date not null,
+  skus text not null,          -- comma-separated SKUs, or * for all
+  mechanic text not null check (mechanic in ('nplusm','pct')),
+  buy_n int, free_m int, pct numeric,
+  active boolean not null default true,
+  created_by uuid,
+  created_at timestamptz not null default now()
+);
+alter table public.promos enable row level security;
+create policy "promos read" on public.promos for select to authenticated using (true);
+create policy "promos write" on public.promos for insert to authenticated
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','marketing')));
+create policy "promos update" on public.promos for update to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','marketing')));
+create policy "promos delete" on public.promos for delete to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','marketing')));
+
+-- 3) Product registrations (CPR/FDA) on the item master
+alter table public.items add column if not exists reg_type text;
+alter table public.items add column if not exists reg_no text;
+alter table public.items add column if not exists reg_expiry date;
+```
+
+Registration edits ride the existing items policies (admin + finance).
+Quotes: everyone signed-in can read; sales/manager/admin create; owner or
+manager/admin update status. Promos: everyone reads (order entry applies
+them); admin + marketing configure.

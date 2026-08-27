@@ -2,7 +2,7 @@
 
 The one-page truth for who can do what. Roles marked **live** exist today;
 **planned** roles reuse the same RLS pattern and ship when their people onboard.
-Last updated: 2026-08-27.
+Last updated: 2026-08-28.
 
 ## Roles & people
 
@@ -87,6 +87,9 @@ therefore a floor — implementation grants the full circle read to all three.
 | Commissions (tiers, monthly compute, CSV) | ✅ | ✖ | ✖ | ✖ | ✅ | ✖ |
 | Supplier bills / AP (terms, proforma, FX, payments on POs) | ✅ | 👁 | ✖ | 👁 | ✅ | ✖ |
 | Events calendar | ✅ | ✅ | ✅ own | ✅ | ✅ | ✅ |
+| Quotations (create, send, convert to order) | ✅ | ✅ | ✅ own | ✖ | 👁 | 👁 |
+| Promotions engine (configure promos) | ✅ | 👁 | auto-applied | 👁 | 👁 | ✅ |
+| Product registrations (CPR/FDA per SKU) | ✅ | 👁 | ✖ | 👁 | ✅ (rides item master) | 👁 |
 | Team & access (users) | ✅ | ✖ | ✖ | ✖ | ✖ | ✖ (Justine: PS accounts only) |
 | Cutover switches | ✅ | ✖ | ✖ | ✖ | ✖ | ✖ |
 

@@ -87,7 +87,7 @@ export const handler = async (event) => {
   try {
     if (act === 'list') {
       const users = await svc('/auth/v1/admin/users?per_page=200');
-      const profs = await svc('/rest/v1/profiles?select=id,name,role,specialist_tag,is_super');
+      const profs = await svc('/rest/v1/profiles?select=id,name,role,specialist_tag,is_super,can_manage_ps');
       const pm = {}; for (const x of (profs || [])) pm[x.id] = x;
       const list = ((users && users.users) || []).map(u => ({
         id: u.id, email: u.email,
@@ -95,6 +95,7 @@ export const handler = async (event) => {
         role: (pm[u.id] && pm[u.id].role) || '(no profile)',
         tag: (pm[u.id] && pm[u.id].specialist_tag) || '',
         is_super: !!(pm[u.id] && pm[u.id].is_super),
+        ps: !!(pm[u.id] && pm[u.id].can_manage_ps),
         last: u.last_sign_in_at || '',
         banned: !!(u.banned_until && new Date(u.banned_until) > new Date())
       })).sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email));
@@ -105,7 +106,9 @@ export const handler = async (event) => {
       if (!email || !password || !name || !['admin','manager','sales','supply_chain','finance','marketing','viewer'].includes(role)) return out(400, { error: 'Need email, password, name, role' });
       if (password.length < 8) return out(400, { error: 'Password must be 8+ characters' });
       const u = await svc('/auth/v1/admin/users', 'POST', { email, password, email_confirm: true });
-      await svc('/rest/v1/profiles', 'POST', { id: u.id, name, role, specialist_tag: tag || null });
+      // can_manage_ps (the "IT" role): admin callers only; scoped callers can never grant it
+      const ps = !callerScoped && role === 'viewer' && !!p.can_manage_ps;
+      await svc('/rest/v1/profiles', 'POST', { id: u.id, name, role, specialist_tag: tag || null, can_manage_ps: ps });
       await log('user.create', { email, name, role, tag: tag || '' });
       return out(200, { ok: true, id: u.id });
     }
@@ -116,6 +119,7 @@ export const handler = async (event) => {
       if (name != null) patch.name = name;
       if (role != null) { if (!['admin','manager','sales','supply_chain','finance','marketing','viewer'].includes(role)) return out(400, { error: 'Bad role' }); patch.role = role; }
       if (tag !== undefined) patch.specialist_tag = tag || null;
+      if (p.can_manage_ps !== undefined && !callerScoped) patch.can_manage_ps = !!p.can_manage_ps && (role == null || role === 'viewer');
       await fetch(SB_URL + '/rest/v1/profiles?id=eq.' + id, {
         method: 'PATCH', headers: { apikey: SVC, Authorization: 'Bearer ' + SVC, 'Content-Type': 'application/json' }, body: JSON.stringify(patch)
       });
