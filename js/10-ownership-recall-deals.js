@@ -236,10 +236,12 @@ function openMobileMenu(){
   const q=$('mmq');if(q)q.value='';
   buildMobileMenu('');
   m.style.display='block';
+  document.body.classList.add('menuopen'); // hides the fixed bottom bar (it escapes the menu's viewport, so it would peek below)
   document.body.style.overflow='hidden';
 }
 function closeMobileMenu(){
   const m=$('mmenu');if(m)m.style.display='none';
+  document.body.classList.remove('menuopen');
   document.body.style.overflow='';
 }
 function mmGo(v){closeMobileMenu();showView(v,null);}

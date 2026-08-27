@@ -295,6 +295,7 @@ html{background:var(--sf)}
   body.authed .mobile-topbar{display:flex!important} /* app chrome only after sign-in */
   .main{padding-top:calc(56px + var(--sat))}
   body.authed .mobile-nav{display:block!important}
+  body.menuopen .mobile-nav{display:none!important} /* menu is absolute (short viewport), bar is fixed (true bottom) — it would peek below the menu */
   .main{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))}
   .content{padding:12px 14px}
   .metrics{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}
