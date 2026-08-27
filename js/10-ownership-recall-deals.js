@@ -1187,6 +1187,14 @@ async function toggleNotifs(){
 
 /* ── late INIT (js/10 loads last, so calls here see every module) ── */
 try{navApplyCollapse();}catch(e){} // the js/09 call runs before this file loads — THIS one is the real startup apply
+
+/* ── desktop sidebar hide/show (hamburger in the topbar) ── */
+function sbToggle(){
+  const hide=!document.body.classList.contains('sbhidden');
+  document.body.classList.toggle('sbhidden',hide);
+  try{localStorage.setItem('hs_sb_hidden',hide?'1':'0');}catch(e){}
+}
+try{if(localStorage.getItem('hs_sb_hidden')==='1')document.body.classList.add('sbhidden');}catch(e){}
 try{
   setTimeout(()=>{if(SB&&SBUSER)nPoll();},5000);
   setInterval(()=>{if(SB&&SBUSER)nPoll();},90000);

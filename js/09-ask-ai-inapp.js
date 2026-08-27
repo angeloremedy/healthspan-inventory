@@ -198,6 +198,7 @@ async function sbLoadProfile(user){
   ROLE=(SBPROFILE&&SBPROFILE.role)||'sales';
   try{localStorage.setItem('hs_role_cache',ROLE);localStorage.setItem('hs_name_cache',(SBPROFILE&&SBPROFILE.name)||'');}catch(e){}
   const g=$('rolegate');if(g)g.style.display='none';
+  document.body.classList.add('authed'); // mobile bars render only when signed in
   document.body.classList.toggle('role-sales',ROLE==='sales');
   document.body.classList.toggle('role-manager',ROLE==='manager');
   try{await loadAcctLinks(true);}catch(e){} // curated merges/branches apply everywhere
@@ -224,6 +225,7 @@ async function sbLoadProfile(user){
 }
 function showSbLogin(err){
   const g=$('rolegate');if(!g)return;
+  document.body.classList.remove('authed'); // signed out / expired: hide app chrome
   g.style.display='flex';
   g.innerHTML='<div style="background:var(--sf);border:1px solid var(--bd);border-radius:16px;padding:32px 36px;max-width:360px;width:90%;text-align:center">'+
     '<div style="display:flex;justify-content:center;margin-bottom:12px">'+hsLogo(52,'var(--ac)')+'</div>'+
