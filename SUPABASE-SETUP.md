@@ -311,6 +311,13 @@ alter table public.visits add column if not exists products text;
 Specialists tag which products they endorsed during a visit; shows in recent
 visits, account timelines, and specialist pages ("bida: …").
 
+## Account ownership (PRD Phase A) + catalog deal definitions
+
+```sql
+alter table public.accounts add column if not exists owner_tag text;
+alter table public.items add column if not exists deals text;  -- JSON: [{"buy":5,"free":1,"price":237500}]
+```
+
 ## Review scorecards (quarterly performance reviews)
 
 ```sql

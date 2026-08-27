@@ -178,17 +178,19 @@ function renderCustomers(){
       '<div class="met pu" onclick="window._custFilter=\'prospects\';renderCustomers()" style="cursor:pointer"><div class="met-lbl">Shopify-only / prospects</div><div class="met-val">'+rows.filter(r=>r.src==='shopify'||r.src==='prospect').length+'</div><div class="met-sub">not yet in the OUT sheet — tap to work the list</div><div class="met-bar"></div></div>'+
       '</div>'+
       '<div class="tabs" style="margin-bottom:12px">'+tabs2.map(([k,l])=>'<div class="tab'+(k==='all'?' active':'')+'" onclick="window._custFilter=\''+k+'\';renderCustomers()">'+l+'</div>').join('')+'</div>'+
-      '<div class="tcard"><div class="tscroll"><table><thead><tr><th>#</th><th>Account</th><th style="text-align:center">Health</th><th style="text-align:right">Shipped ₱</th><th style="text-align:right">Booked ₱ (13mo)</th><th style="text-align:right">Booked ₱ 90d</th><th style="text-align:right">Last activity</th></tr></thead><tbody>'+
+      '<div class="tcard"><div class="tscroll"><table><thead><tr><th>#</th><th>Account</th><th style="text-align:center">Health</th><th>Owner</th><th style="text-align:right">Shipped ₱</th><th style="text-align:right">Booked ₱ (13mo)</th><th style="text-align:right">Booked ₱ 90d</th><th style="text-align:right">Last activity</th></tr></thead><tbody>'+
       (function(){const arSet=NORDERS?arOverdueSet():null;
       return rows.map((r,i)=>{const h=healthOf(r,arSet);
         return '<tr onclick="showAccountPage(\''+esc(r.name).replace(/\'/g,'&#39;')+'\')" style="cursor:pointer'+(r.e.isRemedy?';background:var(--sf2)':'')+'"><td class="mu">'+(i+1)+'</td>'+
         '<td style="font-weight:600;max-width:250px;overflow:hidden;text-overflow:ellipsis">'+esc(r.name)+(r.branches?' <span class="pill pbl">'+r.branches+' branches</span>':'')+(r.e.isRemedy?' <span class="pill pbl">sister co.</span>':'')+(r.src==='prospect'?' <span class="pill" style="background:rgba(127,119,221,.15);color:var(--pu)">prospect</span>':'')+'</td>'+
         '<td style="text-align:center"><span title="'+esc(h.why)+'" style="font-weight:700;color:'+h.c+'">'+h.s+'</span></td>'+
+        '<td>'+(canManage()?ownerSelHTML(r.name):esc(ownerOf(r.name)||'—'))+'</td>'+
         '<td class="r">'+(r.shipped?fmtPeso(r.shipped):'—')+'</td><td class="r" style="font-weight:600">'+(r.booked?fmtPeso(r.booked):'—')+'</td>'+
         '<td class="r mu">'+(r.v90?fmtPeso(r.v90):'—')+'</td>'+
         '<td class="r mu" style="font-size:11px">'+esc(r.last||'—')+'</td></tr>';}).join('');})()+
       '</tbody></table></div><div class="tfooter"><span>One row per account, merged by name across Verna’s OUT sheet, Shopify, and the visit log · Health 0–100: recency + 90-day bookings + overdue AR + visit history (hover the number for reasons) — green ≥75, amber ≥45 · tap a row for the full profile</span></div></div>';
     if(!NORDERS)loadNativeOrders().then(()=>{if(currentView==='customers'&&(window._custFilter||'all')==='all')renderCustomers();}); // health improves once AR data lands
+    if(!OWNERS)loadOwners().then(()=>{if(currentView==='customers'&&(window._custFilter||'all')==='all')renderCustomers();});
     return;
   }
   const totVal=all.reduce((a,c)=>a+c.value,0);

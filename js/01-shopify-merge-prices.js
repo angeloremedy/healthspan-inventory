@@ -245,6 +245,7 @@ const DESC={
   logvisit:'For the product specialists, from the iPad: log every doctor/clinic visit in ~10 seconds — even when there’s no order. Pick your name once and it’s remembered. Logged visits count toward Field coverage and build Healthspan’s own visit history (the start of our own CRM).',
   ar:'Who owes what, and for how long: every unpaid balance bucketed into current / 31–60 / 61–90 / 90+ days, per account. Ages count from the order date plus any terms noted on the order (e.g. “PDC 30 days” — parsed from Shopify notes automatically). Payment statuses come from Shopify (accounting marks paid there); re-running the backfill syncs them. Record payments on HS-orders from their order page.',
   spec:'One specialist’s whole world: this month vs target, the calendar of planned and logged visits plus orders (tap any day), monthly sales chart with the target line, top products, open follow-ups and recent activity. Specialists land here on sign-in; managers and admins reach it from the Specialists view.',
+  recall:'The one-bad-day feature: enter a SKU and/or batch number and get every clinic that ever received it — dates, quantities, order refs — as a printable contact list. Sources: every OUT-sheet shipment row plus the platform ledger. Fast, complete, and audited.',
   scorecards:'Quarterly performance reviews, filled from the numbers instead of memory: booked vs target, trend vs the previous quarter, visits, accounts touched, and peso-per-visit efficiency — plus a rating and comments per specialist that save per quarter. Print all for the review meeting. Managers and admins only; comments are never shown to specialists in-app.',
   salesdue:'Accounts past their usual buying rhythm. The cycle is learned from each account’s own order history (median gap between orders, 3+ orders needed). They buy on rhythm — a call today is the reminder that beats the competitor’s. Specialists see their own accounts; managers see everyone’s.',
   catalog:'The item master — products, prices, costs, and barcodes owned in-app. While in shadow mode, Shopify still prices the app; use this page to fix drift (⚠ rows) and add costs, then declare pricing independence on the Cutover switches page. Costs entered here unlock margin reporting.',
@@ -544,6 +545,7 @@ function applySync(data){
   else if(currentView==='scan') renderScan();
   else if(currentView==='cutover') renderCutover();
   else if(currentView==='scorecards') renderScorecards();
+  else if(currentView==='recall') renderRecall();
   else if(currentView==='campaigns') renderCampaigns();
   else if(currentView==='planreview') renderPlanReview();
   else renderTable();
@@ -591,6 +593,13 @@ async function syncNow(){
     const tmo=setTimeout(()=>ctrl.abort(),45000);
     const r=await fetch('/.netlify/functions/refresh',{method:'POST',headers:await sbAuthHeaders({'Content-Type':'application/json'}),body:'{}',signal:ctrl.signal});
     clearTimeout(tmo);
+    if(r.status===401){ // not signed in yet — quiet state, sbLoadProfile will re-sync
+      if(btn) btn.className='sync-btn';
+      if(lbl) lbl.textContent='Sign in to sync';
+      updateMobileSync('','Sign in to sync');
+      setProgress(0,'',0);
+      return;
+    }
     if(!r.ok) throw new Error('Server returned '+r.status);
     setProgress(90,'Applying data...',5);
     const data=await r.json();

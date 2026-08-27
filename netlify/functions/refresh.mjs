@@ -98,6 +98,38 @@ export const handler=async(event,context)=>{
   const authFail=await requireUser(event);
   if(authFail)return{statusCode:authFail.code,headers:hdrs,body:JSON.stringify({error:authFail.error})};
   const KEY=process.env.GOOGLE_API_KEY||'';
+
+  // ── BATCH RECALL TRACE: ?trace=1&sku=..&batch=.. → every shipment of that batch
+  const qp=event.queryStringParameters||{};
+  if(qp.trace==='1'){
+    if(!KEY)return{statusCode:500,headers:hdrs,body:JSON.stringify({error:'GOOGLE_API_KEY not set'})};
+    const wantSku=String(qp.sku||'').trim().toLowerCase();
+    const wantBatch=String(qp.batch||'').trim().toLowerCase();
+    if(!wantSku&&!wantBatch)return{statusCode:400,headers:hdrs,body:JSON.stringify({error:'Give a sku and/or batch'})};
+    try{
+      const [oSKU,oQTY,oDC,oIK]=await batchFetch(KEY,[
+        {t:'Sending Inventory (OUT)',r:'A'+OUT_START+':A'},
+        {t:'Sending Inventory (OUT)',r:'D'+OUT_START+':D'},
+        {t:'Sending Inventory (OUT)',r:'G'+OUT_START+':H'},
+        {t:'Sending Inventory (OUT)',r:'I'+OUT_START+':K'},
+      ],false);
+      const hits=[];
+      const ol=Math.min(oSKU.length,oQTY.length,oDC.length);
+      for(let i=0;i<ol;i++){
+        const s=clean(oSKU[i]?.[0]);if(!s)continue;
+        const b=clean((oIK[i]||[])[0]);
+        if(wantSku&&s.toLowerCase()!==wantSku)continue;
+        if(wantBatch&&b.toLowerCase()!==wantBatch)continue;
+        if(!wantBatch&&!b)continue; // sku-only trace still needs batch context
+        const q=pInt(oQTY[i]?.[0]);if(q<=0)continue;
+        const ds=oDC[i]?.[0];
+        const date=(typeof ds==='number'&&ds>1)?new Date((ds-25569)*86400000).toISOString().slice(0,10):null;
+        hits.push({sku:s,batch:b||'—',date,customer:String(oDC[i]?.[1]||'').trim(),qty:q,order:clean((oIK[i]||[])[2])||null,expiry:(typeof (oIK[i]||[])[1]==='number')?serialExp((oIK[i]||[])[1]):clean((oIK[i]||[])[1])});
+      }
+      hits.sort((a,b)=>(b.date||'')<(a.date||'')?-1:1);
+      return{statusCode:200,headers:hdrs,body:JSON.stringify({hits:hits.slice(0,500),total:hits.length})};
+    }catch(err){return{statusCode:500,headers:hdrs,body:JSON.stringify({error:err.message})};}
+  }
   if(!KEY)return{statusCode:500,headers:hdrs,body:JSON.stringify({error:'GOOGLE_API_KEY not set'})};
   const t0=Date.now();
   try{

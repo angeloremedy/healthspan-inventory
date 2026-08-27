@@ -339,7 +339,10 @@ async function loadItems(force){
 function applyCatalog(){ // when independent, the item master overrides prices everywhere
   try{
     if(!flagOn('use_catalog_pricing')||!ITEMS||!(DATA&&DATA.length))return;
-    for(const p of DATA){const it=ITEMS[p.sku];if(it&&it.active!==false&&it.price!=null){p.price=it.price;p.priceSrc='catalog';}}
+    for(const p of DATA){const it=ITEMS[p.sku];if(!it||it.active===false)continue;
+      if(it.price!=null){p.price=it.price;p.priceSrc='catalog';}
+      if(it.deals){try{const ds=JSON.parse(it.deals);if(ds.length)p.deals=ds.map(d=>({title:d.buy+'+'+d.free+' '+(it.name||p.name),setSize:d.buy+d.free,price:d.price}));}catch(e){}}
+    }
   }catch(e){}
 }
 async function renderCatalog(){
@@ -358,7 +361,7 @@ async function renderCatalog(){
     '<button onclick="catalogSeed()" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer">⇩ Import current catalog</button>'+
     '<button onclick="catalogAdd()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer">+ New item</button></div>'+
     '<div id="cat-msg" style="min-height:14px;font-size:12px;margin-bottom:6px"></div>'+
-    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>SKU</th><th>Name</th><th>Line</th><th style="text-align:right">Price ₱</th><th style="text-align:right">Shopify ₱</th><th style="text-align:right">Cost ₱</th><th style="text-align:right">Margin</th><th>Barcode</th><th></th></tr></thead><tbody>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>SKU</th><th>Name</th><th>Line</th><th style="text-align:right">Price ₱</th><th style="text-align:right">Shopify ₱</th><th style="text-align:right">Cost ₱</th><th style="text-align:right">Margin</th><th>Deals</th><th>Barcode</th><th></th></tr></thead><tbody>'+
     (items.length?items.map(it=>{
       const sp=shopP[it.sku];
       const drift=sp&&it.price!=null&&Math.round(sp)!==it.price;
@@ -370,9 +373,10 @@ async function renderCatalog(){
       '<td class="r '+(drift?'':'mu')+'" style="'+(drift?'color:var(--am);font-weight:700':'')+'">'+(sp?fmtPeso(sp):'—')+(drift?' ⚠':'')+'</td>'+
       '<td class="r"><input type="number" value="'+(it.cost!=null?it.cost:'')+'" onchange="catalogSet(\''+esc(it.sku)+'\',\'cost\',this.value)" '+inp+'></td>'+
       '<td class="r" style="font-weight:600">'+mg+'</td>'+
+      (function(){let n=0;try{n=JSON.parse(it.deals||'[]').length;}catch(e){}return '<td><a href="#" onclick="catalogDeals(\''+esc(it.sku)+'\');return false" style="color:var(--ac);font-size:11px">'+(n?n+' deal'+(n>1?'s':''):'+ deals')+'</a></td>';})()+
       '<td><input value="'+esc(it.barcode||'')+'" placeholder="scan code" onchange="catalogSet(\''+esc(it.sku)+'\',\'barcode\',this.value)" style="width:120px;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:7px 9px;font-size:11.5px"></td>'+
       '<td><a href="#" onclick="catalogSet(\''+esc(it.sku)+'\',\'active\','+(it.active===false?'true':'false')+');return false" style="color:'+(it.active===false?'var(--gr)':'var(--tx3)')+';font-size:11px">'+(it.active===false?'activate':'deactivate')+'</a></td></tr>';
-    }).join(''):'<tr><td colspan="9"><div class="empty">Empty — tap “Import current catalog” to seed every product with its current sheet/Shopify data, then add costs.</div></td></tr>')+
+    }).join(''):'<tr><td colspan="10"><div class="empty">Empty — tap “Import current catalog” to seed every product with its current sheet/Shopify data, then add costs.</div></td></tr>')+
     '</tbody></table></div><div class="tfooter"><span>⚠ = price here differs from Shopify (drift to resolve before independence) · costs enable true margin reporting · barcode links a scan code to the SKU for the Scan view · edits save instantly and are audited</span></div></div>';
 }
 async function catalogSeed(){
@@ -453,7 +457,7 @@ function renderSalesDue(){
     const since=Math.floor((today-new Date(last).getTime())/864e5);
     if(since<cycle*1.25)continue; // not overdue yet
     if(since>cycle*6)continue;    // long-lost — that's the dormant list's job
-    const spec=Object.entries(e.spec).sort((a,b)=>b[1]-a[1]).map(x=>x[0])[0]||'';
+    const spec=ownerOf(e.name)||Object.entries(e.spec).sort((a,b)=>b[1]-a[1]).map(x=>x[0])[0]||'';
     if(myTag&&specCanon(spec).toLowerCase()!==specCanon(myTag).toLowerCase())continue; // specialists see their own
     rows.push({name:e.name,cycle,last,since,over:since-cycle,spec,val:e.val,orders:ds.length});
   }

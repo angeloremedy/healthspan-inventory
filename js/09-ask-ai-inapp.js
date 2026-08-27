@@ -178,7 +178,7 @@ async function sbLoadProfile(user){
   try{await loadFlags(true);if(flagOn('use_catalog_pricing')){await loadItems(true);applyCatalog();}}catch(e){} // cutover switches
   try{maybeSnapshotForecast();}catch(e){}   // monthly forecast freeze (runs if data is ready)
   // endpoints are session-locked: pull anything that failed before sign-in
-  try{if(!DATA||!DATA.length)syncNow();}catch(e){}
+  try{syncNow();}catch(e){}
   try{if(!SHOPIFY)loadShopify();}catch(e){}
   try{if(!VISITS)loadVisits();}catch(e){}
   const sf=$('sf-foot');
@@ -238,5 +238,5 @@ initTheme();
 initAuth();
 (function(){const b=document.getElementById('tipsBtn');if(b)b.style.opacity=TIPS_ON?'1':'0.55';})();
 $('sf-foot').innerHTML='Loading... <a href="#" onclick="syncNow();return false" style="color:var(--ac)">load data</a>';
-setTimeout(syncNow,300);
+// boot sync removed: endpoints are session-locked — sbLoadProfile() syncs right after sign-in
 

@@ -402,6 +402,7 @@ function showAccountPage(name){
 async function renderAccountPage(){
   const name=CUR_ACCT;if(!name){showView(ACCT_BACK);return;}
   await loadVisits();
+  try{await loadOwners();}catch(e){}
   if(!ACCTBYNORM)buildAcctIdx();
   const e=ACCTBYNORM[custNorm(acctDedup(name))]||{name:acctDedup(name),names:new Set([name]),sheet:null,shop:null,visitN:0,lastVisit:'',children:null};
   let acct=null;
@@ -447,6 +448,7 @@ async function renderAccountPage(){
     (e.isRemedy?'<span class="pill pbl">sister co.</span>':'')+
     (e.shop?'':'<span class="pill pgy">no Shopify orders</span>')+
     (openFu?'<span class="pill prd">'+openFu+' open follow-up'+(openFu>1?'s':'')+'</span>':'')+
+    (canManage()?ownerSelHTML(name):(ownerOf(name)?'<span class="pill pbl">owner: '+esc(ownerOf(name))+'</span>':''))+
     (aliases.length>1?'<span class="pill pgy" title="'+esc(aliases.join(' / '))+'">'+aliases.length+' name spellings merged</span>':'')+
     '<span style="flex:1"></span>'+
     '<button onclick="showStatement(\''+esc(name).replace(/'/g,'&#39;')+'\')" title="Printable statement of account: orders, payments, balance, aging" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer">🖨 Statement</button>'+
