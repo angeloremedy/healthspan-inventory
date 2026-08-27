@@ -409,6 +409,9 @@ body.role-manager #nav-admin-lbl,body.role-manager .ni[onclick*="'users'"]{displ
     <div class="ni" onclick="showView('variability',this)"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l3-4 3 3 4-6"/></svg>Demand variability</div>
     <div class="ni" onclick="showView('abc',this)"><svg viewBox="0 0 24 24"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>ABC analysis</div>
     <div class="ni" onclick="showView('writeoff',this)"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r="1" fill="currentColor"/></svg>Write-off forecast<span class="nbadge" id="b-wo">0</span></div>
+    <div class="ni" onclick="showView('fcastacc',this)"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 12l3 3 7-7"/></svg>Forecast accuracy</div>
+    <div class="ni" onclick="showView('campaigns',this)"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 15l2 2 4-4"/></svg>Campaign calendar</div>
+    <div class="ni" onclick="showView('planreview',this)"><svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 1 7 7c0 2.5-1.5 4-2.5 5.5S15 17 15 18H9c0-1-.5-2-1.5-3.5S5 11.5 5 9a7 7 0 0 1 7-7z"/><line x1="9" y1="21" x2="15" y2="21"/></svg>AI planning review</div>
     <div class="nlbl">Simulators</div>
     <div class="ni" onclick="showView('whatif',this)"><svg viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>What-if simulator</div>
     <div class="ni" onclick="showView('simpromo',this)"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Promo rescue</div>
@@ -683,6 +686,9 @@ const DESC={
   logvisit:'For the product specialists, from the iPad: log every doctor/clinic visit in ~10 seconds — even when there’s no order. Pick your name once and it’s remembered. Logged visits count toward Field coverage and build Healthspan’s own visit history (the start of our own CRM).',
   ar:'Who owes what, and for how long: every unpaid balance bucketed into current / 31–60 / 61–90 / 90+ days, per account. Ages count from the order date plus any terms noted on the order (e.g. “PDC 30 days” — parsed from Shopify notes automatically). Payment statuses come from Shopify (accounting marks paid there); re-running the backfill syncs them. Record payments on HS-orders from their order page.',
   spec:'One specialist’s whole world: this month vs target, the calendar of planned and logged visits plus orders (tap any day), monthly sales chart with the target line, top products, open follow-ups and recent activity. Specialists land here on sign-in; managers and admins reach it from the Specialists view.',
+  fcastacc:'The honest test of the forecast: at the start of each month the model’s prediction per SKU is frozen; a month later it’s scored against what actually moved. MAPE = average % miss per SKU. Big misses at the top are where the model — or an unplanned event — needs a look. This history is what any smarter forecasting must beat.',
+  campaigns:'Planned promos and campaigns as a demand signal. Anything added here shows as a banner on the stockout forecast and feeds the AI planning review, so a "10+8 anniversary promo" stops being a forecast surprise. Precursor to the full promotions engine.',
+  planreview:'Demand planning AI: walks every SKU (stock, velocity, days-to-stockout, expiry) plus the campaign calendar and recent forecast misses, then reports the exceptions — stockout risks, expiry money, and 5 prioritized actions. An analyst, not an oracle: sanity-check quantities before ordering.',
   targets:'Set each product specialist’s monthly peso target (admins & sales managers). Values saved here override the sheet/corporate numbers for that specialist and month across the whole app — Vs target, the Specialists view, and each specialist’s own page. Blank rows keep the sheet value; "Copy from last month" pre-fills, then adjust and save.',
   audit:'Every change, logged automatically: orders created and fulfilled, payments recorded, shipments dispatched, accounts merged, users managed — who did it and when. The paper trail for when a number looks off.',
   users:'Create, edit, and disable team accounts without opening Supabase. Add someone with a starter password, change roles and specialist tags, reset passwords, and disable accounts (kept, just blocked from signing in). Disabled accounts can be re-enabled any time.',
@@ -904,6 +910,7 @@ function applySync(data){
   COLLISIONS=data.collisions||[];
   TARGETS=data.targets||[];
   try{mergeSpecTargets();}catch(e){} // in-app targets override sheet targets
+  try{maybeSnapshotForecast();}catch(e){} // monthly forecast freeze for MAPE scoring
   ACCT=data.acctBooked||null;
   if(SHOPIFY)mergeShopify(); else loadShopify();
   $('psub').textContent='Healthspan Global, Inc. \u00b7 '+DATA.length+' SKUs \u00b7 '+BATCHES.length+' batches';
@@ -960,6 +967,9 @@ function applySync(data){
   else if(currentView==='home') renderHome();
   else if(currentView==='audit') renderAudit();
   else if(currentView==='targets') renderTargets();
+  else if(currentView==='fcastacc') renderFcastAcc();
+  else if(currentView==='campaigns') renderCampaigns();
+  else if(currentView==='planreview') renderPlanReview();
   else renderTable();
   injectDesc(currentView);
   injectCalc(currentView);
@@ -1047,7 +1057,7 @@ function showView(v,el){
            simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator',
            simmonte:'Monte Carlo stockout risk',simproject:'12-month projection',simcash:'Cash-flow timeline',simbulk:'Bulk-buy trade-off',simbranch:'Remedy branch rebalancing',
            aged:'Aged inventory',shrinkage:'Shrinkage tracker',cashexpiry:'Cash in expiring stock',branchtransfer:'Remedy branch shipments',branchexpiry:'Remedy branch expiry watch',
-           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt',targets:'Set targets'};
+           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt',targets:'Set targets',fcastacc:'Forecast accuracy',campaigns:'Campaign calendar',planreview:'AI planning review'};
   $('ptitle').textContent=T[v]||v;
   if(v==='dashboard') renderDashboard();
   else if(v==='action') renderActionCenter();
@@ -1099,6 +1109,9 @@ function showView(v,el){
   else if(v==='home') renderHome();
   else if(v==='audit') renderAudit();
   else if(v==='targets') renderTargets();
+  else if(v==='fcastacc') renderFcastAcc();
+  else if(v==='campaigns') renderCampaigns();
+  else if(v==='planreview') renderPlanReview();
   else renderTable(v);
   injectDesc(v);
   injectCalc(v);
@@ -1937,6 +1950,171 @@ async function renderAudit(){
     '</tbody></table></div><div class="tfooter"><span>Latest '+rows.length+' events · orders, payments, shipments, merges, and account management are logged automatically</span></div></div>';
 }
 
+/* ── DEMAND PLANNING: forecast snapshots (MAPE), campaign calendar, AI review ── */
+// 1) Once a month, freeze what the model predicts per SKU. Next month, the change in
+//    cumulative sold units becomes the "actual" — forecast vs reality, honestly scored.
+async function maybeSnapshotForecast(){
+  try{
+    if(window._fsnapDone||!SB||!SBUSER||!canManage()||!(DATA&&DATA.length))return;
+    window._fsnapDone=true;
+    const ym=new Date().toISOString().slice(0,7);
+    const {count}=await SB.from('forecast_snapshots').select('sku',{count:'exact',head:true}).eq('month',ym);
+    if(count>0)return;
+    const rows=DATA.filter(p=>((p.velAdj||0)>0||(p.velocity||0)>0)&&p.sku).map(p=>({
+      month:ym,sku:p.sku,name:p.name||p.sku,
+      forecast_units:Math.round(((p.velAdj!=null?p.velAdj:p.velocity)||0)*10)/10,
+      sold_cum:p.sold||0}));
+    if(!rows.length)return;
+    for(let i=0;i<rows.length;i+=200)await SB.from('forecast_snapshots').upsert(rows.slice(i,i+200));
+    // score LAST month: actual = this capture's cumulative sold − last capture's
+    const d=new Date(ym+'-15');d.setMonth(d.getMonth()-1);const prev=d.toISOString().slice(0,7);
+    const {data:prevRows}=await SB.from('forecast_snapshots').select('sku,sold_cum,actual_units').eq('month',prev);
+    if(prevRows&&prevRows.length){
+      const cur={};rows.forEach(r=>cur[r.sku]=r.sold_cum);
+      const upd=prevRows.filter(r=>r.actual_units==null&&cur[r.sku]!=null).map(r=>({month:prev,sku:r.sku,actual_units:Math.max(0,(cur[r.sku]||0)-(r.sold_cum||0))}));
+      for(let i=0;i<upd.length;i+=200)await SB.from('forecast_snapshots').upsert(upd.slice(i,i+200));
+    }
+    audit('forecast.snapshot',{month:ym,skus:rows.length});
+  }catch(e){}
+}
+async function renderFcastAcc(){
+  if(!canManage()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only.</div>';return;}
+  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  maybeSnapshotForecast();
+  let rows=[];
+  try{const {data}=await SB.from('forecast_snapshots').select('month,sku,name,forecast_units,actual_units').order('month',{ascending:false}).limit(5000);rows=data||[];}
+  catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Could not load — has the forecast_snapshots table been created? (SUPABASE-SETUP.md)</div>';return;}
+  const scored=rows.filter(r=>r.actual_units!=null);
+  const months=[...new Set(scored.map(r=>r.month))].sort().reverse();
+  if(!months.length){
+    const ym=new Date().toISOString().slice(0,7);
+    const captured=rows.filter(r=>r.month===ym).length;
+    $('content').innerHTML='<div class="empty" style="margin-top:40px">No scored months yet.<br><br>'+
+      (captured?'This month’s forecast ('+captured+' SKUs) is frozen — the first accuracy scores appear after next month’s snapshot.':'The first snapshot is captured automatically when an admin or manager opens the app each month.')+'</div>';
+    return;
+  }
+  const sel=window._faMonth&&months.includes(window._faMonth)?window._faMonth:months[0];window._faMonth=sel;
+  const scoreMonth=m=>{
+    const rs=scored.filter(r=>r.month===m&&r.actual_units>0);
+    if(!rs.length)return null;
+    const mape=rs.reduce((a,r)=>a+Math.abs(r.forecast_units-r.actual_units)/r.actual_units,0)/rs.length*100;
+    const bias=rs.reduce((a,r)=>a+(r.forecast_units-r.actual_units),0);
+    const fu=rs.reduce((a,r)=>a+r.forecast_units,0),au=rs.reduce((a,r)=>a+r.actual_units,0);
+    return {n:rs.length,mape,bias,fu,au,wape:au?Math.abs(fu-au)/au*100:0};
+  };
+  const cur=scoreMonth(sel);
+  const mrows=scored.filter(r=>r.month===sel).map(r=>({...r,err:r.actual_units>0?Math.abs(r.forecast_units-r.actual_units)/r.actual_units*100:null}))
+    .sort((a,b)=>(b.err??-1)-(a.err??-1));
+  $('content').innerHTML=
+    '<div class="panel" style="padding:12px 16px;margin-bottom:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><b style="font-size:13px">Month</b>'+
+    '<select onchange="window._faMonth=this.value;renderFcastAcc()" style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:7px 9px;font-size:12.5px">'+months.map(m=>'<option'+(m===sel?' selected':'')+'>'+m+'</option>').join('')+'</select>'+
+    '<span style="font-size:11px;color:var(--tx3)">forecast frozen at the start of each month, scored against what actually moved</span></div>'+
+    (cur?'<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met bl"><div class="met-lbl">MAPE</div><div class="met-val">'+cur.mape.toFixed(0)+'%</div><div class="met-sub">avg per-SKU error ('+cur.n+' SKUs)</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Total-units error</div><div class="met-val">'+cur.wape.toFixed(0)+'%</div><div class="met-sub">forecast '+Math.round(cur.fu).toLocaleString()+' vs actual '+Math.round(cur.au).toLocaleString()+' u</div><div class="met-bar"></div></div>'+
+    '<div class="met '+(cur.bias>=0?'am':'pu')+'"><div class="met-lbl">Bias</div><div class="met-val">'+(cur.bias>=0?'+':'')+Math.round(cur.bias).toLocaleString()+' u</div><div class="met-sub">'+(cur.bias>=0?'over-forecasting':'under-forecasting')+' overall</div><div class="met-bar"></div></div>'+
+    '<div class="met"><div class="met-lbl">Months scored</div><div class="met-val">'+months.length+'</div><div class="met-sub">history builds automatically</div><div class="met-bar"></div></div>'+
+    '</div>':'')+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Product</th><th style="text-align:right">Forecast</th><th style="text-align:right">Actual</th><th style="text-align:right">Error</th><th></th></tr></thead><tbody>'+
+    mrows.map(r=>'<tr><td style="font-weight:600">'+esc(r.name||r.sku)+'</td><td class="r">'+r.forecast_units+'</td><td class="r">'+r.actual_units+'</td>'+
+      '<td class="r" style="font-weight:600;color:'+(r.err==null?'var(--tx3)':r.err>50?'var(--rd)':r.err>25?'var(--am)':'var(--gr)')+'">'+(r.err==null?'—':r.err.toFixed(0)+'%')+'</td>'+
+      '<td class="mu" style="font-size:11px">'+(r.err==null?(r.forecast_units>0&&!r.actual_units?'forecast but zero moved':''):r.forecast_units>r.actual_units?'over':'under')+'</td></tr>').join('')+
+    '</tbody></table></div><div class="tfooter"><span>MAPE = mean absolute % error on SKUs that actually sold · big misses at the top — those are the SKUs where the model (or an unplanned event) needs a look · the AI planning review reads these numbers too</span></div></div>';
+}
+
+// 2) Campaign calendar — planned promos/campaigns as a demand signal
+let CAMPAIGNS=null;
+async function loadCampaigns(force){
+  if(CAMPAIGNS&&!force)return CAMPAIGNS;
+  CAMPAIGNS=[];
+  if(SB){try{const {data}=await SB.from('campaigns').select('*').order('from_date',{ascending:false}).limit(200);CAMPAIGNS=data||[];}catch(e){}}
+  return CAMPAIGNS;
+}
+async function renderCampaigns(){
+  if(!canManage()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only.</div>';return;}
+  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  await loadCampaigns(true);
+  const today=new Date().toISOString().slice(0,10);
+  const inp='style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;font-size:12.5px"';
+  const state=c=>c.to_date<today?'<span class="pill pgy">done</span>':c.from_date>today?'<span class="pill pbl">upcoming</span>':'<span class="pill pgr">running</span>';
+  $('content').innerHTML=
+    '<div class="panel" style="padding:14px 16px;margin-bottom:14px"><div class="phd">Add campaign / promo</div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+
+    '<input id="cp-name" placeholder="Name (e.g. Anniversary 10+8)" '+inp+' style="flex:1;min-width:160px;'+inp.slice(7,-1)+'">'+
+    '<input id="cp-from" type="date" '+inp+'><span style="font-size:12px;color:var(--tx3)">to</span><input id="cp-to" type="date" '+inp+'>'+
+    '<input id="cp-skus" placeholder="SKUs / lines affected (free text)" '+inp+' style="flex:1;min-width:160px;'+inp.slice(7,-1)+'">'+
+    '<input id="cp-up" type="number" placeholder="expected uplift %" '+inp+' style="width:130px;'+inp.slice(7,-1)+'">'+
+    '<button onclick="campaignAdd()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer">Add</button></div></div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Campaign</th><th>Runs</th><th>Status</th><th>SKUs / lines</th><th style="text-align:right">Expected uplift</th><th></th></tr></thead><tbody>'+
+    ((CAMPAIGNS||[]).map(c=>'<tr><td style="font-weight:600">'+esc(c.name)+'</td><td class="mu" style="font-size:11.5px">'+esc(c.from_date)+' → '+esc(c.to_date)+'</td><td>'+state(c)+'</td>'+
+      '<td class="mu" style="font-size:11.5px;max-width:240px;overflow:hidden;text-overflow:ellipsis">'+esc(c.skus||'all')+'</td>'+
+      '<td class="r">'+(c.uplift_pct!=null?'+'+c.uplift_pct+'%':'—')+'</td>'+
+      '<td><a href="#" onclick="campaignDel('+c.id+');return false" style="color:var(--rd);font-size:11px">remove</a></td></tr>').join('')||'<tr><td colspan="6"><div class="empty">No campaigns yet — add the next promo so the forecast and the AI review can see it coming.</div></td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>Active & upcoming campaigns show as a banner on the stockout forecast and feed the AI planning review · precursor to the full promotions engine on the roadmap</span></div></div>';
+}
+async function campaignAdd(){
+  if(!canManage()||!SB)return;
+  const g=id=>($(id)&&$(id).value||'').trim();
+  if(!g('cp-name')||!g('cp-from')||!g('cp-to'))return alert('Need a name and both dates.');
+  try{
+    const {error}=await SB.from('campaigns').insert({name:g('cp-name'),from_date:g('cp-from'),to_date:g('cp-to'),skus:g('cp-skus')||null,uplift_pct:g('cp-up')?parseInt(g('cp-up'),10):null,created_by:(SBUSER&&SBUSER.id)||null});
+    if(error)throw error;
+    audit('campaign.add',{name:g('cp-name'),from:g('cp-from'),to:g('cp-to')});
+    renderCampaigns();
+  }catch(e){alert('Could not save: '+(e.message||e)+(String(e.message||'').includes('campaigns')?'\n\n(Run the campaigns SQL from SUPABASE-SETUP.md.)':''));}
+}
+async function campaignDel(id){
+  if(!canManage()||!SB||!confirm('Remove this campaign?'))return;
+  try{const {error}=await SB.from('campaigns').delete().eq('id',id);if(error)throw error;renderCampaigns();}catch(e){alert(e.message||e);}
+}
+
+// 3) AI planning review — the existing Ask AI worker walks the whole catalog and
+//    reports exceptions in plain language (stock risks, misses, campaign impacts)
+async function renderPlanReview(){
+  if(!canManage()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only.</div>';return;}
+  $('content').innerHTML=
+    '<div class="panel" style="padding:18px;max-width:760px">'+
+    '<div class="phd">AI planning review</div>'+
+    '<div style="font-size:12.5px;color:var(--tx2);margin-bottom:12px">The AI walks every SKU — stock, velocity, days-to-stockout, expiry — plus the campaign calendar and last month’s forecast accuracy, and reports what needs attention: stockout risks, overstock/expiry money, forecast misses, and what to do about each. Takes ~30–60 seconds on the smart model.</div>'+
+    '<button id="pr-btn" onclick="runPlanReview()" style="background:var(--ac);color:#fff;border:none;border-radius:10px;padding:12px 22px;font-size:13.5px;font-weight:700;cursor:pointer">Run planning review</button>'+
+    '<div id="pr-out" style="margin-top:16px;font-size:13px;line-height:1.65"></div></div>';
+}
+async function runPlanReview(){
+  const btn=$('pr-btn'),out=$('pr-out');
+  if(!out||btn.disabled)return;
+  btn.disabled=true;btn.textContent='Reviewing…';
+  out.innerHTML='<span style="color:var(--tx3)">Gathering the catalog, campaigns, and accuracy history…</span>';
+  try{
+    await loadCampaigns();
+    let acc='';
+    try{
+      const {data}=await SB.from('forecast_snapshots').select('month,name,forecast_units,actual_units').not('actual_units','is',null).order('month',{ascending:false}).limit(300);
+      const scored=(data||[]).filter(r=>r.actual_units>0);
+      if(scored.length){
+        const worst=scored.map(r=>({...r,err:Math.abs(r.forecast_units-r.actual_units)/r.actual_units*100})).sort((a,b)=>b.err-a.err).slice(0,12);
+        acc='\n\nRecent forecast accuracy (worst misses — forecast vs actual units):\n'+worst.map(r=>r.month+' '+r.name+': F'+r.forecast_units+' vs A'+r.actual_units+' ('+r.err.toFixed(0)+'% off)').join('\n');
+      }
+    }catch(e){}
+    const today=new Date().toISOString().slice(0,10);
+    const camps=(CAMPAIGNS||[]).filter(c=>c.to_date>=today);
+    const campTxt=camps.length?'\n\nPlanned/running campaigns (expect demand uplift on these):\n'+camps.map(c=>c.name+' ('+c.from_date+' to '+c.to_date+', '+(c.skus||'all products')+(c.uplift_pct?', ~+'+c.uplift_pct+'%':'')+')').join('\n'):'\n\nNo campaigns planned.';
+    const q='You are Healthspan\'s demand planner doing the monthly planning review. Using the live catalog data you have (stock, velocity, months of stock, days to stockout, expiry, batches), plus the notes below, give a decisive exception report: 1) SKUs at real stockout risk in the next 60 days (consider campaign uplift — flag any campaign SKU that cannot support the promo), 2) overstock and expiry money at risk worth acting on, 3) what last month\'s worst forecast misses suggest (one-off event vs trend change), 4) exactly 5 prioritized actions for Paul with quantities where possible. Be specific with product names and numbers; no preamble; keep it under 450 words.'+campTxt+acc;
+    const r=await fetch('/.netlify/functions/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q,catalog:askCatalog(),history:[]})});
+    const job=await r.json();
+    if(!job.id)throw new Error(job.error||'could not start');
+    let res=null;
+    for(let i=0;i<70;i++){
+      await new Promise(s=>setTimeout(s,2500));
+      if(i===6)out.innerHTML='<span style="color:var(--tx3)">Thinking it through — deep review takes a little longer…</span>';
+      try{const rr=await fetch('/.netlify/functions/ask?id='+job.id);const o=await rr.json();if(!o.pending){res=o;break;}}catch(e){}
+    }
+    if(!res||!res.answer)throw new Error((res&&res.error)||'Timed out — please run it again.');
+    out.innerHTML=askFmt(res.answer)+'<div style="font-size:10.5px;color:var(--tx3);margin-top:12px">Generated '+new Date().toLocaleString()+' · AI analysis over live data — sanity-check quantities before ordering</div>';
+    audit('planning.review',{campaigns:camps.length});
+  }catch(e){out.innerHTML='<span style="color:var(--rd)">Could not complete the review: '+esc(e.message||e)+'</span>';}
+  btn.disabled=false;btn.textContent='Run planning review';
+}
+
 /* ── TARGET SETTING — admins & sales managers set monthly ₱ targets per specialist.
    In-app targets OVERRIDE the sheet/corporate numbers for the same specialist+month;
    every target view and specialist page picks them up automatically. ── */
@@ -2612,6 +2790,7 @@ function renderHome(){
         card(go('salesfield'),'Field coverage','Reach vs universe',HI.pin)]],
       ['Inventory & ops',[
         card(go('dashboard'),'Inventory dashboard','Stock health at a glance',HI.grid),
+        card(go('forecast'),'Days to stockout','Which products run out, when',HI.chart),
         card(go('all'),'All SKUs','Full product list',HI.list),
         card(go('health'),'Data health','Feed & reconciliation checks',HI.scale)]],
       ['Admin',[
@@ -4167,6 +4346,21 @@ function renderForecast(){
       '<td style="font-size:10px;color:var(--tx3)">'+(p.seasonal?'seasonal + trend':'trend only')+'</td></tr>';
     }).join(''):'<tr><td colspan="8"><div class="empty">No SKUs match this filter</div></td></tr>')+
     '</tbody></table></div><div class="tfooter"><span>Forecast = deseasonalized 6-mo base &times; month-of-year index &times; trend growth &middot; stockout simulated month by month</span></div></div>';
+  // campaign banner: promos that will bend these numbers (async, non-blocking)
+  (async()=>{try{
+    await loadCampaigns();
+    const today=new Date().toISOString().slice(0,10);
+    const live=(CAMPAIGNS||[]).filter(c=>c.to_date>=today);
+    const host=$('content');
+    if(live.length&&host&&currentView==='forecast'){
+      const d=document.createElement('div');
+      d.className='panel';
+      d.style.cssText='padding:10px 14px;margin-bottom:14px;border-left:3px solid var(--am);font-size:12px';
+      d.innerHTML='<b>Campaigns ahead:</b> '+live.map(c=>esc(c.name)+' ('+esc(c.from_date)+'→'+esc(c.to_date)+(c.uplift_pct?', ~+'+c.uplift_pct+'%':'')+(c.skus?' on '+esc(c.skus):'')).join(' · ')+
+        ' — expect demand above these baselines. <a href="#" onclick="showView(\'campaigns\',null);return false" style="color:var(--ac)">Calendar</a>';
+      host.insertBefore(d,host.firstChild);
+    }
+  }catch(e){}})();
 }
 
 /* ── REORDER PLAN + BUDGET ── */
@@ -5345,6 +5539,7 @@ async function sbLoadProfile(user){
   document.body.classList.toggle('role-manager',ROLE==='manager');
   try{await loadAcctLinks(true);}catch(e){} // curated merges/branches apply everywhere
   try{loadSpecTargets(true);}catch(e){}     // in-app specialist targets (override sheet)
+  try{maybeSnapshotForecast();}catch(e){}   // monthly forecast freeze (runs if data is ready)
   const sf=$('sf-foot');
   const who=(SBPROFILE&&SBPROFILE.name)||user.email||'';
   if(sf){const old=document.getElementById('rolebadge');if(old)old.remove();
