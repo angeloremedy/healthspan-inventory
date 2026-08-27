@@ -281,18 +281,9 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>
-<!-- ── ROLE GATE: Sales sees only the Sales section, Admin sees everything.
-     Codes live in ROLE_CODES in the script below (search: ROLE PASSCODES). -->
-<div id="rolegate" style="display:none;position:fixed;inset:0;z-index:1000;background:var(--bg);align-items:center;justify-content:center">
-  <div style="background:var(--sf);border:1px solid var(--bd);border-radius:16px;padding:32px 36px;max-width:360px;width:90%;text-align:center">
-    <div style="font-weight:700;font-size:18px;margin-bottom:4px">Healthspan Inventory</div>
-    <div style="font-size:12.5px;color:var(--tx3);margin-bottom:18px">Enter your access code</div>
-    <input id="rolecode" type="password" placeholder="Access code" autocomplete="off"
-      onkeydown="if(event.key==='Enter')enterRole()"
-      style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px 12px;font-size:14px;text-align:center;letter-spacing:2px">
-    <div id="roleerr" style="color:var(--rd);font-size:11.5px;min-height:16px;margin:8px 0 4px"></div>
-    <button onclick="enterRole()" style="width:100%;background:var(--ac);color:#fff;border:none;border-radius:10px;padding:11px;font-size:13.5px;font-weight:600;cursor:pointer">Enter</button>
-  </div>
+<!-- ── SIGN-IN GATE: Supabase accounts only (the login form is rendered by showSbLogin) -->
+<div id="rolegate" style="display:flex;position:fixed;inset:0;z-index:1000;background:var(--bg);align-items:center;justify-content:center">
+  <div style="font-size:13px;color:var(--tx3)">Loading…</div>
 </div>
 <style>
 /* Sales role: only the Sales nav group (and the gate/footer) is visible */
@@ -483,11 +474,24 @@ let SPERIOD = 'mtd';              // shared period for the Sales views
 let SLINE = null;                 // line filter for Sales views (null = auto-default to Meso)
 let SFROM = '', STO = '';         // custom date range (YYYY-MM-DD) when SPERIOD === 'custom'
 
+/* Endpoints are locked behind the Supabase session — every data fetch carries it */
+async function sbAuthHeaders(extra){
+  const h=Object.assign({},extra||{});
+  try{
+    if(typeof SB!=='undefined'&&SB){
+      const {data:{session}}=await SB.auth.getSession();
+      if(session)h['Authorization']='Bearer '+session.access_token;
+    }
+  }catch(e){}
+  return h;
+}
+
 /* ── SHOPIFY MERGE: prices & deals & demand from the store; stock stays with the sheet ── */
 let SHOPIFY_ERR=null; // last build error from /api/shopify status, if any
 async function loadShopify(){
   try{
-    const r=await fetch('/api/shopify');
+    const r=await fetch('/api/shopify',{headers:await sbAuthHeaders()});
+    if(r.status===401){setTimeout(loadShopify,8000);return;} // not signed in yet — retry after login
     const d=await r.json();
     SHOPIFY_ERR=(d&&d.status&&d.status.state==='error')?d.status.error:null;
     if(d&&d.variants){
@@ -503,7 +507,7 @@ async function loadShopify(){
 function mergeShopify(){
   if(!SHOPIFY||!SHOPIFY.variants||!DATA.length)return;
   const isNew=SHOPIFY.v>=2;
-  if(SHOPIFY.v!==8){try{fetch('/api/shopify?refresh=1');}catch(e){}} // old cache format — trigger a rebuild
+  if(SHOPIFY.v!==8){try{sbAuthHeaders().then(h=>fetch('/api/shopify?refresh=1',{headers:h}));}catch(e){}} // old cache format — trigger a rebuild
   const sheetSkus=new Set(DATA.map(p=>p.sku));
   const bases=[...sheetSkus].sort((a,b)=>b.length-a.length); // longest-prefix wins
   // Unit rules (validated on real orders): physical units are itemized as base-SKU
@@ -1019,7 +1023,7 @@ async function syncNow(){
     setProgress(70,'Retrieving pre-processed data...',4);
     const ctrl=new AbortController();
     const tmo=setTimeout(()=>ctrl.abort(),45000);
-    const r=await fetch('/.netlify/functions/refresh',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',signal:ctrl.signal});
+    const r=await fetch('/.netlify/functions/refresh',{method:'POST',headers:await sbAuthHeaders({'Content-Type':'application/json'}),body:'{}',signal:ctrl.signal});
     clearTimeout(tmo);
     if(!r.ok) throw new Error('Server returned '+r.status);
     setProgress(90,'Applying data...',5);
@@ -1489,15 +1493,62 @@ async function loadVisits(force){
       const {data}=await SB.from('visits').select('id,date,spec,account,type,outcome,notes,status,fu_done').gte('date',since).order('date',{ascending:false}).limit(2000);
       VISITS=data||[];
     }else{
-      const r=await fetch('/.netlify/functions/visits?months=4');const d=await r.json();VISITS=d.visits||[];
+      const r=await fetch('/.netlify/functions/visits?months=4',{headers:await sbAuthHeaders()});const d=await r.json();VISITS=d.visits||[];
     }
   }catch(e){VISITS=VISITS||[];}
   return VISITS;
 }
+/* Specialist ROSTER: order tags + Targets tab, plus manually added names, minus
+   deactivated ones. Deactivating hides a PS from pickers & target setting only —
+   every historical record stays. */
+let SPEC_ROSTER=null;
+async function loadSpecRoster(force){
+  if(SPEC_ROSTER&&!force)return SPEC_ROSTER;
+  SPEC_ROSTER=[];
+  if(SB){try{const {data}=await SB.from('spec_roster').select('spec,active');SPEC_ROSTER=data||[];}catch(e){}}
+  return SPEC_ROSTER;
+}
 function specNames(){ // picker options: Shopify tags, else Targets tab, so it's never empty
   let s=Object.keys(specMerged());
   if(!s.length)s=[...new Set((TARGETS||[]).filter(t=>t.scope==='SPECIALIST').map(t=>t.name))];
+  const R=SPEC_ROSTER||[];
+  const inact=new Set(R.filter(r=>!r.active).map(r=>specCanon(r.spec).toLowerCase()));
+  const extra=R.filter(r=>r.active).map(r=>r.spec);
+  s=[...new Set([...s,...extra])].filter(n=>!inact.has(specCanon(n).toLowerCase()));
   return s.sort((a,b)=>a.localeCompare(b));
+}
+async function specAdd(){
+  if(!canManage())return alert('Admins and sales managers only.');
+  const n=prompt('New product specialist name (as it will appear on orders/visits):','');
+  if(!n||!n.trim())return;
+  try{
+    const {error}=await SB.from('spec_roster').upsert({spec:n.trim(),active:true,updated_by:(SBUSER&&SBUSER.id)||null,updated_at:new Date().toISOString()});
+    if(error)throw error;
+    audit('specialist.add',{spec:n.trim()});
+    await loadSpecRoster(true);
+    if(currentView==='targets')renderTargets();
+  }catch(e){alert('Could not add: '+(e.message||e)+(String(e.message||'').includes('spec_roster')?'\n\n(Run the spec_roster SQL from SUPABASE-SETUP.md.)':''));}
+}
+async function specDeact(n){
+  if(ROLE!=='admin')return alert('Admins only.');
+  if(!confirm('Deactivate '+n+'?\n\nThey disappear from target setting and the order/visit pickers. All their history stays, and you can reactivate anytime.'))return;
+  try{
+    const {error}=await SB.from('spec_roster').upsert({spec:n,active:false,updated_by:(SBUSER&&SBUSER.id)||null,updated_at:new Date().toISOString()});
+    if(error)throw error;
+    audit('specialist.deactivate',{spec:n});
+    await loadSpecRoster(true);
+    if(currentView==='targets')renderTargets();
+  }catch(e){alert('Could not deactivate: '+(e.message||e));}
+}
+async function specReact(n){
+  if(ROLE!=='admin')return;
+  try{
+    const {error}=await SB.from('spec_roster').update({active:true,updated_by:(SBUSER&&SBUSER.id)||null,updated_at:new Date().toISOString()}).eq('spec',n);
+    if(error)throw error;
+    audit('specialist.reactivate',{spec:n});
+    await loadSpecRoster(true);
+    if(currentView==='targets')renderTargets();
+  }catch(e){alert(e.message||e);}
 }
 function renderLogVisit(){
   if(!SHOPIFY)try{loadShopify().then(()=>{if(currentView==='logvisit')renderLogVisit();});}catch(e){}
@@ -1574,7 +1625,7 @@ async function submitVisit(){
       const {error}=await SB.from('visits').insert({spec,account,type:g('lv-type'),outcome:planned?'Planned':g('lv-out'),date:dt,notes:g('lv-notes'),products:prods,user_id:SBUSER.id,status:planned?'planned':'done'});
       if(error)throw new Error(error.message);
     }else{
-      const r=await fetch('/.netlify/functions/visits',{method:'POST',headers:{'Content-Type':'application/json'},
+      const r=await fetch('/.netlify/functions/visits',{method:'POST',headers:await sbAuthHeaders({'Content-Type':'application/json'}),
         body:JSON.stringify({spec,account,type:g('lv-type'),outcome:g('lv-out'),date:g('lv-date'),notes:g('lv-notes')})});
       const d=await r.json();
       if(d.error)throw new Error(d.error);
@@ -2128,14 +2179,14 @@ async function runPlanReview(){
     const camps=(CAMPAIGNS||[]).filter(c=>c.to_date>=today);
     const campTxt=camps.length?'\n\nPlanned/running campaigns (expect demand uplift on these):\n'+camps.map(c=>c.name+' ('+c.from_date+' to '+c.to_date+', '+(c.skus||'all products')+(c.uplift_pct?', ~+'+c.uplift_pct+'%':'')+')').join('\n'):'\n\nNo campaigns planned.';
     const q='You are Healthspan\'s demand planner doing the monthly planning review. Using the live catalog data you have (stock, velocity, months of stock, days to stockout, expiry, batches), plus the notes below, give a decisive exception report: 1) SKUs at real stockout risk in the next 60 days (consider campaign uplift — flag any campaign SKU that cannot support the promo), 2) overstock and expiry money at risk worth acting on, 3) what last month\'s worst forecast misses suggest (one-off event vs trend change), 4) exactly 5 prioritized actions for Paul with quantities where possible. Be specific with product names and numbers; no preamble; keep it under 450 words.'+campTxt+acc;
-    const r=await fetch('/.netlify/functions/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q,catalog:askCatalog(),history:[]})});
+    const r=await fetch('/.netlify/functions/ask',{method:'POST',headers:await sbAuthHeaders({'Content-Type':'application/json'}),body:JSON.stringify({question:q,catalog:askCatalog(),history:[]})});
     const job=await r.json();
     if(!job.id)throw new Error(job.error||'could not start');
     let res=null;
     for(let i=0;i<70;i++){
       await new Promise(s=>setTimeout(s,2500));
       if(i===6)out.innerHTML='<span style="color:var(--tx3)">Thinking it through — deep review takes a little longer…</span>';
-      try{const rr=await fetch('/.netlify/functions/ask?id='+job.id);const o=await rr.json();if(!o.pending){res=o;break;}}catch(e){}
+      try{const rr=await fetch('/.netlify/functions/ask?id='+job.id,{headers:await sbAuthHeaders()});const o=await rr.json();if(!o.pending){res=o;break;}}catch(e){}
     }
     if(!res||!res.answer)throw new Error((res&&res.error)||'Timed out — please run it again.');
     out.innerHTML=askFmt(res.answer)+'<div style="font-size:10.5px;color:var(--tx3);margin-top:12px">Generated '+new Date().toLocaleString()+' · AI analysis over live data — sanity-check quantities before ordering</div>';
@@ -2429,6 +2480,7 @@ function mergeSpecTargets(){
 async function renderTargets(){
   if(!canManage()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only.</div>';return;}
   await loadSpecTargets();
+  await loadSpecRoster();
   const ym=window._tgSetYm||new Date().toISOString().slice(0,7);window._tgSetYm=ym;
   const prev=(function(){const d=new Date(ym+'-15');d.setMonth(d.getMonth()-1);return d.toISOString().slice(0,7);})();
   const specs=specNames();
@@ -2440,6 +2492,7 @@ async function renderTargets(){
     '<div class="panel" style="padding:12px 16px;margin-bottom:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">'+
     '<b style="font-size:13px">Month</b><input type="month" value="'+ym+'" onchange="window._tgSetYm=this.value;renderTargets()" style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:7px 9px;font-size:12.5px">'+
     '<button onclick="tgCopyPrev()" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer">Copy from '+prev+'</button>'+
+    '<button onclick="specAdd()" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer">+ Add specialist</button>'+
     '<span style="flex:1"></span>'+
     '<button onclick="tgSaveAll()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer">Save all</button></div>'+
     '<div id="tg-msg" style="min-height:16px;font-size:12px;margin-bottom:8px"></div>'+
@@ -2449,8 +2502,12 @@ async function renderTargets(){
       '<td class="r"><input class="tg-in" data-spec="'+esc(s)+'" type="number" min="0" step="1000" value="'+(m?m.amount:'')+'" placeholder="'+(sh!=null?sh:'—')+'" '+inp+'></td>'+
       '<td class="r">'+(m?'<b>'+fmtPeso(m.amount)+'</b> <span class="pill pgr" style="font-size:9px">set here</span>':sh!=null?fmtPeso(sh)+' <span class="pill pgy" style="font-size:9px">sheet</span>':'<span class="mu">none</span>')+'</td>'+
       '<td class="r mu">'+(prevOf(s)!=null?fmtPeso(prevOf(s)):'—')+'</td>'+
-      '<td>'+(m?'<a href="#" onclick="tgClear(\''+esc(s).replace(/'/g,'&#39;')+'\');return false" style="color:var(--rd);font-size:11px">clear</a>':'')+'</td></tr>';}).join('')+
-    '</tbody></table></div><div class="tfooter"><span>Targets set here override the sheet/corporate numbers for that specialist & month, everywhere (Vs target, Specialists, their own pages) · blank = keep the sheet value · specialists see targets, only admins & sales managers set them</span></div></div>';
+      '<td style="white-space:nowrap">'+(m?'<a href="#" onclick="tgClear(\''+esc(s).replace(/'/g,'&#39;')+'\');return false" style="color:var(--rd);font-size:11px">clear</a> ':'')+
+      (ROLE==='admin'?'<a href="#" onclick="specDeact(\''+esc(s).replace(/'/g,'&#39;')+'\');return false" title="Hide from pickers & targets — history is kept" style="color:var(--tx3);font-size:11px">deactivate</a>':'')+'</td></tr>';}).join('')+
+    '</tbody></table></div><div class="tfooter"><span>Targets set here override the sheet/corporate numbers for that specialist & month, everywhere (Vs target, Specialists, their own pages) · blank = keep the sheet value · specialists see targets, only admins & sales managers set them · deactivating hides a PS from pickers and this list; every record they ever made stays</span></div></div>'+
+    (function(){const inact=(SPEC_ROSTER||[]).filter(r=>!r.active);
+      return inact.length&&ROLE==='admin'?'<div class="panel" style="padding:10px 16px;margin-top:12px;font-size:12px"><b>Inactive specialists:</b> '+
+        inact.map(r=>esc(r.spec)+' <a href="#" onclick="specReact(\''+esc(r.spec).replace(/'/g,'&#39;')+'\');return false" style="color:var(--gr);font-size:11px">reactivate</a>').join(' · ')+'</div>':'';})();
 }
 async function tgSaveAll(){
   if(!canManage()||!SB)return;
@@ -5720,7 +5777,7 @@ async function sendAsk(){
   log.scrollTop=log.scrollHeight;
   btn.disabled=true;
   try{
-    const r=await fetch('/.netlify/functions/ask',{method:'POST',headers:{'Content-Type':'application/json'},
+    const r=await fetch('/.netlify/functions/ask',{method:'POST',headers:await sbAuthHeaders({'Content-Type':'application/json'}),
       body:JSON.stringify({question:q,catalog:askCatalog(),history:ASKHIST.slice(-3)})});
     const job=await r.json();
     if(!job.id)throw new Error(job.error||'could not start');
@@ -5733,7 +5790,7 @@ async function sendAsk(){
       if(pe&&i===4)pe.textContent='Thinking it through…';
       if(pe&&i===12)pe.textContent='Still working — deep analysis takes a little longer…';
       try{
-        const rr=await fetch('/.netlify/functions/ask?id='+job.id);
+        const rr=await fetch('/.netlify/functions/ask?id='+job.id,{headers:await sbAuthHeaders()});
         const o=await rr.json();
         if(!o.pending){out=o;break;}
       }catch(e){}
@@ -5836,7 +5893,7 @@ function sbInit(force){
 }
 async function initAuth(){
   sbInit();
-  if(!SB){applyRole();return;}                      // legacy passcode mode until keys are pasted
+  if(!SB){showSbLogin('Login is unavailable — the auth service could not be loaded. Refresh, or check the connection.');return;}
   try{
     const {data:{session}}=await SB.auth.getSession();
     if(session)await sbLoadProfile(session.user);
@@ -5852,7 +5909,12 @@ async function sbLoadProfile(user){
   document.body.classList.toggle('role-manager',ROLE==='manager');
   try{await loadAcctLinks(true);}catch(e){} // curated merges/branches apply everywhere
   try{loadSpecTargets(true);}catch(e){}     // in-app specialist targets (override sheet)
+  try{loadSpecRoster(true);}catch(e){}      // added/deactivated specialists for pickers
   try{maybeSnapshotForecast();}catch(e){}   // monthly forecast freeze (runs if data is ready)
+  // endpoints are session-locked: pull anything that failed before sign-in
+  try{if(!DATA||!DATA.length)syncNow();}catch(e){}
+  try{if(!SHOPIFY)loadShopify();}catch(e){}
+  try{if(!VISITS)loadVisits();}catch(e){}
   const sf=$('sf-foot');
   const who=(SBPROFILE&&SBPROFILE.name)||user.email||'';
   if(sf){const old=document.getElementById('rolebadge');if(old)old.remove();
@@ -5892,35 +5954,13 @@ async function sbLogin(){
   }catch(e){if(err)err.textContent='Could not sign in: '+e.message;}
 }
 
-/* ── ROLE PASSCODES (legacy fallback, used only while Supabase keys are not set) ── */
-const ROLE_CODES={'HSADMIN26':'admin','HSSALES26':'sales'};
-let ROLE=localStorage.getItem('hs_role')||'';
-if(ROLE!=='admin'&&ROLE!=='sales')ROLE='';
-function applyRole(){
-  const g=$('rolegate');
-  if(!ROLE){if(g)g.style.display='flex';return;}
-  if(g)g.style.display='none';
-  document.body.classList.toggle('role-sales',ROLE==='sales');
-  buildMobileNav();
-  const sf=$('sf-foot');
-  const badge='<div style="margin-top:4px">'+(ROLE==='sales'?'Sales account':'Admin account')+' · <a href="#" onclick="roleLogout();return false" style="color:var(--ac)">switch</a></div>';
-  if(sf&&!document.getElementById('rolebadge')){const d=document.createElement('div');d.id='rolebadge';d.innerHTML=badge;sf.parentNode.insertBefore(d,sf);d.style.cssText='padding:6px 14px;border-top:1px solid var(--bd);font-size:10.5px;color:var(--tx3)';}
-  if(ROLE==='sales'&&!String(currentView||'').startsWith('sales'))showView('salesoverview',document.querySelector('.ni.nv-sales'));
-}
-function enterRole(){
-  const v=($('rolecode')&&$('rolecode').value||'').trim().toUpperCase();
-  const r=ROLE_CODES[v];
-  if(!r){const e=$('roleerr');if(e)e.textContent='Wrong code — ask the admin for access.';return;}
-  ROLE=r;try{localStorage.setItem('hs_role',r);}catch(e){}
-  const e=$('roleerr');if(e)e.textContent='';
-  applyRole();
-}
+/* ── ROLE state: set ONLY from the Supabase profile after sign-in (passcodes removed) ── */
+let ROLE='';
+try{localStorage.removeItem('hs_role');}catch(e){} // clear any legacy passcode sessions
 function roleLogout(){
-  if(SB){try{SB.auth.signOut();}catch(e){}SBUSER=null;SBPROFILE=null;location.reload();return;}
-  try{localStorage.removeItem('hs_role');}catch(e){}
-  ROLE='';document.body.classList.remove('role-sales');
-  const b=document.getElementById('rolebadge');if(b)b.remove();
-  applyRole();
+  try{if(SB)SB.auth.signOut();}catch(e){}
+  SBUSER=null;SBPROFILE=null;ROLE='';
+  location.reload();
 }
 
 /* ── INIT ── */
