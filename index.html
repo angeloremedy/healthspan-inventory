@@ -22,7 +22,9 @@ addEventListener('DOMContentLoaded',function(){
     p.style.cssText='position:fixed;top:0;height:env(safe-area-inset-top,0px);width:1px;visibility:hidden';
     document.body.appendChild(p);
     var h=p.getBoundingClientRect().height;p.remove();
-    if(h<10&&Math.max(screen.width,screen.height)>=812)
+    // phones only: iPads legitimately report 0 when the status bar sits
+    // OUTSIDE the webview — forcing 47px there would add dead space
+    if(h<10&&Math.min(screen.width,screen.height)<500&&Math.max(screen.width,screen.height)>=812)
       document.documentElement.style.setProperty('--sat','47px');
   }catch(e){}
 });
@@ -253,8 +255,9 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
 ::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:10px}
 
 /* ── MOBILE ── */
-.mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--sf);border-top:1px solid var(--bd);z-index:300;padding:0 0 env(safe-area-inset-bottom)}
-.mobile-nav-inner{display:flex;overflow-x:hidden;padding:4px 6px}
+.mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--sf);border-top:1px solid var(--bd);z-index:300;height:calc(64px + env(safe-area-inset-bottom,0px));box-sizing:border-box;padding:0 0 env(safe-area-inset-bottom,0px)}
+#mmenu{padding-top:calc(10px + var(--sat))!important;box-sizing:border-box}
+.mobile-nav-inner{display:flex;overflow-x:hidden;padding:4px 6px;height:64px;box-sizing:border-box;align-items:stretch}
 .mobile-nav-inner::-webkit-scrollbar{display:none}
 .mni{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px;border-radius:var(--rs);cursor:pointer;color:var(--tx3);font-size:9px;font-weight:500;white-space:nowrap;flex:1 1 0;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;transition:all .12s}
 .mni:hover{background:var(--sf2);color:var(--tx)}
@@ -280,7 +283,7 @@ html,body{position:fixed;inset:0;width:100%;height:100%;overflow:hidden;overscro
   .mobile-topbar{display:flex!important}
   .main{padding-top:calc(56px + var(--sat))}
   .mobile-nav{display:block!important}
-  .main{padding-bottom:calc(88px + env(safe-area-inset-bottom))}
+  .main{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))}
   .content{padding:12px 14px}
   .metrics{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}
   .met-val{font-size:22px}
@@ -296,7 +299,7 @@ html,body{position:fixed;inset:0;width:100%;height:100%;overflow:hidden;overscro
   .exp-section-hd{font-size:10px}
   .tscroll table{min-width:640px} /* tables swipe sideways instead of crushing columns */
   .tcard .tfooter{font-size:10px}
-  .mobile-nav .mni{min-height:52px} /* comfortable thumb targets */
+  .mobile-nav .mni{min-height:0;height:100%;justify-content:center}
   .hm-hero{padding:18px 16px;margin-bottom:12px}
   .printdoc{padding:14px}
 }
@@ -362,7 +365,6 @@ button:active{transform:scale(.97)}
   /* solid backdrop behind the iPhone status bar — content scrolls underneath it */
   body::before{content:"";position:fixed;top:0;left:0;right:0;height:var(--sat);background:var(--sf);z-index:600}
   #rolegate{padding-top:calc(24px + var(--sat))!important;box-sizing:border-box}
-  #mmenu > div:first-child{padding-top:calc(12px + var(--sat))}
   body{overscroll-behavior:none}
 }
 @media (prefers-reduced-motion: reduce){
