@@ -374,6 +374,7 @@ body.role-manager #nav-admin-lbl,body.role-manager .ni[onclick*="'users'"],body.
     <div class="ni nv-sales" onclick="showView('salesfree',this)"><svg viewBox="0 0 24 24"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>Free items</div>
     <div class="ni nv-sales" onclick="showView('salesfield',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.4 8 12 8 12s8-6.6 8-12a8 8 0 0 0-8-8z"/></svg>Field coverage</div>
     <div class="ni nv-sales" onclick="showView('salesrecon',this)"><svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Vs accounting</div>
+    <div class="ni" onclick="showView('scorecards',this)"><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/></svg>Review scorecards</div>
     <div class="nlbl">Logistics</div>
     <div class="ni" onclick="showView('fulfillq',this)"><svg viewBox="0 0 24 24"><path d="M16 3h5v5"/><path d="M21 3l-7 7"/><path d="M21 16v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3"/></svg>Fulfillment queue</div>
     <div class="ni" onclick="showView('branchtransfer',this)"><svg viewBox="0 0 24 24"><path d="M5 17H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v3"/><rect x="9" y="11" width="14" height="10" rx="2"/><line x1="13" y1="16" x2="19" y2="16"/><line x1="16" y1="13" x2="16" y2="19"/></svg>Remedy shipments</div>
@@ -697,6 +698,7 @@ const DESC={
   logvisit:'For the product specialists, from the iPad: log every doctor/clinic visit in ~10 seconds — even when there’s no order. Pick your name once and it’s remembered. Logged visits count toward Field coverage and build Healthspan’s own visit history (the start of our own CRM).',
   ar:'Who owes what, and for how long: every unpaid balance bucketed into current / 31–60 / 61–90 / 90+ days, per account. Ages count from the order date plus any terms noted on the order (e.g. “PDC 30 days” — parsed from Shopify notes automatically). Payment statuses come from Shopify (accounting marks paid there); re-running the backfill syncs them. Record payments on HS-orders from their order page.',
   spec:'One specialist’s whole world: this month vs target, the calendar of planned and logged visits plus orders (tap any day), monthly sales chart with the target line, top products, open follow-ups and recent activity. Specialists land here on sign-in; managers and admins reach it from the Specialists view.',
+  scorecards:'Quarterly performance reviews, filled from the numbers instead of memory: booked vs target, trend vs the previous quarter, visits, accounts touched, and peso-per-visit efficiency — plus a rating and comments per specialist that save per quarter. Print all for the review meeting. Managers and admins only; comments are never shown to specialists in-app.',
   salesdue:'Accounts past their usual buying rhythm. The cycle is learned from each account’s own order history (median gap between orders, 3+ orders needed). They buy on rhythm — a call today is the reminder that beats the competitor’s. Specialists see their own accounts; managers see everyone’s.',
   catalog:'The item master — products, prices, costs, and barcodes owned in-app. While in shadow mode, Shopify still prices the app; use this page to fix drift (⚠ rows) and add costs, then declare pricing independence on the Cutover switches page. Costs entered here unlock margin reporting.',
   returns:'Returns and credit memos with permanent CM numbers. Record what came back, whether it restocks or gets written off, and print the CM for accounting. Admins can apply a CM against the linked order’s balance so AR stays honest. During the parallel run, process the return in Shopify too.',
@@ -994,6 +996,7 @@ function applySync(data){
   else if(currentView==='returns') renderReturns();
   else if(currentView==='scan') renderScan();
   else if(currentView==='cutover') renderCutover();
+  else if(currentView==='scorecards') renderScorecards();
   else if(currentView==='campaigns') renderCampaigns();
   else if(currentView==='planreview') renderPlanReview();
   else renderTable();
@@ -1083,7 +1086,7 @@ function showView(v,el){
            simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator',
            simmonte:'Monte Carlo stockout risk',simproject:'12-month projection',simcash:'Cash-flow timeline',simbulk:'Bulk-buy trade-off',simbranch:'Remedy branch rebalancing',
            aged:'Aged inventory',shrinkage:'Shrinkage tracker',cashexpiry:'Cash in expiring stock',branchtransfer:'Remedy branch shipments',branchexpiry:'Remedy branch expiry watch',
-           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt',targets:'Set targets',fcastacc:'Forecast accuracy',campaigns:'Campaign calendar',planreview:'AI planning review',salespace:'Leaderboard & pace',pdc:'PDC register',salesdue:'Reorder due',catalog:'Item master',returns:'Returns & credit memos',scan:'Scan — receive / pick / count',cutover:'Cutover switches',creditmemo:'Credit memo'};
+           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt',targets:'Set targets',fcastacc:'Forecast accuracy',campaigns:'Campaign calendar',planreview:'AI planning review',salespace:'Leaderboard & pace',pdc:'PDC register',salesdue:'Reorder due',catalog:'Item master',returns:'Returns & credit memos',scan:'Scan — receive / pick / count',cutover:'Cutover switches',creditmemo:'Credit memo',scorecards:'Review scorecards'};
   $('ptitle').textContent=T[v]||v;
   if(v==='dashboard') renderDashboard();
   else if(v==='action') renderActionCenter();
@@ -1143,6 +1146,7 @@ function showView(v,el){
   else if(v==='returns') renderReturns();
   else if(v==='scan') renderScan();
   else if(v==='cutover') renderCutover();
+  else if(v==='scorecards') renderScorecards();
   else if(v==='campaigns') renderCampaigns();
   else if(v==='planreview') renderPlanReview();
   else renderTable(v);
@@ -2216,6 +2220,89 @@ async function runPlanReview(){
   btn.disabled=false;btn.textContent='Run planning review';
 }
 
+/* ── REVIEW SCORECARDS: quarterly per-specialist performance, auto-filled from live
+      data, with manager rating + comments (the HR review, done from numbers) ── */
+function scQuarters(){
+  const out=[];const d=new Date();
+  for(let i=0;i<5;i++){
+    const q=Math.floor(d.getMonth()/3);
+    out.push({key:d.getFullYear()+'-Q'+(q+1),months:[0,1,2].map(k=>d.getFullYear()+'-'+String(q*3+k+1).padStart(2,'0'))});
+    d.setMonth(d.getMonth()-3);
+  }
+  return out;
+}
+async function renderScorecards(){
+  if(!canManage()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only.</div>';return;}
+  if(!SHOPIFY||!SHOPIFY.specialists){$('content').innerHTML='<div class="empty" style="margin-top:40px">Waiting for the sales cache…</div>';try{loadShopify().then(()=>{if(currentView==='scorecards')renderScorecards();});}catch(e){}return;}
+  if(!VISITS){loadVisits().then(()=>{if(currentView==='scorecards')renderScorecards();});}
+  const qs=scQuarters();
+  const sel=window._scQ&&qs.some(q=>q.key===window._scQ)?window._scQ:qs[0].key;window._scQ=sel;
+  const Q=qs.find(q=>q.key===sel),P=qs[qs.findIndex(q=>q.key===sel)+1]||null;
+  let notes={};
+  try{const {data}=await SB.from('review_notes').select('*').eq('quarter',sel);(data||[]).forEach(r=>notes[specCanon(r.spec).toLowerCase()]=r);}catch(e){}
+  // merge case-variant tags into canonical specialists
+  const S={};
+  for(const raw in (SHOPIFY.specialists||{})){
+    const cn=specCanon(raw);if(!cn||INTERNAL_TAG.test(cn))continue;
+    const k=cn.toLowerCase();
+    const e=S[k]||(S[k]={name:cn,monthly:{}});
+    const m=SHOPIFY.specialists[raw].monthly||{};
+    for(const ym in m){const t=e.monthly[ym]||(e.monthly[ym]={u:0,v:0});t.u+=m[ym].u||0;t.v+=m[ym].v||0;}
+  }
+  const sumQ=(e,months,f)=>months.reduce((a,ym)=>a+(((e.monthly[ym]||{})[f])||0),0);
+  const tgtQ=k=>{let t=0,has=false;for(const ym of Q.months){const x=(TARGETS||[]).find(x=>x.month===ym&&x.scope==='SPECIALIST'&&specCanon(x.name||'').toLowerCase()===k);if(x){t+=x.value||0;has=true;}}return has?t:null;};
+  const vQ={},aQ={};
+  for(const v of (VISITS||[])){
+    if(v.status==='planned')continue;
+    const ym=(v.date||'').slice(0,7);if(!Q.months.includes(ym))continue;
+    const k=specCanon(v.spec||'').toLowerCase();if(!k)continue;
+    vQ[k]=(vQ[k]||0)+1;(aQ[k]||(aQ[k]=new Set())).add(custNorm(v.account||''));
+  }
+  const rows=Object.keys(S).map(k=>{
+    const e=S[k];
+    const rev=sumQ(e,Q.months,'v'),units=sumQ(e,Q.months,'u');
+    const prev=P?sumQ(e,P.months,'v'):0;
+    const T=tgtQ(k);
+    return {k,name:e.name,rev,units,prev,T,att:T?rev/T*100:null,visits:vQ[k]||0,accts:(aQ[k]&&aQ[k].size)||0,note:notes[k]||null};
+  }).filter(r=>r.rev>0||r.prev>0||r.T||r.note).sort((a,b)=>b.rev-a.rev);
+  const dPill=(rev,prev)=>{if(!prev)return rev?'<span class="pill pbl">new/rejoined</span>':'';const d=(rev-prev)/prev*100;return '<span style="font-weight:700;color:'+(d>=5?'var(--gr)':d<=-5?'var(--rd)':'var(--tx3)')+'">'+(d>=0?'+':'')+d.toFixed(0)+'% vs prev qtr</span>';};
+  $('content').innerHTML=
+    '<div class="no-print panel" style="padding:12px 16px;margin-bottom:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><b style="font-size:13px">Quarter</b>'+
+    '<select onchange="window._scQ=this.value;renderScorecards()" style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:7px 9px;font-size:12.5px">'+qs.map(q=>'<option'+(q.key===sel?' selected':'')+'>'+q.key+'</option>').join('')+'</select>'+
+    '<span style="font-size:11.5px;color:var(--tx3)">numbers auto-filled from live sales, targets & visits · ratings and comments save per specialist per quarter</span>'+
+    '<span style="flex:1"></span><button onclick="window.print()" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer">🖨 Print all</button></div>'+
+    (rows.length?rows.map(r=>{
+      const n=r.note||{};
+      return '<div class="panel" style="padding:16px;margin-bottom:12px">'+
+      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px"><b style="font-size:15px"><a href="#" onclick="showSpecPage(\''+esc(r.name).replace(/'/g,'&#39;')+'\');return false" style="color:var(--tx);text-decoration:none">'+esc(r.name)+'</a></b>'+dPill(r.rev,r.prev)+'<span style="flex:1"></span>'+
+      (r.att!=null?'<span class="pill '+(r.att>=100?'pgr':r.att>=80?'':'prd')+'" style="'+(r.att<100&&r.att>=80?'background:var(--am-bg);color:var(--am)':'')+'">'+r.att.toFixed(0)+'% of target</span>':'<span class="pill pgy">no target set</span>')+'</div>'+
+      '<div class="metrics" style="margin-bottom:10px">'+
+      '<div class="met gr"><div class="met-lbl">Booked</div><div class="met-val" style="font-size:14px">'+fmtPeso(r.rev)+'</div><div class="met-sub">'+(r.T?'target '+fmtPeso(r.T):'—')+'</div><div class="met-bar"></div></div>'+
+      '<div class="met bl"><div class="met-lbl">Units</div><div class="met-val" style="font-size:14px">'+r.units.toLocaleString()+'</div><div class="met-sub">prev qtr '+fmtPeso(r.prev)+'</div><div class="met-bar"></div></div>'+
+      '<div class="met am"><div class="met-lbl">Visits</div><div class="met-val" style="font-size:14px">'+r.visits+'</div><div class="met-sub">'+r.accts+' accounts touched</div><div class="met-bar"></div></div>'+
+      '<div class="met pu"><div class="met-lbl">₱ per visit</div><div class="met-val" style="font-size:14px">'+(r.visits?fmtPeso(Math.round(r.rev/r.visits)):'—')+'</div><div class="met-sub">selling efficiency</div><div class="met-bar"></div></div>'+
+      '</div>'+
+      '<div class="no-print" style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">'+
+      '<select id="sc-r-'+r.k+'" style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px;font-size:12.5px"><option value="">Rating…</option>'+[5,4,3,2,1].map(x=>'<option value="'+x+'"'+(n.rating===x?' selected':'')+'>'+'★'.repeat(x)+' '+x+'</option>').join('')+'</select>'+
+      '<textarea id="sc-c-'+r.k+'" rows="2" placeholder="Manager comments — wins, coaching points, agreements…" style="flex:1;min-width:220px;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;font-size:12.5px">'+esc(n.comments||'')+'</textarea>'+
+      '<button onclick="scSave(\''+r.k+'\',\''+esc(r.name).replace(/'/g,'&#39;')+'\')" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12px;font-weight:600;cursor:pointer">Save</button></div>'+
+      (n.comments?'<div style="display:none" class="print-note"><b>Review:</b> '+(n.rating?'★'.repeat(n.rating)+' · ':'')+esc(n.comments)+'</div>':'')+
+      (n.updated_at?'<div class="no-print" style="font-size:10px;color:var(--tx3);margin-top:4px">Last saved '+esc(String(n.updated_at).slice(0,16).replace('T',' '))+'</div>':'')+
+      '</div>';}).join(''):'<div class="empty" style="margin-top:30px">No specialist activity found for '+sel+'.</div>')+
+    '<style>@media print{.print-note{display:block !important;font-size:12px;margin-top:6px}}</style>';
+}
+async function scSave(k,name){
+  if(!canManage())return;
+  const rating=parseInt((($('sc-r-'+k)||{}).value||''),10)||null;
+  const comments=(($('sc-c-'+k)||{}).value||'').trim()||null;
+  try{
+    const {error}=await SB.from('review_notes').upsert({spec:name,quarter:window._scQ,rating,comments,updated_by:(SBUSER&&SBUSER.id)||null,updated_at:new Date().toISOString()});
+    if(error)throw error;
+    audit('review.save',{spec:name,quarter:window._scQ,rating});
+    renderScorecards();
+  }catch(e){alert('Could not save: '+(e.message||e)+(String(e.message||'').includes('review_notes')?'\n\n(Run the review_notes SQL from SUPABASE-SETUP.md.)':''));}
+}
+
 /* ── INDEPENDENCE MODULE: cutover flags · item master · reorder-due · returns/CM ·
       shadow stock ledger · pick confirmation · barcode scanning ──
    PARALLEL-RUN RULE: Shopify (pricing/orders) and Verna's sheet (stock) stay the
@@ -2535,7 +2622,14 @@ async function confirmPick(orderRef){
     if(!rows.length)return;
     await ledgerAdd(rows);
     audit('ledger.pick',{order:ordLabel(o),lines:rows.length});
-    alert('Picked ✓ — '+rows.length+' line'+(rows.length>1?'s':'')+' recorded in the ledger.');
+    // gear 2: the warehouse action drives the order status too
+    if(o.status==='pending'&&canManage()&&confirm('Picked ✓ ('+rows.length+' line'+(rows.length>1?'s':'')+' in the ledger).\n\nAlso mark '+ordLabel(o)+' as FULFILLED?')){
+      const {error:e2}=await SB.from('orders').update({status:'fulfilled'}).eq('id',o.id);
+      if(!e2){audit('order.fulfilled',{order:ordLabel(o),via:'pick-confirm'});NORDERS=null;}
+      alert(e2?('Ledger saved, but the status update failed: '+e2.message):'Fulfilled ✓ — ledger and order updated together.');
+    }else{
+      alert('Picked ✓ — '+rows.length+' line'+(rows.length>1?'s':'')+' recorded in the ledger.');
+    }
   }catch(e){alert('Could not record: '+(e.message||e)+(String(e.message||'').includes('stock_moves')?'\n\n(Run the independence SQL from SUPABASE-SETUP.md.)':''));}
 }
 let SCAN_MODE='pick',SCAN_STREAM=null;
@@ -2612,12 +2706,24 @@ async function scanRecord(sku){
   const qty=parseInt(($('scan-qty')||{}).value||'0',10);
   if(!qty||qty<1)return;
   try{
-    const row=SCAN_MODE==='receive'?{sku,qty:qty,kind:'receive'}:
-      SCAN_MODE==='pick'?{sku,qty:-qty,kind:'pick',ref:(($('scan-ref')||{}).value||'').trim()||null}:
-      {sku,qty:qty,kind:'count',note:'physical count'};
+    let msg='✓ '+esc(sku)+' '+(SCAN_MODE==='pick'?'−':'+')+qty+' recorded — scan the next one.';
+    let row;
+    if(SCAN_MODE==='count'){
+      // gear 3: a count is compared against expected stock; the variance is the story
+      const p=DATA.find(x=>x.sku===sku);
+      const expect=p?stk(p):null;
+      const diff=expect!=null?qty-expect:null;
+      row={sku,qty:qty,kind:'count',note:expect!=null?('counted '+qty+' vs sheet '+expect+' (Δ '+(diff>=0?'+':'')+diff+')'):'physical count (no sheet figure)'};
+      msg=diff===0?'✓ '+esc(sku)+' counted '+qty+' — matches the sheet exactly. That’s cutover evidence.':
+        diff!=null?'⚠ '+esc(sku)+' counted '+qty+' vs sheet '+expect+' — variance <b>'+(diff>0?'+':'')+diff+'</b> logged. Recount or investigate.':
+        '✓ '+esc(sku)+' counted '+qty+' (no sheet figure to compare).';
+    }else{
+      row=SCAN_MODE==='receive'?{sku,qty:qty,kind:'receive'}:
+        {sku,qty:-qty,kind:'pick',ref:(($('scan-ref')||{}).value||'').trim()||null};
+    }
     await ledgerAdd([row]);
     audit('ledger.'+SCAN_MODE,{sku,qty});
-    const hit=$('scan-hit');if(hit)hit.innerHTML='<div style="background:var(--gr-bg);color:var(--gr);border-radius:10px;padding:10px 14px;font-size:13px;font-weight:600">✓ '+esc(sku)+' '+(SCAN_MODE==='pick'?'−':'+')+qty+' recorded — scan the next one.</div>';
+    const hit=$('scan-hit');if(hit)hit.innerHTML='<div style="background:'+(msg.startsWith('⚠')?'var(--am-bg)':'var(--gr-bg)')+';color:'+(msg.startsWith('⚠')?'var(--am)':'var(--gr)')+';border-radius:10px;padding:10px 14px;font-size:13px;font-weight:600">'+msg+'</div>';
     const c=$('scan-code');if(c){c.value='';c.focus();}
     scanLog();
   }catch(e){alert('Could not record: '+(e.message||e)+(String(e.message||'').includes('stock_moves')?'\n\n(Run the independence SQL from SUPABASE-SETUP.md.)':''));}
