@@ -48,6 +48,15 @@ async function gql(token, query, variables) {
 const sleep = (ms) => new Promise(res => setTimeout(res, ms));
 
 export const handler = async (event) => {
+  // ── AUTH: background jobs require the JOB_KEY (set it in Netlify env), passed as
+  // ?key=... in the URL or an x-job-key header. Unset key = open (pre-lockdown behavior).
+  const _jk=process.env.JOB_KEY||'';
+  if(_jk){
+    const _q=(event.queryStringParameters&&event.queryStringParameters.key)||'';
+    const _h=(event.headers&&(event.headers['x-job-key']||event.headers['X-Job-Key']))||'';
+    if(_q!==_jk&&_h!==_jk)return{statusCode:403,body:'Forbidden — missing or wrong job key'};
+  }
+
   try { connectLambda(event); } catch (e) {}
   let store;
   try { store = getStore('shopify'); }

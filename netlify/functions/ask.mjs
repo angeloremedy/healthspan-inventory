@@ -8,9 +8,24 @@ import { connectLambda, getStore } from '@netlify/blobs';
 const HDRS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST,GET,OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type,Authorization',
   'Content-Type': 'application/json'
 };
+
+
+// ── AUTH: only signed-in Healthspan accounts (session token verified with Supabase)
+async function requireUser(event){
+  const SB_URL=(process.env.SUPABASE_URL||'').replace(/\/$/,'');
+  const SVC=process.env.SUPABASE_SERVICE_KEY||'';
+  if(!SB_URL||!SVC)return null; // lockdown env missing — don't brick the app
+  const token=((event.headers&&(event.headers.authorization||event.headers.Authorization))||'').replace(/^Bearer\s+/i,'');
+  if(!token)return{code:401,error:'Sign in required'};
+  try{
+    const r=await fetch(SB_URL+'/auth/v1/user',{headers:{apikey:SVC,Authorization:'Bearer '+token}});
+    if(!r.ok)return{code:401,error:'Session invalid — sign in again'};
+    return null;
+  }catch(e){return{code:401,error:'Could not verify the session'};}
+}
 
 export const handler = async (event) => {
   // Handler-style functions need the Blobs context wired in explicitly
@@ -18,6 +33,8 @@ export const handler = async (event) => {
   try { connectLambda(event); } catch (e) {}
 
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: HDRS, body: '' };
+  const authFail=await requireUser(event);
+  if(authFail)return{statusCode:authFail.code,headers:HDRS,body:JSON.stringify({error:authFail.error})};
 
   // ── Poll for a result
   if (event.httpMethod === 'GET') {

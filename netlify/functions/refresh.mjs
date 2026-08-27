@@ -49,11 +49,15 @@ async function fetchAcctBooked(KEY){
       const months={};
       for(const row of grid.slice(hi+1)){
         const cells=(row||[]).map(c=>clean(c));
+        // Sheets often stack several tables on one tab (Overall, then per-principal).
+        // Stop at this table's closing "Total" row so the next table can't overwrite ours.
+        if(Object.keys(months).length&&cells.slice(0,4).some(c=>/^total$/i.test(c)))break;
         // month label can sit in any of the first few columns (table starts at col B)
         let mm=null;
         for(let k=0;k<Math.min(cells.length,4)&&!mm;k++)mm=cells[k].match(MONTH_RX);
         if(!mm)continue;
         const ym=mm[2]+'-'+String(MIDX[mm[1].slice(0,3).toLowerCase()]).padStart(2,'0');
+        if(months[ym])continue; // first table wins — never overwrite
         const byLine={};
         for(let j=0;j<hdr.length;j++){
           if(j===totCol||j===qboCol||!PRINCIPAL.test(hdr[j]||''))continue; // principals only — skip TARGET/2025/Growth/etc
@@ -61,7 +65,7 @@ async function fetchAcctBooked(KEY){
         }
         const tot=pNum(cells[totCol]);
         const qbo=qboCol>=0?pNum(cells[qboCol]):null;
-        if(tot&&tot>0)months[ym]={total:Math.round(tot),qbo:qbo?Math.round(qbo):null,byLine};
+        if(tot&&tot>=1000)months[ym]={total:Math.round(tot),qbo:qbo?Math.round(qbo):null,byLine}; // pesos, not a stray % cell
       }
       if(Object.keys(months).length>=3)return{tab:title,months};
     }
@@ -69,14 +73,30 @@ async function fetchAcctBooked(KEY){
   return null;
 }
 
+// ── AUTH: only signed-in Healthspan accounts may pull the data feed
+async function requireUser(event){
+  const SB_URL=(process.env.SUPABASE_URL||'').replace(/\/$/,'');
+  const SVC=process.env.SUPABASE_SERVICE_KEY||'';
+  if(!SB_URL||!SVC)return null; // lockdown env missing — don't brick the app
+  const token=((event.headers&&(event.headers.authorization||event.headers.Authorization))||'').replace(/^Bearer\s+/i,'');
+  if(!token)return{code:401,error:'Sign in required'};
+  try{
+    const r=await fetch(SB_URL+'/auth/v1/user',{headers:{apikey:SVC,Authorization:'Bearer '+token}});
+    if(!r.ok)return{code:401,error:'Session invalid — sign in again'};
+    return null;
+  }catch(e){return{code:401,error:'Could not verify the session'};}
+}
+
 export const handler=async(event,context)=>{
   const hdrs={
     'Access-Control-Allow-Origin':'*',
     'Access-Control-Allow-Methods':'POST,GET,OPTIONS',
-    'Access-Control-Allow-Headers':'Content-Type',
+    'Access-Control-Allow-Headers':'Content-Type,Authorization',
     'Content-Type':'application/json',
   };
   if(event.httpMethod==='OPTIONS')return{statusCode:204,headers:hdrs,body:''};
+  const authFail=await requireUser(event);
+  if(authFail)return{statusCode:authFail.code,headers:hdrs,body:JSON.stringify({error:authFail.error})};
   const KEY=process.env.GOOGLE_API_KEY||'';
   if(!KEY)return{statusCode:500,headers:hdrs,body:JSON.stringify({error:'GOOGLE_API_KEY not set'})};
   const t0=Date.now();
