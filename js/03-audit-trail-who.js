@@ -6,7 +6,7 @@ function audit(action,detail){
   }catch(e){}
 }
 async function renderAudit(){
-  if(!canManage()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only.</div>';return;}
+  if(!roleIn('admin','manager','finance')){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only.</div>';return;}
   $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
   let rows=[];
   try{const {data}=await SB.from('audit_log').select('at,who,action,detail').order('at',{ascending:false}).limit(400);rows=data||[];}
@@ -25,7 +25,7 @@ async function renderAudit(){
 //    cumulative sold units becomes the "actual" — forecast vs reality, honestly scored.
 async function maybeSnapshotForecast(){
   try{
-    if(window._fsnapDone||!SB||!SBUSER||!canManage()||!(DATA&&DATA.length))return;
+    if(window._fsnapDone||!SB||!SBUSER||!roleIn('admin','manager','supply_chain')||!(DATA&&DATA.length))return;
     window._fsnapDone=true;
     const ym=new Date().toISOString().slice(0,7);
     const {count}=await SB.from('forecast_snapshots').select('sku',{count:'exact',head:true}).eq('month',ym);
@@ -273,6 +273,13 @@ async function scSave(k,name){
    PARALLEL-RUN RULE: Shopify (pricing/orders) and Verna's sheet (stock) stay the
    source of truth until the matching flag is flipped on the Cutover switches page. */
 
+function roleIn(){return Array.prototype.slice.call(arguments).includes(ROLE);}
+function circleRole(){return roleIn('admin','manager','supply_chain','finance','marketing','viewer');}
+function canWarehouse(){return roleIn('admin','supply_chain');}
+function canFulfil(){return roleIn('admin','manager','supply_chain');}
+function canFinance(){return roleIn('admin','finance');}
+function canCatalogEdit(){return roleIn('admin','finance');}
+function isSuper(){return ROLE==='admin'&&!!(SBPROFILE&&SBPROFILE.is_super);}
 // Cutover flags — the "declare independence" switches
 let FLAGS={};
 async function loadFlags(force){
@@ -282,7 +289,7 @@ async function loadFlags(force){
 }
 const flagOn=k=>FLAGS[k]==='on';
 async function setFlag(k,v,label){
-  if(ROLE!=='admin')return alert('Admins only.');
+  if(!isSuper())return alert('Super admin only — cutover switches are reserved to Angelo.');
   if(!confirm((v==='on'?'TURN ON: ':'TURN OFF: ')+label+'\n\nThis changes which system the app treats as the truth. Proceed?'))return;
   try{
     const {error}=await SB.from('app_settings').upsert({key:k,value:v,updated_by:(SBUSER&&SBUSER.id)||null,updated_at:new Date().toISOString()});
@@ -294,7 +301,7 @@ async function setFlag(k,v,label){
   }catch(e){alert('Could not save: '+(e.message||e)+(String(e.message||'').includes('app_settings')?'\n\n(Run the independence SQL from SUPABASE-SETUP.md.)':''));}
 }
 async function renderCutover(){
-  if(ROLE!=='admin'){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins only.</div>';return;}
+  if(!isSuper()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Super admin only.</div>';return;}
   $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
   await loadFlags(true);await loadItems();
   let moves=0,rets=0;
@@ -346,7 +353,7 @@ function applyCatalog(){ // when independent, the item master overrides prices e
   }catch(e){}
 }
 async function renderCatalog(){
-  if(!canManage()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only.</div>';return;}
+  if(!circleRole()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only.</div>';return;}
   $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
   await loadFlags();await loadItems(true);
   const items=Object.values(ITEMS).sort((a,b)=>String(a.sku).localeCompare(String(b.sku)));
@@ -358,10 +365,10 @@ async function renderCatalog(){
     (on?'<span class="pill pgr">TRUTH — this catalog prices the app</span>':'<span class="pill" style="background:var(--am-bg);color:var(--am)">shadow — Shopify still prices the app</span>')+
     '<span style="font-size:12px;color:var(--tx3)">'+items.length+' items · edit prices/costs here, compare against Shopify, flip the switch on the Cutover page when clean</span>'+
     '<span style="flex:1"></span>'+
-    '<button onclick="catalogSeed()" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer">⇩ Import current catalog</button>'+
-    '<button onclick="catalogAdd()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer">+ New item</button></div>'+
+    (canCatalogEdit()?'<button onclick="catalogSeed()" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer">⇩ Import current catalog</button>'+
+    '<button onclick="catalogAdd()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer">+ New item</button>':'')+'</div>'+
     '<div id="cat-msg" style="min-height:14px;font-size:12px;margin-bottom:6px"></div>'+
-    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>SKU</th><th>Name</th><th>Line</th><th style="text-align:right">Price ₱</th><th style="text-align:right">Shopify ₱</th><th style="text-align:right">Cost ₱</th><th style="text-align:right">Margin</th><th>Deals</th><th>Barcode</th><th></th></tr></thead><tbody>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>SKU</th><th>Name</th><th>Line</th><th style="text-align:right">Price ₱</th><th style="text-align:right">Shopify ₱</th>'+(canCatalogEdit()?'<th style="text-align:right">Cost ₱</th><th style="text-align:right">Margin</th>':'')+'<th>Deals</th>'+(canCatalogEdit()?'<th>Barcode</th><th></th>':'')+'</tr></thead><tbody>'+
     (items.length?items.map(it=>{
       const sp=shopP[it.sku];
       const drift=sp&&it.price!=null&&Math.round(sp)!==it.price;
@@ -369,18 +376,18 @@ async function renderCatalog(){
       return '<tr'+(it.active===false?' style="opacity:.45"':'')+'><td style="font-weight:600">'+esc(it.sku)+'</td>'+
       '<td style="max-width:230px;overflow:hidden;text-overflow:ellipsis">'+esc(it.name||'')+(it.active===false?' <span class="pill pgy">inactive</span>':'')+'</td>'+
       '<td class="mu" style="font-size:11px">'+esc(it.line||'')+'</td>'+
-      '<td class="r"><input type="number" value="'+(it.price!=null?it.price:'')+'" onchange="catalogSet(\''+esc(it.sku)+'\',\'price\',this.value)" '+inp+'></td>'+
+      (canCatalogEdit()?'<td class="r"><input type="number" value="'+(it.price!=null?it.price:'')+'" onchange="catalogSet(\''+esc(it.sku)+'\',\'price\',this.value)" '+inp+'></td>':'<td class="r" style="font-weight:600">'+(it.price!=null?fmtPeso(it.price):'—')+'</td>')+
       '<td class="r '+(drift?'':'mu')+'" style="'+(drift?'color:var(--am);font-weight:700':'')+'">'+(sp?fmtPeso(sp):'—')+(drift?' ⚠':'')+'</td>'+
-      '<td class="r"><input type="number" value="'+(it.cost!=null?it.cost:'')+'" onchange="catalogSet(\''+esc(it.sku)+'\',\'cost\',this.value)" '+inp+'></td>'+
-      '<td class="r" style="font-weight:600">'+mg+'</td>'+
-      (function(){let n=0;try{n=JSON.parse(it.deals||'[]').length;}catch(e){}return '<td><a href="#" onclick="catalogDeals(\''+esc(it.sku)+'\');return false" style="color:var(--ac);font-size:11px">'+(n?n+' deal'+(n>1?'s':''):'+ deals')+'</a></td>';})()+
-      '<td><input value="'+esc(it.barcode||'')+'" placeholder="scan code" onchange="catalogSet(\''+esc(it.sku)+'\',\'barcode\',this.value)" style="width:120px;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:7px 9px;font-size:11.5px"></td>'+
-      '<td><a href="#" onclick="catalogSet(\''+esc(it.sku)+'\',\'active\','+(it.active===false?'true':'false')+');return false" style="color:'+(it.active===false?'var(--gr)':'var(--tx3)')+';font-size:11px">'+(it.active===false?'activate':'deactivate')+'</a></td></tr>';
+      (canCatalogEdit()?'<td class="r"><input type="number" value="'+(it.cost!=null?it.cost:'')+'" onchange="catalogSet(\''+esc(it.sku)+'\',\'cost\',this.value)" '+inp+'></td>'+
+      '<td class="r" style="font-weight:600">'+mg+'</td>':'')+
+      (function(){let n=0;try{n=JSON.parse(it.deals||'[]').length;}catch(e){}return canCatalogEdit()?'<td><a href="#" onclick="catalogDeals(\''+esc(it.sku)+'\');return false" style="color:var(--ac);font-size:11px">'+(n?n+' deal'+(n>1?'s':''):'+ deals')+'</a></td>':'<td class="mu" style="font-size:11px">'+(n?n+' deal'+(n>1?'s':''):'—')+'</td>';})()+
+      (canCatalogEdit()?'<td><input value="'+esc(it.barcode||'')+'" placeholder="scan code" onchange="catalogSet(\''+esc(it.sku)+'\',\'barcode\',this.value)" style="width:120px;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:7px 9px;font-size:11.5px"></td>':'')+
+      (canCatalogEdit()?'<td><a href="#" onclick="catalogSet(\''+esc(it.sku)+'\',\'active\','+(it.active===false?'true':'false')+');return false" style="color:'+(it.active===false?'var(--gr)':'var(--tx3)')+';font-size:11px">'+(it.active===false?'activate':'deactivate')+'</a></td>':'')+'</tr>';
     }).join(''):'<tr><td colspan="10"><div class="empty">Empty — tap “Import current catalog” to seed every product with its current sheet/Shopify data, then add costs.</div></td></tr>')+
     '</tbody></table></div><div class="tfooter"><span>⚠ = price here differs from Shopify (drift to resolve before independence) · costs enable true margin reporting · barcode links a scan code to the SKU for the Scan view · edits save instantly and are audited</span></div></div>';
 }
 async function catalogSeed(){
-  if(!canManage())return;
+  if(!canCatalogEdit())return alert('Catalog editing is admin + finance only.');
   if(!DATA.length)return alert('Wait for the sheet sync first.');
   if(!confirm('Seed/refresh the item master from the current catalog ('+DATA.length+' products)?\n\nPrices you have already edited here are kept; only missing items and empty prices are filled.'))return;
   try{
@@ -398,7 +405,7 @@ async function catalogSeed(){
   }catch(e){alert('Could not seed: '+(e.message||e)+(String(e.message||'').includes('items')?'\n\n(Run the independence SQL from SUPABASE-SETUP.md.)':''));}
 }
 async function catalogSet(sku,field,val){
-  if(!canManage())return;
+  if(!canCatalogEdit())return;
   try{
     const patch={updated_by:(SBUSER&&SBUSER.id)||null,updated_at:new Date().toISOString()};
     if(field==='active')patch.active=(val===true||val==='true');
@@ -413,7 +420,7 @@ async function catalogSet(sku,field,val){
   }catch(e){alert('Could not save: '+(e.message||e));}
 }
 async function catalogAdd(){
-  if(!canManage())return;
+  if(!canCatalogEdit())return;
   const sku=prompt('New SKU code:','');if(!sku||!sku.trim())return;
   const name=prompt('Product name:','');if(name===null)return;
   try{
@@ -581,7 +588,7 @@ async function ledgerAdd(rows){
   if(error)throw error;
 }
 async function confirmPick(orderRef){
-  if(!SBUSER)return;
+  if(!canFulfil())return alert('Fulfillment roles only (admin / manager / supply chain).');
   let o=null;
   try{const {data}=await SB.from('orders').select('*,order_lines(*)').eq('id',orderRef).maybeSingle();o=data;}catch(e){}
   if(!o)return alert('Order not found.');
@@ -596,7 +603,7 @@ async function confirmPick(orderRef){
     await ledgerAdd(rows);
     audit('ledger.pick',{order:ordLabel(o),lines:rows.length});
     // gear 2: the warehouse action drives the order status too
-    if(o.status==='pending'&&canManage()&&confirm('Picked ✓ ('+rows.length+' line'+(rows.length>1?'s':'')+' in the ledger).\n\nAlso mark '+ordLabel(o)+' as FULFILLED?')){
+    if(o.status==='pending'&&canFulfil()&&confirm('Picked ✓ ('+rows.length+' line'+(rows.length>1?'s':'')+' in the ledger).\n\nAlso mark '+ordLabel(o)+' as FULFILLED?')){
       const {error:e2}=await SB.from('orders').update({status:'fulfilled'}).eq('id',o.id);
       if(!e2){audit('order.fulfilled',{order:ordLabel(o),via:'pick-confirm'});NORDERS=null;}
       alert(e2?('Ledger saved, but the status update failed: '+e2.message):'Fulfilled ✓ — ledger and order updated together.');
@@ -608,6 +615,7 @@ async function confirmPick(orderRef){
 /* SCAN-TO-PICK: fulfillment queue → pick list → scan every item against the order.
    Wrong item = red stop; over-scan = warning; all lines green = confirm + fulfill. */
 async function showScanPick(orderId){
+  if(!canFulfil())return alert('Fulfillment roles only.');
   currentView='scanpick';
   window._scanHandler=pickCode;
   $('ptitle').textContent='Scan to pick';
@@ -689,6 +697,7 @@ async function pickFinish(){
 let SCAN_MODE='pick',SCAN_STREAM=null;
 async function renderScan(){
   window._scanHandler=null;
+  if(!canWarehouse()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Warehouse role only (admin / supply chain).</div>';return;}
   const supported='BarcodeDetector' in window;
   await loadItems();
   $('content').innerHTML=
@@ -763,6 +772,7 @@ function scanResolve(code){
   const q=$('scan-qty');if(q){q.focus();q.select();}
 }
 async function scanRecord(sku){
+  if(!canWarehouse())return;
   const qty=parseInt(($('scan-qty')||{}).value||'0',10);
   if(!qty||qty<1)return;
   try{

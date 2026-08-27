@@ -41,10 +41,12 @@ export const handler = async (event) => {
     caller = await r.json();
   } catch (e) { return out(401, { error: 'Session invalid — sign in again' }); }
   let callerName = caller.email || '';
+  let callerSuper = false;
   try {
-    const prof = await svc('/rest/v1/profiles?id=eq.' + caller.id + '&select=role,name');
+    const prof = await svc('/rest/v1/profiles?id=eq.' + caller.id + '&select=role,name,is_super');
     if (!prof || !prof[0] || prof[0].role !== 'admin') return out(403, { error: 'Admins only' });
     callerName = prof[0].name || callerName;
+    callerSuper = !!prof[0].is_super;
   } catch (e) { return out(403, { error: 'Admins only' }); }
   // audit trail (best-effort; the table may not exist yet)
   const log = async (action, detail) => {
@@ -72,7 +74,7 @@ export const handler = async (event) => {
     }
     if (act === 'create') {
       const { email, password, name, role, tag } = p;
-      if (!email || !password || !name || !['admin', 'manager', 'sales'].includes(role)) return out(400, { error: 'Need email, password, name, role' });
+      if (!email || !password || !name || !['admin','manager','sales','supply_chain','finance','marketing','viewer'].includes(role)) return out(400, { error: 'Need email, password, name, role' });
       if (password.length < 8) return out(400, { error: 'Password must be 8+ characters' });
       const u = await svc('/auth/v1/admin/users', 'POST', { email, password, email_confirm: true });
       await svc('/rest/v1/profiles', 'POST', { id: u.id, name, role, specialist_tag: tag || null });
@@ -84,7 +86,7 @@ export const handler = async (event) => {
       if (!id) return out(400, { error: 'Need id' });
       const patch = {};
       if (name != null) patch.name = name;
-      if (role != null) { if (!['admin', 'manager', 'sales'].includes(role)) return out(400, { error: 'Bad role' }); patch.role = role; }
+      if (role != null) { if (!['admin','manager','sales','supply_chain','finance','marketing','viewer'].includes(role)) return out(400, { error: 'Bad role' }); patch.role = role; }
       if (tag !== undefined) patch.specialist_tag = tag || null;
       await fetch(SB_URL + '/rest/v1/profiles?id=eq.' + id, {
         method: 'PATCH', headers: { apikey: SVC, Authorization: 'Bearer ' + SVC, 'Content-Type': 'application/json' }, body: JSON.stringify(patch)
@@ -97,6 +99,26 @@ export const handler = async (event) => {
       if (!id || !password || password.length < 8) return out(400, { error: 'Need id and an 8+ character password' });
       await svc('/auth/v1/admin/users/' + id, 'PUT', { password });
       await log('user.password', { id: id.slice(0, 8) });
+      return out(200, { ok: true });
+    }
+    if (act === 'delete') { // SUPER ADMIN ONLY: permanent removal of a login
+      if (!callerSuper) return out(403, { error: 'Super admin only — deletion is reserved to Angelo' });
+      const { id } = p;
+      if (!id) return out(400, { error: 'Need id' });
+      if (id === caller.id) return out(400, { error: 'You can’t delete your own account' });
+      try {
+        await svc('/rest/v1/profiles?id=eq.' + id, 'DELETE');
+        const r = await fetch(SB_URL + '/auth/v1/admin/users/' + id, {
+          method: 'DELETE', headers: { apikey: SVC, Authorization: 'Bearer ' + SVC }
+        });
+        if (!r.ok) {
+          const t = await r.text();
+          return out(400, { error: 'Could not delete — they likely have orders/visits on record (history is protected). Use disable instead. (' + t.slice(0, 120) + ')' });
+        }
+      } catch (e) {
+        return out(400, { error: 'Could not delete — use disable instead: ' + String(e.message || e).slice(0, 150) });
+      }
+      await log('user.DELETE', { id: id.slice(0, 8) });
       return out(200, { ok: true });
     }
     if (act === 'disable' || act === 'enable') {

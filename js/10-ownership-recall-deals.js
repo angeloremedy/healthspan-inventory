@@ -36,7 +36,7 @@ function ownerSelHTML(name){
 
 // Batch recall trace: batch → every clinic/order/DR that received it
 async function renderRecall(){
-  if(!canManage()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only.</div>';return;}
+  if(!roleIn('admin','manager','supply_chain','marketing')){$('content').innerHTML='<div class="empty" style="margin-top:40px">Warehouse, management, and marketing only.</div>';return;}
   const skus=DATA.map(p=>'<option value="'+esc(p.sku)+'">'+esc(p.name)+'</option>').join('');
   const inp='style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:9px 11px;font-size:13px"';
   $('content').innerHTML=
@@ -391,7 +391,7 @@ async function oppSet(id,stage){
 /* ── PURCHASE ORDERS + RECEIVING (procure-to-pay, feeds the scan ledger) ── */
 const PO_NO=id=>'PO-'+String(1000+id);
 async function renderPOs(){
-  if(!canManage()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only (logistics role later).</div>';return;}
+  if(!roleIn('admin','manager','supply_chain','finance')){$('content').innerHTML='<div class="empty" style="margin-top:40px">Warehouse, finance, and management only.</div>';return;}
   $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
   let pos=[],lines=[];
   try{
@@ -411,11 +411,11 @@ async function renderPOs(){
     '<div class="met am"><div class="met-lbl">Units incoming</div><div class="met-val">'+openArr.reduce((a,p)=>a+((byPo[p.id]||[]).reduce((x,l)=>x+Math.max(0,(l.qty||0)-(l.received||0)),0)),0).toLocaleString()+'</div><div class="met-sub">still to receive</div><div class="met-bar"></div></div>'+
     '<div class="met gr"><div class="met-lbl">Next arrival</div><div class="met-val" style="font-size:15px">'+((openArr.filter(p=>p.eta).sort((a,b)=>a.eta<b.eta?-1:1)[0]||{}).eta||'—')+'</div><div class="met-sub">earliest ETA</div><div class="met-bar"></div></div>'+
     '</div>'+
-    '<div class="panel" style="padding:12px 14px;margin-bottom:12px"><div class="phd">New purchase order</div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+
+    (canWarehouse()?'<div class="panel" style="padding:12px 14px;margin-bottom:12px"><div class="phd">New purchase order</div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+
     '<input id="po-sup" list="po-sups" placeholder="Supplier" '+inp+' style="flex:1;min-width:150px;'+inp.slice(7,-1)+'"><datalist id="po-sups">'+suppliers.map(s2=>'<option value="'+esc(s2)+'">').join('')+'</datalist>'+
     '<input id="po-eta" type="date" title="ETA" '+inp+'>'+
     '<button onclick="poCreate()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12.5px;font-weight:600;cursor:pointer">Create draft</button>'+
-    '<span style="font-size:11px;color:var(--tx3)">then add lines inside the PO and mark it ordered</span></div></div>'+
+    '<span style="font-size:11px;color:var(--tx3)">then add lines inside the PO and mark it ordered</span></div></div>':'')+
     (pos.length?pos.map(p=>{
       const ls=byPo[p.id]||[];
       const done=ls.reduce((a,l)=>a+(l.received||0),0),tot=ls.reduce((a,l)=>a+(l.qty||0),0);
@@ -441,6 +441,7 @@ async function renderPOs(){
     '<div style="font-size:11px;color:var(--tx3);margin-top:8px">Receiving asks for batch + expiry at the door and writes straight into the stock ledger'+(flagOn('ledger_is_truth')?'':' (shadow — the sheet stays stock truth until cutover)')+' · unit costs flow toward margin reporting</div>';
 }
 async function poCreate(){
+  if(!canWarehouse())return alert('PO writing is admin + supply chain.');
   const sup=(($('po-sup')||{}).value||'').trim();
   if(!sup)return alert('Who’s the supplier?');
   try{
@@ -451,6 +452,7 @@ async function poCreate(){
   }catch(e){alert('Could not create: '+(e.message||e));}
 }
 async function poAddLine(poId){
+  if(!canWarehouse())return;
   const sku=(($('pl-sku-'+poId)||{}).value||'').trim(),qty=parseInt(($('pl-qty-'+poId)||{}).value||'0',10);
   if(!sku||!qty||qty<1)return alert('Need a SKU and quantity.');
   const p=(DATA||[]).find(x=>x.sku===sku);
@@ -462,6 +464,7 @@ async function poAddLine(poId){
   }catch(e){alert(e.message||e);}
 }
 async function poStatus(poId,st){
+  if(!canWarehouse())return;
   if(st==='cancelled'&&!confirm('Cancel this PO?'))return;
   try{
     const {error}=await SB.from('pos').update({status:st,updated_at:new Date().toISOString()}).eq('id',poId);
@@ -471,6 +474,7 @@ async function poStatus(poId,st){
   }catch(e){alert(e.message||e);}
 }
 async function poReceive(poId,lineId,sku,qty,got){
+  if(!canWarehouse())return alert('Receiving is admin + supply chain.');
   const left=qty-got;
   const n=parseInt(prompt('Receiving '+sku+' — how many units? ('+left+' outstanding)',String(left))||'0',10);
   if(!n||n<1)return;

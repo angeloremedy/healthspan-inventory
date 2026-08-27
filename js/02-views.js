@@ -3,6 +3,13 @@ function showView(v,el){
   const SALES_OK=['home','logvisit','followups','account','neworder','orders','order','spec','pickslip','pipeline']; // non-"sales*" views the sales role may open
   if(typeof ROLE!=='undefined'&&ROLE==='sales'&&!String(v).startsWith('sales')&&!SALES_OK.includes(v)){v='salesoverview';el=document.querySelector('.ni.nv-sales');}
   if(typeof ROLE!=='undefined'&&ROLE==='manager'&&v==='users'){v='home';el=document.querySelector('.ni[onclick*="\'home\'"]');} // managers: everything except account management
+  if(v==='cutover'&&typeof isSuper==='function'&&!isSuper()){v='home';el=document.querySelector('.ni[onclick*="\'home\'"]');} // cutover: super admin only
+  // circle roles: broad read, no order/visit entry, role-scoped ops (writes are DB-enforced anyway)
+  if(typeof ROLE!=='undefined'&&['supply_chain','finance','marketing','viewer'].includes(ROLE)){
+    const common=['neworder','logvisit','users','cutover','targets','scorecards'];
+    const per={supply_chain:['pdc'],finance:['scan','scanpick','fulfillq','recall'],marketing:['scan','scanpick','po','fulfillq','pdc','returns'],viewer:['scan','scanpick','po','fulfillq','pdc','returns','recall','audit']};
+    if(common.includes(v)||(per[ROLE]||[]).includes(v)){v='home';el=document.querySelector('.ni[onclick*="\'home\'"]');}
+  }
   if(typeof pushRoute==='function')pushRoute('#/v/'+v); // browser back/forward works across views
   currentView=v;fLine='';fSearch='';fTab='all';fBin='';fSup='';
   document.querySelectorAll('.ni').forEach(x=>x.classList.remove('active'));
@@ -860,16 +867,17 @@ async function renderOrderPage(){
   const eff=src==='shopify'?(ovr.status||'imported'):o.status;
   const inTrash=src==='shopify'?!!ovr.deleted_at:!!o.deleted_at;
   const isAdmin=ROLE==='admin';
+  const canStatus=isAdmin||ROLE==='supply_chain';
   const stPill=s=>s==='fulfilled'?'<span class="pill pgr">fulfilled</span>':s==='cancelled'?'<span class="pill prd">cancelled</span>':s==='imported'?'<span class="pill pbl">Shopify import</span>':'<span class="pill" style="background:var(--am-bg);color:var(--am)">pending</span>';
   const btn=(label,color,fn)=>'<button onclick="'+fn+'" style="background:'+color+';color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer">'+label+'</button>';
   const act=a=>'orderAct(\''+src+'\',\''+esc(String(src==='shopify'?o.id:o.id)).replace(/'/g,'&#39;')+'\',\''+a+'\')';
   let actions='';
-  if(isAdmin&&SB&&!inTrash){
+  if(canStatus&&SB&&!inTrash){
     if(eff!=='fulfilled'&&eff!=='cancelled')actions+=btn('Mark fulfilled','var(--gr)',act('fulfilled'));
     if(eff==='fulfilled')actions+=btn('Unfulfill','var(--am)',act('pending'));
     if(eff!=='cancelled')actions+=btn('Cancel order','var(--rd)',act('cancelled'));
     if(eff==='cancelled')actions+=btn('Reopen','var(--bl)',act('pending'));
-    actions+=btn('Delete','var(--tx3)',act('trash'));
+    if(isAdmin)actions+=btn('Delete','var(--tx3)',act('trash'));
   }
   $('content').innerHTML=
     '<div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">'+
@@ -897,7 +905,7 @@ async function renderOrderPage(){
       '<div class="drow"><span class="dlbl">Paid</span><span class="dval">'+fmtPeso(o.paid||0)+'</span></div>'+
       '<div class="drow"><span class="dlbl">Balance</span><span class="dval" style="font-weight:700;color:'+((o.balance||0)>0?'var(--rd)':'var(--gr)')+'">'+fmtPeso(o.balance||0)+'</span></div>'+
       (o.terms_days?'<div class="drow"><span class="dlbl">Terms</span><span class="dval">'+o.terms_days+' days</span></div>':'')+
-      (ROLE==='admin'&&(o.balance||0)>0&&!inTrash?'<button onclick="recordPayment(\''+o.id+'\')" style="width:100%;background:var(--gr);color:#fff;border:none;border-radius:8px;padding:10px;font-size:12.5px;font-weight:600;cursor:pointer;margin-top:8px">+ Record payment</button>':'')+
+      (canFinance()&&(o.balance||0)>0&&!inTrash?'<button onclick="recordPayment(\''+o.id+'\')" style="width:100%;background:var(--gr);color:#fff;border:none;border-radius:8px;padding:10px;font-size:12.5px;font-weight:600;cursor:pointer;margin-top:8px">+ Record payment</button>':'')+
       '</div>':'')+
     (src==='native'?(function(){
       const inp='style="flex:1;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;font-size:12.5px;min-width:100px"';
@@ -922,7 +930,9 @@ async function loadOverrides(force){
   return OVR;
 }
 async function orderAct(src,ref,action){
-  if(!SB||ROLE!=='admin')return;
+  if(!SB)return;
+  if(action==='trash'&&ROLE!=='admin')return;
+  if(!roleIn('admin','supply_chain'))return;
   const labels={fulfilled:'Mark this order fulfilled?',pending:'Reopen this order (back to pending)?',cancelled:'Cancel this order?',trash:'Move this order to the trash?'};
   if(!confirm(labels[action]||'Proceed?'))return;
   try{

@@ -34,7 +34,7 @@ function renderHome(){
     '<div class="hmc-ic">'+ic(icon)+'</div><div><div class="hmc-t">'+title+'</div><div class="hmc-s">'+sub+'</div></div></div>';
   const go=v=>'homeGo(\''+v+'\')';
   let sections=[];
-  if(ROLE==='admin'||ROLE==='manager'){
+  if(circleRole()){
     sections=[
       ['Today',[
         card(go('fulfillq'),'Fulfillment queue','Pending orders, oldest first',HI.truck,1),
@@ -57,7 +57,7 @@ function renderHome(){
       ['Admin',[
         card(go('users'),'Team & access','Accounts, roles, passwords',HI.key)]]
     ];
-    if(ROLE==='manager')sections=sections.filter(s=>s[0]!=='Admin');
+    if(ROLE!=='admin')sections=sections.filter(s=>s[0]!=='Admin');
   }else{
     const today=[];
     today.push(card(go('neworder'),'New order','Take an order in a minute',HI.cart,1));
@@ -89,7 +89,7 @@ function renderHome(){
   '</style>'+
   '<div class="hm-hero"><div style="font-size:12px;opacity:.85;position:relative">'+esc(dstr)+'</div>'+
   '<div style="font-size:24px;font-weight:700;margin-top:2px;position:relative">'+greet+', '+esc(first)+'</div>'+
-  '<div style="font-size:12.5px;opacity:.85;margin-top:4px;position:relative">'+(ROLE==='admin'?'Everything Healthspan, in one place.':ROLE==='manager'?'Sales manager view — the whole team, all accounts.':(myTag?'Signed in as '+esc(myTag)+' — your orders and visits log under your name.':'Manager view — you see the whole team.'))+'</div></div>'+
+  '<div style="font-size:12.5px;opacity:.85;margin-top:4px;position:relative">'+(ROLE==='admin'?'Everything Healthspan, in one place.':ROLE==='manager'?'Sales manager view — the whole team, all accounts.':ROLE==='supply_chain'?'Supply chain view — warehouse, POs, and inventory.':ROLE==='finance'?'Finance view — receivables, cheques, and exports.':ROLE==='marketing'?'Marketing view — campaigns, pipeline, and analytics.':ROLE==='viewer'?'Viewer — the weekly-meeting numbers, live.':(myTag?'Signed in as '+esc(myTag)+' — your orders and visits log under your name.':'Manager view — you see the whole team.'))+'</div></div>'+
   '<div id="hm-live" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:4px"></div>'+
   '<div id="hm-attn"></div>'+
   sections.map(s=>'<div class="hm-lbl">'+s[0]+'</div><div class="hm-grid">'+s[1].join('')+'</div>').join('');
@@ -120,12 +120,13 @@ async function renderUsers(){
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Tag</th><th>Last sign-in</th><th></th></tr></thead><tbody>'+
     users.map(u=>'<tr'+(u.banned?' style="opacity:.5"':'')+'><td style="font-weight:600">'+esc(u.name||'—')+(u.banned?' <span class="pill prd">disabled</span>':'')+'</td>'+
       '<td class="mu" style="font-size:11.5px">'+esc(u.email)+'</td>'+
-      '<td>'+(u.role==='admin'?'<span class="pill pbl">admin</span>':u.role==='manager'?'<span class="pill" style="background:rgba(127,119,221,.15);color:var(--pu)">manager</span>':u.role==='sales'?'<span class="pill pgr">sales</span>':'<span class="pill prd">'+esc(u.role)+'</span>')+'</td>'+
+      '<td>'+(u.role==='admin'?'<span class="pill pbl">admin</span>':u.role==='manager'?'<span class="pill" style="background:rgba(127,119,221,.15);color:var(--pu)">manager</span>':u.role==='sales'?'<span class="pill pgr">sales</span>':['supply_chain','finance','marketing','viewer'].includes(u.role)?'<span class="pill pgy">'+esc(u.role.replace('_',' '))+'</span>':'<span class="pill prd">'+esc(u.role)+'</span>')+'</td>'+
       '<td class="mu">'+esc(u.tag||'—')+'</td>'+
       '<td class="mu" style="font-size:11px">'+(u.last?esc(u.last.slice(0,10)):'never')+'</td>'+
       '<td style="white-space:nowrap">'+
       '<a href="#" onclick="userEdit(\''+u.id+'\',\''+esc(u.name).replace(/'/g,'&#39;')+'\',\''+esc(u.role)+'\',\''+esc(u.tag).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac);font-size:11.5px">edit</a> · '+
       '<a href="#" onclick="userPass(\''+u.id+'\',\''+esc(u.name||u.email).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac);font-size:11.5px">password</a> · '+
+      (isSuper()&&u.id!==(SBUSER&&SBUSER.id)?'<a href="#" onclick="userDelete(\''+u.id+'\',\''+esc(u.name||u.email).replace(/'/g,'&#39;')+'\');return false" style="color:var(--rd);font-size:11.5px;font-weight:700">delete</a> · ':'')+
       (u.banned?'<a href="#" onclick="userToggle(\''+u.id+'\',\'enable\');return false" style="color:var(--gr);font-size:11.5px">enable</a>':
       '<a href="#" onclick="userToggle(\''+u.id+'\',\'disable\');return false" style="color:var(--rd);font-size:11.5px">disable</a>')+
       '</td></tr>').join('')+
@@ -134,7 +135,7 @@ async function renderUsers(){
     '<label '+lbl+'>Name</label><input id="au-name" '+inp+'>'+
     '<label '+lbl+'>Email</label><input id="au-email" type="email" '+inp+'>'+
     '<label '+lbl+'>Starter password (8+ chars)</label><input id="au-pass" '+inp+'>'+
-    '<label '+lbl+'>Role</label><select id="au-role" onchange="var t=$(\'au-tagwrap\');if(t)t.style.display=this.value===\'sales\'?\'block\':\'none\'" '+inp+'><option value="sales">Product specialist</option><option value="manager">Sales manager — whole team, merges, no user admin</option><option value="admin">Admin — everything</option></select>'+
+    '<label '+lbl+'>Role</label><select id="au-role" onchange="var t=$(\'au-tagwrap\');if(t)t.style.display=this.value===\'sales\'?\'block\':\'none\'" '+inp+'><option value="sales">Product specialist</option><option value="manager">Sales manager</option><option value="supply_chain">Supply chain (Verna) — warehouse, POs, receiving</option><option value="finance">Finance — AR, payments, PDCs, costs</option><option value="marketing">Marketing — campaigns + circle read</option><option value="viewer">Viewer — meeting read-only, no writes</option><option value="admin">Admin — everything</option></select>'+
     '<div id="au-tagwrap"><label '+lbl+'>Specialist tag <span style="text-transform:none;font-weight:400">(blank = manager, sees all)</span></label><input id="au-tag" list="au-tags" '+inp+'>'+
     '<datalist id="au-tags">'+specNames().map(s=>'<option value="'+esc(s)+'">').join('')+'</datalist></div>'+
     '<div id="au-msg" style="min-height:16px;font-size:11.5px;margin:8px 0 4px"></div>'+
@@ -161,6 +162,12 @@ async function userPass(id,who){
   const p=prompt('New password for '+who+' (8+ characters):','');if(!p)return;
   try{await adminUsers('password',{id,password:p});alert('Password updated for '+who+'. Send it to them privately.');}
   catch(e){alert(e.message);}
+}
+async function userDelete(id,who){
+  if(!isSuper())return alert('Super admin only.');
+  if(!confirm('PERMANENTLY DELETE '+who+'?\n\nThis removes their login entirely. If they have orders/visits on record, deletion is blocked — use disable instead.'))return;
+  if(!confirm('Really sure? This cannot be undone. (Disable is the reversible option.)'))return;
+  try{await adminUsers('delete',{id});renderUsers();}catch(e){alert(e.message);}
 }
 async function userToggle(id,act){
   if(act==='disable'&&!confirm('Disable this account? They’ll be signed out and blocked from signing in.'))return;

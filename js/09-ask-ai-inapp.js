@@ -131,7 +131,11 @@ function buildMobileNav(){
   const sales=[home,['neworder','New order',I.cart],['orders','Orders',I.bag],['logvisit','Log visit',I.pen],['followups','Follow-ups',I.check],['salesoverview','Sales',I.peso]];
   const admin=[home,['fulfillq','Fulfill',I.check],['orders','Orders',I.bag],['neworder','New order',I.cart],['customers','Accounts',I.users],['salesoverview','Sales',I.peso]];
   const mgr=[home,['orders','Orders',I.bag],['neworder','New order',I.cart],['customers','Accounts',I.users],['salesspec','Team',I.users],['salesoverview','Sales',I.peso]];
-  const items=(ROLE==='sales')?sales:(ROLE==='manager')?mgr:admin;
+  const sc=[home,['fulfillq','Fulfill',I.check],['scan','Scan',I.list],['po','POs',I.bag],['orders','Orders',I.bag],['all','SKUs',I.list]];
+  const fin=[home,['ar','AR',I.peso],['pdc','PDCs',I.peso],['returns','Returns',I.bag],['orders','Orders',I.bag],['salesoverview','Sales',I.peso]];
+  const mkt=[home,['campaigns','Campaigns',I.check],['pipeline','Pipeline',I.users],['customers','Accounts',I.users],['salesoverview','Sales',I.peso]];
+  const vwr=[home,['salesoverview','Sales',I.peso],['dashboard','Inventory',I.grid],['customers','Accounts',I.users],['ar','AR',I.peso]];
+  const items=(ROLE==='sales')?sales:(ROLE==='manager')?mgr:(ROLE==='supply_chain')?sc:(ROLE==='finance')?fin:(ROLE==='marketing')?mkt:(ROLE==='viewer')?vwr:admin;
   let html=items.map(([v,l,svg])=>'<div class="mni'+(currentView===v?' active':'')+'" onclick="showView(\''+v+'\',null);document.querySelectorAll(\'.mni\').forEach(x=>x.classList.remove(\'active\'));this.classList.add(\'active\')"><svg viewBox="0 0 24 24">'+svg+'</svg>'+l+'</div>').join('');
   if(ROLE==='sales'&&SBPROFILE&&SBPROFILE.specialist_tag)
     html='<div class="mni" onclick="showSpecPage(SBPROFILE.specialist_tag)"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>My page</div>'+html;
@@ -168,7 +172,8 @@ async function initAuth(){
 }
 async function sbLoadProfile(user){
   SBUSER=user;
-  try{const {data}=await SB.from('profiles').select('name,role,specialist_tag').eq('id',user.id).single();SBPROFILE=data||null;}catch(e){SBPROFILE=null;}
+  try{const {data}=await SB.from('profiles').select('name,role,specialist_tag,is_super').eq('id',user.id).single();SBPROFILE=data||null;}
+  catch(e){try{const {data}=await SB.from('profiles').select('name,role,specialist_tag').eq('id',user.id).single();SBPROFILE=data||null;}catch(e2){SBPROFILE=null;}}
   ROLE=(SBPROFILE&&SBPROFILE.role)||'sales';
   const g=$('rolegate');if(g)g.style.display='none';
   document.body.classList.toggle('role-sales',ROLE==='sales');
@@ -186,10 +191,19 @@ async function sbLoadProfile(user){
   const who=(SBPROFILE&&SBPROFILE.name)||user.email||'';
   if(sf){const old=document.getElementById('rolebadge');if(old)old.remove();
     const d=document.createElement('div');d.id='rolebadge';
-    d.innerHTML=esc(who)+' · '+(ROLE==='sales'?'Sales':ROLE==='manager'?'Sales manager':'Admin')+' · <a href="#" onclick="openChangePassword();return false" style="color:var(--ac)">password</a> · <a href="#" onclick="roleLogout();return false" style="color:var(--ac)">sign out</a>';
+    d.innerHTML=esc(who)+' · '+(ROLE==='sales'?'Sales':ROLE==='manager'?'Sales manager':ROLE==='admin'?'Admin':esc(String(ROLE).replace('_',' ')))+' · <a href="#" onclick="openChangePassword();return false" style="color:var(--ac)">password</a> · <a href="#" onclick="roleLogout();return false" style="color:var(--ac)">sign out</a>';
     d.style.cssText='padding:6px 14px;border-top:1px solid var(--bd);font-size:10.5px;color:var(--tx3)';
     sf.parentNode.insertBefore(d,sf);}
   buildMobileNav();
+  try{if(!isSuper())document.querySelectorAll('.ni[onclick*="\'cutover\'"]').forEach(el=>el.style.display='none');}catch(e){}
+  try{ // circle roles: hide nav for views their guard would bounce anyway
+    if(['supply_chain','finance','marketing','viewer'].includes(ROLE)){
+      const common=['neworder','logvisit','users','targets','scorecards'];
+      const per={supply_chain:['pdc'],finance:['scan','scanpick','fulfillq','recall'],marketing:['scan','scanpick','po','fulfillq','pdc','returns'],viewer:['scan','scanpick','po','fulfillq','pdc','returns','recall','audit']};
+      [...common,...(per[ROLE]||[])].forEach(v=>document.querySelectorAll('.ni[onclick*="\''+v+'\'"]').forEach(el=>el.style.display='none'));
+      const lbl=document.getElementById('nav-admin-lbl');if(lbl&&ROLE!=='finance')lbl.style.display='none';
+    }
+  }catch(e){}
   if(location.hash&&location.hash.startsWith('#/'))applyRoute(); // deep link / refresh keeps the page
   else showView('home',document.querySelector('.ni[onclick*="\'home\'"]')); // everyone lands on the role-aware home
 }

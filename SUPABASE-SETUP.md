@@ -318,6 +318,136 @@ alter table public.accounts add column if not exists owner_tag text;
 alter table public.items add column if not exists deals text;  -- JSON: [{"buy":5,"free":1,"price":237500}]
 ```
 
+## ALL ROLES ROLLOUT (run this whole block once): super admin + supply_chain /
+## finance / marketing / viewer + manager tightening
+
+```sql
+-- 1. super admin flag (Angelo only)
+alter table public.profiles add column if not exists is_super boolean not null default false;
+update public.profiles set is_super = true
+where id = (select id from auth.users where email = 'angelo@remedy.ph');
+
+drop policy if exists "write settings (admin)" on public.app_settings;
+drop policy if exists "update settings (admin)" on public.app_settings;
+drop policy if exists "write settings (super)" on public.app_settings;
+drop policy if exists "update settings (super)" on public.app_settings;
+create policy "write settings (super)" on public.app_settings for insert
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_super));
+create policy "update settings (super)" on public.app_settings for update
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_super));
+
+-- 2. seven roles
+alter table public.profiles drop constraint if exists profiles_role_check;
+alter table public.profiles add constraint profiles_role_check
+  check (role in ('admin','manager','sales','supply_chain','finance','marketing','viewer'));
+
+-- 3. order/visit entry: sales-shaped roles only (circle roles are read-only there)
+drop policy if exists "insert own orders" on public.orders;
+create policy "insert own orders" on public.orders for insert
+with check (auth.uid() = user_id and exists (select 1 from public.profiles p
+  where p.id = auth.uid() and (p.role in ('admin','manager') or lower(coalesce(p.specialist_tag,'')) = lower(spec))));
+drop policy if exists "insert own visits" on public.visits;
+create policy "insert own visits" on public.visits for insert
+with check (auth.uid() = user_id and exists (select 1 from public.profiles p
+  where p.id = auth.uid() and (p.role in ('admin','manager') or lower(coalesce(p.specialist_tag,'')) = lower(spec))));
+drop policy if exists "update visits" on public.visits;
+create policy "update visits" on public.visits for update
+using (exists (select 1 from public.profiles p where p.id = auth.uid()
+  and (p.role in ('admin','manager') or lower(coalesce(p.specialist_tag,'')) = lower(spec))));
+
+-- 4. orders update: owners + ops roles (status, payments, edits)
+drop policy if exists "update orders" on public.orders;
+create policy "update orders" on public.orders for update
+using (auth.uid() = user_id or exists (select 1 from public.profiles p
+  where p.id = auth.uid() and p.role in ('admin','manager','supply_chain','finance')));
+drop policy if exists "insert lines" on public.order_lines;
+create policy "insert lines" on public.order_lines for insert
+with check (exists (select 1 from public.orders o where o.id = order_id
+  and (o.user_id = auth.uid() or exists (select 1 from public.profiles p
+       where p.id = auth.uid() and p.role in ('admin','manager')))));
+drop policy if exists "delete lines" on public.order_lines;
+create policy "delete lines" on public.order_lines for delete
+using (exists (select 1 from public.orders o where o.id = order_id
+  and (o.user_id = auth.uid() or exists (select 1 from public.profiles p
+       where p.id = auth.uid() and p.role in ('admin','manager')))));
+
+-- 5. role-scoped writes (tightening + new owners)
+drop policy if exists "write pdcs" on public.pdcs;
+drop policy if exists "update pdcs" on public.pdcs;
+drop policy if exists "delete pdcs" on public.pdcs;
+create policy "write pdcs" on public.pdcs for insert
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','finance')));
+create policy "update pdcs" on public.pdcs for update
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','finance')));
+create policy "delete pdcs" on public.pdcs for delete
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','finance')));
+
+drop policy if exists "write items" on public.items;
+drop policy if exists "update items" on public.items;
+create policy "write items" on public.items for insert
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','finance')));
+create policy "update items" on public.items for update
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','finance')));
+
+drop policy if exists "write pos" on public.pos;
+drop policy if exists "update pos" on public.pos;
+create policy "write pos" on public.pos for insert
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','supply_chain')));
+create policy "update pos" on public.pos for update
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','supply_chain')));
+drop policy if exists "write po lines" on public.po_lines;
+drop policy if exists "update po lines" on public.po_lines;
+create policy "write po lines" on public.po_lines for insert
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','supply_chain')));
+create policy "update po lines" on public.po_lines for update
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','supply_chain')));
+
+drop policy if exists "write returns" on public.returns;
+drop policy if exists "update returns" on public.returns;
+create policy "write returns" on public.returns for insert
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','manager','finance')));
+create policy "update returns" on public.returns for update
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','finance')));
+
+drop policy if exists "write campaigns" on public.campaigns;
+drop policy if exists "delete campaigns" on public.campaigns;
+create policy "write campaigns" on public.campaigns for insert
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','manager','marketing')));
+create policy "delete campaigns" on public.campaigns for delete
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','manager','marketing')));
+
+drop policy if exists "read audit (admin/manager)" on public.audit_log;
+create policy "read audit (mgmt+finance)" on public.audit_log for select
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','manager','finance')));
+
+drop policy if exists "write snapshots" on public.forecast_snapshots;
+drop policy if exists "update snapshots" on public.forecast_snapshots;
+create policy "write snapshots" on public.forecast_snapshots for insert
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','manager','supply_chain')));
+create policy "update snapshots" on public.forecast_snapshots for update
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','manager','supply_chain')));
+```
+
+## Super admin (Angelo only): cutover switches + permanent user deletion
+
+```sql
+alter table public.profiles add column if not exists is_super boolean not null default false;
+update public.profiles set is_super = true
+where id = (select id from auth.users where email = 'angelo@remedy.ph');
+
+-- cutover switches: super admin only (was: any admin)
+drop policy if exists "write settings (admin)" on public.app_settings;
+drop policy if exists "update settings (admin)" on public.app_settings;
+create policy "write settings (super)" on public.app_settings for insert
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_super));
+create policy "update settings (super)" on public.app_settings for update
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_super));
+```
+
+User deletion is enforced server-side (admin-users function checks `is_super`);
+deletion is blocked automatically for anyone with orders/visits on record —
+history is protected, disable is the reversible path.
+
 ## Pipeline (PRD Phases B–C) + Purchase orders & receiving
 
 ```sql
