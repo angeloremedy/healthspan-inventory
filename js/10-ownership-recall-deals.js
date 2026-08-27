@@ -279,7 +279,7 @@ function buildMobileMenu(q){
   html+='<div style="padding:18px;border-top:2px solid var(--bd);margin-top:8px;font-size:13px;color:var(--tx2)">'+esc(who)+' · '+(ROLE==='sales'?'Sales':ROLE==='manager'?'Sales manager':'Admin')+
     '<div style="display:flex;gap:10px;margin-top:10px">'+
     '<button onclick="closeMobileMenu();openChangePassword()" style="flex:1;background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px">Change password</button>'+
-    '<button onclick="downloadManual()" style="flex:1;background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px">📖 My manual</button>'+
+    '<button onclick="closeMobileMenu();downloadManual()" style="flex:1;background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px">📖 My manual</button>'+
     '<button onclick="roleLogout()" style="flex:1;background:var(--rd-bg);color:var(--rd);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px;font-weight:600">Sign out</button></div>'+
     '<div style="display:flex;gap:8px;margin-top:10px;align-items:center;font-size:12px;color:var(--tx3)">Theme:'+
     '<button onclick="applyMode(\'light\')" style="background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:7px 12px">☀️</button>'+
@@ -376,7 +376,7 @@ async function renderPipeline(){
     '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tx3);margin-bottom:8px">'+label+' · '+cs.length+'</div>'+
     cs.slice(0,40).map(card).join('')+(cs.length>40?'<div class="mu" style="font-size:11px;text-align:center">+'+(cs.length-40)+' more (use Accounts to search)</div>':'')+'</div>';
   };
-  $('content').innerHTML=
+  $('content').innerHTML=(typeof roBanner==='function'?roBanner('pipeline'):'')+
     '<div class="metrics" style="margin-bottom:12px">'+
     '<div class="met bl"><div class="met-lbl">Open opportunities</div><div class="met-val">'+open.length+'</div><div class="met-sub">'+fmtPeso(open.reduce((a,o)=>a+(o.est_value||0),0))+' unweighted</div><div class="met-bar"></div></div>'+
     '<div class="met gr"><div class="met-lbl">Weighted pipeline</div><div class="met-val" style="font-size:15px">'+fmtPeso(wVal)+'</div><div class="met-sub">by account stage (25/50/75/85%)</div><div class="met-bar"></div></div>'+
@@ -435,7 +435,7 @@ async function renderPOs(){
   const pill=st=>st==='received'?'<span class="pill pgr">received</span>':st==='partial'?'<span class="pill pbl">partially received</span>':st==='ordered'?'<span class="pill" style="background:var(--am-bg);color:var(--am)">ordered</span>':st==='cancelled'?'<span class="pill prd">cancelled</span>':'<span class="pill pgy">draft</span>';
   const openId=window._poOpen;
   const openArr=pos.filter(p=>p.status==='ordered'||p.status==='partial');
-  $('content').innerHTML=
+  $('content').innerHTML=(typeof roBanner==='function'?roBanner('po'):'')+
     '<div class="metrics" style="margin-bottom:12px">'+
     '<div class="met bl"><div class="met-lbl">Open POs</div><div class="met-val">'+openArr.length+'</div><div class="met-sub">ordered, awaiting stock</div><div class="met-bar"></div></div>'+
     '<div class="met am"><div class="met-lbl">Units incoming</div><div class="met-val">'+openArr.reduce((a,p)=>a+((byPo[p.id]||[]).reduce((x,l)=>x+Math.max(0,(l.qty||0)-(l.received||0)),0)),0).toLocaleString()+'</div><div class="met-sub">still to receive</div><div class="met-bar"></div></div>'+
@@ -560,14 +560,14 @@ async function setCreditLimit(name){
   }catch(e){alert('Could not save: '+(e.message||e)+(String(e.message||'').includes('credit_limit')?'\n\n(Run the finance-suite SQL from SUPABASE-SETUP.md.)':''));}
 }
 async function renderApprovals(){
-  if(!canManage()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Managers and admins only.</div>';return;}
+  if(!canManage()&&ROLE!=='finance'){$('content').innerHTML='<div class="empty" style="margin-top:40px">Managers decide approvals; finance may watch.</div>';return;}
   $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
   let rows=[];
   try{const {data}=await SB.from('approvals').select('*').order('id',{ascending:false}).limit(200);rows=data||[];}
   catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Could not load — run the finance-suite SQL from SUPABASE-SETUP.md first.</div>';return;}
   const pend=rows.filter(r=>r.status==='pending');
   const pill=st=>st==='approved'?'<span class="pill pgr">approved</span>':st==='rejected'?'<span class="pill prd">rejected</span>':'<span class="pill" style="background:var(--am-bg);color:var(--am)">pending</span>';
-  $('content').innerHTML=
+  $('content').innerHTML=(typeof roBanner==='function'?roBanner('approvals'):'')+
     '<div class="metrics" style="margin-bottom:12px">'+
     '<div class="met am"><div class="met-lbl">Awaiting decision</div><div class="met-val">'+pend.length+'</div><div class="met-sub">orders held from fulfillment</div><div class="met-bar"></div></div>'+
     '<div class="met bl"><div class="met-lbl">Held value</div><div class="met-val" style="font-size:15px">'+fmtPeso(pend.reduce((a,r)=>a+(r.amount||0),0))+'</div><div class="met-sub">released on approval</div><div class="met-bar"></div></div>'+
@@ -581,7 +581,7 @@ async function renderApprovals(){
       '<td class="mu" style="font-size:11.5px;max-width:220px;overflow:hidden;text-overflow:ellipsis">'+esc(r.reason||'')+'</td>'+
       '<td class="mu" style="font-size:11.5px">'+esc(r.requested_name||'')+'</td>'+
       '<td>'+pill(r.status)+'</td>'+
-      '<td style="white-space:nowrap">'+(r.status==='pending'?'<a href="#" onclick="approvalAct('+r.id+',\'approved\');return false" style="color:var(--gr);font-weight:700;font-size:11.5px">approve ✓</a> · <a href="#" onclick="approvalAct('+r.id+',\'rejected\');return false" style="color:var(--rd);font-size:11.5px">reject ✗</a>':'')+'</td></tr>').join(''):
+      '<td style="white-space:nowrap">'+(r.status==='pending'&&canManage()?'<a href="#" onclick="approvalAct('+r.id+',\'approved\');return false" style="color:var(--gr);font-weight:700;font-size:11.5px">approve ✓</a> · <a href="#" onclick="approvalAct('+r.id+',\'rejected\');return false" style="color:var(--rd);font-size:11.5px">reject ✗</a>':'')+'</td></tr>').join(''):
     '<tr><td colspan="9"><div class="empty">Nothing waiting — orders that trip a credit limit or the big-order threshold land here.</div></td></tr>')+
     '</tbody></table></div><div class="tfooter"><span>Approve = the order is released to the fulfillment queue · reject = the order is cancelled with the reason on record · thresholds: credit limit per account (set by finance on account pages) and the big-order threshold below</span></div></div>'+
     (ROLE==='admin'?'<div class="panel" style="padding:10px 14px;margin-top:12px;font-size:12px"><b>Big-order threshold:</b> orders above ₱<span id="ap-thr">'+((window.FLAGS&&FLAGS.approval_threshold)?Number(FLAGS.approval_threshold).toLocaleString():'—')+'</span> from specialists need sign-off · <a href="#" onclick="setApprovalThreshold();return false" style="color:var(--ac)">change</a> (blank = off)</div>':'');
@@ -830,7 +830,7 @@ async function renderQuotes(){
     return'<span class="pill '+(q.status==='sent'?'pbl':'pgy')+'">'+q.status+'</span>'+(exp?' <span class="pill pam" style="background:rgba(186,117,23,.15);color:var(--am)">expired</span>':'');
   };
   const canW=roleIn('admin','manager','sales');
-  $('content').innerHTML=
+  $('content').innerHTML=(typeof roBanner==='function'?roBanner('quotes'):'')+
     '<div class="metrics" style="margin-bottom:14px">'+
     '<div class="met bl"><div class="met-lbl">Open quotes</div><div class="met-val">'+open.length+'</div><div class="met-sub">'+fmtPeso(open.reduce((a,q)=>a+(q.total||0),0))+' quoted</div><div class="met-bar"></div></div>'+
     '<div class="met gr"><div class="met-lbl">Accepted</div><div class="met-val">'+acc+'</div><div class="met-sub">all time</div><div class="met-bar"></div></div>'+
@@ -1026,7 +1026,7 @@ async function renderPromos(){
   const inp='style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:9px 10px;font-size:13px"';
   const lbl='style="font-size:10.5px;color:var(--tx3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin:8px 0 3px"';
   const mech=p=>p.mechanic==='pct'?(p.pct+'% off'):('buy '+p.buy_n+' get '+p.free_m+' free');
-  $('content').innerHTML=
+  $('content').innerHTML=(typeof roBanner==='function'?roBanner('promos'):'')+
     '<div class="metrics" style="margin-bottom:14px">'+
     '<div class="met gr"><div class="met-lbl">Live now</div><div class="met-val">'+live.length+'</div><div class="met-sub">applies automatically at order entry</div><div class="met-bar"></div></div>'+
     '<div class="met bl"><div class="met-lbl">All promos</div><div class="met-val">'+PROMOS.length+'</div><div class="met-sub">past + scheduled</div><div class="met-bar"></div></div>'+
@@ -1092,7 +1092,7 @@ async function renderRegs(){
     if(d<0)return'<span class="pill prd">EXPIRED '+Math.abs(d)+'d ago</span>';
     if(d<=180)return'<span class="pill pam" style="background:rgba(186,117,23,.15);color:var(--am)">'+d+'d left</span>';
     return'<span class="pill pgr">'+esc(x.reg_expiry)+'</span>';};
-  $('content').innerHTML=
+  $('content').innerHTML=(typeof roBanner==='function'?roBanner('regs'):'')+
     '<div class="metrics" style="margin-bottom:14px">'+
     '<div class="met rd"><div class="met-lbl">Expired</div><div class="met-val">'+expd+'</div><div class="met-sub">renew before the next import</div><div class="met-bar"></div></div>'+
     '<div class="met am"><div class="met-lbl">Expiring ≤ 6 months</div><div class="met-val">'+soon+'</div><div class="met-sub">start renewal now — FDA takes months</div><div class="met-bar"></div></div>'+
@@ -1217,7 +1217,7 @@ async function renderCycleCounts(){
   const pct=x=>x&&x.skus?Math.round(x.matched/x.skus*100):null;
   const clean2=sessions.length>=2&&sessions.slice(0,2).every(x=>x.skus&&x.matched===x.skus);
   const lines=[...new Set((DATA||[]).map(p=>p.line).filter(Boolean))].sort();
-  $('content').innerHTML=
+  $('content').innerHTML=(typeof roBanner==='function'?roBanner('cyclecount'):'')+
     '<div class="metrics" style="margin-bottom:14px">'+
     '<div class="met '+(last&&pct(last)===100?'gr':'am')+'"><div class="met-lbl">Last count</div><div class="met-val">'+(last?pct(last)+'%':'—')+'</div><div class="met-sub">'+(last?esc((last.closed_at||'').slice(0,10))+' · '+last.matched+'/'+last.skus+' matched':'none yet')+'</div><div class="met-bar"></div></div>'+
     '<div class="met '+(clean2?'gr':'bl')+'"><div class="met-lbl">Cutover evidence</div><div class="met-val">'+(clean2?'READY ✓':(sessions.filter(x=>x.skus&&x.matched===x.skus).length)+' / 2')+'</div><div class="met-sub">two consecutive 100% counts retire the sheet</div><div class="met-bar"></div></div>'+
@@ -1305,7 +1305,7 @@ async function renderCashflow(){
   const wkTot=buckets.map(b=>b.ar+b.pdc);
   const maxW=Math.max(1,...wkTot);
   const total8=wkTot.reduce((a,b)=>a+b,0);
-  $('content').innerHTML=
+  $('content').innerHTML=(typeof roBanner==='function'?roBanner('cashflow'):'')+
     '<div class="metrics" style="margin-bottom:14px">'+
     '<div class="met gr"><div class="met-lbl">Expected — next 8 weeks</div><div class="met-val" style="font-size:16px">'+fmtPeso(total8)+'</div><div class="met-sub">AR maturing + cheques deposit-ready</div><div class="met-bar"></div></div>'+
     '<div class="met rd"><div class="met-lbl">Already overdue</div><div class="met-val" style="font-size:16px">'+fmtPeso(overdueAR)+'</div><div class="met-sub">past terms, no cheque in hand — chase now</div><div class="met-bar"></div></div>'+
@@ -1396,7 +1396,7 @@ async function renderQuarantine(){
   const disp90=rows.filter(r=>r.status==='disposed'&&r.decided_at&&r.decided_at>new Date(Date.now()-90*864e5).toISOString()).reduce((a,r)=>a+(r.qty||0),0);
   const canW=canWarehouse();
   const pill=r=>r.status==='held'?'<span class="pill pam" style="background:rgba(186,117,23,.15);color:var(--am)">HELD</span>':r.status==='released'?'<span class="pill pgr">released to stock</span>':'<span class="pill prd">disposed</span>';
-  $('content').innerHTML=
+  $('content').innerHTML=(typeof roBanner==='function'?roBanner('quarantine'):'')+
     '<div class="metrics" style="margin-bottom:14px">'+
     '<div class="met am"><div class="met-lbl">Held in quarantine</div><div class="met-val">'+heldU+'u</div><div class="met-sub">'+held.length+' lots · not sellable, not in ATP</div><div class="met-bar"></div></div>'+
     '<div class="met rd"><div class="met-lbl">Value held</div><div class="met-val" style="font-size:15px">'+fmtPeso(heldV)+'</div><div class="met-sub">at list prices</div><div class="met-bar"></div></div>'+
@@ -1539,19 +1539,39 @@ async function complaintSet(id,status){
 }
 
 
-/* ── MY MANUAL: every role can download their own user manual, in-app ── */
-async function downloadManual(){
-  if(!SB||!SBUSER)return alert('Sign in first.');
+/* ── MY MANUAL: view it in the app, download it, or open it in a tab ── */
+async function fetchManualBlob(){
+  const r=await fetch('/.netlify/functions/manual',{headers:await sbAuthHeaders()});
+  if(!r.ok){let e='HTTP '+r.status;try{e=(await r.json()).error||e;}catch(x){}throw new Error(e);}
+  const blob=await r.blob();
+  const cd=r.headers.get('Content-Disposition')||'';
+  const m=cd.match(/filename="([^"]+)"/);
+  return {blob,name:(m&&m[1])||'HQ-Manual.pdf'};
+}
+function downloadManual(){showView('manual',null);} // legacy entry points open the viewer
+async function renderManualView(){
+  if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
+  $('content').innerHTML='<div class="empty" style="margin-top:40px">Fetching your manual…</div>';
   try{
-    const r=await fetch('/.netlify/functions/manual',{headers:await sbAuthHeaders()});
-    if(!r.ok){let e='HTTP '+r.status;try{e=(await r.json()).error||e;}catch(x){}throw new Error(e);}
-    const blob=await r.blob();
-    const cd=r.headers.get('Content-Disposition')||'';
-    const m=cd.match(/filename="([^"]+)"/);
-    const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-    a.download=(m&&m[1])||'HQ-Manual.pdf';a.click();URL.revokeObjectURL(a.href);
-    audit('manual.download',{});
-  }catch(e){alert('Could not download the manual: '+(e.message||e));}
+    if(window._manURL){try{URL.revokeObjectURL(window._manURL);}catch(e){}}
+    const {blob,name}=await fetchManualBlob();
+    window._manURL=URL.createObjectURL(blob);window._manName=name;
+    audit('manual.view',{});
+    $('content').innerHTML=
+      '<div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap">'+
+      '<b style="font-size:13.5px">'+esc(name)+'</b><span style="font-size:11.5px;color:var(--tx3)">written for your role — it matches exactly what your screens show</span><span style="flex:1"></span>'+
+      '<button onclick="manualSave()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer">⬇ Download</button>'+
+      '<button onclick="manualTab()" style="background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:9px 16px;font-size:12.5px;cursor:pointer">Open full screen</button></div>'+
+      '<iframe src="'+window._manURL+'" style="width:100%;height:calc(100dvh - 190px);min-height:420px;border:1px solid var(--bd);border-radius:12px;background:#fff"></iframe>'+
+      '<div style="font-size:10.5px;color:var(--tx3);margin-top:8px">If the preview shows only the first page on iPhone/iPad, tap “Open full screen” — Safari’s reader shows every page.</div>';
+  }catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Could not load the manual: '+esc(e.message||e)+'</div>';}
+}
+function manualSave(){
+  const a=document.createElement('a');a.href=window._manURL;a.download=window._manName||'HQ-Manual.pdf';a.click();
+}
+function manualTab(){
+  const w=window.open(window._manURL,'_blank');
+  if(!w)manualSave(); // popup blocked → download instead
 }
 
 /* ══════════ SUPPLIER MASTER + INCOMING SHIPMENTS + VALUATION ══════════ */
@@ -1564,7 +1584,7 @@ async function renderSuppliers(){
   try{const {data}=await SB.from('pos').select('id,supplier,status,eta,etd,customs_status').in('status',['ordered','partial']);pos=data||[];}catch(e){}
   const canW=canWarehouse()||roleIn('finance');
   const incoming=pos.filter(p=>p.eta).sort((a,b)=>a.eta<b.eta?-1:1);
-  $('content').innerHTML=
+  $('content').innerHTML=(typeof roBanner==='function'?roBanner('suppliers'):'')+
     '<div class="metrics" style="margin-bottom:14px">'+
     '<div class="met bl"><div class="met-lbl">Suppliers</div><div class="met-val">'+sup.filter(x=>x.active!==false).length+'</div><div class="met-sub">'+sup.length+' on file</div><div class="met-bar"></div></div>'+
     '<div class="met am"><div class="met-lbl">Incoming shipments</div><div class="met-val">'+incoming.length+'</div><div class="met-sub">'+(incoming.length?'next ETA '+esc(incoming[0].eta):'nothing on the water')+'</div><div class="met-bar"></div></div>'+
@@ -1718,3 +1738,131 @@ async function renderValuation(){
   document.addEventListener('focusout',()=>{setTimeout(()=>{if(document.activeElement&&document.activeElement.closest&&document.activeElement.closest('#dl-shim'))return;hide();},250);},true);
   window.addEventListener('hashchange',hide);
 })();
+
+/* ══════════ TRANSFER ORDERS — Remedy branch shipments as documents ══════════ */
+const TR_NO=id=>'TR-'+String(1000+Number(id));
+let TCART=[];
+async function renderTransfers(){
+  if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
+  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  let rows=[];
+  try{const {data,error}=await SB.from('transfers').select('*,transfer_lines(*)').order('id',{ascending:false}).limit(100);if(error)throw error;rows=data||[];}
+  catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Needs the transfer-orders SQL (SUPABASE-SETUP.md): '+esc(e.message||e)+'</div>';return;}
+  const inTransit=rows.filter(r=>r.status==='in_transit');
+  const canW=canFulfil();
+  const pill=r=>r.status==='draft'?'<span class="pill pgy">draft</span>':r.status==='in_transit'?'<span class="pill pam" style="background:rgba(186,117,23,.15);color:var(--am)">IN TRANSIT</span>':'<span class="pill pgr">delivered</span>';
+  $('content').innerHTML=
+    (typeof roBanner==='function'?roBanner('transfers'):'')+
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met am"><div class="met-lbl">In transit</div><div class="met-val">'+inTransit.length+'</div><div class="met-sub">'+inTransit.reduce((a,r)=>a+(r.transfer_lines||[]).reduce((x,l)=>x+(l.qty||0),0),0)+' units on the road</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Transfers</div><div class="met-val">'+rows.length+'</div><div class="met-sub">documents, not chat messages</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    (canW?'<div style="margin-bottom:14px"><button onclick="trNew()" style="background:var(--ac);color:#fff;border:none;border-radius:10px;padding:11px 18px;font-size:13px;font-weight:700;cursor:pointer">+ New transfer</button></div>':'')+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Transfer</th><th>To</th><th>Lines</th><th class="r">Units</th><th>Dispatched</th><th>Status</th>'+(canW?'<th></th>':'')+'</tr></thead><tbody>'+
+    (rows.length?rows.map(r=>{const u=(r.transfer_lines||[]).reduce((a,l)=>a+(l.qty||0),0);
+      return '<tr><td style="font-weight:700">'+TR_NO(r.id)+'</td><td style="font-weight:600">'+esc(r.to_branch)+'</td>'+
+      '<td class="mu" style="font-size:11px;max-width:260px">'+(r.transfer_lines||[]).map(l=>l.qty+'× '+esc(l.name||l.sku)+(l.batch?' ['+esc(l.batch)+']':'')).join(', ')+'</td>'+
+      '<td class="r">'+u+'</td><td class="mu" style="font-size:11px">'+esc((r.dispatched_at||'').slice(0,10)||'—')+'</td><td>'+pill(r)+'</td>'+
+      (canW?'<td style="white-space:nowrap;font-size:11.5px">'+
+        (r.status==='draft'?'<a href="#" onclick="trDispatch('+r.id+');return false" style="color:var(--am);font-weight:700">dispatch</a> · <a href="#" onclick="trDelete('+r.id+');return false" style="color:var(--rd)">delete</a>':
+         r.status==='in_transit'?'<a href="#" onclick="trDelivered('+r.id+');return false" style="color:var(--gr);font-weight:700">✓ delivered</a>':'')+'</td>':'')+
+      '</tr>';}).join(''):'<tr><td colspan="7" class="mu">No transfers yet.</td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>Dispatch writes FEFO batch-stamped outbound movements (ref TR-n) into the ledger — the same trail the recall trace reads · per-branch on-hand still isn\'t tracked (by design); delivered just closes the document</span></div></div>';
+}
+function trNew(){
+  if(!canFulfil())return;
+  const br=(prompt('Transfer to which branch? (BGC / Vertis North / GH Mall / other)','BGC')||'').trim();
+  if(!br)return;
+  TCART=[];
+  for(;;){
+    const skuIn=(prompt('SKU or product (blank = done adding lines):','')||'').trim();
+    if(!skuIn)break;
+    const p=DATA.find(x=>x.sku.toLowerCase()===skuIn.toLowerCase())||DATA.find(x=>x.name.toLowerCase().startsWith(skuIn.toLowerCase()));
+    if(!p){alert('Unknown SKU/product: '+skuIn);continue;}
+    const qty=parseInt(prompt('Quantity of '+p.name+':','1')||'0',10);
+    if(!qty||qty<1)continue;
+    TCART.push({sku:p.sku,name:p.name,qty});
+  }
+  if(!TCART.length)return;
+  trSave(br);
+}
+async function trSave(br){
+  try{
+    const {data:t,error}=await SB.from('transfers').insert({to_branch:br,status:'draft',created_by:SBUSER.id,created_name:(SBPROFILE&&SBPROFILE.name)||''}).select().single();
+    if(error)throw error;
+    const {error:e2}=await SB.from('transfer_lines').insert(TCART.map(l=>({transfer_id:t.id,sku:l.sku,name:l.name,qty:l.qty})));
+    if(e2)throw e2;
+    audit('transfer.create',{tr:TR_NO(t.id),to:br,lines:TCART.length});
+    TCART=[];renderTransfers();
+  }catch(e){alert('Could not save: '+(e.message||e));}
+}
+async function trDispatch(id){
+  if(!canFulfil())return;
+  const {data:t}=await SB.from('transfers').select('*,transfer_lines(*)').eq('id',id).maybeSingle();
+  if(!t||t.status!=='draft')return;
+  if(!confirm('Dispatch '+TR_NO(id)+' to '+t.to_branch+'?\n\nEvery line is written as an outbound FEFO movement in the ledger (batch-stamped).'))return;
+  try{
+    const rows=[];
+    for(const l of (t.transfer_lines||[])){
+      const alloc=(typeof fefoAlloc==='function')?fefoAlloc(l.sku,l.qty):[{take:l.qty,batch:null}];
+      for(const a of alloc)rows.push({sku:l.sku,qty:-a.take,kind:'pick',ref:TR_NO(id),batch:a.batch||null,note:'transfer to '+t.to_branch});
+      // stamp the first batch on the line for the document
+      if(alloc[0]&&alloc[0].batch)await SB.from('transfer_lines').update({batch:alloc.map(a=>a.batch).filter(Boolean).join(', ')}).eq('id',l.id);
+    }
+    if(rows.length)await ledgerAdd(rows);
+    const {error}=await SB.from('transfers').update({status:'in_transit',dispatched_at:new Date().toISOString()}).eq('id',id);
+    if(error)throw error;
+    audit('transfer.dispatch',{tr:TR_NO(id),to:t.to_branch,moves:rows.length});
+    renderTransfers();
+  }catch(e){alert('Could not dispatch: '+(e.message||e));}
+}
+async function trDelivered(id){
+  if(!canFulfil())return;
+  try{const {error}=await SB.from('transfers').update({status:'delivered',delivered_at:new Date().toISOString()}).eq('id',id);if(error)throw error;audit('transfer.delivered',{tr:TR_NO(id)});renderTransfers();}catch(e){alert(e.message||e);}
+}
+async function trDelete(id){
+  if(!canFulfil())return;
+  if(!confirm('Delete this DRAFT transfer? (Dispatched transfers are permanent — the ledger already moved.)'))return;
+  try{const {error}=await SB.from('transfers').delete().eq('id',id).eq('status','draft');if(error)throw error;renderTransfers();}catch(e){alert(e.message||e);}
+}
+
+
+/* ── VIEW-ONLY CLARITY: who writes where. One map powers the in-view banners
+   AND the home-screen 'view-only' badges. Admin/super are never named — a given. ── */
+const VIEW_WRITERS={
+  approvals:{roles:['manager'],label:'the sales managers'},
+  pdc:{roles:['finance'],label:'finance'},
+  ar:{roles:['finance'],label:'finance (payments are recorded on order pages)'},
+  returns:{roles:['finance'],label:'finance'},
+  cashflow:{roles:['finance'],label:'finance (it computes from AR + PDCs)'},
+  commissions:{roles:['finance'],label:'finance'},
+  catalog:{roles:['finance'],label:'finance'},
+  regs:{roles:['finance'],label:'finance (on the item master)'},
+  po:{roles:['supply_chain','finance'],label:'supply chain (finance fills the AP and import fields)'},
+  suppliers:{roles:['supply_chain','finance'],label:'supply chain and finance'},
+  scan:{roles:['supply_chain'],label:'the warehouse team'},
+  cyclecount:{roles:['supply_chain'],label:'the warehouse team'},
+  quarantine:{roles:['supply_chain'],label:'the warehouse team (finance can add from returns)'},
+  transfers:{roles:['supply_chain','manager'],label:'the warehouse team'},
+  fulfillq:{roles:['supply_chain','manager'],label:'the warehouse team and sales managers'},
+  whkpi:null, valuation:null, // reports — read-only for everyone by nature
+  promos:{roles:['marketing'],label:'marketing'},
+  campaigns:{roles:['marketing','manager'],label:'marketing'},
+  quotes:{roles:['sales','manager'],label:'the specialists and sales managers'},
+  pipeline:{roles:['sales','manager'],label:'the specialists (their accounts) and sales managers'},
+  customers:{roles:['sales','manager'],label:'the specialists (their accounts) and sales managers'},
+  salesevents:{roles:['sales','marketing','manager'],label:'the specialists, managers, and marketing'},
+  targets:{roles:['manager'],label:'the sales managers'},
+  scorecards:{roles:['manager'],label:'the sales managers'},
+  complaints:{roles:['sales','manager','supply_chain'],label:'the field team (filing) and supply chain (handling)'}
+};
+function roFor(v){ // true when this view is read-only for the current role
+  const w=VIEW_WRITERS[v];
+  if(!w||ROLE==='admin')return false;
+  return !(w.roles||[]).includes(ROLE);
+}
+function roBanner(v){
+  if(!roFor(v))return '';
+  return '<div class="panel" style="padding:9px 14px;margin-bottom:12px;font-size:12px;color:var(--tx2);border-left:3px solid var(--bd)">'+
+    '👁 <b>View-only for your role.</b> Changes here are made by '+VIEW_WRITERS[v].label+'.</div>';
+}

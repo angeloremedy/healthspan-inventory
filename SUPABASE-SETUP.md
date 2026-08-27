@@ -1358,3 +1358,42 @@ alter table public.pos add column if not exists landed_cost bigint;   -- ₱ fre
 (pos.eta already exists.) Landed cost & valuation needs no further SQL —
 it computes from po_lines.unit_cost × fx_rate + landed_cost allocation,
 falling back to the item-master cost. Role-scoped Ask AI needs no SQL.
+
+## Transfer orders (2026-08-28)
+
+SQL Editor → Run:
+
+```sql
+create table if not exists public.transfers (
+  id bigint generated always as identity primary key,
+  to_branch text not null,
+  status text not null default 'draft' check (status in ('draft','in_transit','delivered')),
+  created_by uuid, created_name text,
+  created_at timestamptz not null default now(),
+  dispatched_at timestamptz, delivered_at timestamptz
+);
+create table if not exists public.transfer_lines (
+  id bigint generated always as identity primary key,
+  transfer_id bigint not null references public.transfers(id) on delete cascade,
+  sku text not null, name text, qty int not null check (qty > 0), batch text
+);
+alter table public.transfers enable row level security;
+alter table public.transfer_lines enable row level security;
+create policy "tr read" on public.transfers for select to authenticated using (true);
+create policy "tr write" on public.transfers for insert to authenticated
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','manager','supply_chain')));
+create policy "tr update" on public.transfers for update to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','manager','supply_chain')));
+create policy "tr delete" on public.transfers for delete to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','manager','supply_chain')));
+create policy "trl read" on public.transfer_lines for select to authenticated using (true);
+create policy "trl write" on public.transfer_lines for insert to authenticated
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','manager','supply_chain')));
+create policy "trl update" on public.transfer_lines for update to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','manager','supply_chain')));
+```
+
+Tiered cadences and next-best-action ride existing tables (accounts.tier +
+auto_log). The in-app manual viewer, view-only banners, homepage rework, and
+HD icons need no SQL. New icon files: icon-192/512, icon-512-maskable,
+apple-touch-icon (white logo on brand blue).

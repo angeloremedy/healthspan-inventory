@@ -183,6 +183,33 @@ function renderHome(){
         card(go('complaints'),'Complaints log','File a quality report',HI.list)]]
     ];
   }
+  // ── everything you can open, straight from the sidebar (its svg = the unique icon)
+  const curated=new Set();
+  sections.forEach(sec=>sec[1].forEach(c=>{const m=c.match(/homeGo\('([a-z]+)'\)/);if(m)curated.add(m[1]);}));
+  const SUBS={dashboard:'Stock health at a glance',action:'Prioritized to-dos',customers:'Unified customer profiles',health:'Feed & reconciliation checks',all:'Full product list',oos:'Out of stock now',low:'Running low',neg:'Negative stock',expiry:'Expiry tracker',value:'Inventory value by line',dealvalue:'Deal scenarios',movement:'Monthly in/out chart',reorder:'Reorder alerts',batches:'FEFO batches & bins',forecast:'Days to stockout',coverage:'Stock coverage',reorderplan:'Reorder plan',ropoint:'Reorder points',variability:'Demand variability',abc:'ABC analysis',writeoff:'Write-off forecast',whatif:'What-if simulator',simpromo:'Promo rescue',simbudget:'Budget optimizer',simservice:'Service level',simsurge:'Campaign surge',simmonte:'Monte Carlo risk',simproject:'12-month projection',simcash:'Cash-flow timeline',simbulk:'Bulk-buy trade-off',simbranch:'Branch rebalancing',salesoverview:'Units, value, deals split',salesfree:'True giveaways',salestarget:'Monthly attainment',salesspec:'Per-PS performance',salesdeals:'Deals vs à la carte',salesrecon:'Vs the accounting sheet',salesfield:'Reach vs universe',logvisit:'~10 seconds per visit',followups:'To-dos & planned visits',neworder:'Take an order in a minute',orders:'The all-time register',fulfillq:'Pick these, oldest first',ar:'Who owes what, 30/60/90',users:'Accounts, roles, passwords',audit:'Who did what, when',targets:'Monthly ₱ per specialist',fcastacc:'Forecast self-grading (MAPE)',campaigns:'Demand signals & windows',planreview:'AI monthly review',salespace:'Race + projected month-end',pdc:'Cheques to maturity',salesdue:'Accounts past their rhythm',catalog:'Prices, costs, deals, regs',returns:'CMs, restock or write-off',scan:'Receive · pick · count',cutover:'Independence switches',scorecards:'Quarterly reviews',scanpick:'Scan every unit',recall:'Any lot → every clinic',pipeline:'Staged funnel & opportunities',po:'Ordering & receiving',approvals:'Held orders, decided',commissions:'Tiers & payroll CSV',salesevents:'Campaigns, demos, visits',quotes:'Formal quotes & win rate',promos:'Mechanics that apply themselves',regs:'CPR/FDA with countdowns',cyclecount:'Blind counts — cutover evidence',cashflow:'Collections, week by week',quarantine:'Held stock & disposals',whkpi:'Cycle time, fill rate',complaints:'Quality reports with batch',suppliers:'Lead times & on the water',valuation:'True margins, value at cost',transfers:'Branch shipments as documents',manual:'Your role\u2019s guide, in-app'};
+  let autoSec='';
+  try{
+    let cur=null,cards=[],out=[];
+    const flush=()=>{if(cur&&cards.length)out.push([cur,cards.slice()]);cards=[];};
+    document.querySelectorAll('.nav > *').forEach(el=>{
+      if(el.classList&&el.classList.contains('nlbl')){flush();cur=el.textContent.replace(/[▾▸]/g,'').trim();return;}
+      if(!(el.classList&&el.classList.contains('ni')))return;
+      const m=(el.getAttribute('onclick')||'').match(/showView\('([a-z]+)'/);
+      if(!m)return;const v=m[1];
+      if(v==='home'||curated.has(v))return;
+      if(typeof viewAllowed==='function'&&!viewAllowed(v))return;
+      const svg=el.querySelector('svg');
+      const title=el.textContent.trim();
+      const ro=(typeof roFor==='function'&&roFor(v));
+      cards.push('<div class="hmc" onclick="homeGo(\''+v+'\')">'+
+        '<div class="hmc-ic">'+(svg?svg.outerHTML.replace('<svg ','<svg style="width:22px;height:22px" '):ic(HI.grid))+'</div>'+
+        '<div><div class="hmc-t">'+esc(title)+(ro?' <span style="font-size:9px;font-weight:700;color:var(--tx3);border:1px solid var(--bd);border-radius:6px;padding:1px 5px;vertical-align:middle" title="View-only for your role">👁 VIEW</span>':'')+'</div>'+
+        '<div class="hmc-s">'+(SUBS[v]||'')+'</div></div></div>');
+    });
+    flush();
+    autoSec=out.map(sec=>'<div class="hm-lbl">'+esc(sec[0])+'</div><div class="hm-grid">'+sec[1].join('')+'</div>').join('');
+    if(autoSec)autoSec='<div class="hm-lbl" style="margin-top:26px;color:var(--tx2)">EVERYTHING ELSE YOU CAN OPEN'+(ROLE!=='admin'?' · 👁 = view-only for your role':'')+'</div>'+autoSec;
+  }catch(e){}
   $('content').innerHTML=
   '<style>'+
   '.hm-hero{border-radius:18px;padding:26px 28px;margin-bottom:18px;color:#fff;position:relative;overflow:hidden;'+
@@ -203,7 +230,8 @@ function renderHome(){
   '<div style="font-size:12.5px;opacity:.85;margin-top:4px;position:relative">'+(ROLE==='admin'?'Everything Healthspan, in one place.':ROLE==='manager'?'Sales manager view — the whole team, all accounts.':ROLE==='supply_chain'?'Supply chain view — warehouse, POs, and inventory.':ROLE==='finance'?'Finance view — receivables, cheques, and exports.':ROLE==='marketing'?'Marketing view — campaigns, pipeline, and analytics.':ROLE==='viewer'?'Viewer — the weekly-meeting numbers, live.':(myTag?'Signed in as '+esc(myTag)+' — your orders and visits log under your name.':'Manager view — you see the whole team.'))+'</div></div>'+
   '<div id="hm-live" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:4px"></div>'+
   '<div id="hm-attn"></div>'+
-  sections.map(s=>'<div class="hm-lbl">'+s[0]+'</div><div class="hm-grid">'+s[1].join('')+'</div>').join('');
+  sections.map(s=>'<div class="hm-lbl">'+s[0]+'</div><div class="hm-grid">'+s[1].join('')+'</div>').join('')+
+  autoSec;
   try{homeLive();}catch(e){}
 }
 

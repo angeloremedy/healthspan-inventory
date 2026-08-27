@@ -245,9 +245,20 @@ with the batch on record — one tap into the recall trace.
 
 ## 9.8 Your manual, in-app
 
-Sidebar → **manual** (mobile: Menu → My manual) downloads the user manual for
-YOUR role — served through a session check, so each person gets exactly their
-own book and nothing else.
+Sidebar → **manual** (mobile: Menu → My manual) opens the user manual for YOUR
+role right inside the app — read it there, download it, or pop it full screen.
+Served through a session check, so each person gets exactly their own book.
+Read-only pages say so: a banner names who actually edits them, and view-only
+cards on Home carry a 👁 badge.
+
+## 9.85 Rhythm, nudges & transfers
+
+Dormancy alerts follow the account's tier — an A-clinic going 30 days quiet
+pings its owner; C-tier gets 60. Monday mornings each specialist also gets
+**their 3 best calls this week** — the highest-value accounts drifting past
+their rhythm. And Remedy branch shipments are now **transfer orders**: proper
+documents that write FEFO batch-stamped ledger movements on dispatch and show
+what's in transit.
 
 ## 9.9 Buying side: suppliers, imports & true margins
 

@@ -88,6 +88,14 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ Customer statements: printable per-account Statement of Account with aging summary
 - ✅ Accounting export: date-range CSV of the register (totals, payments, balances, terms)
 
+**Cadence + clarity (Aug 28)**
+- ✅ Tiered activity cadences (A/B/C = 30/45/60d) · ✅ AI next-best-action (Monday top-3 calls per specialist)
+- ✅ Transfer orders: branch shipments as documents with FEFO ledger writes and in-transit state
+- ✅ Manual VIEWER in-app (iframe + download + full-screen) — every role, one tap
+- ✅ View-only clarity: read-only views banner who actually edits them (VIEW_WRITERS map); same map badges the home cards
+- ✅ Home shows EVERY page the role can open (auto-generated from the sidebar, unique icon each, 👁 view-only badges) under the curated action sections
+- ✅ HD home-screen icons: white logo on brand blue (192/512/maskable/apple-touch)
+
 **Procure-to-pay + platform polish (Aug 28)**
 - ✅ Supplier master · import shipment tracking (ETD/ETA/customs) · multi-currency payment FX · landed cost & valuation (true margins, admin+finance) · QA hold on receipt
 - ✅ Ask AI expanded: whole-HQ live context (AR, PDCs, approvals, backorders, quotes, pipeline, complaints), server-scoped to the asker's role — costs only ever shown to finance/admin
@@ -191,14 +199,14 @@ platform feeds it via the accounting export; it does not replace it.
 
 - ✅ **Account ownership** — shipped (account pages + Accounts list inline assign); territories still open
 - ✅ **Lead pipeline** — shipped (Pipeline view: stages from behavior + audited moves, lost reasons)
-- ▢ **Activity cadences** — "no touch in X days" alerts per account tier; call-cycle planning on the calendar
+- ✅ **Activity cadences** — shipped (dormancy alerts tiered by A/B/C: 30/45/60 days; owner pinged inside the window, monthly dedup)
 - ▢ **Attachments** — photos, signed DRs, licenses on visits/accounts. DESIGN DECIDED (2026-08-28): Google Drive via a service-account Netlify function (file IDs stored in Supabase), not Supabase Storage
 - 🔨 **Account tiers & segmentation** — tier field (A/B/C) shipped on accounts; tier-based service levels/cadences still open
 - ✅ **Weekly digest** — shipped (Monday bell digest per specialist: booked, orders, visits, open follow-ups; plus a team digest for managers/admin — no email/Slack dependency)
 - ✅ **Multiple contacts per account** — shipped (account pages)
 - ✅ **Reorder-due alerts** — shipped (Reorder due; routes to the account owner)
 - ✅ **Quote ↔ pipeline linking** — shipped (accepted quote → open opportunities marked won + account stage → active; lost quote → opportunities lost with the reason; audited)
-- ▢ **Sample / FOC budgets** — monthly FOC cap per specialist, approval required above it
+- ✗ Sample / FOC budgets — decided against (2026-08-28)
 - ✅ **Events calendar** — shipped (month grid merging campaigns, planned visits, and demo/training visits; specialists see their own). Cost-vs-revenue per event still open
 - ▢ **Customer ordering portal** (later) — clinics reorder themselves against their price list; orders land in the fulfillment queue
 
@@ -215,7 +223,7 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ Leaderboards — shipped (Leaderboard & pace)
 - ✅ Communication log — shipped (Call / Viber quick-log buttons on account pages; touches count for timeline, coverage, and the dormancy rule)
 - ✅ Anomaly alerts — shipped (order submit checks 3× the account's median total and >30%-below-list lines; pings managers, non-blocking, audited)
-- ▢ AI next-best-action — per-account nudge via the Ask AI worker (extends reorder-due alerts)
+- ✅ AI next-best-action — shipped (Monday ping per specialist: their 3 highest-value quiet accounts, ranked by 6-month value × how overdue; AI-phrased when the key is present)
 
 *Considered and skipped:* conversation intelligence (no recorded calls), partner relationship management (no channel partners), CPQ beyond planned quotations, email sequence automation (reps visit, not email), geo check-in / route planner / proof of delivery (third-party couriers deliver — no field-delivery ops to verify), trip manifests (same reason — couriers run their own routes)
 
@@ -228,7 +236,7 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ **Stock ledger in Supabase — CUTOVER-READY**: shadow ledger + opening-balance snapshot (super-admin freeze on the Cutover page, epoch-stamped, re-freezable) + stk() switch shipped (when ledger_is_truth is ON, stock everywhere = opening + post-epoch movements; counts are observations). Remaining: run the counts, get Verna's sign-off, flip.
 - ✅ **Receiving against PO** — shipped (shared with ERP; batch/expiry at the door)
 - ✅ **Cycle counts on iPad** — shipped (blind count sessions by scope, graded on close, variances write ledger adjustments; last-two-sessions evidence shows on the Cutover page)
-- ▢ **Transfer orders** — Remedy branch shipments as documents with in-transit state
+- ✅ **Transfer orders** — shipped (draft → dispatch writes FEFO batch-stamped ledger movements, ref TR-n → delivered; in-transit units visible)
 - ✅ **Barcode scanning in the browser** — shipped (Scan view; shadow ledger)
 - ✅ **Pick confirmation** — shipped (FEFO batch-stamped; auto-fulfills the order)
 - ✅ **Returns receiving** — shipped (restock CMs walk units back in: sellable → ledger, doubtful → quarantine)

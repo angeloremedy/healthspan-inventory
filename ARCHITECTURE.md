@@ -221,6 +221,13 @@ writing notifications and planned visits, deduped via `auto_log`).
 filters with it. Changing a view's access = one edit. Activity log is admin +
 super admin only (tightened 2026-08-28).
 
+### 3.7 View-writers map & the generated home
+`VIEW_WRITERS` (js/10) records which roles write in each view: it renders the
+read-only banners inside views AND the 👁 badges on home cards. The home screen
+itself is curated action sections + an auto-generated catalog of every
+`viewAllowed()` page, cloned (title + unique svg icon) from the sidebar DOM —
+so new nav items appear on Home automatically.
+
 ### 4.6 Role-scoped Ask AI
 `ask.mjs` derives the caller's role/tag server-side (unspoofable) and passes it
 to the worker, which builds an HQ context from Supabase filtered to that role:
@@ -260,6 +267,7 @@ hard system-prompt rules never to reveal costs/margins outside finance/admin.
 | `quarantine` | Unsellable stock trail | held/released/disposed; `pulled` marks ledger removal |
 | `complaints` | Quality reports | batch-linked to the recall trace; closing needs resolution |
 | `suppliers` | Supplier master | currency, terms, lead times; POs carry etd/eta/customs/broker/fx_rate/landed_cost |
+| `transfers` / `transfer_lines` | Branch shipments as documents | dispatch → FEFO ledger picks (ref TR-n), in-transit state |
 
 `profiles.role` spans 7 roles (admin/manager/sales/supply_chain/finance/
 marketing/viewer) + `is_super` + `can_manage_ps` — the full matrix lives in

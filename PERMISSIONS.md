@@ -105,8 +105,15 @@ therefore a floor — implementation grants the full circle read to all three.
 | Complaints log | ✅ manage | ✅ manage | ✅ file | ✅ manage | 👁 | 👁 |
 | My manual download | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (all roles incl. viewer/IT) |
 | Suppliers & imports | ✅ | 👁 | ✖ | ✅ | ✅ | ✖ |
+| Transfer orders | ✅ | ✅ | ✖ | ✅ | 👁 | ✖ |
 | Landed cost & valuation (COSTS page) | ✅ | ✖ | ✖ | ✖ | ✅ | ✖ |
 | Ask AI (context auto-scoped to role) | ✅ full | ✅ no costs | ✅ own scope | ✅ ops scope | ✅ incl. costs | ✅ circle scope |
+
+**View-only clarity (2026-08-28):** every read-only view shows a banner naming
+who edits it (from the VIEW_WRITERS map — admin/super never named, that's a
+given); the same map puts 👁 VIEW badges on home cards. Approvals is now
+finance-readable (decisions stay with managers). Sample/FOC budgets: decided
+against.
 
 **Sidebar policy (2026-08-28):** the sidebar and mobile menu are generated from
 the SAME `viewAllowed()` function that guards navigation — a role only ever

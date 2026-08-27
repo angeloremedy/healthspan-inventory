@@ -50,8 +50,10 @@ export const handler = async (event) => {
   const profiles = await q('profiles?select=id,specialist_tag,role');
   const tag2uid = {};
   for (const p of profiles) if (p.specialist_tag) tag2uid[p.specialist_tag.toLowerCase()] = p.id;
-  const accounts = await q('accounts?select=name,owner_tag&owner_tag=not.is.null');
-  const owner = {}; for (const a of accounts) owner[a.name] = a.owner_tag;
+  const accounts = await q('accounts?select=name,owner_tag,tier&owner_tag=not.is.null');
+  const owner = {}; const tier = {};
+  for (const a of accounts) { owner[a.name] = a.owner_tag; tier[a.name] = a.tier || null; }
+  const quietDays = name => tier[name] === 'A' ? 30 : tier[name] === 'B' ? 45 : 60; // cadence by tier
   const ownerUid = name => tag2uid[String(owner[name] || '').toLowerCase()] || null;
   const notif = (target, kind, title, body, link) =>
     ins('notifications', [Object.assign({ kind, title, body, link }, target)], 'return=minimal');
@@ -120,12 +122,14 @@ export const handler = async (event) => {
     for (const v of vs) if (!last[v.account] || v.date > last[v.account]) last[v.account] = v.date;
     for (const [name, d] of Object.entries(last)) {
       if (!owner[name]) continue;
-      if (d > daysAgo(60) || d < daysAgo(90)) continue; // only the 60–90d window
+      const t = quietDays(name); // tiered cadence: A=30d, B=45d, C/untiered=60d
+      if (d > daysAgo(t) || d < daysAgo(t + 30)) continue; // fire inside the t..t+30 window
       if (!(await fresh('dormant', name + '@' + ym))) continue;
       const uid = ownerUid(name);
-      if (uid) await notif({ user_id: uid }, 'auto', 'Going quiet: ' + name, 'No order or visit since ' + d + ' — reach out before they drift', '#/v/salesdue');
+      if (uid) await notif({ user_id: uid }, 'auto', 'Going quiet: ' + name + (tier[name] ? ' (tier ' + tier[name] + ')' : ''), 'No order or visit since ' + d + ' — a tier-' + (tier[name] || 'C') + ' account should be touched every ' + t + ' days', '#/v/salesdue');
       fired.dormant++;
     }
+    globalThis._lastMap = last; // reused by rule 7
   } catch (e) { errors.push('dormant: ' + e.message); }
 
   // 5 · campaign / promo starts today → sales + marketing
@@ -176,6 +180,53 @@ export const handler = async (event) => {
       }
     }
   } catch (e) { errors.push('digest: ' + e.message); }
+
+  // 7 · Monday next-best-action: each specialist's 3 highest-value quiet accounts
+  try {
+    const dow = manila().getUTCDay();
+    if (dow === 1) {
+      const last = globalThis._lastMap || {};
+      // 180d booked value per account (native + migrated)
+      const val = {};
+      for (let page = 0; page < 10; page++) {
+        const os = await q('orders?select=account,total&deleted_at=is.null&status=neq.cancelled&date=gte.' + daysAgo(180) + '&order=id&limit=1000&offset=' + page * 1000);
+        for (const o of os) val[o.account] = (val[o.account] || 0) + (o.total || 0);
+        if (os.length < 1000) break;
+      }
+      const perSpec = {};
+      for (const [name, own] of Object.entries(owner)) {
+        const d = last[name]; if (!d) continue;
+        const quiet = Math.floor((manila().getTime() - new Date(d).getTime()) / 864e5);
+        const t = quietDays(name);
+        if (quiet <= t * 0.8) continue; // only accounts approaching or past their cadence
+        const score = (val[name] || 0) * Math.min(3, quiet / t);
+        (perSpec[own.toLowerCase()] = perSpec[own.toLowerCase()] || []).push({ name, quiet, v: val[name] || 0, score });
+      }
+      const key = process.env.ANTHROPIC_API_KEY;
+      for (const p of profiles) {
+        if (!p.specialist_tag) continue;
+        const list = (perSpec[p.specialist_tag.toLowerCase()] || []).sort((a, b) => b.score - a.score).slice(0, 3);
+        if (!list.length) continue;
+        if (!(await fresh('nba', p.specialist_tag.toLowerCase() + '@' + today))) continue;
+        let body = list.map((x, i) => (i + 1) + ') ' + x.name + ' — P' + Math.round(x.v).toLocaleString() + ' in 6mo, quiet ' + x.quiet + 'd').join(' · ');
+        if (key) { // let the model phrase the nudge (fallback = the plain list)
+          try {
+            const r = await fetch('https://api.anthropic.com/v1/messages', {
+              method: 'POST', headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+              body: JSON.stringify({ model: process.env.STOCKBOT_MODEL || 'claude-haiku-4-5-20251001', max_tokens: 200,
+                system: 'You write ONE short, motivating sentence (max 30 words) telling a pharma sales specialist which clinics to visit this week and why. Peso values matter. No emojis, no preamble.',
+                messages: [{ role: 'user', content: body }] })
+            });
+            const out = await r.json();
+            const txt = ((out.content || []).filter(b => b.type === 'text').map(b => b.text).join(' ') || '').trim();
+            if (txt) body = txt + ' (' + list.map(x => x.name).join(', ') + ')';
+          } catch (e) {}
+        }
+        await notif({ user_id: p.id }, 'auto', 'Your 3 best calls this week', body, '#/v/salesdue');
+        fired.nba = (fired.nba || 0) + 1;
+      }
+    }
+  } catch (e) { errors.push('nba: ' + e.message); }
 
   console.log('automations', today, JSON.stringify(fired), errors.length ? 'errors: ' + JSON.stringify(errors) : 'clean');
   return { statusCode: 200, body: JSON.stringify({ ok: true, fired, errors }) };

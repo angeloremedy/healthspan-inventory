@@ -107,7 +107,7 @@ async function renderCampaigns(){
   const today=new Date().toISOString().slice(0,10);
   const inp='style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;font-size:12.5px"';
   const state=c=>c.to_date<today?'<span class="pill pgy">done</span>':c.from_date>today?'<span class="pill pbl">upcoming</span>':'<span class="pill pgr">running</span>';
-  $('content').innerHTML=
+  $('content').innerHTML=(typeof roBanner==='function'?roBanner('campaigns'):'')+
     '<div class="panel" style="padding:14px 16px;margin-bottom:14px"><div class="phd">Add campaign / promo</div>'+
     '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+
     '<input id="cp-name" placeholder="Name (e.g. Anniversary 10+8)" '+inp+' style="flex:1;min-width:160px;'+inp.slice(7,-1)+'">'+
@@ -400,7 +400,7 @@ async function renderCatalog(){
   const on=flagOn('use_catalog_pricing');
   const shopP={};DATA.forEach(p=>shopP[p.sku]=p.price);
   const inp='style="width:110px;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:7px 9px;font-size:12.5px;text-align:right"';
-  $('content').innerHTML=
+  $('content').innerHTML=(typeof roBanner==='function'?roBanner('catalog'):'')+
     '<div class="panel" style="padding:12px 16px;margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-left:3px solid '+(on?'var(--gr)':'var(--am)')+'">'+
     (on?'<span class="pill pgr">TRUTH — this catalog prices the app</span>':'<span class="pill" style="background:var(--am-bg);color:var(--am)">shadow — Shopify still prices the app</span>')+
     '<span style="font-size:12px;color:var(--tx3)">'+items.length+' items · edit prices/costs here, compare against Shopify, flip the switch on the Cutover page when clean</span>'+
@@ -538,7 +538,7 @@ async function renderReturns(){
   catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Could not load — run the independence SQL from SUPABASE-SETUP.md first.</div>';return;}
   const acctOpts=acctList().map(r=>'<option value="'+esc(r.name)+'">').join('');
   const inp='style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;font-size:12.5px"';
-  $('content').innerHTML=
+  $('content').innerHTML=(typeof roBanner==='function'?roBanner('returns'):'')+
     (!flagOn('native_only_orders')?'<div class="panel" style="padding:9px 14px;margin-bottom:12px;border-left:3px solid var(--am);font-size:12px">Parallel run: record the return here <b>and</b> process the refund/return in Shopify — this register becomes the only one at cutover.</div>':'')+
     '<div class="panel" style="padding:12px 16px;margin-bottom:14px"><div class="phd">Record a return / credit memo</div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+
     '<input id="rt-acct" list="rt-accts" placeholder="Account" '+inp+' style="flex:1;min-width:150px;'+inp.slice(7,-1)+'"><datalist id="rt-accts">'+acctOpts+'</datalist>'+
@@ -1111,7 +1111,7 @@ async function renderPDC(){
     return L.map(([s,l])=>'<a href="#" onclick="pdcSet('+r.id+',\''+s+'\');return false" style="color:'+(s==='bounced'?'var(--rd)':'var(--ac)')+';font-size:11px">'+l+'</a>').join(' · ')+
       ' · <a href="#" onclick="pdcDel('+r.id+');return false" style="color:var(--tx3);font-size:11px">del</a>';
   };
-  $('content').innerHTML=
+  $('content').innerHTML=(typeof roBanner==='function'?roBanner('pdc'):'')+
     '<div class="metrics" style="margin-bottom:14px">'+
     '<div class="met bl"><div class="met-lbl">Cheques open</div><div class="met-val">'+open.length+'</div><div class="met-sub">'+fmtPeso(sum(open))+' on hand / in bank</div><div class="met-bar"></div></div>'+
     '<div class="met am"><div class="met-lbl">Maturing this week</div><div class="met-val" style="font-size:15px">'+fmtPeso(sum(open.filter(r=>r.maturity<=wk)))+'</div><div class="met-sub">deposit these now</div><div class="met-bar"></div></div>'+
