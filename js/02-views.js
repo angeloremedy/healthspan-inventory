@@ -8,7 +8,7 @@ function showView(v,el){
   if(typeof ROLE!=='undefined'&&['supply_chain','finance','marketing','viewer'].includes(ROLE)){
     const common=['neworder','logvisit','cutover','targets','scorecards','approvals'];
     if(!(typeof canUserAdmin==='function'&&canUserAdmin()))common.push('users');
-    const per={supply_chain:['pdc','commissions'],finance:['scan','scanpick','fulfillq','recall'],marketing:['scan','scanpick','po','fulfillq','pdc','returns','commissions'],viewer:['scan','scanpick','po','fulfillq','pdc','returns','recall','audit','commissions']};
+    const per={supply_chain:['pdc','commissions'],finance:['scan','scanpick','fulfillq','recall','cyclecount'],marketing:['scan','scanpick','po','fulfillq','pdc','returns','commissions','cyclecount'],viewer:['scan','scanpick','po','fulfillq','pdc','returns','recall','audit','commissions','cyclecount']};
     if(common.includes(v)||(per[ROLE]||[]).includes(v)){v='home';el=document.querySelector('.ni[onclick*="\'home\'"]');}
   }
   if(typeof pushRoute==='function')pushRoute('#/v/'+v); // browser back/forward works across views
@@ -22,7 +22,7 @@ function showView(v,el){
            simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator',
            simmonte:'Monte Carlo stockout risk',simproject:'12-month projection',simcash:'Cash-flow timeline',simbulk:'Bulk-buy trade-off',simbranch:'Remedy branch rebalancing',
            aged:'Aged inventory',shrinkage:'Shrinkage tracker',cashexpiry:'Cash in expiring stock',branchtransfer:'Remedy branch shipments',branchexpiry:'Remedy branch expiry watch',
-           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt',targets:'Set targets',fcastacc:'Forecast accuracy',campaigns:'Campaign calendar',planreview:'AI planning review',salespace:'Leaderboard & pace',pdc:'PDC register',salesdue:'Reorder due',catalog:'Item master',returns:'Returns & credit memos',scan:'Scan — receive / pick / count',cutover:'Cutover switches',creditmemo:'Credit memo',scorecards:'Review scorecards',scanpick:'Scan to pick',recall:'Batch recall trace',pipeline:'Pipeline',po:'Purchase orders',approvals:'Approvals',commissions:'Commissions',salesevents:'Events calendar',quotes:'Quotations',promos:'Promotions',regs:'Product registrations'};
+           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt',targets:'Set targets',fcastacc:'Forecast accuracy',campaigns:'Campaign calendar',planreview:'AI planning review',salespace:'Leaderboard & pace',pdc:'PDC register',salesdue:'Reorder due',catalog:'Item master',returns:'Returns & credit memos',scan:'Scan — receive / pick / count',cutover:'Cutover switches',creditmemo:'Credit memo',scorecards:'Review scorecards',scanpick:'Scan to pick',recall:'Batch recall trace',pipeline:'Pipeline',po:'Purchase orders',approvals:'Approvals',commissions:'Commissions',salesevents:'Events calendar',quotes:'Quotations',promos:'Promotions',regs:'Product registrations',cyclecount:'Cycle counts',cashflow:'Cash-flow forecast'};
   $('ptitle').textContent=T[v]||v;
   if(v==='dashboard') renderDashboard();
   else if(v==='action') renderActionCenter();
@@ -92,6 +92,8 @@ function showView(v,el){
   else if(v==='quotes') renderQuotes();
   else if(v==='promos') renderPromos();
   else if(v==='regs') renderRegs();
+  else if(v==='cyclecount') renderCycleCounts();
+  else if(v==='cashflow') renderCashflow();
   else if(v==='campaigns') renderCampaigns();
   else if(v==='planreview') renderPlanReview();
   else renderTable(v);
@@ -822,6 +824,17 @@ async function submitOrder(){
       showOrderPage(id);
       return;
     }
+    // anomaly detection (non-blocking): 3× usual order size, unusually deep discounts
+    let anomalies=[];
+    try{
+      const prior=(NORDERS||[]).filter(o=>!o.deleted_at&&o.status!=='cancelled'&&(o.total||0)>0&&String(o.account||'').trim().toLowerCase()===account.toLowerCase()).map(o=>o.total).sort((a,b)=>a-b);
+      if(prior.length>=3){
+        const med=prior[Math.floor(prior.length/2)];
+        if(med>0&&total>=3*med)anomalies.push('order is '+(total/med).toFixed(1)+'× this account\u2019s usual size (median '+fmtPeso(med)+')');
+      }
+      const deep=CART.filter(l=>!l.is_free&&!l.deal&&l.price>0).filter(l=>{const p=DATA.find(d=>d.sku===l.sku);return p&&p.price>0&&l.price<p.price*0.7;}).map(l=>l.name);
+      if(deep.length)anomalies.push('deep discount (>30% below list) on: '+deep.join(', '));
+    }catch(e){}
     // credit / big-order holds: specialist orders that trip a limit are held for approval
     let holdReason=null;
     if(ROLE==='sales'){
@@ -847,6 +860,10 @@ async function submitOrder(){
     CART=[];NORDERS=null;
     audit('order.create',{order:fmtOrdNum(ord.num),account,spec,total});
     if(!holdReason)try{notify({roles:['supply_chain']},'order','New order '+fmtOrdNum(ord.num),account+' · '+fmtPeso(total)+' — ready to pick','#/v/fulfillq');}catch(e){}
+    if(anomalies.length)try{
+      notify({roles:['manager','admin']},'auto','Anomaly: '+fmtOrdNum(ord.num)+' ('+account+')',anomalies.join(' · '),'#/v/orders');
+      audit('order.anomaly',{order:fmtOrdNum(ord.num),flags:anomalies.join(' | ').slice(0,300)});
+    }catch(e){}
     if(msg){msg.style.color='var(--gr)';msg.textContent='Order '+fmtOrdNum(ord.num)+' submitted.';}
     showOrderPage(ord.id);
   }catch(e){if(msg){msg.style.color='var(--rd)';msg.textContent='Could not submit: '+e.message;}}

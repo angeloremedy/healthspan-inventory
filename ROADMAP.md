@@ -88,6 +88,18 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ Customer statements: printable per-account Statement of Account with aging summary
 - ✅ Accounting export: date-range CSV of the register (totals, payments, balances, terms)
 
+**Automation layer (Aug 28)**
+- ✅ Nightly full backup: every table → dated JSON in Netlify Blobs (14 kept), super-admin download on the Cutover page — the free-tier safety net until Supabase Pro
+- ✅ Five workflow automation rules (nightly sweep → bell + follow-up tasks, deduped via auto_log)
+- ✅ Anomaly alerts at order submit (3× usual size, deep discounts) → managers
+- ✅ Cash-flow forecast: weekly expected collections from AR terms + PDC maturities
+
+**Cutover evidence pack (Aug 28)**
+- ✅ Opening-balance snapshot: super-admin freeze on the Cutover page — sheet stock becomes the ledger's epoch-stamped starting point
+- ✅ stk() switch: ledger_is_truth ON → stock everywhere = opening + post-epoch ledger movements (THE endgame, now flippable)
+- ✅ Cycle counts on iPad: blind sessions by scope, graded on close, variances write ledger adjustments; two clean counts = cutover evidence
+- ✅ Supabase Pro checklist + restore drill documented (no AWS — portability via plain Postgres)
+
 **The machine connected (Aug 28)**
 - ✅ Notifications: bell + unread badge; approval holds → managers, decisions → specialist, approved orders → warehouse, fulfillments → order owner (90s poll)
 - ✅ Stock reservations / ATP: order entry shows on-hand · promised · available-to-promise; specialists can't oversell, managers can override; auto-release on fulfill/cancel
@@ -126,7 +138,7 @@ platform feeds it via the accounting export; it does not replace it.
 - 🔨 **Catalog / item master** — core shipped (prices, costs, barcodes, drift check, deal definitions, cutover flag); price lists & promo windows remain
 - ✅ **Approval workflows** — shipped (orders over the credit limit or the approval threshold auto-hold; manager/admin approve-or-reject queue, audited)
 - ✅ **Credit management** — shipped (per-account credit limits set by finance; order entry checks open exposure + new total and holds automatically)
-- ▢ **Returns & credit memos** — return orders that restock (or write off) and generate the credit-memo record accounting signs off (cutover requirement)
+- ✅ **Returns & credit memos** — shipped (Finance → Returns & credit memos; parallel-run banner until cutover)
 - ✅ **Commissions** — shipped (tiered %-of-target rules, per-specialist monthly compute, finance-editable tiers, CSV export for payroll)
 - 🔨 **Accounting export → QBO bridge** — period CSV shipped; field mapping + credit-memo flow to design with accounting
 - ▢ **Invoice/DR numbering series** — configurable, BIR-friendly document numbering
@@ -134,7 +146,7 @@ platform feeds it via the accounting export; it does not replace it.
 - ▢ **Standing orders** — recurring monthly orders per account, auto-drafted for specialist confirmation
 - ✅ **Promotions engine** — shipped (promos as configuration: window + SKU list + buy-N-get-M or %-off; auto-applies in order entry and quotations, lines tagged with the promo name)
 - ✅ **PDC register** — shipped (Finance → PDC register; finance-owned writes)
-- ▢ **Cash-flow forecast** — expected collections per week from AR terms + PDC maturities
+- ✅ **Cash-flow forecast** — shipped (Finance → Cash-flow forecast: 8 weekly buckets from AR terms + PDC maturities, overdue bucket, cheque-covered AR not double-counted)
 - ▢ **Consignment inventory** — stock parked at a clinic, billed on use, counted separately
 - ▢ **Rebates / volume tiers** — per-account discount tiers with automatic application
 
@@ -146,7 +158,7 @@ platform feeds it via the accounting export; it does not replace it.
 
 ### Procure-to-pay
 - ▢ **Supplier master** — suppliers with terms, lead times, currencies
-- ▢ **Purchase orders** — create/approve/send; expected-arrivals feed the stockout forecast
+- ✅ **Purchase orders** — shipped (Logistics → Purchase orders); expected-arrivals→forecast link still to wire
 - ✅ **Receiving against PO** — shipped (batch + expiry at the door → stock ledger)
 - ▢ **Landed cost & inventory valuation** — true unit costs → COGS and margin by product/line/account
 - ✅ **Supplier bills / AP** — shipped (terms, proforma ref, currency, FX total, amount paid, peso value on each PO; open-payables total). QBO export format to agree with accounting
@@ -173,13 +185,13 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ **Customer health score** — shipped (Accounts list)
 - ✅ **Upsell recommendations** — shipped (account pages + order entry)
 - ✅ **Pace-to-target forecasting** — shipped (Leaderboard & pace)
-- ▢ **Workflow automation rules** — the five that matter: fulfilled → follow-up task in 14d; first order → welcome call; balance >60d → collection task; account dormant → owner alert; campaign start → specialist tasks
+- ✅ **Workflow automation rules** — shipped (nightly sweep: fulfilled → follow-up task in 14d; first order → welcome call; balance >60d → collection ping to finance + owner; dormant account → owner alert; campaign/promo start → specialist ping; deduped, tasks land in Follow-ups & plans)
 - ✅ **Duplicate-entry guard** — shipped (order entry + visit log)
 
 *Nice-to-haves:*
 - ✅ Leaderboards — shipped (Leaderboard & pace)
 - ▢ Communication log — quick-log buttons for calls/Viber touches on accounts
-- ▢ Anomaly alerts — "3× usual order", "unusually deep discount" (needs the notifications layer)
+- ✅ Anomaly alerts — shipped (order submit checks 3× the account's median total and >30%-below-list lines; pings managers, non-blocking, audited)
 - ▢ AI next-best-action — per-account nudge via the Ask AI worker (extends reorder-due alerts)
 
 *Considered and skipped:* conversation intelligence (no recorded calls), partner relationship management (no channel partners), CPQ beyond planned quotations, email sequence automation (reps visit, not email), geo check-in / route planner / proof of delivery (third-party couriers deliver — no field-delivery ops to verify)
@@ -190,9 +202,9 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ FEFO pick lists with bin walk · packing slips · delivery receipts · shipment tracking · fulfillment queue
 
 ### Stage 2 — write-side (warehouse truth moves to the database)
-- 🔨 **Stock ledger in Supabase** — append-only ledger live in shadow mode (scans + pick confirms record; counts log variance vs sheet; pick-confirm auto-fulfills the order). Remaining before the flag can flip: **opening-balance snapshot** (freeze sheet stock as adjust entries at cutover) + **stk() switch** (stock = opening + ledger when ledger_is_truth is on). THE endgame.
+- ✅ **Stock ledger in Supabase — CUTOVER-READY**: shadow ledger + opening-balance snapshot (super-admin freeze on the Cutover page, epoch-stamped, re-freezable) + stk() switch shipped (when ledger_is_truth is ON, stock everywhere = opening + post-epoch movements; counts are observations). Remaining: run the counts, get Verna's sign-off, flip.
 - ✅ **Receiving against PO** — shipped (shared with ERP; batch/expiry at the door)
-- ▢ **Cycle counts on iPad** — variance log replaces shrinkage guessing
+- ✅ **Cycle counts on iPad** — shipped (blind count sessions by scope, graded on close, variances write ledger adjustments; last-two-sessions evidence shows on the Cutover page)
 - ▢ **Transfer orders** — Remedy branch shipments as documents with in-transit state
 - ✅ **Barcode scanning in the browser** — shipped (Scan view; shadow ledger)
 - ✅ **Pick confirmation** — shipped (FEFO batch-stamped; auto-fulfills the order)
@@ -211,7 +223,7 @@ platform feeds it via the accounting export; it does not replace it.
 
 - ✅ **Close public endpoints** — shipped (session-verified server-side; JOB_KEY jobs; access codes removed)
 - 🔨 **Modular restructure** — Phase 1 DONE: the single 15k-line file is split into `index.html` (shell/CSS) + 9 ordered script modules in `js/`, proven byte-identical on reassembly; zero build step, drag-drop deploys unchanged. Phase 2 (post-cutover): Vite proper — ES modules, per-view code splitting, minification, git-based deploys
-- ▢ **Supabase Pro** at cutover — daily backups, PITR, no pause policy; documented restore drill
+- 🔨 **Supabase Pro** at cutover — checklist + restore drill documented in SUPABASE-SETUP.md (decided: staying on Supabase; plain-Postgres portability is the exit strategy). Remaining: Angelo upgrades + runs the drill
 - ▢ Server-side pagination & filtering for the register (~2 MB/load at 9k orders)
 - ✅ Custom domain (hq.healthspan.ph) + PWA install — shipped (manifest, icons, standalone, touch polish, zoom lock; no offline cache by design)
 - ✅ **Permissions matrix doc** — shipped (PERMISSIONS.md; updated with every feature)
@@ -219,7 +231,7 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ Scheduled jobs — shipped (nightly 2am Manila: backfill sync + sales-cache rebuild)
 - ✅ Notifications (in-app): bell + badge; held orders ping managers, decisions ping the specialist, approved orders ping the warehouse, fulfillments ping the order owner. Email later if needed
 - ▢ Reporting layer: saved report definitions + scheduled exports (the NetSuite "saved search" equivalent)
-- ▢ **Forecast accuracy tracking (MAPE)** — record each month's forecast vs what actually sold, per SKU; the foundation for any demand-planning AI and the honest test of the current models
+- ✅ **Forecast accuracy tracking (MAPE)** — shipped (Planning → Forecast accuracy; monthly freeze + self-grading)
 - ▢ Disable legacy Supabase JWT keys (after confirming new keys) · rotate service keys on a schedule
 
 ---

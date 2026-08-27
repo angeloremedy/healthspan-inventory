@@ -1137,3 +1137,119 @@ async function loadReservations(force){
   return RESV;
 }
 function reservedQty(sku){return (RESV&&RESV[String(sku).toLowerCase()])||0;}
+
+/* ══════════ CYCLE COUNTS — the evidence machine for retiring the sheet ══════════ */
+let CCS=null; // active in-memory session {scope,items:[{sku,name,expected}],started}
+async function renderCycleCounts(){
+  if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
+  const canW=canWarehouse();
+  if(CCS){renderCCSheet();return;}
+  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  let sessions=[];
+  try{const {data}=await SB.from('count_sessions').select('*').order('id',{ascending:false}).limit(20);sessions=data||[];}catch(e){}
+  const last=sessions[0];
+  const pct=x=>x&&x.skus?Math.round(x.matched/x.skus*100):null;
+  const clean2=sessions.length>=2&&sessions.slice(0,2).every(x=>x.skus&&x.matched===x.skus);
+  const lines=[...new Set((DATA||[]).map(p=>p.line).filter(Boolean))].sort();
+  $('content').innerHTML=
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met '+(last&&pct(last)===100?'gr':'am')+'"><div class="met-lbl">Last count</div><div class="met-val">'+(last?pct(last)+'%':'—')+'</div><div class="met-sub">'+(last?esc((last.closed_at||'').slice(0,10))+' · '+last.matched+'/'+last.skus+' matched':'none yet')+'</div><div class="met-bar"></div></div>'+
+    '<div class="met '+(clean2?'gr':'bl')+'"><div class="met-lbl">Cutover evidence</div><div class="met-val">'+(clean2?'READY ✓':(sessions.filter(x=>x.skus&&x.matched===x.skus).length)+' / 2')+'</div><div class="met-sub">two consecutive 100% counts retire the sheet</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Sessions</div><div class="met-val">'+sessions.length+'</div><div class="met-sub">all recorded, all audited</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    (canW?'<div class="panel" style="padding:16px;margin-bottom:14px"><div class="phd">Start a count</div>'+
+      '<div style="font-size:12px;color:var(--tx3);margin-bottom:10px">Blind count: expected quantities stay hidden until you close the session. Count physically, type what you see.</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+      '<button onclick="ccStart(\'\')" style="background:var(--ac);color:#fff;border:none;border-radius:10px;padding:11px 18px;font-size:13px;font-weight:700;cursor:pointer">Count everything</button>'+
+      lines.map(l=>'<button onclick="ccStart(\''+esc(l).replace(/'/g,'&#39;')+'\')" style="background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px 14px;font-size:12.5px;cursor:pointer">'+esc(l)+'</button>').join('')+
+      '</div></div>':'')+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Date</th><th>Scope</th><th>Counted by</th><th class="r">SKUs</th><th class="r">Matched</th><th class="r">Variance (units)</th><th>Result</th></tr></thead><tbody>'+
+    (sessions.length?sessions.map(x=>'<tr><td>'+esc((x.closed_at||'').slice(0,16).replace('T',' '))+'</td><td>'+esc(x.scope||'all')+'</td><td class="mu">'+esc(x.started_name||'')+'</td>'+
+      '<td class="r">'+x.skus+'</td><td class="r">'+x.matched+'</td><td class="r">'+(x.variance_units||0)+'</td>'+
+      '<td>'+(x.skus&&x.matched===x.skus?'<span class="pill pgr">CLEAN 100%</span>':'<span class="pill pam" style="background:rgba(186,117,23,.15);color:var(--am)">'+pct(x)+'%</span>')+'</td></tr>').join(''):
+      '<tr><td colspan="7" class="mu">No count sessions yet.</td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>Expected = the current stock truth at the moment the session starts (sheet until cutover, ledger after) · variances on closing write adjustment movements into the ledger · sessions are the sign-off evidence on the Cutover page</span></div></div>';
+}
+function ccStart(line){
+  const items=(DATA||[]).filter(p=>typeof p.stock==='number'&&(!line||p.line===line))
+    .map(p=>({sku:p.sku,name:p.name,expected:stk(p)})).sort((a,b)=>a.name.localeCompare(b.name));
+  if(!items.length)return alert('Nothing to count in that scope.');
+  CCS={scope:line||'all',items,started:new Date().toISOString()};
+  renderCCSheet();
+}
+function renderCCSheet(){
+  const inp='style="width:90px;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:12px;font-size:16px;text-align:center"';
+  $('ptitle').textContent='Cycle count — '+CCS.scope;
+  $('content').innerHTML=
+    '<div class="panel" style="padding:12px 16px;margin-bottom:12px;border-left:3px solid var(--am);display:flex;align-items:center;gap:10px;flex-wrap:wrap">'+
+    '<b style="font-size:13px">Counting: '+esc(CCS.scope)+'</b><span style="font-size:11.5px;color:var(--tx3)">'+CCS.items.length+' SKUs · blind — expected stays hidden · leave blank = not counted (skipped)</span><span style="flex:1"></span>'+
+    '<button onclick="ccClose()" style="background:var(--gr);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:700;cursor:pointer">✓ Close & grade</button>'+
+    '<a href="#" onclick="if(confirm(\'Abandon this count? Nothing is saved.\')){CCS=null;renderCycleCounts();}return false" style="color:var(--rd);font-size:12px">abandon</a></div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Product</th><th>SKU</th><th class="r">Counted</th></tr></thead><tbody>'+
+    CCS.items.map((x,i)=>'<tr><td style="font-weight:600">'+esc(x.name)+'</td><td class="mu">'+esc(x.sku)+'</td>'+
+      '<td class="r"><input id="cc-'+i+'" type="number" min="0" inputmode="numeric" '+inp+'></td></tr>').join('')+
+    '</tbody></table></div></div>';
+}
+async function ccClose(){
+  const counted=CCS.items.map((x,i)=>{
+    const v=($('cc-'+i)&&$('cc-'+i).value)||'';
+    return v===''?null:{...x,counted:Math.max(0,parseInt(v,10)||0)};
+  }).filter(Boolean);
+  if(!counted.length)return alert('Nothing entered yet.');
+  const matched=counted.filter(x=>x.counted===x.expected).length;
+  const varU=counted.reduce((a,x)=>a+Math.abs(x.counted-x.expected),0);
+  if(!confirm('Close this count?\n\n'+counted.length+' SKUs counted · '+matched+' match ('+Math.round(matched/counted.length*100)+'%) · '+varU+' units of variance.\n\nVariances write adjustment movements into the ledger.'))return;
+  try{
+    const {data:sess,error}=await SB.from('count_sessions').insert({scope:CCS.scope,started_by:SBUSER.id,started_name:(SBPROFILE&&SBPROFILE.name)||'',started_at:CCS.started,closed_at:new Date().toISOString(),skus:counted.length,matched,variance_units:varU}).select().single();
+    if(error)throw error;
+    const {error:e2}=await SB.from('count_lines').insert(counted.map(x=>({session_id:sess.id,sku:x.sku,name:x.name,expected:x.expected,counted:x.counted,variance:x.counted-x.expected})));
+    if(e2)throw e2;
+    const adj=counted.filter(x=>x.counted!==x.expected).map(x=>({sku:x.sku,qty:x.counted-x.expected,kind:'adjust',ref:'CC-'+sess.id,note:'cycle count: counted '+x.counted+' vs expected '+x.expected}));
+    if(adj.length)for(let i=0;i<adj.length;i+=200)await ledgerAdd(adj.slice(i,i+200));
+    audit('count.close',{session:sess.id,scope:CCS.scope,skus:counted.length,matched,variance:varU});
+    CCS=null;
+    alert(matched===counted.length?'CLEAN COUNT ✓ 100% matched — one step closer to retiring the sheet.':'Count closed — '+adj.length+' variance(s) recorded as ledger adjustments.');
+    renderCycleCounts();
+  }catch(e){alert('Could not close: '+(e.message||e)+(String(e.message||'').includes('count_sessions')?'\n\n(Run the cycle-counts SQL from SUPABASE-SETUP.md.)':''));}
+}
+
+/* ══════════ CASH-FLOW FORECAST — collections per week from AR terms + PDC maturities ══════════ */
+async function renderCashflow(){
+  if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
+  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  await loadNativeOrders();
+  let pdcs=[];try{const {data}=await SB.from('pdcs').select('account,amount,maturity,status').in('status',['on_hand','deposited']);pdcs=data||[];}catch(e){}
+  const today=new Date();today.setHours(0,0,0,0);
+  const monday=new Date(today);monday.setDate(monday.getDate()-((monday.getDay()+6)%7)); // this week's Monday
+  const W=8,buckets=[];
+  for(let i=0;i<W;i++){const a=new Date(monday.getTime()+i*7*864e5),b=new Date(a.getTime()+6*864e5);buckets.push({from:a,to:b,label:a.toISOString().slice(5,10).replace('-','/')+'–'+b.toISOString().slice(5,10).replace('-','/'),ar:0,pdc:0});}
+  let overdueAR=0,beyond=0,pdcTot=0;
+  const pdcAccts=new Set(pdcs.map(x=>String(x.account||'').trim().toLowerCase())); // an AR balance covered by a cheque counts once — as the cheque
+  const put=(t,amt,kind)=>{
+    if(t<monday.getTime()){if(kind==='ar')overdueAR+=amt;else buckets[0][kind]+=amt;return;} // overdue cheques: deposit now
+    const i=Math.floor((t-monday.getTime())/(7*864e5));
+    if(i>=W)beyond+=amt;else buckets[i][kind]+=amt;
+  };
+  (NORDERS||[]).filter(o=>!o.deleted_at&&o.status!=='cancelled'&&o.pay_status!=='refunded'&&(o.balance||0)>0)
+    .forEach(o=>{
+      if(pdcAccts.has(String(o.account||'').trim().toLowerCase()))return; // cheque in hand covers it
+      put(new Date(o.date).getTime()+((o.terms_days||0)*864e5),o.balance,'ar');
+    });
+  pdcs.forEach(x=>{pdcTot+=x.amount||0;put(new Date(x.maturity).getTime(),x.amount||0,'pdc');});
+  const wkTot=buckets.map(b=>b.ar+b.pdc);
+  const maxW=Math.max(1,...wkTot);
+  const total8=wkTot.reduce((a,b)=>a+b,0);
+  $('content').innerHTML=
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met gr"><div class="met-lbl">Expected — next 8 weeks</div><div class="met-val" style="font-size:16px">'+fmtPeso(total8)+'</div><div class="met-sub">AR maturing + cheques deposit-ready</div><div class="met-bar"></div></div>'+
+    '<div class="met rd"><div class="met-lbl">Already overdue</div><div class="met-val" style="font-size:16px">'+fmtPeso(overdueAR)+'</div><div class="met-sub">past terms, no cheque in hand — chase now</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Cheques in hand</div><div class="met-val" style="font-size:16px">'+fmtPeso(pdcTot)+'</div><div class="met-sub">'+pdcs.length+' PDCs awaiting maturity</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Beyond 8 weeks</div><div class="met-val" style="font-size:16px">'+fmtPeso(beyond)+'</div><div class="met-sub">longer terms + far maturities</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Week</th><th class="r">AR maturing</th><th class="r">PDCs maturing</th><th class="r">Expected in</th><th style="width:34%"></th></tr></thead><tbody>'+
+    buckets.map((b,i)=>'<tr'+(i===0?' style="font-weight:600"':'')+'><td>'+b.label+(i===0?' <span class="pill pbl">this week</span>':'')+'</td>'+
+      '<td class="r">'+(b.ar?fmtPeso(b.ar):'—')+'</td><td class="r">'+(b.pdc?fmtPeso(b.pdc):'—')+'</td>'+
+      '<td class="r" style="font-weight:700">'+((b.ar+b.pdc)?fmtPeso(b.ar+b.pdc):'—')+'</td>'+
+      '<td><div style="height:10px;border-radius:5px;background:var(--sf2);overflow:hidden"><div style="height:100%;width:'+Math.round((b.ar+b.pdc)/maxW*100)+'%;background:var(--ac)"></div></div></td></tr>').join('')+
+    '</tbody></table></div><div class="tfooter"><span>AR lands in the week its terms mature (order date + terms) · accounts with a cheque in hand count via the cheque, not double · overdue AR is excluded from the weekly bars — it\'s in the red card · bounced/cleared cheques excluded</span></div></div>';
+}

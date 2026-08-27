@@ -286,6 +286,7 @@ let FLAGS={};
 async function loadFlags(force){
   if(window._flagsLoaded&&!force)return FLAGS;
   try{const {data}=await SB.from('app_settings').select('key,value');FLAGS={};(data||[]).forEach(r=>FLAGS[r.key]=r.value);window._flagsLoaded=true;}catch(e){}
+  try{if(FLAGS.ledger_is_truth==='on')loadLedgerSums();}catch(e){}
   return FLAGS;
 }
 const flagOn=k=>FLAGS[k]==='on';
@@ -301,13 +302,25 @@ async function setFlag(k,v,label){
     renderCutover();
   }catch(e){alert('Could not save: '+(e.message||e)+(String(e.message||'').includes('app_settings')?'\n\n(Run the independence SQL from SUPABASE-SETUP.md.)':''));}
 }
+async function downloadBackup(){
+  try{
+    const r=await fetch('/.netlify/functions/backup',{headers:await sbAuthHeaders()});
+    if(!r.ok)throw new Error((await r.json()).error||('HTTP '+r.status));
+    const blob=await r.blob();
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download='healthspan-hq-backup.json';a.click();URL.revokeObjectURL(a.href);
+  }catch(e){alert('Download failed: '+(e.message||e));}
+}
 async function renderCutover(){
   if(!isSuper()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Super admin only.</div>';return;}
   $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
   await loadFlags(true);await loadItems();
-  let moves=0,rets=0;
+  let moves=0,rets=0,cc=[];
   try{const {count}=await SB.from('stock_moves').select('id',{count:'exact',head:true});moves=count||0;}catch(e){}
   try{const {count}=await SB.from('returns').select('id',{count:'exact',head:true});rets=count||0;}catch(e){}
+  try{const {data}=await SB.from('count_sessions').select('*').order('id',{ascending:false}).limit(2);cc=data||[];}catch(e){}
+  let bk=null;try{const r=await fetch('/.netlify/functions/backup?info=1',{headers:await sbAuthHeaders()});if(r.ok)bk=await r.json();}catch(e){}
+  const epoch=(FLAGS&&FLAGS.ledger_epoch)||null;
   const items=Object.values(ITEMS||{});
   const drift=items.filter(it=>{const p=DATA.find(d=>d.sku===it.sku);return p&&p.price&&it.price!=null&&Math.round(p.price)!==it.price;}).length;
   const sw=(k,label,desc,ready)=>{
@@ -332,6 +345,16 @@ async function renderCutover(){
     sw('ledger_is_truth','Stock truth: platform ledger (replaces Verna’s sheet)',
       'OFF: the scan/pick ledger records shadow movements for comparison only; the sheet remains stock truth. ON: the ledger is authoritative (WMS Stage 2 endgame — flip LAST).',
       moves+' shadow movements recorded so far · requires receiving + pick confirmation + two matching cycle counts, and Verna’s sign-off')+
+    '<div class="panel" style="padding:14px 16px;margin-bottom:12px;border-left:3px solid '+(epoch?'var(--gr)':'var(--bd)')+'">'+
+      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><b style="font-size:13.5px">Cutover evidence — Verna\'s sheet</b><span style="flex:1"></span>'+
+      '<button onclick="cutoverFreeze()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer">'+(epoch?'Re-freeze opening balances':'Freeze opening balances')+'</button></div>'+
+      '<div style="font-size:12px;color:var(--tx2);margin-top:8px"><b>1 · Opening balances:</b> '+(epoch?'<span style="color:var(--gr);font-weight:600">frozen '+esc(epoch.slice(0,16).replace('T',' '))+'</span> — the ledger has its starting point':'<span style="color:var(--am)">not frozen yet</span> — freeze at the moment of cutover, right after the final sheet update')+'</div>'+
+      '<div style="font-size:12px;color:var(--tx2);margin-top:5px"><b>2 · Matching cycle counts:</b> '+(cc.length?cc.map(x=>{
+        const pct=x.skus?Math.round(x.matched/x.skus*100):0;
+        return '<span style="color:'+(pct===100?'var(--gr)':'var(--am)')+';font-weight:600">'+esc((x.closed_at||'').slice(0,10))+' — '+pct+'% matched ('+x.matched+'/'+x.skus+(x.variance_units?' · '+x.variance_units+'u variance':'')+')</span>';
+      }).join(' · ')+(cc.length>=2&&cc.every(x=>x.skus&&x.matched===x.skus)?' — <b style="color:var(--gr)">two clean counts ✓</b>':' — need two consecutive 100% counts'):'<span style="color:var(--am)">no cycle counts yet</span> — run them from Logistics → Cycle counts')+'</div>'+
+      '<div style="font-size:12px;color:var(--tx2);margin-top:5px"><b>3 · Verna signs off</b> — then flip the ledger switch above. stk() everywhere becomes opening + ledger movements.</div></div>'+
+    '<div class="panel" style="padding:12px 16px;margin-bottom:12px;font-size:12px;color:var(--tx2)"><b>Nightly backup:</b> '+(bk?'<span style="color:var(--gr);font-weight:600">last export '+esc(bk.day||'')+'</span> ('+Object.keys(bk.counts||{}).length+' tables) · <a href="#" onclick="downloadBackup();return false" style="color:var(--ac)">download JSON</a>':'<span style="color:var(--am)">none yet — runs at 2am Manila</span>')+' · free-tier safety net until Supabase Pro at cutover (restore drill in SUPABASE-SETUP.md)</div>'+
     '<div class="panel" style="padding:12px 16px;font-size:12px;color:var(--tx3)">Also live in shadow mode: Returns & credit memos ('+rets+' recorded — process in Shopify too while parallel) · re-running the backfill stays the Shopify sync until "platform only" is on.</div>'+
     '</div>';
 }
@@ -587,6 +610,60 @@ async function ledgerAdd(rows){
   const base={by_name:(SBPROFILE&&SBPROFILE.name)||'',user_id:(SBUSER&&SBUSER.id)||null};
   const {error}=await SB.from('stock_moves').insert(rows.map(r=>({...base,...r})));
   if(error)throw error;
+  // keep the in-memory stock truth current (counts are observations, not movements)
+  try{
+    if(window.LSUMS)for(const r of rows){
+      if(r.kind==='count'||r.ref==='OPENING')continue;
+      const k=String(r.sku).toLowerCase();
+      LSUMS[k]=(LSUMS[k]||0)+(r.qty||0);
+    }
+  }catch(e){}
+}
+
+/* ── LEDGER AS STOCK TRUTH: opening balances + post-epoch movements ── */
+window.LSUMS=null;
+async function loadLedgerSums(force){
+  if(window.LSUMS&&!force)return LSUMS;
+  if(!SB)return null;
+  const epoch=(FLAGS&&FLAGS.ledger_epoch)||'';
+  if(!epoch)return null; // no snapshot yet — stk() falls back to the sheet
+  const sums={};
+  try{
+    for(let page=0;page<40;page++){
+      const {data,error}=await SB.from('stock_moves').select('sku,qty,kind,ref,note,created_at').order('id',{ascending:true}).range(page*1000,(page+1)*1000-1);
+      if(error)throw error;
+      for(const r of (data||[])){
+        const k=String(r.sku||'').toLowerCase();if(!k)continue;
+        if(r.ref==='OPENING'){if(r.note===epoch)sums[k]=(sums[k]||0)+(r.qty||0);continue;}
+        if(r.kind==='count')continue;              // observations, not movements
+        if(r.created_at<epoch)continue;            // shadow-era rows don't count
+        sums[k]=(sums[k]||0)+(r.qty||0);
+      }
+      if(!data||data.length<1000)break;
+    }
+    window.LSUMS=sums;
+  }catch(e){}
+  return window.LSUMS;
+}
+/* Freeze the sheet's stock as the ledger's opening balances (super admin, from Cutover) */
+async function cutoverFreeze(){
+  if(!isSuper())return;
+  if(flagOn('ledger_is_truth'))return alert('Turn the ledger switch OFF before re-freezing — the snapshot must come from the sheet.');
+  const rows=(DATA||[]).filter(p=>typeof p.stock==='number').map(p=>({sku:p.sku,qty:p.stock,kind:'adjust',ref:'OPENING',note:null}));
+  if(!rows.length)return alert('No sheet stock loaded yet — wait for the sync.');
+  const prev=(FLAGS&&FLAGS.ledger_epoch)||null;
+  if(!confirm((prev?'RE-FREEZE the opening balances? The previous snapshot ('+prev.slice(0,16)+') stays on record but stops counting.\n\n':'FREEZE opening balances?\n\n')+rows.length+' SKUs — the sheet\'s current stock becomes the ledger\'s starting point. Do this at the moment of cutover, after the final sheet update.'))return;
+  const epoch=new Date().toISOString();
+  rows.forEach(r=>r.note=epoch);
+  try{
+    for(let i=0;i<rows.length;i+=200)await ledgerAdd(rows.slice(i,i+200));
+    const {error}=await SB.from('app_settings').upsert({key:'ledger_epoch',value:epoch,updated_by:(SBUSER&&SBUSER.id)||null,updated_at:epoch});
+    if(error)throw error;
+    audit('cutover.freeze',{skus:rows.length,epoch});
+    await loadFlags(true);await loadLedgerSums(true);
+    alert('Opening balances frozen ✓ — '+rows.length+' SKUs at '+epoch.slice(0,16)+'. The ledger switch can now flip whenever the counts prove out.');
+    renderCutover();
+  }catch(e){alert('Freeze failed: '+(e.message||e));}
 }
 async function confirmPick(orderRef){
   if(!canFulfil())return alert('Fulfillment roles only (admin / manager / supply chain).');

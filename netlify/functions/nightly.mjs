@@ -20,6 +20,18 @@ export default async () => {
     });
     results.salesCache = r.status;
   } catch (e) { results.salesCache = 'error: ' + e.message; }
+  try {
+    const r = await fetch(base + '/.netlify/functions/backup-background', {
+      method: 'POST', headers: { 'x-job-key': key }
+    });
+    results.backup = r.status;
+  } catch (e) { results.backup = 'error: ' + e.message; }
+  try {
+    const r = await fetch(base + '/.netlify/functions/automations-background', {
+      method: 'POST', headers: { 'x-job-key': key }
+    });
+    results.automations = r.status;
+  } catch (e) { results.automations = 'error: ' + e.message; }
   console.log('nightly sync dispatched', JSON.stringify(results));
   return new Response(JSON.stringify(results), { status: 200 });
 };

@@ -92,6 +92,10 @@ therefore a floor — implementation grants the full circle read to all three.
 | Product registrations (CPR/FDA per SKU) | ✅ | 👁 | ✖ | 👁 | ✅ (rides item master) | 👁 |
 | Notifications (bell) | ✅ own+role | ✅ own+role | ✅ own | ✅ own+role | ✅ own+role | ✅ own+role |
 | ATP / reservations at order entry | ✅ override | ✅ override | hard limit | 👁 | 👁 | ✖ |
+| Cycle counts (start/close sessions) | ✅ | 👁 | ✖ | ✅ | ✖ | ✖ |
+| Opening-balance freeze (Cutover) | super admin only | ✖ | ✖ | ✖ | ✖ | ✖ |
+| Cash-flow forecast | ✅ | ✅ | ✖ | 👁 | ✅ | 👁 |
+| Backup download (Cutover) | super admin only | ✖ | ✖ | ✖ | ✖ | ✖ |
 | Team & access (users) | ✅ | ✖ | ✖ | ✖ | ✖ | ✖ (Justine: PS accounts only) |
 | Cutover switches | ✅ | ✖ | ✖ | ✖ | ✖ | ✖ |
 

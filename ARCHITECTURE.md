@@ -24,6 +24,14 @@ until WMS Stage 2 · the accounting Sales Report sheet = booked-sales truth ·
 Supabase = orders/CRM truth · Shopify = pricing truth and read-only history
 until cutover.
 
+**Stock-truth switch mechanics:** `stk()` reads the sheet until
+`ledger_is_truth` is ON; then it reads `LSUMS` = OPENING rows of the latest
+`ledger_epoch` + post-epoch movements (kind `count` rows are observations and
+never sum). The opening snapshot is written from the Cutover page (super admin),
+epoch-stamped in `app_settings.ledger_epoch`, and re-freezable (old epochs stay
+on record but stop counting). Hosting decision: Supabase, no AWS — plain
+Postgres = the portable exit strategy.
+
 ## 2. Deployment model
 
 No build pipeline yet. Deploys are file uploads to GitHub (`upload/main` for
@@ -193,6 +201,16 @@ Self-disable is rejected. Three privilege tiers:
 - **super admin** (`profiles.is_super`, Angelo only) — additionally: permanent user deletion. The super account itself is protected server-side: disable/delete/password/role-change targeting it by anyone else → 403 + audit `user.PROTECTED`.
 - **scoped PS-admin** (`profiles.can_manage_ps`, Justine/IT) — list, create (forced `role='sales'`), and disable/enable *sales-role targets only*; everything else 403.
 
+### 4.5 Nightly jobs (2am Manila, JOB_KEY-guarded)
+`nightly.mjs` (cron 18:00 UTC) triggers four background functions: the Shopify
+backfill (order/payment/shipment sync), the sales-cache rebuild,
+**backup-background** (full JSON export of every table → Netlify Blobs
+"backups" store, 14 dated snapshots kept; `backup.mjs` serves the latest to a
+verified super-admin session), and **automations-background** (the five
+workflow rules — follow-up after fulfillment, welcome call on first order,
+collection at 60d past terms, dormant-account alert, campaign-start ping —
+writing notifications and planned visits, deduped via `auto_log`).
+
 ## 5. Supabase schema (see SUPABASE-SETUP.md for exact SQL)
 
 | Table | Purpose | Key columns |
@@ -218,6 +236,8 @@ Self-disable is rejected. Three privilege tiers:
 | `quotes` / `quote_lines` | Quotations (QT-numbering) | draft/sent/accepted/lost, expiry, convert→order |
 | `promos` | Promotions engine | window, SKU list or `*`, `nplusm` or `pct`, auto-applied at order entry |
 | `notifications` | In-app pings (bell) | `user_id` direct or `role` broadcast; unread = per-device watermark |
+| `count_sessions` / `count_lines` | Cycle counts (cutover evidence) | blind counts graded on close; variances → ledger adjustments |
+| `auto_log` | Automation dedup memory | unique(rule, entity); service-role only |
 
 `profiles.role` spans 7 roles (admin/manager/sales/supply_chain/finance/
 marketing/viewer) + `is_super` + `can_manage_ps` — the full matrix lives in

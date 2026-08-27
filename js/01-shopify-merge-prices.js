@@ -247,7 +247,7 @@ const DESC={
   spec:'One specialist’s whole world: this month vs target, the calendar of planned and logged visits plus orders (tap any day), monthly sales chart with the target line, top products, open follow-ups and recent activity. Specialists land here on sign-in; managers and admins reach it from the Specialists view.',
   approvals:'The sign-off queue: specialist orders that trip a credit limit or the big-order threshold are held here — approve to release them to fulfillment, reject to cancel with the reason on record. Credit limits are set by finance on account pages; the threshold is a super-admin setting on this page.',
   commissions:'Finance computes incentives here instead of by hand: per specialist, booked vs target, the rate tier reached, and the commission — any month, exportable as the payroll input. Rate tiers are editable (finance/admin) and every change is audited.',
-  quotes:'Formal quotations for clinics: build a quote with the same pricing as an order, print it, mark it sent/accepted/lost, and convert an accepted quote to an order in one tap. Win rate is tracked from outcomes.',promos:'Promotions as configuration instead of free-typed deal lines: define a mechanic (buy-N-get-M free, or % off), a validity window, and the eligible SKUs — order entry applies it automatically while the promo is live.',regs:'CPR/FDA product registrations per SKU with expiry dates — expired and expiring-soon registrations float to the top so renewals never slip.',salesevents:'One calendar for the room: campaigns, demos, trainings, and planned visits in a single month grid — Mench’s weekly Calendar of Events, live. Specialists see their own visits; everyone sees campaigns.',
+  quotes:'Formal quotations for clinics: build a quote with the same pricing as an order, print it, mark it sent/accepted/lost, and convert an accepted quote to an order in one tap. Win rate is tracked from outcomes.',promos:'Promotions as configuration instead of free-typed deal lines: define a mechanic (buy-N-get-M free, or % off), a validity window, and the eligible SKUs — order entry applies it automatically while the promo is live.',cashflow:'Expected collections, week by week: receivables land in the week their payment terms mature, post-dated cheques in the week they can be deposited. Overdue money gets its own bucket. The forward view of cash that AR aging (which looks backward) can\u2019t give.',cyclecount:'Cycle counts: pick a scope, count physically (blind — expected quantities are hidden), and the session grades itself against the stock truth. Two matching counts in a row are the evidence that lets the ledger replace the sheet. After cutover, closing a count writes the corrections straight into the ledger.',regs:'CPR/FDA product registrations per SKU with expiry dates — expired and expiring-soon registrations float to the top so renewals never slip.',salesevents:'One calendar for the room: campaigns, demos, trainings, and planned visits in a single month grid — Mench’s weekly Calendar of Events, live. Specialists see their own visits; everyone sees campaigns.',
   pipeline:'The funnel, staged: lead → contacted → qualified → active. Stages start from real behavior and every manual move is audited. Add opportunities (big deals) with estimated value and expected close month — cards show weighted pipeline value and win rate. Specialists see their own; managers see everyone.',
   po:'Purchase orders and receiving. Draft the PO, add lines, mark it ordered; when stock arrives, receive per line — batch and expiry captured at the door, written straight into the stock ledger. Statuses roll to partially received / received automatically. Unit costs feed margin reporting.',
   recall:'The one-bad-day feature: enter a SKU and/or batch number and get every clinic that ever received it — dates, quantities, order refs — as a printable contact list. Sources: every OUT-sheet shipment row plus the platform ledger. Fast, complete, and audited.',
@@ -365,7 +365,15 @@ function toggleTips(){
 }
 
 const $=id=>document.getElementById(id);
-const stk=p=>typeof p.stock==='number'?p.stock:null;
+const stk=p=>{ // stock truth: sheet — until ledger_is_truth flips, then the platform ledger
+  try{
+    if(window.FLAGS&&FLAGS.ledger_is_truth==='on'&&window.LSUMS&&p&&p.sku){
+      const v=LSUMS[String(p.sku).toLowerCase()];
+      if(v!==undefined)return v;
+    }
+  }catch(e){}
+  return typeof p.stock==='number'?p.stock:null;
+};
 function statusOf(s){
   if(s===null) return {l:'N/A',c:'pgy'};
   if(s<0)      return {l:'Negative',c:'prd'};
@@ -559,6 +567,8 @@ function applySync(data){
   else if(currentView==='quotes') renderQuotes();
   else if(currentView==='promos') renderPromos();
   else if(currentView==='regs') renderRegs();
+  else if(currentView==='cyclecount') renderCycleCounts();
+  else if(currentView==='cashflow') renderCashflow();
   else if(currentView==='campaigns') renderCampaigns();
   else if(currentView==='planreview') renderPlanReview();
   else renderTable();

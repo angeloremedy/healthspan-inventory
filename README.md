@@ -208,6 +208,17 @@ promised · available to promise* — a submitted order commits its stock, so tw
 orders can never promise the same units. Specialists are held to the limit;
 managers can override with a confirmation.
 
+## 9.6 The machine works nights
+
+At 2am the system syncs Shopify, rebuilds the sales cache, exports a full
+backup, and runs the automation rules: a fulfilled order becomes a follow-up
+task two weeks later, a first order becomes a welcome call, a balance past 60
+days pings finance and the account owner, a quiet account alerts its owner,
+and a campaign launch pings the field. Unusual orders (3× an account's usual
+size, or deep discounts) ping managers the moment they're submitted. Finance
+also gets a **Cash-flow forecast** — expected collections week by week from
+payment terms and cheque maturities.
+
 ## 10. Team & access (admin only)
 
 Sidebar → Admin → **Team & access**. Create accounts (name, email, starter

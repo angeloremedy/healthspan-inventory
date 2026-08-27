@@ -1126,3 +1126,82 @@ Unread state is a per-device watermark (localStorage) — no read-tracking table
 needed. Stock reservations / ATP need **no SQL**: pending native orders ARE the
 reservation (derived live from order_lines), so reservations release
 automatically on fulfill/cancel.
+
+## Cycle counts + opening-balance snapshot (2026-08-28)
+
+SQL Editor → Run:
+
+```sql
+create table if not exists public.count_sessions (
+  id bigint generated always as identity primary key,
+  scope text not null default 'all',
+  started_by uuid,
+  started_name text,
+  started_at timestamptz,
+  closed_at timestamptz,
+  skus int not null default 0,
+  matched int not null default 0,
+  variance_units int not null default 0
+);
+create table if not exists public.count_lines (
+  id bigint generated always as identity primary key,
+  session_id bigint not null references public.count_sessions(id) on delete cascade,
+  sku text, name text, expected int, counted int, variance int
+);
+alter table public.count_sessions enable row level security;
+alter table public.count_lines enable row level security;
+create policy "cc read" on public.count_sessions for select to authenticated using (true);
+create policy "cc write" on public.count_sessions for insert to authenticated
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','supply_chain')));
+create policy "ccl read" on public.count_lines for select to authenticated using (true);
+create policy "ccl write" on public.count_lines for insert to authenticated
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','supply_chain')));
+```
+
+The opening-balance snapshot needs **no SQL**: it writes `kind='adjust'`
+rows with `ref='OPENING'` (note = the epoch timestamp) through the existing
+stock_moves policies, and stores `ledger_epoch` in app_settings via the
+existing super-admin flag write. When `ledger_is_truth` is ON, `stk()`
+everywhere = opening rows (latest epoch) + movements after the epoch; count
+rows are observations and never sum.
+
+## Supabase Pro at cutover — backup & restore drill (decided: staying on Supabase, no AWS)
+
+Before flipping ANY cutover switch:
+1. Upgrade the project to **Pro** (Dashboard → Settings → Billing): daily
+   backups, 7-day PITR, no pause policy.
+2. Verify backups: Dashboard → Database → Backups shows a completed daily backup.
+3. **Restore drill** (do once, ~20 min): create a throwaway Supabase project →
+   Dashboard → Backups → download → restore via `psql` → open the app pointed
+   at it (swap SUPABASE_URL locally) → confirm orders/accounts load → delete
+   the throwaway project. Document the date it was done here.
+4. Optional belt-and-braces: a weekly `pg_dump` kept off-platform. The schema
+   and data are plain Postgres — restorable anywhere, which is the exit
+   strategy: self-hosted Supabase accepts this same app unchanged if ever needed.
+5. After confirming the new-format API keys everywhere: disable the legacy JWT
+   keys (Dashboard → Settings → API).
+
+Restore drill completed: ____________ (date, by Angelo)
+
+## Workflow automations + nightly backup (2026-08-28)
+
+SQL Editor → Run:
+
+```sql
+-- dedup memory for the automation rules (service-role only; RLS with no policies)
+create table if not exists public.auto_log (
+  id bigint generated always as identity primary key,
+  rule text not null,
+  entity text not null,
+  fired_at timestamptz not null default now(),
+  unique (rule, entity)
+);
+alter table public.auto_log enable row level security;
+```
+
+The nightly job (2am Manila) now also runs: **backup-background** (full JSON
+export of every table → Netlify Blobs, 14 kept; download from the Cutover page
+or /.netlify/functions/backup — super admin session required) and
+**automations-background** (the five workflow rules → bell pings + planned
+visits, deduped via auto_log). No new env vars — both use JOB_KEY +
+SUPABASE_SERVICE_KEY already in Netlify.
