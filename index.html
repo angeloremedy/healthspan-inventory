@@ -134,7 +134,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .askbar button{flex-shrink:0;padding:0 16px;border:none;border-radius:9px;background:var(--ac);color:#fff;font-weight:600;font-size:12.5px;cursor:pointer}
 .askbar button:disabled{opacity:.5;cursor:default}
 .askfoot{padding:0 16px 10px;font-size:10px;color:var(--tx3)}
-.topbar{background:var(--sf);border-bottom:1px solid var(--bd);padding:10px 22px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:12px}
+.topbar{position:sticky;top:0;z-index:260;background:var(--bg);background:var(--sf);border-bottom:1px solid var(--bd);padding:10px 22px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:12px}
 .ptitle{font-size:15px;font-weight:700;letter-spacing:-.01em}.psub{font-size:11px;color:var(--tx3);margin-top:1px}
 .tbr{display:flex;gap:7px;align-items:center;flex-shrink:0}
 .btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:var(--rs);border:1px solid var(--bd2);background:var(--sf);color:var(--tx2);font-size:12px;cursor:pointer;transition:all .12s;font-family:inherit;white-space:nowrap}
@@ -261,7 +261,7 @@ td.stk{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
 .mni.active{color:var(--ac);background:var(--gr-bg)}
 .mni svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .mni .mni-badge{background:var(--rd);color:#fff;font-size:8px;font-weight:700;padding:1px 4px;border-radius:8px;margin-top:-2px}
-.mobile-topbar{display:none;background:var(--sf);border-bottom:1px solid var(--bd);padding:calc(10px + var(--sat)) 16px 10px;align-items:center;justify-content:space-between;flex-shrink:0}
+.mobile-topbar{display:none;position:sticky;top:0;z-index:260;background:var(--sf);border-bottom:1px solid var(--bd);padding:calc(10px + var(--sat)) 16px 10px;align-items:center;justify-content:space-between;flex-shrink:0}
 .mobile-topbar .ptitle{font-size:15px;font-weight:700}
 .mobile-topbar .psub{font-size:10px;color:var(--tx3)}
 .mobile-sync{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--bl);cursor:pointer;padding:5px 8px;border-radius:var(--rs);background:var(--bl-bg)}

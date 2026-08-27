@@ -286,7 +286,9 @@ passwords privately; people change them in-app.
   (+dark mode).
 - **URLs**: every page has a real URL — bookmark accounts, orders, pick lists;
   the browser back button works.
-- **Mobile/iPad**: role-aware bottom navigation; everything works on a phone.
+- **Mobile/iPad**: role-aware bottom navigation — and the four quick-access
+  slots are YOURS to pick (Menu → ☆ Customize bar; Home and Menu stay fixed).
+  The top bar stays pinned while you scroll.
 - **Ask AI**: in-app chat over EVERYTHING HQ knows — inventory, sales, AR,
   cheques, approvals, backorders, quotes, pipeline — automatically scoped to
   your role (specialists get their own numbers; costs only answer for finance

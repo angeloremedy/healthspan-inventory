@@ -284,6 +284,7 @@ function buildMobileMenu(q){
     '<div style="display:flex;gap:10px;margin-top:10px">'+
     '<button onclick="closeMobileMenu();openChangePassword()" style="flex:1;background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px">Change password</button>'+
     '<button onclick="closeMobileMenu();downloadManual()" style="flex:1;background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px">📖 My manual</button>'+
+    '<button onclick="mbarOpen()" style="flex:1;background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px">☆ Customize bar</button>'+
     '<button onclick="roleLogout()" style="flex:1;background:var(--rd-bg);color:var(--rd);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px;font-weight:600">Sign out</button></div>'+
     '<div style="display:flex;gap:8px;margin-top:10px;align-items:center;font-size:12px;color:var(--tx3)">Theme:'+
     '<button onclick="applyMode(\'light\')" style="background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:7px 12px">☀️</button>'+
@@ -1870,3 +1871,63 @@ function roBanner(v){
   return '<div class="panel" style="padding:9px 14px;margin-bottom:12px;font-size:12px;color:var(--tx2);border-left:3px solid var(--bd)">'+
     '👁 <b>View-only for your role.</b> Changes here are made by '+VIEW_WRITERS[v].label+'.</div>';
 }
+
+/* ── CUSTOMIZE THE BOTTOM BAR: pick your own four quick-access pages
+   (Home and Menu are always there). Saved per user, per device. ── */
+function mbarKey(){return 'hs_mbar_'+((SBUSER&&SBUSER.id)||'anon');}
+function mbarGet(){
+  try{const v=JSON.parse(localStorage.getItem(mbarKey())||'null');if(Array.isArray(v))return v.slice(0,4);}catch(e){}
+  return null;
+}
+function mbarOpen(){
+  closeMobileMenu&&closeMobileMenu();
+  window._mbarMax=(ROLE==='sales')?2:4;
+  window._mbarFixed=(ROLE==='sales')?['logvisit','neworder']:[];
+  const cur=(mbarGet()||[]).filter(v=>!window._mbarFixed.includes(v)).slice(0,window._mbarMax);
+  window._mbarSel=cur.slice();
+  // every page this role can open, from the sidebar (title + view)
+  const opts=[];
+  document.querySelectorAll('.nav .ni').forEach(el=>{
+    const m=(el.getAttribute('onclick')||'').match(/showView\('([a-z]+)'/);
+    if(!m||m[1]==='home'||window._mbarFixed.includes(m[1]))return;
+    if(typeof viewAllowed==='function'&&!viewAllowed(m[1]))return;
+    let t='';el.childNodes.forEach(n=>{if(n.nodeType===3)t+=n.textContent;});
+    opts.push([m[1],t.trim()||m[1]]);
+  });
+  let ov=document.getElementById('mbar-ov');
+  if(!ov){ov=document.createElement('div');ov.id='mbar-ov';document.body.appendChild(ov);}
+  ov.style.cssText='position:fixed;inset:0;z-index:700;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch;padding:calc(16px + var(--sat,0px)) 16px calc(24px + env(safe-area-inset-bottom,0px))';
+  const chip=(v,t)=>'<button data-v="'+v+'" onclick="mbarToggle(this)" style="margin:0 6px 8px 0;padding:9px 13px;border-radius:20px;font-size:12.5px;cursor:pointer;border:1px solid '+(window._mbarSel.includes(v)?'var(--ac);background:var(--ac);color:#fff;font-weight:600':'var(--bd);background:var(--sf);color:var(--tx)')+'">'+t.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</button>';
+  ov.innerHTML=
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><b style="font-size:16px">Customize your bottom bar</b><span style="flex:1"></span><button onclick="mbarClose()" style="background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 14px;font-size:13px">Cancel</button></div>'+
+    '<div style="font-size:12px;color:var(--tx3);margin-bottom:12px">Pick up to <b>'+window._mbarMax+'</b> page'+(window._mbarMax>1?'s':'')+' for one-tap access. '+(ROLE==='sales'?'Home, Log visit, New order, and Menu are always there.':'Home and Menu are always there.')+' <span id="mbar-n" style="font-weight:700;color:var(--ac)">'+window._mbarSel.length+'/'+window._mbarMax+'</span></div>'+
+    '<div id="mbar-chips">'+opts.map(o=>chip(o[0],o[1])).join('')+'</div>'+
+    '<div style="display:flex;gap:10px;margin-top:16px">'+
+    '<button onclick="mbarSave()" style="flex:1;background:var(--ac);color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:700;cursor:pointer">Save</button>'+
+    '<button onclick="mbarReset()" style="background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:13px 16px;font-size:13px;cursor:pointer">Reset to default</button></div>';
+}
+function mbarToggle(btn){
+  const v=btn.getAttribute('data-v');
+  const i=window._mbarSel.indexOf(v);
+  if(i>=0)window._mbarSel.splice(i,1);
+  else{
+    if(window._mbarSel.length>=(window._mbarMax||4)){alert('That’s '+(window._mbarMax||4)+' already — unpick one first.');return;}
+    window._mbarSel.push(v);
+  }
+  const on=window._mbarSel.includes(v);
+  btn.style.border='1px solid '+(on?'var(--ac)':'var(--bd)');
+  btn.style.background=on?'var(--ac)':'var(--sf)';
+  btn.style.color=on?'#fff':'var(--tx)';
+  btn.style.fontWeight=on?'600':'400';
+  const n=document.getElementById('mbar-n');if(n)n.textContent=window._mbarSel.length+'/'+(window._mbarMax||4);
+}
+function mbarSave(){
+  try{localStorage.setItem(mbarKey(),JSON.stringify(window._mbarSel.slice(0,4)));}catch(e){}
+  mbarClose();buildMobileNav();
+  audit('mbar.customize',{picks:window._mbarSel.join(',')});
+}
+function mbarReset(){
+  try{localStorage.removeItem(mbarKey());}catch(e){}
+  mbarClose();buildMobileNav();
+}
+function mbarClose(){const ov=document.getElementById('mbar-ov');if(ov)ov.remove();}

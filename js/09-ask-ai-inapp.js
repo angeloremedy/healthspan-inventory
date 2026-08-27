@@ -128,19 +128,39 @@ function buildMobileNav(){
     users:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>',
     list:'<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>'};
   const home=['home','Home','<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>'];
-  // ≤5 items per role + Menu — the bar must never scroll sideways
-  const sales=[home,['neworder','Order',I.cart],['logvisit','Visit',I.pen],['followups','To-dos',I.check]];
-  const admin=[home,['approvals','Approve',I.check],['orders','Orders',I.bag],['fulfillq','Fulfill',I.check],['ar','AR',I.peso]];
-  const mgr=[home,['approvals','Approve',I.check],['orders','Orders',I.bag],['salespace','Pace',I.peso],['customers','Accounts',I.users]];
-  const sc=[home,['fulfillq','Fulfill',I.check],['scan','Scan',I.list],['cyclecount','Count',I.check],['po','POs',I.bag]];
-  const fin=[home,['ar','AR',I.peso],['pdc','PDCs',I.peso],['cashflow','Cash',I.peso],['returns','Returns',I.bag]];
-  const mkt=[home,['campaigns','Campaigns',I.check],['promos','Promos',I.check],['salesoverview','Sales',I.peso],['pipeline','Pipeline',I.users]];
-  const vwr=[home,['salesoverview','Sales',I.peso],['dashboard','Inventory',I.grid],['ar','AR',I.peso]];
-  const items=(ROLE==='sales')?sales:(ROLE==='manager')?mgr:(ROLE==='supply_chain')?sc:(ROLE==='finance')?fin:(ROLE==='marketing')?mkt:(ROLE==='viewer')?vwr:admin;
-  let html=items.map(([v,l,svg])=>'<div class="mni'+(currentView===v?' active':'')+'" onclick="showView(\''+v+'\',null);document.querySelectorAll(\'.mni\').forEach(x=>x.classList.remove(\'active\'));this.classList.add(\'active\')"><svg viewBox="0 0 24 24">'+svg+'</svg>'+l+'</div>').join('');
-  if(ROLE==='sales'&&SBPROFILE&&SBPROFILE.specialist_tag)
-    html='<div class="mni" onclick="showSpecPage(SBPROFILE.specialist_tag)"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>My page</div>'+html;
-  html+='<div class="mni" onclick="openMobileMenu()"><svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>Menu</div>';
+  // Home + FOUR customizable slots + Menu. Each person picks their own four
+  // (Menu → Customize bottom bar); role defaults until they do.
+  // sales: Home · Log visit · New order are FIXED — only 2 slots are theirs to pick
+  const FIXED=(ROLE==='sales')?['logvisit','neworder']:[];
+  const NSLOTS=(ROLE==='sales')?2:4;
+  const DEF={sales:['followups','salesdue'],
+    manager:['approvals','orders','salespace','customers'],
+    supply_chain:['fulfillq','scan','cyclecount','po'],
+    finance:['ar','pdc','cashflow','returns'],
+    marketing:['campaigns','promos','salesoverview','pipeline'],
+    viewer:['salesoverview','dashboard','ar','salespace'],
+    admin:['approvals','orders','fulfillq','ar']};
+  let picks=null;
+  try{picks=JSON.parse(localStorage.getItem('hs_mbar_'+((SBUSER&&SBUSER.id)||'anon'))||'null');}catch(e){}
+  if(!Array.isArray(picks))picks=null;
+  let slots=(picks||DEF[ROLE]||DEF.admin).filter(v=>!FIXED.includes(v)&&(typeof viewAllowed!=='function'||viewAllowed(v))).slice(0,NSLOTS);
+  (DEF[ROLE]||DEF.admin).forEach(v=>{if(slots.length<NSLOTS&&!slots.includes(v)&&!FIXED.includes(v)&&(typeof viewAllowed!=='function'||viewAllowed(v)))slots.push(v);});
+  slots=FIXED.concat(slots); // fixed items render first, right after Home
+  const mIcon=v=>{ // the sidebar's icon for this view, with explicit stroke attrs
+    const el=document.querySelector('.nav .ni[onclick*="\''+v+'\'"] svg');
+    return el?el.outerHTML.replace('<svg ','<svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" '):'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>';
+  };
+  const mLabel=v=>{
+    const SHORT={neworder:'Order',logvisit:'Visit',followups:'To-dos',salesdue:'Reorder',approvals:'Approve',orders:'Orders',salespace:'Pace',customers:'Accounts',fulfillq:'Fulfill',scan:'Scan',cyclecount:'Count',po:'POs',ar:'AR',pdc:'PDCs',cashflow:'Cash',returns:'Returns',campaigns:'Campaigns',promos:'Promos',salesoverview:'Sales',pipeline:'Pipeline',dashboard:'Inventory',quotes:'Quotes',complaints:'Complaints',salesevents:'Events',transfers:'Transfers',quarantine:'Quarantine',whkpi:'KPIs',suppliers:'Suppliers',valuation:'Costs',catalog:'Items',recall:'Recall',targets:'Targets',scorecards:'Reviews',users:'Team',audit:'Log',commissions:'Commis.',regs:'Regs',salestarget:'Vs target',salesfield:'Coverage',all:'SKUs',forecast:'Stockout',health:'Data'};
+    if(SHORT[v])return SHORT[v];
+    const el=document.querySelector('.nav .ni[onclick*="\''+v+'\'"]');
+    if(!el)return v;
+    let t='';el.childNodes.forEach(n=>{if(n.nodeType===3)t+=n.textContent;});
+    return (t.trim().split(/\s|&/)[0])||v;
+  };
+  let html='<div class="mni'+(currentView==='home'?' active':'')+'" onclick="showView(\'home\',null)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Home</div>';
+  html+=slots.map(v=>'<div class="mni'+(currentView===v?' active':'')+'" onclick="showView(\''+v+'\',null);document.querySelectorAll(\'.mni\').forEach(x=>x.classList.remove(\'active\'));this.classList.add(\'active\')">'+mIcon(v)+mLabel(v)+'</div>').join('');
+  html+='<div class="mni" onclick="openMobileMenu()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>Menu</div>';
   bar.innerHTML=html;
 }
 

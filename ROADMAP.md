@@ -95,6 +95,7 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ View-only clarity: read-only views banner who actually edits them (VIEW_WRITERS map); same map badges the home cards
 - ✅ Home = the role's action row + the sidebar's own categories with every page the role can open (icons per view, 👁 view-only badges, badge-count-free titles) — home and sidebar share one structure
 - ✅ Sidebar unified: navSync drives every role (sales now get the same collapsible categories instead of a flat CSS-filtered list)
+- ✅ Mobile once-and-for-all: sticky top bar (never scrolls away, no rubber-band gap) · customizable bottom bar (each user picks their 4 quick-access pages; Home + Menu fixed)
 - ✅ HD home-screen icons: white logo on brand blue (192/512/maskable/apple-touch)
 
 **Procure-to-pay + platform polish (Aug 28)**
