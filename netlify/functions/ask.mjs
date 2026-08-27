@@ -23,7 +23,12 @@ async function requireUser(event){
   try{
     const r=await fetch(SB_URL+'/auth/v1/user',{headers:{apikey:SVC,Authorization:'Bearer '+token}});
     if(!r.ok)return{code:401,error:'Session invalid — sign in again'};
-    return null;
+    const u=await r.json();
+    try{
+      const pr=await fetch(SB_URL+'/rest/v1/profiles?id=eq.'+u.id+'&select=role,specialist_tag,is_super',{headers:{apikey:SVC,Authorization:'Bearer '+SVC}});
+      const prof=(await pr.json())[0]||{};
+      return{ok:true,role:prof.is_super?'super':(prof.role||'viewer'),tag:prof.specialist_tag||''};
+    }catch(e){return{ok:true,role:'viewer',tag:''};}
   }catch(e){return{code:401,error:'Could not verify the session'};}
 }
 
@@ -33,8 +38,9 @@ export const handler = async (event) => {
   try { connectLambda(event); } catch (e) {}
 
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: HDRS, body: '' };
-  const authFail=await requireUser(event);
-  if(authFail)return{statusCode:authFail.code,headers:HDRS,body:JSON.stringify({error:authFail.error})};
+  const auth=await requireUser(event);
+  if(auth&&auth.code)return{statusCode:auth.code,headers:HDRS,body:JSON.stringify({error:auth.error})};
+  const who=auth&&auth.ok?{role:auth.role,tag:auth.tag}:{role:'viewer',tag:''}; // server-derived — the client can't spoof it
 
   // ── Poll for a result
   if (event.httpMethod === 'GET') {
@@ -67,7 +73,7 @@ export const handler = async (event) => {
     await fetch(base + '/.netlify/functions/ask-work-background', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, question, catalog, history: payload.history || [] })
+      body: JSON.stringify({ id, question, catalog, history: payload.history || [], who })
     });
   } catch (e) {
     return { statusCode: 502, headers: HDRS, body: JSON.stringify({ error: 'Could not start the answer job: ' + e.message }) };

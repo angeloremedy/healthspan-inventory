@@ -4,6 +4,16 @@
 [functions]
   node_bundler = "esbuild"
 
+[functions."manual"]
+  included_files = ["manuals/*.pdf"]
+
+# manuals are served ONLY through the session-checked function
+[[redirects]]
+  from = "/manuals/*"
+  to = "/.netlify/functions/manual"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/api/sync"
   to = "/.netlify/functions/refresh"

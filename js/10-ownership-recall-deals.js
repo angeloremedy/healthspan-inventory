@@ -196,10 +196,33 @@ function navApplyCollapse(){
     lbl.classList.toggle('collapsed',collapsed);
     let n=lbl.nextElementSibling;
     while(n&&!n.classList.contains('nlbl')){
-      if(n.classList.contains('ni')||n.id==='lnav')n.style.display=collapsed?'none':'';
+      if(n.classList.contains('ni')||n.id==='lnav')n.style.display=(collapsed||n.dataset.deny==='1')?'none':'';
       n=n.nextElementSibling;
     }
   });
+}
+/* ── navSync: the sidebar shows ONLY what viewAllowed() permits for this role.
+   Derived from the same function that guards navigation — no second list to drift. ── */
+function navSync(){
+  try{
+    document.querySelectorAll('.nav .ni').forEach(el=>{
+      const m=(el.getAttribute('onclick')||'').match(/showView\('([a-z]+)'/);
+      if(!m)return;
+      const deny=typeof viewAllowed==='function'&&!viewAllowed(m[1]);
+      el.dataset.deny=deny?'1':'0';
+      el.style.display=deny?'none':'';
+    });
+    // a section whose every item is denied disappears entirely (e.g. Admin for finance)
+    document.querySelectorAll('.nav .nlbl').forEach(lbl=>{
+      let n=lbl.nextElementSibling,any=false;
+      while(n&&!n.classList.contains('nlbl')){
+        if((n.classList.contains('ni')&&n.dataset.deny!=='1')||n.id==='lnav')any=true;
+        n=n.nextElementSibling;
+      }
+      lbl.style.display=any?'':'none';
+    });
+    navApplyCollapse();
+  }catch(e){}
 }
 
 
@@ -237,10 +260,10 @@ function buildMobileMenu(q){
         if(ROLE==='manager'&&el.id==='nav-admin-lbl')return;
         if(!q)html+='<div style="padding:14px 18px 5px;font-size:10.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--tx3)">'+esc(el.textContent.replace(/[▾▸]/g,'').trim())+'</div>';
       }else if(el.classList&&el.classList.contains('ni')){
-        if(ROLE==='sales'&&!el.classList.contains('nv-sales'))return;
         const oc=el.getAttribute('onclick')||'';
-        if(ROLE==='manager'&&(oc.includes("'users'")||oc.includes("'cutover'")))return;
         const mv=oc.match(/showView\('([a-z]+)'/);
+        if(mv&&typeof viewAllowed==='function'&&!viewAllowed(mv[1]))return;
+        if(!mv&&ROLE==='sales'&&!el.classList.contains('nv-sales'))return;
         const ml=oc.match(/fltLine\('((?:[^'\\]|\\.)*)'/);
         if(mv)addItem(el,"mmGo('"+mv[1]+"')");
         else if(ml)addItem(el,"closeMobileMenu();fltLine('"+ml[1].replace(/"/g,'&quot;')+"',null)");
@@ -256,6 +279,7 @@ function buildMobileMenu(q){
   html+='<div style="padding:18px;border-top:2px solid var(--bd);margin-top:8px;font-size:13px;color:var(--tx2)">'+esc(who)+' · '+(ROLE==='sales'?'Sales':ROLE==='manager'?'Sales manager':'Admin')+
     '<div style="display:flex;gap:10px;margin-top:10px">'+
     '<button onclick="closeMobileMenu();openChangePassword()" style="flex:1;background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px">Change password</button>'+
+    '<button onclick="downloadManual()" style="flex:1;background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px">📖 My manual</button>'+
     '<button onclick="roleLogout()" style="flex:1;background:var(--rd-bg);color:var(--rd);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px;font-weight:600">Sign out</button></div>'+
     '<div style="display:flex;gap:8px;margin-top:10px;align-items:center;font-size:12px;color:var(--tx3)">Theme:'+
     '<button onclick="applyMode(\'light\')" style="background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:7px 12px">☀️</button>'+
@@ -489,7 +513,12 @@ async function poReceive(poId,lineId,sku,qty,got){
   if(n>left&&!confirm(n+' is more than the '+left+' outstanding — receive anyway?'))return;
   const batch=(prompt('Batch / lot number (from the box):','')||'').trim();
   const expiry=(prompt('Expiry (MM/YYYY):','')||'').trim();
+  const qaHold=!confirm('Receive as SELLABLE stock?\n\nOK = sellable (into the ledger now)\nCancel = QA HOLD (quarantined until inspection releases it)');
   try{
+    if(qaHold){
+      const p=DATA.find(x=>x.sku===sku);
+      await quarAdd(sku,(p&&p.name)||sku,n,batch,'QA hold',PO_NO(poId),false);
+    }else
     await ledgerAdd([{sku,qty:n,kind:'receive',ref:PO_NO(poId),batch:batch||null,note:expiry?('exp '+expiry):null}]);
     const {error}=await SB.from('po_lines').update({received:got+n}).eq('id',lineId);
     if(error)throw error;
@@ -497,6 +526,7 @@ async function poReceive(poId,lineId,sku,qty,got){
     const full=(ls||[]).every(l=>(l.received||0)>=l.qty);
     await SB.from('pos').update({status:full?'received':'partial',updated_at:new Date().toISOString()}).eq('id',poId);
     audit('po.receive',{po:PO_NO(poId),sku,qty:n,batch});
+    boRelease(sku,n); // stock arrived — auto-release waiting backorders, oldest first
     renderPOs();
   }catch(e){alert('Could not receive: '+(e.message||e));}
 }
@@ -724,7 +754,7 @@ async function apSet(poId,field,label,cur){
   if(v===null)return;
   try{
     const patch={};
-    if(['fx_total','amount_paid','peso_value'].includes(field))patch[field]=v.trim()===''?null:Math.round(parseFloat(v.replace(/,/g,''))*100)/100;
+    if(['fx_total','amount_paid','peso_value','fx_rate','landed_cost'].includes(field))patch[field]=v.trim()===''?null:Math.round(parseFloat(v.replace(/,/g,''))*100)/100;
     else patch[field]=v.trim()||null;
     const {error}=await SB.from('pos').update(patch).eq('id',poId);
     if(error)throw error;
@@ -744,7 +774,32 @@ function apBlock(p){
     cell('amount_paid','Paid ('+(p.currency||'PHP')+')',p.amount_paid,v=>Number(v).toLocaleString())+
     '<div class="drow"><span class="dlbl">Balance</span><span class="dval" style="font-weight:700;color:'+(bal>0?'var(--rd)':'var(--gr)')+'">'+(bal!=null?Number(bal).toLocaleString():'—')+'</span></div>'+
     cell('peso_value','Est. value in ₱ (open)',p.peso_value,v=>fmtPeso(v))+
+    cell('fx_rate','FX rate at payment (₱ per '+(p.currency||'unit')+')',p.fx_rate,v=>Number(v).toLocaleString())+
+    cell('landed_cost','Landed cost add-on ₱ (freight+customs+brokerage)',p.landed_cost,v=>fmtPeso(v))+
+    '</div>'+
+    '<div style="background:var(--sf2);border-radius:10px;padding:10px 14px;margin-top:10px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--tx3);margin-bottom:4px">Import shipment</div>'+
+    impCell(p,'etd','ETD (departs origin)')+
+    impCell(p,'eta','ETA (arrives PH)')+
+    impCell(p,'customs_status','Customs status (in transit / clearing / cleared / delivered)')+
+    impCell(p,'broker','Broker / forwarder')+
     '</div>';
+}
+function impCell(p,field,label){
+  const ed=canWarehouse()||roleIn('finance');
+  const val=p[field];
+  return '<div class="drow"><span class="dlbl">'+label+'</span><span class="dval">'+(val?esc(String(val)):'—')+(ed?' <a href="#" onclick="impSet('+p.id+',\''+field+'\',\''+label.replace(/'/g,'')+'\',\''+esc(String(val==null?'':val)).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac);font-size:10px">✎</a>':'')+'</span></div>';
+}
+async function impSet(poId,field,label,cur){
+  if(!canWarehouse()&&!roleIn('finance'))return;
+  const v=prompt(label+(field==='etd'||field==='eta'?' (YYYY-MM-DD)':'')+':',cur||'');
+  if(v===null)return;
+  try{
+    const patch={};patch[field]=v.trim()||null;
+    const {error}=await SB.from('pos').update(patch).eq('id',poId);
+    if(error)throw error;
+    audit('import.'+field,{po:PO_NO(poId),value:v.slice(0,40)});
+    renderPOs();
+  }catch(e){alert('Could not save: '+(e.message||e)+(String(e.message||'').includes(field)?'\n\n(Run the procure-to-pay SQL.)':''));}
 }
 
 /* ══════════ QUOTATIONS — formal quotes, print, convert to order ══════════ */
@@ -1279,3 +1334,387 @@ async function commLog(account,kind){
     if(typeof showAccountPage==='function')showAccountPage(account);
   }catch(e){alert('Could not log: '+(e.message||e));}
 }
+
+
+/* ── BACKORDERS: manager ATP overrides become tracked shortfalls that auto-release ── */
+async function boRelease(sku,qtyIn){
+  try{
+    const {data:bos}=await SB.from('backorders').select('*').eq('status','open').ilike('sku',sku).order('id',{ascending:true});
+    let left=qtyIn;
+    for(const b of (bos||[])){
+      if(left<b.qty_short)break;
+      left-=b.qty_short;
+      await SB.from('backorders').update({status:'released',released_at:new Date().toISOString()}).eq('id',b.id);
+      audit('backorder.release',{order:b.order_label,sku:b.sku,qty:b.qty_short});
+      notify({roles:['supply_chain']},'auto','Backorder released: '+b.order_label,b.qty_short+'u '+b.name+' arrived — '+b.account+' can ship now','#/v/fulfillq');
+      notifyOrderOwner(b.order_id,'auto','Backorder released: '+b.order_label,b.qty_short+'u '+b.name+' arrived — your order can ship','#/v/orders');
+    }
+  }catch(e){}
+}
+async function boCancel(id){
+  if(!canFulfil())return;
+  if(!confirm('Cancel this backorder? (e.g. the order itself was cancelled)'))return;
+  try{await SB.from('backorders').update({status:'cancelled',released_at:new Date().toISOString()}).eq('id',id);audit('backorder.cancel',{id});renderFulfillQ();}catch(e){alert(e.message||e);}
+}
+
+/* ── RETURNS RECEIVING + QUARANTINE & DISPOSAL (the pharma trail) ── */
+async function returnsReceive(cmRef){
+  if(!canWarehouse()&&!roleIn('finance','admin'))return;
+  for(;;){
+    const skuIn=(prompt('Returned SKU (blank = done):','')||'').trim();
+    if(!skuIn)break;
+    const p=DATA.find(x=>x.sku.toLowerCase()===skuIn.toLowerCase())||DATA.find(x=>x.name.toLowerCase().startsWith(skuIn.toLowerCase()));
+    if(!p){alert('Unknown SKU/product: '+skuIn);continue;}
+    const qty=parseInt(prompt('Quantity of '+p.name+':','1')||'0',10);
+    if(!qty||qty<1)continue;
+    const batch=(prompt('Batch / lot (from the box, blank if unreadable):','')||'').trim();
+    const sellable=confirm(p.name+' ×'+qty+'\n\nOK = SELLABLE (back into stock)\nCancel = QUARANTINE (held for inspection)');
+    if(sellable){
+      await ledgerAdd([{sku:p.sku,qty:qty,kind:'return',ref:cmRef,batch:batch||null,note:'return restock'}]);
+      audit('return.restock',{cm:cmRef,sku:p.sku,qty,batch});
+    }else{
+      await quarAdd(p.sku,p.name,qty,batch,'return',cmRef,false);
+    }
+  }
+}
+async function quarAdd(sku,name,qty,batch,reason,ref,pullFromStock){
+  const {data,error}=await SB.from('quarantine').insert({sku,name,qty,batch:batch||null,reason,source_ref:ref||null,pulled:!!pullFromStock,created_by:SBUSER.id,created_name:(SBPROFILE&&SBPROFILE.name)||''}).select().single();
+  if(error)throw error;
+  if(pullFromStock)await ledgerAdd([{sku,qty:-qty,kind:'adjust',ref:'QUAR-'+data.id,batch:batch||null,note:'pulled to quarantine ('+reason+')'}]);
+  audit('quarantine.add',{sku,qty,reason,ref:ref||''});
+  return data;
+}
+async function renderQuarantine(){
+  if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
+  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  let rows=[];
+  try{const {data,error}=await SB.from('quarantine').select('*').order('id',{ascending:false}).limit(300);if(error)throw error;rows=data||[];}
+  catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Needs the quarantine SQL (SUPABASE-SETUP.md): '+esc(e.message||e)+'</div>';return;}
+  const held=rows.filter(r=>r.status==='held');
+  const heldU=held.reduce((a,r)=>a+(r.qty||0),0);
+  const heldV=held.reduce((a,r)=>{const p=DATA.find(d=>d.sku===r.sku);return a+(p&&p.price>0?p.price*r.qty:0);},0);
+  const disp90=rows.filter(r=>r.status==='disposed'&&r.decided_at&&r.decided_at>new Date(Date.now()-90*864e5).toISOString()).reduce((a,r)=>a+(r.qty||0),0);
+  const canW=canWarehouse();
+  const pill=r=>r.status==='held'?'<span class="pill pam" style="background:rgba(186,117,23,.15);color:var(--am)">HELD</span>':r.status==='released'?'<span class="pill pgr">released to stock</span>':'<span class="pill prd">disposed</span>';
+  $('content').innerHTML=
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met am"><div class="met-lbl">Held in quarantine</div><div class="met-val">'+heldU+'u</div><div class="met-sub">'+held.length+' lots · not sellable, not in ATP</div><div class="met-bar"></div></div>'+
+    '<div class="met rd"><div class="met-lbl">Value held</div><div class="met-val" style="font-size:15px">'+fmtPeso(heldV)+'</div><div class="met-sub">at list prices</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Disposed (90d)</div><div class="met-val">'+disp90+'u</div><div class="met-sub">the write-off trail</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    (canW?'<div style="margin-bottom:14px"><button onclick="quarPull()" style="background:var(--am);color:#fff;border:none;border-radius:10px;padding:11px 18px;font-size:13px;font-weight:700;cursor:pointer">Pull stock into quarantine</button><span style="font-size:11.5px;color:var(--tx3);margin-left:10px">expiring / damaged / QA-hold units — removed from sellable stock immediately</span></div>':'')+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>#</th><th>Product</th><th>Batch</th><th class="r">Qty</th><th>Reason</th><th>Ref</th><th>Since</th><th>Status</th>'+(canW?'<th></th>':'')+'</tr></thead><tbody>'+
+    (rows.length?rows.map(r=>'<tr><td class="mu">Q-'+r.id+'</td><td style="font-weight:600">'+esc(r.name||r.sku)+'</td><td class="mu">'+esc(r.batch||'—')+'</td><td class="r">'+r.qty+'</td>'+
+      '<td>'+esc(r.reason)+'</td><td class="mu" style="font-size:11px">'+esc(r.source_ref||'—')+'</td><td class="mu" style="font-size:11px">'+esc((r.created_at||'').slice(0,10))+'</td><td>'+pill(r)+'</td>'+
+      (canW?'<td style="white-space:nowrap;font-size:11.5px">'+(r.status==='held'?'<a href="#" onclick="quarDecide('+r.id+',\'released\');return false" style="color:var(--gr)">release</a> · <a href="#" onclick="quarDecide('+r.id+',\'disposed\');return false" style="color:var(--rd)">dispose</a>':'')+'</td>':'')+
+      '</tr>').join(''):'<tr><td colspan="9" class="mu">Nothing in quarantine — as it should be.</td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>Quarantined units are out of sellable stock and ATP · release puts them back into the ledger · dispose closes the trail with who/when — the compliance record for expired or damaged product</span></div></div>';
+}
+async function quarPull(){
+  if(!canWarehouse())return;
+  const skuIn=(prompt('SKU or product to pull into quarantine:','')||'').trim();if(!skuIn)return;
+  const p=DATA.find(x=>x.sku.toLowerCase()===skuIn.toLowerCase())||DATA.find(x=>x.name.toLowerCase().startsWith(skuIn.toLowerCase()));
+  if(!p)return alert('Unknown SKU/product.');
+  const qty=parseInt(prompt('Quantity of '+p.name+' to pull:','1')||'0',10);if(!qty||qty<1)return;
+  const batch=(prompt('Batch / lot:','')||'').trim();
+  const reason=(prompt('Reason (expiry / damage / QA hold):','expiry')||'expiry').trim();
+  try{await quarAdd(p.sku,p.name,qty,batch,reason,null,true);renderQuarantine();}
+  catch(e){alert('Could not quarantine: '+(e.message||e));}
+}
+async function quarDecide(id,status){
+  if(!canWarehouse())return;
+  const note=(prompt(status==='released'?'Release back to sellable stock — inspection note:':'DISPOSE — method/witness note (compliance record):','')||'').trim();
+  if(note===''&&status==='disposed'&&!confirm('No disposal note — record anyway?'))return;
+  try{
+    const {data:r}=await SB.from('quarantine').select('*').eq('id',id).maybeSingle();
+    if(!r||r.status!=='held')return;
+    const {error}=await SB.from('quarantine').update({status,notes:note||null,decided_at:new Date().toISOString(),decided_by:(SBPROFILE&&SBPROFILE.name)||''}).eq('id',id);
+    if(error)throw error;
+    if(status==='released'){
+      // back into the ledger: pulled stock returns via adjust; return-sourced units enter for the first time
+      const kind=r.pulled?'adjust':(String(r.reason||'').toLowerCase().startsWith('qa')?'receive':'return');
+      await ledgerAdd([{sku:r.sku,qty:r.qty,kind:kind,ref:'QUAR-'+r.id,batch:r.batch||null,note:'quarantine release'}]);
+    }
+    audit('quarantine.'+status,{q:r.id,sku:r.sku,qty:r.qty});
+    renderQuarantine();
+  }catch(e){alert('Could not update: '+(e.message||e));}
+}
+
+/* ── WAREHOUSE KPIs: measurable the moment the ledger is authoritative ── */
+async function renderWhKpi(){
+  if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
+  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  const since30=new Date(Date.now()-30*864e5).toISOString();
+  let ful=[],pend=[],boN=0,boAll=0,picks7=0;
+  try{
+    const r1=await SB.from('orders').select('id,num,account,created_at,fulfilled_at,total').eq('source','native').eq('status','fulfilled').is('deleted_at',null).gte('fulfilled_at',since30).not('fulfilled_at','is',null).order('fulfilled_at',{ascending:false}).limit(500);
+    ful=r1.data||[];
+    const r2=await SB.from('orders').select('id,num,date,account').eq('source','native').eq('status','pending').is('deleted_at',null).order('date',{ascending:true}).limit(500);
+    pend=r2.data||[];
+    const b1=await SB.from('backorders').select('id',{count:'exact',head:true}).gte('created_at',since30);boAll=b1.count||0;
+    const b2=await SB.from('orders').select('id',{count:'exact',head:true}).eq('source','native').is('deleted_at',null).gte('created_at',since30);boN=b2.count||0;
+    const p7=await SB.from('stock_moves').select('qty').eq('kind','pick').gte('created_at',new Date(Date.now()-7*864e5).toISOString()).limit(2000);
+    picks7=(p7.data||[]).reduce((a,r)=>a+Math.abs(r.qty||0),0);
+  }catch(e){}
+  const cyc=ful.filter(o=>o.created_at&&o.fulfilled_at).map(o=>(new Date(o.fulfilled_at)-new Date(o.created_at))/36e5).sort((a,b)=>a-b);
+  const med=cyc.length?cyc[Math.floor(cyc.length/2)]:null;
+  const avg=cyc.length?cyc.reduce((a,b)=>a+b,0)/cyc.length:null;
+  const fmtH=h=>h==null?'—':h<48?h.toFixed(1)+'h':(h/24).toFixed(1)+'d';
+  const age=d=>Math.round((Date.now()-new Date(d))/864e5);
+  const fill=boN?Math.max(0,100-Math.round(boAll/boN*100)):100;
+  const within48=cyc.length?Math.round(cyc.filter(h=>h<=48).length/cyc.length*100):null;
+  $('content').innerHTML=
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met bl"><div class="met-lbl">Order cycle time (median, 30d)</div><div class="met-val">'+fmtH(med)+'</div><div class="met-sub">order taken → fulfilled · avg '+fmtH(avg)+'</div><div class="met-bar"></div></div>'+
+    '<div class="met '+(within48==null||within48>=80?'gr':'am')+'"><div class="met-lbl">Fulfilled ≤ 48h</div><div class="met-val">'+(within48==null?'—':within48+'%')+'</div><div class="met-sub">of '+cyc.length+' timed fulfillments</div><div class="met-bar"></div></div>'+
+    '<div class="met '+(fill>=95?'gr':'am')+'"><div class="met-lbl">Fill rate (30d)</div><div class="met-val">'+fill+'%</div><div class="met-sub">'+boAll+' backordered of '+boN+' orders</div><div class="met-bar"></div></div>'+
+    '<div class="met '+(pend.length&&age(pend[0].date)>7?'rd':'bl')+'"><div class="met-lbl">Open queue</div><div class="met-val">'+pend.length+'</div><div class="met-sub">oldest '+(pend.length?age(pend[0].date)+'d':'—')+' · '+picks7.toLocaleString()+' units picked (7d)</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Order</th><th>Account</th><th>Taken</th><th>Fulfilled</th><th class="r">Cycle</th></tr></thead><tbody>'+
+    (ful.length?ful.slice(0,40).map(o=>{const h=o.created_at&&o.fulfilled_at?(new Date(o.fulfilled_at)-new Date(o.created_at))/36e5:null;
+      return '<tr onclick="showOrderPage(\''+o.id+'\')" style="cursor:pointer"><td style="font-weight:700">'+esc(fmtOrdNum(o.num))+'</td><td>'+esc(o.account||'')+'</td>'+
+      '<td class="mu" style="font-size:11px">'+esc((o.created_at||'').slice(0,16).replace('T',' '))+'</td><td class="mu" style="font-size:11px">'+esc((o.fulfilled_at||'').slice(0,16).replace('T',' '))+'</td>'+
+      '<td class="r" style="font-weight:600;color:'+(h!=null&&h>72?'var(--rd)':h!=null&&h>48?'var(--am)':'var(--gr)')+'">'+fmtH(h)+'</td></tr>';}).join(''):'<tr><td colspan="5" class="mu">No timed fulfillments yet — cycle times start counting from this deploy (fulfilled_at is stamped from now on).</td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>Cycle time = order created → marked fulfilled (stamped automatically by pick-confirm, scan-to-pick, and status controls) · fill rate = orders without a backorder · these numbers become the warehouse\'s scoreboard once the ledger is the stock truth</span></div></div>';
+}
+
+/* ── COMPLAINTS LOG: quality reports with batch reference, feeding the recall trace ── */
+async function renderComplaints(){
+  if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
+  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  let rows=[];
+  try{const {data,error}=await SB.from('complaints').select('*').order('id',{ascending:false}).limit(200);if(error)throw error;rows=data||[];}
+  catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Needs the complaints SQL (SUPABASE-SETUP.md): '+esc(e.message||e)+'</div>';return;}
+  const open=rows.filter(r=>r.status!=='closed');
+  const canM=roleIn('admin','manager','supply_chain');
+  const pill=r=>r.status==='closed'?'<span class="pill pgr">closed</span>':r.status==='investigating'?'<span class="pill pbl">investigating</span>':'<span class="pill prd">OPEN</span>';
+  const inp='style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:9px 10px;font-size:13px"';
+  const lbl='style="font-size:10.5px;color:var(--tx3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin:8px 0 3px"';
+  $('content').innerHTML=
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met '+(open.length?'rd':'gr')+'"><div class="met-lbl">Open complaints</div><div class="met-val">'+open.length+'</div><div class="met-sub">quality reports needing action</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">All time</div><div class="met-val">'+rows.length+'</div><div class="met-sub">every report kept — the compliance trail</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="g2" style="align-items:start;gap:14px">'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>#</th><th>Account</th><th>Product / batch</th><th>What happened</th><th>Filed by</th><th>Status</th>'+(canM?'<th></th>':'')+'</tr></thead><tbody>'+
+    (rows.length?rows.map(r=>'<tr><td class="mu">C-'+r.id+'</td><td style="font-weight:600">'+esc(r.account||'—')+'</td>'+
+      '<td>'+esc(r.sku||'—')+(r.batch?' <span class="pill pbl" style="cursor:pointer" onclick="showView(\'recall\',null)" title="Trace this batch in Batch recall trace">'+esc(r.batch)+'</span>':'')+'</td>'+
+      '<td style="font-size:11.5px;max-width:240px">'+esc(r.description||'')+(r.resolution?'<br><span style="color:var(--gr)">→ '+esc(r.resolution)+'</span>':'')+'</td>'+
+      '<td class="mu" style="font-size:11px">'+esc(r.created_name||'')+'<br>'+esc((r.created_at||'').slice(0,10))+'</td><td>'+pill(r)+'</td>'+
+      (canM?'<td style="white-space:nowrap;font-size:11.5px">'+(r.status!=='closed'?(r.status==='open'?'<a href="#" onclick="complaintSet('+r.id+',\'investigating\');return false" style="color:var(--ac)">investigate</a> · ':'')+'<a href="#" onclick="complaintSet('+r.id+',\'closed\');return false" style="color:var(--gr)">close</a>':'')+'</td>':'')+
+      '</tr>').join(''):'<tr><td colspan="7" class="mu">No complaints on record.</td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>Every complaint keeps its batch reference — one tap into the recall trace shows every other clinic that received the same lot · closing requires a resolution note</span></div></div>'+
+    '<div class="panel" style="padding:16px"><div class="phd">File a complaint</div>'+
+    '<label '+lbl+'>Account / clinic</label><input id="cp-acct" list="cp-accts" '+inp+'>'+
+    '<datalist id="cp-accts">'+acctList().map(r=>'<option value="'+esc(r.name)+'">').join('')+'</datalist>'+
+    '<label '+lbl+'>Product (SKU or name)</label><input id="cp-sku" '+inp+'>'+
+    '<label '+lbl+'>Batch / lot (from the box)</label><input id="cp-batch" '+inp+'>'+
+    '<label '+lbl+'>What happened</label><textarea id="cp-desc" rows="3" '+inp+'></textarea>'+
+    '<div id="cp-msg" style="min-height:14px;font-size:11px;margin:8px 0 4px"></div>'+
+    '<button onclick="complaintAdd()" style="width:100%;background:var(--rd);color:#fff;border:none;border-radius:8px;padding:11px;font-size:13px;font-weight:600;cursor:pointer">File complaint</button>'+
+    '<div style="font-size:10.5px;color:var(--tx3);margin-top:8px">Supply chain and management are pinged immediately.</div></div>'+
+    '</div>';
+}
+async function complaintAdd(){
+  const g=id=>($(id)&&$(id).value||'').trim();const msg=$('cp-msg');
+  if(!g('cp-acct')||!g('cp-desc')){if(msg){msg.style.color='var(--rd)';msg.textContent='Need at least the account and what happened.';}return;}
+  const p=DATA.find(x=>x.sku.toLowerCase()===g('cp-sku').toLowerCase())||DATA.find(x=>x.name.toLowerCase().startsWith(g('cp-sku').toLowerCase()));
+  try{
+    const {data,error}=await SB.from('complaints').insert({account:g('cp-acct'),sku:p?p.sku:(g('cp-sku')||null),batch:g('cp-batch')||null,description:g('cp-desc'),created_by:SBUSER.id,created_name:(SBPROFILE&&SBPROFILE.name)||''}).select().single();
+    if(error)throw error;
+    audit('complaint.file',{c:data.id,account:g('cp-acct'),sku:p?p.sku:g('cp-sku'),batch:g('cp-batch')});
+    notify({roles:['supply_chain']},'auto','Complaint C-'+data.id+': '+g('cp-acct'),(p?p.name:g('cp-sku'))+(g('cp-batch')?' · batch '+g('cp-batch'):'')+' — '+g('cp-desc').slice(0,120),'#/v/complaints');
+    renderComplaints();
+  }catch(e){if(msg){msg.style.color='var(--rd)';msg.textContent=(e.message||e)+(String(e.message||'').includes('complaints')?' (run the complaints SQL)':'');}}
+}
+async function complaintSet(id,status){
+  if(!roleIn('admin','manager','supply_chain'))return;
+  let resolution=null;
+  if(status==='closed'){resolution=prompt('Resolution (what was found / done):');if(resolution===null)return;if(!resolution.trim())return alert('Closing needs a resolution note — it\'s the compliance record.');}
+  try{
+    const upd={status};if(resolution)upd.resolution=resolution.trim();if(status==='closed')upd.closed_at=new Date().toISOString();
+    const {error}=await SB.from('complaints').update(upd).eq('id',id);if(error)throw error;
+    audit('complaint.'+status,{c:id});renderComplaints();
+  }catch(e){alert(e.message||e);}
+}
+
+
+/* ── MY MANUAL: every role can download their own user manual, in-app ── */
+async function downloadManual(){
+  if(!SB||!SBUSER)return alert('Sign in first.');
+  try{
+    const r=await fetch('/.netlify/functions/manual',{headers:await sbAuthHeaders()});
+    if(!r.ok){let e='HTTP '+r.status;try{e=(await r.json()).error||e;}catch(x){}throw new Error(e);}
+    const blob=await r.blob();
+    const cd=r.headers.get('Content-Disposition')||'';
+    const m=cd.match(/filename="([^"]+)"/);
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download=(m&&m[1])||'HQ-Manual.pdf';a.click();URL.revokeObjectURL(a.href);
+    audit('manual.download',{});
+  }catch(e){alert('Could not download the manual: '+(e.message||e));}
+}
+
+/* ══════════ SUPPLIER MASTER + INCOMING SHIPMENTS + VALUATION ══════════ */
+async function renderSuppliers(){
+  if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
+  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  let sup=[],pos=[];
+  try{const {data,error}=await SB.from('suppliers').select('*').order('name');if(error)throw error;sup=data||[];}
+  catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Needs the procure-to-pay SQL (SUPABASE-SETUP.md): '+esc(e.message||e)+'</div>';return;}
+  try{const {data}=await SB.from('pos').select('id,supplier,status,eta,etd,customs_status').in('status',['ordered','partial']);pos=data||[];}catch(e){}
+  const canW=canWarehouse()||roleIn('finance');
+  const incoming=pos.filter(p=>p.eta).sort((a,b)=>a.eta<b.eta?-1:1);
+  $('content').innerHTML=
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met bl"><div class="met-lbl">Suppliers</div><div class="met-val">'+sup.filter(x=>x.active!==false).length+'</div><div class="met-sub">'+sup.length+' on file</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Incoming shipments</div><div class="met-val">'+incoming.length+'</div><div class="met-sub">'+(incoming.length?'next ETA '+esc(incoming[0].eta):'nothing on the water')+'</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    (incoming.length?'<div class="panel" style="padding:14px 16px;margin-bottom:14px"><div class="phd">On the water</div>'+
+      incoming.map(p=>'<div class="drow" style="border-bottom:1px solid var(--bd);padding:7px 0"><span class="dlbl"><b>'+PO_NO(p.id)+'</b> · '+esc(p.supplier)+'</span>'+
+      '<span class="dval" style="font-size:11.5px">'+(p.etd?'ETD '+esc(p.etd)+' · ':'')+'ETA <b>'+esc(p.eta)+'</b>'+(p.customs_status?' · <span class="pill pbl">'+esc(p.customs_status)+'</span>':'')+'</span></div>').join('')+
+      '<div style="font-size:10.5px;color:var(--tx3);margin-top:6px">Edit ETD/ETA/customs on each PO (Purchase orders → Import shipment).</div></div>':'')+
+    (canW?'<div style="margin-bottom:14px"><button onclick="supAdd()" style="background:var(--ac);color:#fff;border:none;border-radius:10px;padding:11px 18px;font-size:13px;font-weight:700;cursor:pointer">+ New supplier</button></div>':'')+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Supplier</th><th>Currency</th><th>Terms</th><th class="r">Lead time</th><th>Contact</th><th>Notes</th>'+(canW?'<th></th>':'')+'</tr></thead><tbody>'+
+    (sup.length?sup.map(x=>'<tr'+(x.active===false?' style="opacity:.5"':'')+'><td style="font-weight:600">'+esc(x.name)+(x.active===false?' <span class="pill pgy">inactive</span>':'')+'</td>'+
+      '<td>'+esc(x.currency||'PHP')+'</td><td class="mu">'+esc(x.terms||'—')+'</td><td class="r">'+(x.lead_time_days?x.lead_time_days+'d':'—')+'</td>'+
+      '<td class="mu" style="font-size:11.5px">'+esc([x.contact,x.email,x.phone].filter(Boolean).join(' · ')||'—')+'</td><td class="mu" style="font-size:11px;max-width:180px">'+esc(x.notes||'')+'</td>'+
+      (canW?'<td style="white-space:nowrap;font-size:11.5px"><a href="#" onclick="supEdit('+x.id+');return false" style="color:var(--ac)">edit</a> · <a href="#" onclick="supToggle('+x.id+','+(x.active===false?'true':'false')+');return false" style="color:'+(x.active===false?'var(--gr)':'var(--am)')+'">'+(x.active===false?'activate':'deactivate')+'</a></td>':'')+
+      '</tr>').join(''):'<tr><td colspan="7" class="mu">No suppliers yet — add the first one.</td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>Lead times feed ordering judgment (the forecast assumes ~2 months when unset) · currencies drive the multi-currency AP fields on POs · supplier bill PAYMENTS stay in the bank portals by design</span></div></div>';
+}
+async function supAdd(){await supForm(null);}
+async function supEdit(id){
+  const {data}=await SB.from('suppliers').select('*').eq('id',id).maybeSingle();
+  if(data)await supForm(data);
+}
+async function supForm(cur){
+  if(!canWarehouse()&&!roleIn('finance'))return;
+  const g=(label,v)=>{const r=prompt(label+':',v==null?'':String(v));return r===null?undefined:r.trim();};
+  const name=g('Supplier name',cur&&cur.name);if(name===undefined||!name)return;
+  const currency=g('Currency (PHP / USD / EUR…)',cur?cur.currency:'USD');if(currency===undefined)return;
+  const terms=g('Payment terms (e.g. 50% DP, 50% before ship)',cur&&cur.terms);if(terms===undefined)return;
+  const lead=g('Lead time in days (order → warehouse)',cur&&cur.lead_time_days);if(lead===undefined)return;
+  const contact=g('Contact person',cur&&cur.contact);if(contact===undefined)return;
+  const email=g('Email',cur&&cur.email);if(email===undefined)return;
+  const notes=g('Notes',cur&&cur.notes);if(notes===undefined)return;
+  try{
+    const rec={name,currency:currency||'PHP',terms:terms||null,lead_time_days:parseInt(lead,10)||null,contact:contact||null,email:email||null,notes:notes||null};
+    if(cur){const {error}=await SB.from('suppliers').update(rec).eq('id',cur.id);if(error)throw error;}
+    else{rec.created_by=SBUSER.id;const {error}=await SB.from('suppliers').insert(rec);if(error)throw error;}
+    audit(cur?'supplier.update':'supplier.create',{name});
+    renderSuppliers();
+  }catch(e){alert('Could not save: '+(e.message||e));}
+}
+async function supToggle(id,on){
+  if(!canWarehouse()&&!roleIn('finance'))return;
+  try{const {error}=await SB.from('suppliers').update({active:on}).eq('id',id);if(error)throw error;renderSuppliers();}catch(e){alert(e.message||e);}
+}
+
+/* ── LANDED COST & INVENTORY VALUATION (admin + finance only — this is the costs page) ── */
+async function renderValuation(){
+  if(!roleIn('admin','finance')){$('content').innerHTML='<div class="empty" style="margin-top:40px">Finance and admin only — this page shows costs and margins.</div>';return;}
+  $('content').innerHTML='<div class="empty" style="margin-top:40px">Computing…</div>';
+  await loadItems();
+  let pls=[],posAll=[];
+  try{const {data}=await SB.from('po_lines').select('po_id,sku,qty,received,unit_cost').not('unit_cost','is',null).order('id',{ascending:false}).limit(1000);pls=data||[];}catch(e){}
+  try{const {data}=await SB.from('pos').select('id,landed_cost,fx_rate,currency');posAll=data||[];}catch(e){}
+  const poMap={};posAll.forEach(p=>poMap[p.id]=p);
+  // landed adder per unit for each PO = landed_cost / units received on it
+  const poUnits={};pls.forEach(l=>{poUnits[l.po_id]=(poUnits[l.po_id]||0)+(l.received||l.qty||0);});
+  const latest={}; // sku → {cost, landed}
+  for(const l of pls){ // newest first — keep the first seen per sku
+    const k=l.sku.toLowerCase();
+    if(latest[k])continue;
+    const po=poMap[l.po_id]||{};
+    let unit=l.unit_cost||0;
+    if(po.currency&&po.currency!=='PHP'&&po.fx_rate)unit=unit*po.fx_rate; // FX cost → ₱ at payment rate
+    const landed=(po.landed_cost&&poUnits[l.po_id])?po.landed_cost/poUnits[l.po_id]:0;
+    latest[k]={cost:unit,landed};
+  }
+  const rows=DATA.filter(p=>typeof p.stock==='number'||p.price>0).map(p=>{
+    const it=(ITEMS||{})[p.sku]||{};
+    const src=latest[p.sku.toLowerCase()];
+    const base=src?src.cost:(it.cost!=null?it.cost:null);
+    const landed=src?src.landed:0;
+    const cost=base!=null?base+landed:null;
+    const stock=stk(p)||0;
+    return {sku:p.sku,name:p.name,line:p.line,price:p.price||0,base,landed,cost,stock,value:cost!=null?cost*stock:null,
+      margin:(cost!=null&&p.price>0)?(p.price-cost)/p.price*100:null,src:src?'PO'+(landed?'+landed':''):(it.cost!=null?'item master':null)};
+  }).filter(r=>r.cost!=null);
+  rows.sort((a,b)=>(b.value||0)-(a.value||0));
+  const totV=rows.reduce((a,r)=>a+(r.value||0),0);
+  const totRetail=rows.reduce((a,r)=>a+r.price*r.stock,0);
+  const byLine={};rows.forEach(r=>{byLine[r.line||'—']=(byLine[r.line||'—']||0)+(r.value||0);});
+  const lowM=rows.filter(r=>r.margin!=null&&r.margin<30).length;
+  $('content').innerHTML=
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met bl"><div class="met-lbl">Inventory at cost</div><div class="met-val" style="font-size:16px">'+fmtPeso(totV)+'</div><div class="met-sub">'+rows.length+' costed SKUs (landed included where known)</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Same stock at list</div><div class="met-val" style="font-size:16px">'+fmtPeso(totRetail)+'</div><div class="met-sub">'+(totRetail?('blended margin '+Math.round((1-totV/totRetail)*100)+'%'):'—')+'</div><div class="met-bar"></div></div>'+
+    '<div class="met '+(lowM?'am':'gr')+'"><div class="met-lbl">Margin < 30%</div><div class="met-val">'+lowM+'</div><div class="met-sub">SKUs to reprice or renegotiate</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="panel" style="padding:14px 16px;margin-bottom:14px"><div class="phd">Value at cost by line</div>'+
+    Object.entries(byLine).sort((a,b)=>b[1]-a[1]).map(([l,v])=>'<div class="drow"><span class="dlbl">'+esc(l)+'</span><span class="dval">'+fmtPeso(v)+'</span></div>').join('')+'</div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Product</th><th class="r">Unit cost ₱</th><th class="r">+ landed</th><th class="r">List</th><th class="r">Margin</th><th class="r">Stock</th><th class="r">Value at cost</th><th>Source</th></tr></thead><tbody>'+
+    rows.slice(0,120).map(r=>'<tr><td style="font-weight:600">'+esc(r.name)+'</td><td class="r">'+fmtPeso(Math.round(r.base))+'</td><td class="r mu">'+(r.landed?fmtPeso(Math.round(r.landed)):'—')+'</td>'+
+      '<td class="r">'+fmtPeso(r.price)+'</td><td class="r" style="font-weight:700;color:'+(r.margin==null?'var(--tx3)':r.margin<30?'var(--rd)':r.margin<50?'var(--am)':'var(--gr)')+'">'+(r.margin==null?'—':Math.round(r.margin)+'%')+'</td>'+
+      '<td class="r">'+r.stock.toLocaleString()+'</td><td class="r" style="font-weight:600">'+fmtPeso(Math.round(r.value))+'</td><td class="mu" style="font-size:10.5px">'+esc(r.src||'')+'</td></tr>').join('')+
+    '</tbody></table></div><div class="tfooter"><span>Unit cost = latest PO receive cost (× FX payment rate for foreign POs) + that PO\'s landed cost spread across its received units · falls back to the item-master cost · margins vs VAT-inclusive list price · admin + finance only</span></div></div>';
+}
+
+/* ── MOBILE SUGGESTION SHIM: iOS Safari barely renders <datalist>, especially as a PWA.
+   On touch devices, every input[list] gets a custom tappable dropdown instead. ── */
+(function(){
+  const touch=('ontouchstart' in window)||(navigator.maxTouchPoints>0);
+  if(!touch)return; // desktop keeps the native datalist
+  let panel=null,curInput=null;
+  function ensure(){
+    if(panel)return panel;
+    panel=document.createElement('div');
+    panel.id='dl-shim';
+    panel.style.cssText='position:fixed;z-index:99999;background:var(--sf);border:1px solid var(--bd);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.25);max-height:40vh;overflow-y:auto;display:none;-webkit-overflow-scrolling:touch';
+    document.body.appendChild(panel);
+    return panel;
+  }
+  function hide(){if(panel){panel.style.display='none';}curInput=null;}
+  function show(input){
+    const listId=input.getAttribute('list');if(!listId)return;
+    const dl=document.getElementById(listId);if(!dl)return;
+    const q=(input.value||'').toLowerCase().trim();
+    const opts=[...dl.querySelectorAll('option')].map(o=>o.value).filter(Boolean);
+    const hits=(q?opts.filter(v=>v.toLowerCase().includes(q)):opts).slice(0,8);
+    if(!hits.length){hide();return;}
+    const p=ensure();curInput=input;
+    p.innerHTML=hits.map(v=>'<div class="dl-opt" data-v="'+v.replace(/"/g,'&quot;')+'" style="padding:12px 14px;font-size:14px;color:var(--tx);border-bottom:1px solid var(--bd);cursor:pointer">'+v.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</div>').join('');
+    const r=input.getBoundingClientRect();
+    p.style.left=Math.max(6,r.left)+'px';
+    p.style.width=Math.min(r.width,window.innerWidth-12)+'px';
+    // open above the input when the keyboard eats the lower half
+    if(r.bottom>window.innerHeight*0.55){p.style.top='';p.style.bottom=(window.innerHeight-r.top+4)+'px';}
+    else{p.style.bottom='';p.style.top=(r.bottom+4)+'px';}
+    p.style.display='block';
+  }
+  document.addEventListener('input',e=>{
+    const t=e.target;
+    if(t&&t.tagName==='INPUT'&&t.getAttribute('list'))show(t);
+  },true);
+  document.addEventListener('focusin',e=>{
+    const t=e.target;
+    if(t&&t.tagName==='INPUT'&&t.getAttribute('list')&&t.value)show(t);
+  },true);
+  // touchstart beats blur; fill the input and fire the events views listen for
+  document.addEventListener('touchstart',e=>{
+    const opt=e.target&&e.target.closest&&e.target.closest('.dl-opt');
+    if(opt&&curInput){
+      e.preventDefault();
+      curInput.value=opt.getAttribute('data-v');
+      curInput.dispatchEvent(new Event('input',{bubbles:true}));
+      curInput.dispatchEvent(new Event('change',{bubbles:true}));
+      hide();
+      curInput=null;
+      return;
+    }
+    if(panel&&panel.style.display==='block'&&!(e.target&&e.target.getAttribute&&e.target.getAttribute('list')))hide();
+  },{passive:false,capture:true});
+  document.addEventListener('focusout',()=>{setTimeout(()=>{if(document.activeElement&&document.activeElement.closest&&document.activeElement.closest('#dl-shim'))return;hide();},250);},true);
+  window.addEventListener('hashchange',hide);
+})();

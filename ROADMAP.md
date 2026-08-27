@@ -88,6 +88,21 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ Customer statements: printable per-account Statement of Account with aging summary
 - ✅ Accounting export: date-range CSV of the register (totals, payments, balances, terms)
 
+**Procure-to-pay + platform polish (Aug 28)**
+- ✅ Supplier master · import shipment tracking (ETD/ETA/customs) · multi-currency payment FX · landed cost & valuation (true margins, admin+finance) · QA hold on receipt
+- ✅ Ask AI expanded: whole-HQ live context (AR, PDCs, approvals, backorders, quotes, pipeline, complaints), server-scoped to the asker's role — costs only ever shown to finance/admin
+- ✅ Mobile fix: custom suggestion dropdowns replace <datalist> on touch devices (log visit / order entry / all pickers now suggest on iPhone/iPad)
+- ✅ Homepage rebuilt per role: action cards first, nothing a role can't open
+- ✅ Notifications tightened: only the action-taker is pinged (approvals/anomalies → managers; backorders/complaints → supply chain; team digest → managers)
+- ✅ Sidebar = permissions: viewAllowed() now drives showView, the sidebar, and the mobile menu from one rule set — roles only see pages they can open; empty sections (e.g. Admin for finance) vanish
+- ✅ Activity log tightened to admin + super admin only
+
+**Ledger-truth pack (Aug 28)**
+- ✅ Backorders: ATP overrides tracked, auto-release + pings when stock arrives
+- ✅ Returns receiving → ledger or quarantine · ✅ Quarantine & disposal log (compliance trail)
+- ✅ Warehouse KPIs (cycle time via new fulfilled_at, fill rate, ≤48h share) · ✅ Complaints log with recall-trace link
+- ✅ In-app role manuals: every user downloads their own manual (sidebar “manual” / mobile “My manual”), served through a session-checked function; personal names removed from all manuals
+
 **Second-switch pack (Aug 28)**
 - ✅ DR numbering series (BIR-friendly, atomic, permanent per order) — order-paper blocker for platform-only orders cleared
 - ✅ Server-side register pagination + search — the register scales past the parallel run
@@ -161,23 +176,23 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ **Batch recall trace** — shipped (OUT-sheet history + ledger picks; survives sheet retirement)
 - ✅ **Product registration tracking** — shipped (CPR/FDA number + expiry per SKU on the item master; expired/expiring-soon float to the top with red/amber flags)
 - ✅ **Customer license capture** — shipped (LTO + PRC numbers with expiry dates on the account; red/amber expiry pills)
-- ▢ **Complaints log** — product quality reports with batch reference, feeding the recall trace
+- ✅ **Complaints log** — shipped (field-filed with batch on record, one tap into the recall trace; closing requires a resolution note)
 
 ### Procure-to-pay
-- ▢ **Supplier master** — suppliers with terms, lead times, currencies
+- ✅ **Supplier master** — shipped (Logistics → Suppliers & imports: currencies, terms, lead times, contacts, active/inactive)
 - ✅ **Purchase orders** — shipped (Logistics → Purchase orders); expected-arrivals→forecast link still to wire
 - ✅ **Receiving against PO** — shipped (batch + expiry at the door → stock ledger)
-- ▢ **Landed cost & inventory valuation** — true unit costs → COGS and margin by product/line/account
+- ✅ **Landed cost & inventory valuation** — shipped (Finance → Landed cost & valuation: latest PO cost × payment FX + landed allocation, real margins per SKU, inventory value at cost; admin+finance only)
 - ✅ **Supplier bills / AP** — shipped (terms, proforma ref, currency, FX total, amount paid, peso value on each PO; open-payables total). QBO export format to agree with accounting
-- ▢ **Import shipment tracking** — ETD/ETA, customs clearance status, broker documents per inbound shipment
-- ▢ **Multi-currency POs** — USD/EUR purchasing with rate capture at order and at payment
+- ✅ **Import shipment tracking** — shipped (ETD/ETA/customs/broker per PO + "on the water" list sorted by ETA)
+- ✅ **Multi-currency POs** — shipped (currency + FX totals existed; payment FX rate added and drives ₱ valuation)
 
 ## Workstream B — CRM (the Zoho replacement)
 
 - ✅ **Account ownership** — shipped (account pages + Accounts list inline assign); territories still open
 - ✅ **Lead pipeline** — shipped (Pipeline view: stages from behavior + audited moves, lost reasons)
 - ▢ **Activity cadences** — "no touch in X days" alerts per account tier; call-cycle planning on the calendar
-- ▢ **Attachments** — photos, signed DRs, licenses on visits/accounts (Supabase Storage)
+- ▢ **Attachments** — photos, signed DRs, licenses on visits/accounts. DESIGN DECIDED (2026-08-28): Google Drive via a service-account Netlify function (file IDs stored in Supabase), not Supabase Storage
 - 🔨 **Account tiers & segmentation** — tier field (A/B/C) shipped on accounts; tier-based service levels/cadences still open
 - ✅ **Weekly digest** — shipped (Monday bell digest per specialist: booked, orders, visits, open follow-ups; plus a team digest for managers/admin — no email/Slack dependency)
 - ✅ **Multiple contacts per account** — shipped (account pages)
@@ -216,14 +231,14 @@ platform feeds it via the accounting export; it does not replace it.
 - ▢ **Transfer orders** — Remedy branch shipments as documents with in-transit state
 - ✅ **Barcode scanning in the browser** — shipped (Scan view; shadow ledger)
 - ✅ **Pick confirmation** — shipped (FEFO batch-stamped; auto-fulfills the order)
-- ▢ **Returns receiving** — back to stock or quarantine/write-off
-- ▢ **Expiry quarantine & disposal log** — compliance trail for pharma products
+- ✅ **Returns receiving** — shipped (restock CMs walk units back in: sellable → ledger, doubtful → quarantine)
+- ✅ **Expiry quarantine & disposal log** — shipped (pull expiring/damaged/QA stock out of sellable + ATP; release or dispose with notes, who, when)
 - ✅ **Stock reservations / ATP** — shipped (pending native orders ARE the reservation; order entry shows on-hand / promised / available-to-promise, blocks specialists from overselling, manager override with confirm; releases automatically on fulfill/cancel)
-- ▢ **Backorder management** — short-ship tracking with auto-release when stock arrives
+- ✅ **Backorder management** — shipped (ATP overrides recorded as backorders; panel on the fulfillment queue; auto-release + pings when a PO receive covers the shortfall)
 - ▢ **Wave picking** — batch several orders into one FEFO warehouse pass
-- ▢ **QA hold on receipt** — received stock sits in quarantine until released as sellable
+- ✅ **QA hold on receipt** — shipped (receiving offers sellable vs QA hold; held units release into the ledger as receives)
 - ▢ **Courier tracking auto-pull** — LBC/Lalamove status APIs update dispatched/delivered automatically
-- ▢ **Warehouse KPIs** — order cycle time, fill rate, on-time-in-full
+- ✅ **Warehouse KPIs** — shipped (median/avg cycle time from the new fulfilled_at stamp, ≤48h share, fill rate vs backorders, queue age, units picked)
 - ▢ **Multi-bin putaway rules** — several bins per SKU with putaway suggestions
 
 ## Workstream D — Platform & engineering (parallel track)

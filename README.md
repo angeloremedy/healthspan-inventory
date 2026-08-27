@@ -232,6 +232,32 @@ size, or deep discounts) ping managers the moment they're submitted. Finance
 also gets a **Cash-flow forecast** — expected collections week by week from
 payment terms and cheque maturities.
 
+## 9.7 The warehouse, hardened
+
+ATP overrides become **backorders** that sit on the fulfillment queue and
+auto-release (with pings) the moment a PO receive covers them. Returned units
+walk back into stock — sellable straight to the ledger, doubtful into
+**Quarantine & disposal**, the compliance trail where expiring, damaged, and
+QA-hold stock waits (out of ATP) for release or a documented disposal.
+**Warehouse KPIs** score the operation: cycle time, ≤48h share, fill rate,
+queue age. And the **Complaints log** takes quality reports from the field
+with the batch on record — one tap into the recall trace.
+
+## 9.8 Your manual, in-app
+
+Sidebar → **manual** (mobile: Menu → My manual) downloads the user manual for
+YOUR role — served through a session check, so each person gets exactly their
+own book and nothing else.
+
+## 9.9 Buying side: suppliers, imports & true margins
+
+**Suppliers & imports** (Logistics) holds the supplier master — currencies,
+payment terms, lead times — plus every PO on the water with ETD, ETA, and
+customs status. Receiving now offers a **QA hold** (units wait in quarantine
+until inspection releases them as sellable). And **Landed cost & valuation**
+(Finance; admin + finance only) turns PO costs × payment FX + landed charges
+into real unit costs — true margins per product and inventory value at cost.
+
 ## 10. Team & access (admin only)
 
 Sidebar → Admin → **Team & access**. Create accounts (name, email, starter
@@ -250,6 +276,9 @@ passwords privately; people change them in-app.
 - **URLs**: every page has a real URL — bookmark accounts, orders, pick lists;
   the browser back button works.
 - **Mobile/iPad**: role-aware bottom navigation; everything works on a phone.
-- **Ask AI**: in-app chat that answers questions over live inventory and sales.
+- **Ask AI**: in-app chat over EVERYTHING HQ knows — inventory, sales, AR,
+  cheques, approvals, backorders, quotes, pipeline — automatically scoped to
+  your role (specialists get their own numbers; costs only answer for finance
+  and admin).
 - **Something looks wrong?** Check **Data health** first (feed freshness and
   reconciliation), then tell Angelo.

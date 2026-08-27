@@ -202,6 +202,9 @@ Self-disable is rejected. Three privilege tiers:
 - **scoped PS-admin** (`profiles.can_manage_ps`, Justine/IT) — list, create (forced `role='sales'`), and disable/enable *sales-role targets only*; everything else 403.
 
 ### 4.5 Nightly jobs (2am Manila, JOB_KEY-guarded)
+`manual.mjs` serves each signed-in user their role's PDF manual (bundled via
+netlify.toml included_files; the /manuals/* static path is force-redirected
+through the function so the files are never publicly reachable).
 `nightly.mjs` (cron 18:00 UTC) triggers four background functions: the Shopify
 backfill (order/payment/shipment sync), the sales-cache rebuild,
 **backup-background** (full JSON export of every table → Netlify Blobs
@@ -211,6 +214,19 @@ workflow rules — follow-up after fulfillment, welcome call on first order,
 collection at 60d past terms, dormant-account alert, campaign-start ping,
 Monday weekly digests —
 writing notifications and planned visits, deduped via `auto_log`).
+
+### 3.6 One permission truth for views
+`viewAllowed(v)` (js/02) is the single rule set: `showView` redirects with it,
+`navSync()` hides sidebar items and whole sections with it, and the mobile menu
+filters with it. Changing a view's access = one edit. Activity log is admin +
+super admin only (tightened 2026-08-28).
+
+### 4.6 Role-scoped Ask AI
+`ask.mjs` derives the caller's role/tag server-side (unspoofable) and passes it
+to the worker, which builds an HQ context from Supabase filtered to that role:
+AR/PDC/payables/costs only for finance+admin, approvals for managers,
+warehouse queues for supply chain, own-tag orders/quotes for specialists — with
+hard system-prompt rules never to reveal costs/margins outside finance/admin.
 
 ## 5. Supabase schema (see SUPABASE-SETUP.md for exact SQL)
 
@@ -240,6 +256,10 @@ writing notifications and planned visits, deduped via `auto_log`).
 | `count_sessions` / `count_lines` | Cycle counts (cutover evidence) | blind counts graded on close; variances → ledger adjustments |
 | `auto_log` | Automation dedup memory | unique(rule, entity); service-role only |
 | `doc_series` | BIR document numbering | atomic `next_doc_no()` RPC (security definer, role-checked); `orders.dr_no` permanent |
+| `backorders` | ATP-override shortfalls | auto-release on covering PO receive |
+| `quarantine` | Unsellable stock trail | held/released/disposed; `pulled` marks ledger removal |
+| `complaints` | Quality reports | batch-linked to the recall trace; closing needs resolution |
+| `suppliers` | Supplier master | currency, terms, lead times; POs carry etd/eta/customs/broker/fx_rate/landed_cost |
 
 `profiles.role` spans 7 roles (admin/manager/sales/supply_chain/finance/
 marketing/viewer) + `is_super` + `can_manage_ps` — the full matrix lives in

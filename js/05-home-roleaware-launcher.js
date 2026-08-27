@@ -38,43 +38,150 @@ function renderHome(){
     '<div class="hmc-ic">'+ic(icon)+'</div><div><div class="hmc-t">'+title+'</div><div class="hmc-s">'+sub+'</div></div></div>';
   const go=v=>'homeGo(\''+v+'\')';
   let sections=[];
-  if(circleRole()){
+  /* Role-true launchers: what you act on comes FIRST; what your role can't open never shows. */
+  if(ROLE==='admin'){
+    sections=[
+      ['Needs you',[
+        card(go('approvals'),'Approvals','Held orders waiting for a decision',HI.check,1),
+        card(go('fulfillq'),'Fulfillment queue','Pending orders, oldest first',HI.truck,1),
+        card(go('neworder'),'New order','Take an order in a minute',HI.cart),
+        card(go('orders'),'Orders','Every order, all-time register',HI.bag)]],
+      ['Money',[
+        card(go('ar'),'AR aging','Who owes what, 30/60/90',HI.card),
+        card(go('cashflow'),'Cash-flow forecast','Expected collections by week',HI.chart),
+        card(go('pdc'),'PDC register','Cheques to maturity',HI.card),
+        card(go('valuation'),'Landed cost & valuation','True margins, value at cost',HI.scale),
+        card(go('returns'),'Returns & credit memos','CMs, restock or write-off',HI.bag),
+        card(go('commissions'),'Commissions','Tiers & payroll CSV',HI.target)]],
+      ['Sales & CRM',[
+        card(go('salespace'),'Leaderboard & pace','Projected month-end per PS',HI.chart),
+        card(go('salestarget'),'Vs target','Monthly attainment',HI.target),
+        card(go('customers'),'Accounts','Unified customer profiles',HI.users),
+        card(go('pipeline'),'Pipeline','Staged funnel & opportunities',HI.chart),
+        card(go('quotes'),'Quotations','Open quotes & win rate',HI.list),
+        card(go('scorecards'),'Review scorecards','Quarterly reviews, auto-filled',HI.check),
+        card(go('targets'),'Set targets','Monthly ₱ per specialist',HI.target)]],
+      ['Warehouse & inventory',[
+        card(go('dashboard'),'Inventory dashboard','Stock health at a glance',HI.grid),
+        card(go('forecast'),'Days to stockout','Which products run out, when',HI.chart),
+        card(go('whkpi'),'Warehouse KPIs','Cycle time, fill rate',HI.chart),
+        card(go('quarantine'),'Quarantine','Held stock & disposals',HI.scale),
+        card(go('po'),'Purchase orders','Ordering & receiving',HI.truck),
+        card(go('suppliers'),'Suppliers & imports','Lead times, on the water',HI.truck),
+        card(go('health'),'Data health','Feed & reconciliation checks',HI.scale)]],
+      ['Admin',[
+        card(go('users'),'Team & access','Accounts, roles, passwords',HI.key),
+        card(go('audit'),'Activity log','Who did what, when',HI.list)]
+        .concat(isSuper()?[card(go('cutover'),'Cutover switches','Independence & evidence',HI.key)]:[])]
+    ];
+  }else if(ROLE==='manager'){
+    sections=[
+      ['Needs you',[
+        card(go('approvals'),'Approvals','Held orders waiting for YOUR decision',HI.check,1),
+        card(go('fulfillq'),'Fulfillment queue','Pending orders, oldest first',HI.truck),
+        card(go('followups'),'Follow-ups','The team\u2019s open to-dos',HI.check),
+        card(go('neworder'),'New order','Take an order in a minute',HI.cart)]],
+      ['Coach the team',[
+        card(go('salespace'),'Leaderboard & pace','Projected month-end per PS',HI.chart,1),
+        card(go('salestarget'),'Vs target','Monthly attainment',HI.target),
+        card(go('salesspec'),'Specialists','Per-PS drill-downs',HI.user),
+        card(go('scorecards'),'Review scorecards','Quarterly reviews, auto-filled',HI.check),
+        card(go('targets'),'Set targets','Monthly ₱ per specialist',HI.target),
+        card(go('salesfield'),'Field coverage','Reach vs universe',HI.pin)]],
+      ['CRM & orders',[
+        card(go('customers'),'Accounts','Profiles, merges, prospects',HI.users),
+        card(go('pipeline'),'Pipeline','Staged funnel & opportunities',HI.chart),
+        card(go('quotes'),'Quotations','Whole-team quotes & win rate',HI.list),
+        card(go('salesdue'),'Reorder due','Accounts past their rhythm',HI.check),
+        card(go('orders'),'Orders','Register & status',HI.bag)]]
+    ];
+  }else if(ROLE==='supply_chain'){
     sections=[
       ['Today',[
-        card(go('fulfillq'),'Fulfillment queue','Pending orders, oldest first',HI.truck,1),
-        card(go('neworder'),'New order','Take an order in a minute',HI.cart,1),
-        card(go('orders'),'Orders','Every order, all-time register',HI.bag),
-        card(go('ar'),'AR aging','Who owes what, 30/60/90',HI.card)]],
-      ['Sales & CRM',[
-        card(go('salesoverview'),'Sales overview','Units, value, deals split',HI.chart),
-        card(go('salestarget'),'Vs target','Monthly attainment',HI.target),
-        card(go('salesspec'),'Specialists','Per-PS performance',HI.user),
-        card(go('targets'),'Set targets','Monthly ₱ per specialist',HI.target),
-        card(go('customers'),'Accounts','Unified customer profiles',HI.users),
-        card(go('followups'),'Follow-ups','Open to-dos & planned visits',HI.check),
-        card(go('salesfield'),'Field coverage','Reach vs universe',HI.pin)]],
-      ['Inventory & ops',[
+        card(go('fulfillq'),'Fulfillment queue','Pick these, oldest first (+ backorders)',HI.truck,1),
+        card(go('scan'),'Scan','Receive · pick · count',HI.grid,1),
+        card(go('cyclecount'),'Cycle counts','Blind counts — cutover evidence',HI.check),
+        card(go('po'),'Purchase orders','Ordering & receiving',HI.truck)]],
+      ['Warehouse',[
+        card(go('quarantine'),'Quarantine','Held stock, release or dispose',HI.scale),
+        card(go('whkpi'),'Warehouse KPIs','Cycle time, fill rate',HI.chart),
+        card(go('suppliers'),'Suppliers & imports','Lead times, on the water',HI.truck),
+        card(go('recall'),'Batch recall trace','Any lot → every clinic',HI.pin),
+        card(go('batches'),'Batch view','FEFO, expiry, bins',HI.list)]],
+      ['Inventory',[
         card(go('dashboard'),'Inventory dashboard','Stock health at a glance',HI.grid),
         card(go('forecast'),'Days to stockout','Which products run out, when',HI.chart),
         card(go('all'),'All SKUs','Full product list',HI.list),
-        card(go('health'),'Data health','Feed & reconciliation checks',HI.scale)]],
-      ['Admin',[
-        card(go('users'),'Team & access','Accounts, roles, passwords',HI.key)]]
+        card(go('health'),'Data health','Feed & reconciliation checks',HI.scale),
+        card(go('orders'),'Orders','Register (read + status)',HI.bag)]]
     ];
-    if(ROLE!=='admin')sections=sections.filter(s=>s[0]!=='Admin');
-  }else{
+  }else if(ROLE==='finance'){
+    sections=[
+      ['Today',[
+        card(go('ar'),'AR aging','Who owes what, 30/60/90',HI.card,1),
+        card(go('cashflow'),'Cash-flow forecast','Expected collections by week',HI.chart,1),
+        card(go('pdc'),'PDC register','Cheques to maturity',HI.card),
+        card(go('returns'),'Returns & credit memos','CMs, restock or write-off',HI.bag)]],
+      ['Money',[
+        card(go('commissions'),'Commissions','Tiers & payroll CSV',HI.target),
+        card(go('valuation'),'Landed cost & valuation','True margins, value at cost',HI.scale),
+        card(go('catalog'),'Item master','Prices, costs, registrations',HI.list),
+        card(go('po'),'Purchase orders','Supplier AP on each PO',HI.truck),
+        card(go('suppliers'),'Suppliers & imports','Terms, currencies, ETAs',HI.truck)]],
+      ['Watch',[
+        card(go('salesoverview'),'Sales overview','Units, value, deals split',HI.chart),
+        card(go('salestarget'),'Vs target','Monthly attainment',HI.target),
+        card(go('customers'),'Accounts','Profiles & statements',HI.users),
+        card(go('approvals'),'Approvals','How your credit limits behave',HI.check),
+        card(go('dashboard'),'Inventory dashboard','Stock as money',HI.grid)]]
+    ];
+  }else if(ROLE==='marketing'){
+    sections=[
+      ['Today',[
+        card(go('campaigns'),'Campaign calendar','Demand signals & windows',HI.cal,1),
+        card(go('promos'),'Promotions','Mechanics that apply themselves',HI.target,1),
+        card(go('salesevents'),'Events calendar','Campaigns, demos, visits',HI.cal)]],
+      ['Measure',[
+        card(go('salesoverview'),'Sales overview','Uptake, any period',HI.chart),
+        card(go('salestarget'),'Vs target','Monthly attainment',HI.target),
+        card(go('salesfield'),'Field coverage','Reach vs universe',HI.pin),
+        card(go('pipeline'),'Pipeline','Staged funnel (read)',HI.chart),
+        card(go('customers'),'Accounts','Profiles & health scores',HI.users),
+        card(go('forecast'),'Days to stockout','Will the promo hold?',HI.grid)]]
+    ];
+  }else if(circleRole()){ // viewer / IT — the weekly-meeting numbers, read-only
+    sections=[
+      ['The weekly numbers',[
+        card(go('salesoverview'),'Sales overview','Units, value, deals split',HI.chart,1),
+        card(go('salestarget'),'Vs target','Monthly attainment',HI.target),
+        card(go('salespace'),'Leaderboard & pace','Projected month-end per PS',HI.chart),
+        card(go('ar'),'AR aging','Receivables, 30/60/90',HI.card),
+        card(go('value'),'Inventory value','Stock by line',HI.grid),
+        card(go('salesevents'),'Events calendar','Campaigns, demos, visits',HI.cal),
+        card(go('pipeline'),'Pipeline','Staged funnel',HI.chart),
+        card(go('campaigns'),'Campaign calendar','What\u2019s running',HI.cal)]]
+    ];
+    if(typeof canUserAdmin==='function'&&canUserAdmin())sections.push(['Admin',[card(go('users'),'Team & access','Create / disable specialist accounts',HI.key)]]);
+  }else{ // sales — the field day
     const today=[];
     today.push(card(go('neworder'),'New order','Take an order in a minute',HI.cart,1));
     today.push(card(go('logvisit'),'Log a visit','~10 seconds, right after the call',HI.pin,1));
     today.push(card(go('followups'),'Follow-ups','Your to-dos & planned visits',HI.check));
     if(myTag)today.push(card('showSpecPage(\''+esc(myTag).replace(/'/g,"\\'")+'\')','My page','Your numbers, calendar & accounts',HI.cal));
-    const perf=[
-      card(go('salesoverview'),'Sales overview','Units, value, deals split',HI.chart),
-      card(go('salestarget'),'Vs target','Monthly attainment',HI.target)];
-    if(isMgr)perf.push(card(go('salesspec'),'Specialists','Per-PS performance',HI.user));
-    perf.push(card(go('salesfield'),'Field coverage','Reach vs universe',HI.pin));
-    perf.push(card(go('orders'),'Orders','Register & status',HI.bag));
-    sections=[['Today',today],['Performance',perf]];
+    sections=[
+      ['Today',today],
+      ['Sell more',[
+        card(go('salesdue'),'Reorder due','Clinics past their rhythm — call first',HI.check,1),
+        card(go('quotes'),'Quotations','Formal quotes → one-tap orders',HI.list),
+        card(go('pipeline'),'Pipeline','Your prospects, staged',HI.chart),
+        card(go('salesevents'),'Events calendar','Campaigns & your planned visits',HI.cal)]],
+      ['Your numbers',[
+        card(go('salespace'),'Leaderboard & pace','Where you stand mid-month',HI.chart),
+        card(go('salesoverview'),'Sales overview','Units, value, deals split',HI.chart),
+        card(go('salestarget'),'Vs target','Monthly attainment',HI.target),
+        card(go('orders'),'Orders','Your register & statuses',HI.bag),
+        card(go('complaints'),'Complaints log','File a quality report',HI.list)]]
+    ];
   }
   $('content').innerHTML=
   '<style>'+
@@ -386,7 +493,12 @@ async function renderFulfillQ(){
   const pend=(NORDERS||[]).filter(o=>o.status==='pending'&&!o.deleted_at&&o.approved!==false).sort((a,b)=>a.date<b.date?-1:1);
   const age=d=>Math.max(0,Math.round((Date.now()-new Date(d))/864e5));
   const doneToday=(NORDERS||[]).filter(o=>o.status==='fulfilled'&&o.date===today).length;
-  $('content').innerHTML=
+  let bos=[];try{const {data}=await SB.from('backorders').select('*').eq('status','open').order('id');bos=data||[];}catch(e){}
+  const boPanel=bos.length?'<div class="panel" style="padding:14px 16px;margin-bottom:14px;border-left:3px solid var(--am)"><div class="phd">Backorders waiting on stock ('+bos.length+')</div>'+
+    bos.map(b=>'<div class="drow" style="border-bottom:1px solid var(--bd);padding:7px 0"><span class="dlbl" style="max-width:70%"><b>'+esc(b.order_label)+'</b> · '+esc(b.account)+'<br><span style="color:var(--tx3);font-size:11.5px">'+b.qty_short+'u '+esc(b.name)+' short since '+esc((b.created_at||'').slice(0,10))+'</span></span>'+
+    '<span class="dval" style="font-size:11.5px">'+(canFulfil()?'<a href="#" onclick="boCancel('+b.id+');return false" style="color:var(--rd)">cancel</a>':'')+'</span></div>').join('')+
+    '<div style="font-size:10.5px;color:var(--tx3);margin-top:6px">Auto-releases (and pings you + the specialist) the moment a PO receive covers the shortfall.</div></div>':'';
+  $('content').innerHTML=boPanel+
     '<div class="metrics" style="margin-bottom:14px">'+
     '<div class="met am"><div class="met-lbl">Pending orders</div><div class="met-val">'+pend.length+'</div><div class="met-sub">waiting to ship'+(held?' · '+held+' held for approval':'')+'</div><div class="met-bar"></div></div>'+
     '<div class="met rd" style="border-left:3px solid var(--rd)"><div class="met-lbl">Oldest pending</div><div class="met-val">'+(pend.length?age(pend[0].date)+'d':'—')+'</div><div class="met-sub">'+(pend.length?esc(ordLabel(pend[0])):'')+'</div><div class="met-bar"></div></div>'+

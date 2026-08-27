@@ -192,19 +192,11 @@ async function sbLoadProfile(user){
   const who=(SBPROFILE&&SBPROFILE.name)||user.email||'';
   if(sf){const old=document.getElementById('rolebadge');if(old)old.remove();
     const d=document.createElement('div');d.id='rolebadge';
-    d.innerHTML=esc(who)+' · '+(ROLE==='sales'?'Sales':ROLE==='manager'?'Sales manager':ROLE==='admin'?'Admin':esc(String(ROLE).replace('_',' ')))+' · <a href="#" onclick="openChangePassword();return false" style="color:var(--ac)">password</a> · <a href="#" onclick="roleLogout();return false" style="color:var(--ac)">sign out</a>';
+    d.innerHTML=esc(who)+' · '+(ROLE==='sales'?'Sales':ROLE==='manager'?'Sales manager':ROLE==='admin'?'Admin':esc(String(ROLE).replace('_',' ')))+' · <a href="#" onclick="openChangePassword();return false" style="color:var(--ac)">password</a> · <a href="#" onclick="downloadManual();return false" style="color:var(--ac)" title="Download the user manual for your role">manual</a> · <a href="#" onclick="roleLogout();return false" style="color:var(--ac)">sign out</a>';
     d.style.cssText='padding:6px 14px;border-top:1px solid var(--bd);font-size:10.5px;color:var(--tx3)';
     sf.parentNode.insertBefore(d,sf);}
   buildMobileNav();
-  try{if(!isSuper())document.querySelectorAll('.ni[onclick*="\'cutover\'"]').forEach(el=>el.style.display='none');}catch(e){}
-  try{ // circle roles: hide nav for views their guard would bounce anyway
-    if(['supply_chain','finance','marketing','viewer'].includes(ROLE)){
-      const common=['neworder','logvisit','targets','scorecards'];if(!canUserAdmin())common.push('users');
-      const per={supply_chain:['pdc'],finance:['scan','scanpick','fulfillq','recall'],marketing:['scan','scanpick','po','fulfillq','pdc','returns'],viewer:['scan','scanpick','po','fulfillq','pdc','returns','recall','audit']};
-      [...common,...(per[ROLE]||[])].forEach(v=>document.querySelectorAll('.ni[onclick*="\''+v+'\'"]').forEach(el=>el.style.display='none'));
-      const lbl=document.getElementById('nav-admin-lbl');if(lbl&&ROLE!=='finance')lbl.style.display='none';
-    }
-  }catch(e){}
+  try{if(typeof navSync==='function')navSync();}catch(e){} // sidebar = exactly what viewAllowed() permits
   setTimeout(()=>{window._animReady=true;},400); // animations start after login settles (no boot flicker)
   if(location.hash&&location.hash.startsWith('#/'))applyRoute(); // deep link / refresh keeps the page
   else showView('home',document.querySelector('.ni[onclick*="\'home\'"]')); // everyone lands on the role-aware home

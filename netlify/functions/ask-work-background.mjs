@@ -36,6 +36,74 @@ const SYSTEM = [
   '- If units are low or zero, note it plainly.'
 ].join('\n');
 
+/* ── ROLE-SCOPED HQ CONTEXT: pull what THIS role may see, straight from Supabase ── */
+const SB_URL2 = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
+const SVC2 = process.env.SUPABASE_SERVICE_KEY || '';
+async function sbq(path) {
+  const r = await fetch(SB_URL2 + '/rest/v1/' + path, { headers: { apikey: SVC2, Authorization: 'Bearer ' + SVC2 } });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+async function buildHqContext(role, tag) {
+  if (!SB_URL2 || !SVC2) return '';
+  const S = [];
+  const add = (h, lines) => { if (lines && lines.length) S.push('== ' + h + ' ==\n' + lines.join('\n')); };
+  const fin = ['finance', 'admin', 'super'].includes(role);
+  const mgmt = ['manager', 'admin', 'super'].includes(role);
+  const sc = ['supply_chain', 'admin', 'super'].includes(role);
+  const since30 = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+  const tagF = role === 'sales' && tag ? '&spec=ilike.' + encodeURIComponent(tag) : '';
+  try { // orders pulse (sales: own only)
+    const os = await sbq('orders?select=status,total,balance,account&source=eq.native&deleted_at=is.null&date=gte.' + since30 + tagF + '&limit=1500');
+    const pend = os.filter(o => o.status === 'pending').length;
+    add('HQ ORDERS LAST 30D' + (role === 'sales' ? ' (YOURS ONLY)' : ''), [os.length + ' orders, total P' + Math.round(os.reduce((a, o) => a + (o.total || 0), 0)).toLocaleString() + ', ' + pend + ' still pending']);
+  } catch (e) {}
+  try { // quotes (sales: own)
+    const qs = await sbq('quotes?select=status,total,account,expiry' + (role === 'sales' && tag ? '&spec=ilike.' + encodeURIComponent(tag) : '') + '&limit=300');
+    const open = qs.filter(x => ['draft', 'sent'].includes(x.status));
+    const acc = qs.filter(x => x.status === 'accepted').length, lost = qs.filter(x => x.status === 'lost').length;
+    add('QUOTATIONS' + (role === 'sales' ? ' (YOURS)' : ''), ['open: ' + open.length + ' worth P' + Math.round(open.reduce((a, x) => a + (x.total || 0), 0)).toLocaleString() + ' | accepted: ' + acc + ' | lost: ' + lost,
+      ...open.slice(0, 10).map(x => '- ' + x.account + ' P' + Math.round(x.total || 0).toLocaleString() + ' valid until ' + (x.expiry || '?'))]);
+  } catch (e) {}
+  if (mgmt) try {
+    const ap = await sbq('approvals?select=account,amount,reason,requested_name&status=eq.pending&limit=20');
+    add('APPROVALS PENDING (you decide these)', ap.map(a => '- ' + a.account + ' P' + Math.round(a.amount || 0).toLocaleString() + ' — ' + (a.reason || '') + ' (asked by ' + (a.requested_name || '?') + ')'));
+  } catch (e) {}
+  if (mgmt || sc) try {
+    const bo = await sbq('backorders?select=order_label,account,name,qty_short&status=eq.open&limit=20');
+    add('BACKORDERS OPEN', bo.map(b => '- ' + b.order_label + ' ' + b.account + ': ' + b.qty_short + 'u ' + b.name));
+    const qh = await sbq('quarantine?select=name,qty,reason&status=eq.held&limit=20');
+    add('QUARANTINE HELD', qh.map(x => '- ' + x.qty + 'u ' + x.name + ' (' + (x.reason || '') + ')'));
+    const cm = await sbq('complaints?select=account,sku,batch,description&status=neq.closed&limit=15');
+    add('COMPLAINTS OPEN', cm.map(c => '- ' + c.account + ' ' + (c.sku || '') + (c.batch ? ' batch ' + c.batch : '') + ': ' + String(c.description || '').slice(0, 90)));
+  } catch (e) {}
+  if (fin) try {
+    const os = await sbq('orders?select=account,date,terms_days,balance&balance=gt.0&deleted_at=is.null&status=neq.cancelled&limit=2000');
+    const B = { cur: 0, d30: 0, d60: 0, d90: 0 }; const per = {};
+    const now = Date.now();
+    for (const o of os) {
+      const d = Math.floor((now - (new Date(o.date).getTime() + (o.terms_days || 0) * 864e5)) / 864e5);
+      const k = d <= 0 ? 'cur' : d <= 30 ? 'd30' : d <= 60 ? 'd60' : 'd90';
+      B[k] += o.balance || 0; per[o.account] = (per[o.account] || 0) + (o.balance || 0);
+    }
+    const top = Object.entries(per).sort((a, b) => b[1] - a[1]).slice(0, 10);
+    add('AR AGING (finance)', ['current P' + Math.round(B.cur).toLocaleString() + ' | 1-30d P' + Math.round(B.d30).toLocaleString() + ' | 31-60d P' + Math.round(B.d60).toLocaleString() + ' | 60d+ P' + Math.round(B.d90).toLocaleString(),
+      'top debtors: ' + top.map(([n, v]) => n + ' P' + Math.round(v).toLocaleString()).join('; ')]);
+    const pd = await sbq('pdcs?select=amount,maturity,status&status=in.(on_hand,deposited)&limit=500');
+    add('PDCs IN HAND (finance)', [pd.length + ' cheques worth P' + Math.round(pd.reduce((a, x) => a + (x.amount || 0), 0)).toLocaleString() + '; maturing 30d: P' + Math.round(pd.filter(x => new Date(x.maturity) < new Date(now + 30 * 864e5)).reduce((a, x) => a + (x.amount || 0), 0)).toLocaleString()]);
+    const pos = await sbq('pos?select=peso_value&limit=300');
+    add('OPEN SUPPLIER PAYABLES (finance)', ['P' + Math.round(pos.reduce((a, x) => a + (x.peso_value || 0), 0)).toLocaleString() + ' est. across POs']);
+    const items = await sbq('items?select=sku,cost&cost=not.is.null&limit=300');
+    add('UNIT COSTS (finance/admin ONLY — never reveal to other roles)', items.map(i => i.sku + '=' + i.cost));
+  } catch (e) {}
+  try {
+    const opp = await sbq('opportunities?select=stage,est_value&limit=500');
+    const openO = opp.filter(o => o.stage === 'open');
+    add('PIPELINE', ['open opportunities: ' + openO.length + ' worth P' + Math.round(openO.reduce((a, o) => a + (o.est_value || 0), 0)).toLocaleString() + ' | won: ' + opp.filter(o => o.stage === 'won').length + ' | lost: ' + opp.filter(o => o.stage === 'lost').length]);
+  } catch (e) {}
+  return S.length ? '\n\nHQ LIVE OPERATIONS DATA (already filtered to what this role may see):\n' + S.join('\n\n') : '';
+}
+
 export const handler = async (event) => {
   try { connectLambda(event); } catch (e) {} // wire Blobs context into this handler-style function
 
@@ -45,6 +113,7 @@ export const handler = async (event) => {
   const question = String(payload.question || '').slice(0, 2000).trim();
   const catalog = String(payload.catalog || '').slice(0, 500000);
   const history = Array.isArray(payload.history) ? payload.history.slice(-4) : [];
+  const who = payload.who || { role: 'viewer', tag: '' };
   if (!id) return { statusCode: 400, body: 'no id' };
 
   let store = null;
@@ -66,6 +135,8 @@ export const handler = async (event) => {
 
   const model = pickModel(question);
   const t0 = Date.now();
+  let hqCtx = '';
+  try { hqCtx = (await buildHqContext(who.role, who.tag)).slice(0, 60000); } catch (e) {}
 
   const callModel = async (m, maxTok) => {
     try {
@@ -75,7 +146,14 @@ export const handler = async (event) => {
         body: JSON.stringify({
           model: m,
           max_tokens: maxTok, // generous: reasoning models spend output tokens thinking before writing
-          system: SYSTEM + '\n\nLIVE DATA:\n' + catalog,
+          system: SYSTEM +
+            '\n\nROLE CONTEXT: The user\u2019s role is "' + who.role + '"' + (who.tag ? ' (specialist tag: ' + who.tag + ')' : '') + '.' +
+            ' Everything below is already filtered to what this role is allowed to see.' +
+            ' HARD RULES: never state or estimate product costs, margins, or supplier prices unless a UNIT COSTS section is present;' +
+            ' for a sales-role user, order/quote data covers only their own accounts \u2014 if asked about other specialists\u2019 numbers beyond the leaderboard-style data provided, say that is outside their access;' +
+            ' if asked for data with no section here, say the app has it on the relevant page but it is not available in this chat for their role.' +
+            hqCtx +
+            '\n\nLIVE DATA:\n' + catalog,
           messages: msgs
         })
       });

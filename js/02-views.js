@@ -1,15 +1,25 @@
 /* ── VIEWS ── */
+/* ── ONE permission truth for views: showView redirects with it, the sidebar and
+   mobile menu hide with it — they can never drift apart again. ── */
+const SALES_VIEWS=['home','logvisit','followups','account','neworder','orders','order','spec','pickslip','pipeline','quotes','salesevents','complaints'];
+const CIRCLE_BLOCK_COMMON=['neworder','logvisit','targets','scorecards','approvals'];
+const CIRCLE_BLOCK={finance:['scan','scanpick','fulfillq','recall','cyclecount','quarantine'],marketing:['scan','scanpick','po','fulfillq','pdc','returns','commissions','cyclecount','quarantine','suppliers'],viewer:['scan','scanpick','po','fulfillq','pdc','returns','recall','commissions','cyclecount','quarantine','suppliers'],supply_chain:['pdc','commissions']};
+function viewAllowed(v){
+  if(typeof ROLE==='undefined'||!ROLE)return true;
+  if(v==='cutover')return typeof isSuper==='function'&&isSuper();
+  if(v==='users')return ROLE==='admin'||(typeof canUserAdmin==='function'&&canUserAdmin());
+  if(v==='audit')return ROLE==='admin';                    // admin + super only (2026-08-28)
+  if(v==='valuation')return ROLE==='admin'||ROLE==='finance'; // THE costs page
+  if(ROLE==='sales')return String(v).startsWith('sales')||SALES_VIEWS.includes(v);
+  if(['supply_chain','finance','marketing','viewer'].includes(ROLE))
+    return !(CIRCLE_BLOCK_COMMON.includes(v)||(CIRCLE_BLOCK[ROLE]||[]).includes(v));
+  if(ROLE==='manager')return v!=='scan'; // raw scan/ledger writes are warehouse-only
+  return true; // admin
+}
 function showView(v,el){
-  const SALES_OK=['home','logvisit','followups','account','neworder','orders','order','spec','pickslip','pipeline','quotes','salesevents']; // non-"sales*" views the sales role may open
-  if(typeof ROLE!=='undefined'&&ROLE==='sales'&&!String(v).startsWith('sales')&&!SALES_OK.includes(v)){v='salesoverview';el=document.querySelector('.ni.nv-sales');}
-  if(typeof ROLE!=='undefined'&&ROLE==='manager'&&v==='users'&&!(typeof canUserAdmin==='function'&&canUserAdmin())){v='home';el=document.querySelector('.ni[onclick*="\'home\'"]');} // managers: no account management (unless scoped PS-admin)
-  if(v==='cutover'&&typeof isSuper==='function'&&!isSuper()){v='home';el=document.querySelector('.ni[onclick*="\'home\'"]');} // cutover: super admin only
-  // circle roles: broad read, no order/visit entry, role-scoped ops (writes are DB-enforced anyway)
-  if(typeof ROLE!=='undefined'&&['supply_chain','finance','marketing','viewer'].includes(ROLE)){
-    const common=['neworder','logvisit','cutover','targets','scorecards','approvals'];
-    if(!(typeof canUserAdmin==='function'&&canUserAdmin()))common.push('users');
-    const per={supply_chain:['pdc','commissions'],finance:['scan','scanpick','fulfillq','recall','cyclecount'],marketing:['scan','scanpick','po','fulfillq','pdc','returns','commissions','cyclecount'],viewer:['scan','scanpick','po','fulfillq','pdc','returns','recall','audit','commissions','cyclecount']};
-    if(common.includes(v)||(per[ROLE]||[]).includes(v)){v='home';el=document.querySelector('.ni[onclick*="\'home\'"]');}
+  if(!viewAllowed(v)){
+    if(ROLE==='sales'){v='salesoverview';el=document.querySelector('.ni.nv-sales');}
+    else{v='home';el=document.querySelector('.ni[onclick*="\'home\'"]');}
   }
   if(typeof pushRoute==='function')pushRoute('#/v/'+v); // browser back/forward works across views
   currentView=v;
@@ -22,7 +32,7 @@ function showView(v,el){
            simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator',
            simmonte:'Monte Carlo stockout risk',simproject:'12-month projection',simcash:'Cash-flow timeline',simbulk:'Bulk-buy trade-off',simbranch:'Remedy branch rebalancing',
            aged:'Aged inventory',shrinkage:'Shrinkage tracker',cashexpiry:'Cash in expiring stock',branchtransfer:'Remedy branch shipments',branchexpiry:'Remedy branch expiry watch',
-           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt',targets:'Set targets',fcastacc:'Forecast accuracy',campaigns:'Campaign calendar',planreview:'AI planning review',salespace:'Leaderboard & pace',pdc:'PDC register',salesdue:'Reorder due',catalog:'Item master',returns:'Returns & credit memos',scan:'Scan — receive / pick / count',cutover:'Cutover switches',creditmemo:'Credit memo',scorecards:'Review scorecards',scanpick:'Scan to pick',recall:'Batch recall trace',pipeline:'Pipeline',po:'Purchase orders',approvals:'Approvals',commissions:'Commissions',salesevents:'Events calendar',quotes:'Quotations',promos:'Promotions',regs:'Product registrations',cyclecount:'Cycle counts',cashflow:'Cash-flow forecast'};
+           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt',targets:'Set targets',fcastacc:'Forecast accuracy',campaigns:'Campaign calendar',planreview:'AI planning review',salespace:'Leaderboard & pace',pdc:'PDC register',salesdue:'Reorder due',catalog:'Item master',returns:'Returns & credit memos',scan:'Scan — receive / pick / count',cutover:'Cutover switches',creditmemo:'Credit memo',scorecards:'Review scorecards',scanpick:'Scan to pick',recall:'Batch recall trace',pipeline:'Pipeline',po:'Purchase orders',approvals:'Approvals',commissions:'Commissions',salesevents:'Events calendar',quotes:'Quotations',promos:'Promotions',regs:'Product registrations',cyclecount:'Cycle counts',cashflow:'Cash-flow forecast',quarantine:'Quarantine & disposal',whkpi:'Warehouse KPIs',complaints:'Complaints log',suppliers:'Suppliers & imports',valuation:'Landed cost & valuation'};
   $('ptitle').textContent=T[v]||v;
   if(v==='dashboard') renderDashboard();
   else if(v==='action') renderActionCenter();
@@ -94,6 +104,11 @@ function showView(v,el){
   else if(v==='regs') renderRegs();
   else if(v==='cyclecount') renderCycleCounts();
   else if(v==='cashflow') renderCashflow();
+  else if(v==='quarantine') renderQuarantine();
+  else if(v==='whkpi') renderWhKpi();
+  else if(v==='complaints') renderComplaints();
+  else if(v==='suppliers') renderSuppliers();
+  else if(v==='valuation') renderValuation();
   else if(v==='campaigns') renderCampaigns();
   else if(v==='planreview') renderPlanReview();
   else renderTable(v);
@@ -656,6 +671,7 @@ function renderNewOrder(){
   if(!NORDERS)loadNativeOrders().then(()=>{if(currentView==='neworder')noAcctChanged();}); // credit check data
   try{if(SB)loadPromos();}catch(e){} // live promos auto-apply on add-to-order
   try{if(SB)loadReservations();}catch(e){} // ATP: stock already promised to pending orders
+  window._boShort=null;
   const myTag=(SBPROFILE&&SBPROFILE.specialist_tag)||'';
   const specs=specNames();
   const accounts=acctList().map(r=>r.name);
@@ -761,7 +777,8 @@ function addCartLine(){
       if(addUnits>atp){
         const info='Only '+Math.max(0,atp)+' available to promise — '+onHand+' on hand, '+promised+' already promised to pending orders'+(inCart?', '+inCart+' in this order':'')+'.';
         if(!canManage()){if(msg){msg.style.color='var(--rd)';msg.textContent=info+' Reduce the quantity or check with your manager.';}return;}
-        if(!confirm(info+'\n\nAdd anyway? (manager override — the shortfall becomes a backorder problem)'))return;
+        if(!confirm(info+'\n\nAdd anyway? (manager override — the shortfall is recorded as a BACKORDER and auto-releases when stock arrives)'))return;
+        window._boShort=window._boShort||{};window._boShort[sku]=(window._boShort[sku]||0)+(addUnits-Math.max(0,atp));
       }
     }
   }catch(e){}
@@ -851,17 +868,27 @@ async function submitOrder(){
       try{
         await SB.from('approvals').insert({kind:holdReason.startsWith('Credit')?'credit':'threshold',order_id:ord.id,order_label:fmtOrdNum(ord.num),account,amount:total,reason:holdReason,requested_by:SBUSER.id,requested_name:(SBPROFILE&&SBPROFILE.name)||spec});
         audit('approval.request',{order:fmtOrdNum(ord.num),reason:holdReason});
-        try{notify({roles:['manager','admin']},'approval','Approval needed: '+fmtOrdNum(ord.num),account+' · '+fmtPeso(total)+' — '+holdReason,'#/v/approvals');}catch(e){}
+        try{notify({roles:['manager']},'approval','Approval needed: '+fmtOrdNum(ord.num),account+' · '+fmtPeso(total)+' — '+holdReason,'#/v/approvals');}catch(e){}
         if(msg){msg.style.color='var(--am)';msg.textContent='Order '+fmtOrdNum(ord.num)+' saved — HELD for manager approval ('+holdReason+').';}
       }catch(e){}
     }
     const {error:e2}=await SB.from('order_lines').insert(CART.map(l=>({order_id:ord.id,sku:l.sku,name:l.name,qty:l.qty,price:l.price,amount:l.amount,is_free:l.is_free,deal:l.deal})));
     if(e2)throw new Error('Order saved but lines failed: '+e2.message);
+    // ATP overrides become tracked backorders (auto-release when stock arrives)
+    try{
+      const bo=window._boShort||{};window._boShort=null;
+      const rows=Object.entries(bo).filter(([k,v])=>v>0).map(([k,v])=>{const p=DATA.find(d=>d.sku.toLowerCase()===k.toLowerCase());return {order_id:ord.id,order_label:fmtOrdNum(ord.num),account,sku:p?p.sku:k,name:p?p.name:k,qty_short:v,created_by:SBUSER.id};});
+      if(rows.length){
+        await SB.from('backorders').insert(rows);
+        audit('backorder.create',{order:fmtOrdNum(ord.num),skus:rows.map(r=>r.sku+'×'+r.qty_short).join(', ')});
+        notify({roles:['supply_chain']},'auto','Backorder: '+fmtOrdNum(ord.num),account+' — short '+rows.map(r=>r.qty_short+'u '+r.name).join(', ')+' — releases when stock arrives','#/v/fulfillq');
+      }
+    }catch(e){}
     CART=[];NORDERS=null;
     audit('order.create',{order:fmtOrdNum(ord.num),account,spec,total});
     if(!holdReason)try{notify({roles:['supply_chain']},'order','New order '+fmtOrdNum(ord.num),account+' · '+fmtPeso(total)+' — ready to pick','#/v/fulfillq');}catch(e){}
     if(anomalies.length)try{
-      notify({roles:['manager','admin']},'auto','Anomaly: '+fmtOrdNum(ord.num)+' ('+account+')',anomalies.join(' · '),'#/v/orders');
+      notify({roles:['manager']},'auto','Anomaly: '+fmtOrdNum(ord.num)+' ('+account+')',anomalies.join(' · '),'#/v/orders');
       audit('order.anomaly',{order:fmtOrdNum(ord.num),flags:anomalies.join(' | ').slice(0,300)});
     }catch(e){}
     if(msg){msg.style.color='var(--gr)';msg.textContent='Order '+fmtOrdNum(ord.num)+' submitted.';}
@@ -1099,6 +1126,8 @@ async function orderAct(src,ref,action){
   try{
     if(src==='native'){
       const patch=action==='trash'?{deleted_at:new Date().toISOString()}:{status:action};
+      if(action==='fulfilled')patch.fulfilled_at=new Date().toISOString();
+      if(action==='pending')patch.fulfilled_at=null;
       const {error}=await SB.from('orders').update(patch).eq('id',ref);
       if(error)throw new Error(error.message);
     }else{

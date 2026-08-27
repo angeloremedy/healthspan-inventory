@@ -6,7 +6,7 @@ function audit(action,detail){
   }catch(e){}
 }
 async function renderAudit(){
-  if(!roleIn('admin','manager','finance')){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only.</div>';return;}
+  if(ROLE!=='admin'){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admin and super admin only.</div>';return;}
   $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
   let rows=[];
   try{const {data}=await SB.from('audit_log').select('at,who,action,detail').order('at',{ascending:false}).limit(400);rows=data||[];}
@@ -568,8 +568,11 @@ async function returnAdd(){
     const {data,error}=await SB.from('returns').insert({account:g('rt-acct'),order_ref:g('rt-ref')||null,items:g('rt-items')||null,amount:Math.round(parseFloat(g('rt-amt'))),action:($('rt-act')||{}).value||'restock',reason:g('rt-why')||null,created_by:(SBUSER&&SBUSER.id)||null}).select().single();
     if(error)throw error;
     audit('return.record',{cm:'CM-'+String(1000+data.id),account:g('rt-acct'),amount:g('rt-amt'),action:($('rt-act')||{}).value});
-    if((($('rt-act')||{}).value)==='restock'&&g('rt-items')){ // shadow ledger note (free-text items)
-      try{await SB.from('stock_moves').insert({sku:'(return)',qty:0,kind:'return',ref:'CM-'+String(1000+data.id),note:g('rt-items'),by_name:(SBPROFILE&&SBPROFILE.name)||'',user_id:(SBUSER&&SBUSER.id)||null});}catch(e){}
+    if((($('rt-act')||{}).value)==='restock'){
+      // walk the returned units into stock — sellable straight to the ledger, doubtful to quarantine
+      if(confirm('Receive the returned units into stock now?\n\nYou\u2019ll enter each SKU; per SKU you choose SELLABLE (back to the ledger) or QUARANTINE (held for inspection).')){
+        try{await returnsReceive('CM-'+String(1000+data.id));}catch(e){}
+      }
     }
     renderReturns();
   }catch(e){alert('Could not record: '+(e.message||e));}
@@ -698,7 +701,7 @@ async function confirmPick(orderRef){
     audit('ledger.pick',{order:ordLabel(o),lines:rows.length});
     // gear 2: the warehouse action drives the order status too
     if(o.status==='pending'&&canFulfil()&&confirm('Picked ✓ ('+rows.length+' line'+(rows.length>1?'s':'')+' in the ledger).\n\nAlso mark '+ordLabel(o)+' as FULFILLED?')){
-      const {error:e2}=await SB.from('orders').update({status:'fulfilled'}).eq('id',o.id);
+      const {error:e2}=await SB.from('orders').update({status:'fulfilled',fulfilled_at:new Date().toISOString()}).eq('id',o.id);
       if(!e2){audit('order.fulfilled',{order:ordLabel(o),via:'pick-confirm'});NORDERS=null;try{notifyOrderOwner(o.id,'fulfilled','Order fulfilled: '+ordLabel(o),(o.account||'')+' — picked and shipped from the warehouse','#/v/orders');}catch(ex){}}
       alert(e2?('Ledger saved, but the status update failed: '+e2.message):'Fulfilled ✓ — ledger and order updated together.');
     }else{
@@ -778,7 +781,7 @@ async function pickFinish(){
     audit('ledger.scanpick',{order:P.label,lines:rows.length});
     let ftxt='';
     if(canManage()){
-      const {error}=await SB.from('orders').update({status:'fulfilled'}).eq('id',P.id);
+      const {error}=await SB.from('orders').update({status:'fulfilled',fulfilled_at:new Date().toISOString()}).eq('id',P.id);
       if(!error){audit('order.fulfilled',{order:P.label,via:'scan-pick'});NORDERS=null;ftxt=' and marked fulfilled';try{notifyOrderOwner(P.id,'fulfilled','Order fulfilled: '+P.label,'Every unit scanned and shipped','#/v/orders');}catch(ex){}}
     }
     window._scanHandler=null;scanStop();

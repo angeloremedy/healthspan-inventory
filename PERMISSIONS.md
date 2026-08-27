@@ -81,7 +81,7 @@ therefore a floor — implementation grants the full circle read to all three.
 | Campaign calendar | ✅ | ✅ | 👁 | 👁 | 👁 | ✅ |
 | Forecasting suite, MAPE, AI planning review | ✅ | ✅ | ✖ | ✅ | 👁 | 👁 |
 | Ask AI | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Activity log (audit) | ✅ | ✅ | ✖ | ✖ | 👁 | ✖ |
+| Activity log (audit) | ✅ (admin + super ONLY — tightened 2026-08-28) | ✖ | ✖ | ✖ | ✖ | ✖ |
 | Approvals queue (credit/threshold holds) | ✅ decide | ✅ decide | auto-request | ✖ | 👁 | ✖ |
 | Credit limits (set per account) | ✅ | 👁 | 👁 own accts | ✖ | ✅ | ✖ |
 | Commissions (tiers, monthly compute, CSV) | ✅ | ✖ | ✖ | ✖ | ✅ | ✖ |
@@ -99,6 +99,24 @@ therefore a floor — implementation grants the full circle read to all three.
 | DR series config (Cutover) | super admin only | ✖ | ✖ | ✖ | ✖ | ✖ |
 | DR number assignment (first print) | ✅ | ✅ | ✖ | ✅ | ✖ | ✖ |
 | Communication log (Call/Viber on accounts) | ✅ | ✅ | ✅ own | ✖ | ✖ | ✖ |
+| Backorders (cancel; auto-created on override) | ✅ | ✅ | ✖ | ✅ | 👁 | ✖ |
+| Quarantine & disposal | ✅ | 👁 | ✖ | ✅ | ✅ add (returns) / 👁 | ✖ |
+| Warehouse KPIs | ✅ | 👁 | ✖ | ✅ | 👁 | 👁 |
+| Complaints log | ✅ manage | ✅ manage | ✅ file | ✅ manage | 👁 | 👁 |
+| My manual download | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (all roles incl. viewer/IT) |
+| Suppliers & imports | ✅ | 👁 | ✖ | ✅ | ✅ | ✖ |
+| Landed cost & valuation (COSTS page) | ✅ | ✖ | ✖ | ✖ | ✅ | ✖ |
+| Ask AI (context auto-scoped to role) | ✅ full | ✅ no costs | ✅ own scope | ✅ ops scope | ✅ incl. costs | ✅ circle scope |
+
+**Sidebar policy (2026-08-28):** the sidebar and mobile menu are generated from
+the SAME `viewAllowed()` function that guards navigation — a role only ever
+sees menu items it can actually open. No second list to drift.
+
+**Notification policy (2026-08-28):** the bell pings only whoever ACTS —
+approvals & anomalies → managers; backorders, complaints & new orders →
+supply chain; collections → finance + account owner; decisions/fulfillments →
+the requesting specialist; team digest → managers. Admins are not copied on
+everyone else's action items — the queues themselves are always visible in-app.
 | Team & access (users) | ✅ | ✖ | ✖ | ✖ | ✖ | ✖ (Justine: PS accounts only) |
 | Cutover switches | ✅ | ✖ | ✖ | ✖ | ✖ | ✖ |
 

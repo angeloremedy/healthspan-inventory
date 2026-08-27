@@ -170,7 +170,7 @@ export const handler = async (event) => {
         fired.digest = (fired.digest || 0) + 1;
       }
       if (await fresh('digest', 'team@' + week)) {
-        for (const role of ['manager', 'admin']) await notif({ role }, 'auto', 'Team week: ₱' + Math.round(tV).toLocaleString() + ' booked',
+        for (const role of ['manager']) await notif({ role }, 'auto', 'Team week: ₱' + Math.round(tV).toLocaleString() + ' booked',
           tO + ' orders · ' + tVis + ' visits across the team — pace and coverage have the detail', '#/v/salespace');
         fired.digest = (fired.digest || 0) + 1;
       }

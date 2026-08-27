@@ -1248,3 +1248,113 @@ alter table public.orders add column if not exists dr_no text;
 Register pagination needs no SQL — the register now queries page-by-page
 server-side (search on account/specialist/order no.). If the dr_no column is
 missing, the register quietly falls back to the old client-side mode.
+
+## Ledger-truth pack: backorders, quarantine, complaints, KPIs (2026-08-28)
+
+SQL Editor → Run:
+
+```sql
+-- cycle-time stamp (set automatically by every fulfill path from this deploy)
+alter table public.orders add column if not exists fulfilled_at timestamptz;
+
+-- backorders: ATP overrides become tracked shortfalls that auto-release
+create table if not exists public.backorders (
+  id bigint generated always as identity primary key,
+  order_id uuid,
+  order_label text,
+  account text,
+  sku text, name text,
+  qty_short int not null,
+  status text not null default 'open' check (status in ('open','released','cancelled')),
+  created_by uuid,
+  created_at timestamptz not null default now(),
+  released_at timestamptz
+);
+alter table public.backorders enable row level security;
+create policy "bo read" on public.backorders for select to authenticated using (true);
+create policy "bo insert" on public.backorders for insert to authenticated
+  with check (auth.uid() = created_by);
+create policy "bo update" on public.backorders for update to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','manager','supply_chain')));
+
+-- quarantine & disposal: the compliance trail for unsellable stock
+create table if not exists public.quarantine (
+  id bigint generated always as identity primary key,
+  sku text not null, name text,
+  qty int not null,
+  batch text,
+  reason text,             -- return / expiry / damage / QA hold
+  source_ref text,         -- CM-xxxx etc.
+  pulled boolean not null default false,  -- true = removed from ledger on entry
+  status text not null default 'held' check (status in ('held','released','disposed')),
+  notes text,
+  created_by uuid, created_name text,
+  created_at timestamptz not null default now(),
+  decided_at timestamptz, decided_by text
+);
+alter table public.quarantine enable row level security;
+create policy "quar read" on public.quarantine for select to authenticated using (true);
+create policy "quar write" on public.quarantine for insert to authenticated
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','supply_chain','finance')));
+create policy "quar update" on public.quarantine for update to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','supply_chain')));
+
+-- complaints: quality reports with the batch on record
+create table if not exists public.complaints (
+  id bigint generated always as identity primary key,
+  account text, sku text, batch text,
+  description text not null,
+  status text not null default 'open' check (status in ('open','investigating','closed')),
+  resolution text,
+  created_by uuid, created_name text,
+  created_at timestamptz not null default now(),
+  closed_at timestamptz
+);
+alter table public.complaints enable row level security;
+create policy "cmp read" on public.complaints for select to authenticated using (true);
+create policy "cmp insert" on public.complaints for insert to authenticated
+  with check (auth.uid() = created_by);
+create policy "cmp update" on public.complaints for update to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','manager','supply_chain')));
+```
+
+In-app manuals need no SQL — manual.mjs checks the session and serves the
+role's PDF (bundled via netlify.toml included_files; /manuals/* static paths
+are force-redirected through the function so the PDFs are never public).
+
+## Procure-to-pay pack (2026-08-28)
+
+SQL Editor → Run:
+
+```sql
+-- Supplier master
+create table if not exists public.suppliers (
+  id bigint generated always as identity primary key,
+  name text not null,
+  currency text default 'PHP',
+  terms text,
+  lead_time_days int,
+  contact text, email text, phone text,
+  notes text,
+  active boolean not null default true,
+  created_by uuid,
+  created_at timestamptz not null default now()
+);
+alter table public.suppliers enable row level security;
+create policy "sup read" on public.suppliers for select to authenticated using (true);
+create policy "sup write" on public.suppliers for insert to authenticated
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','supply_chain','finance')));
+create policy "sup update" on public.suppliers for update to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','supply_chain','finance')));
+
+-- Import tracking + multi-currency + landed cost on POs
+alter table public.pos add column if not exists etd date;
+alter table public.pos add column if not exists customs_status text;
+alter table public.pos add column if not exists broker text;
+alter table public.pos add column if not exists fx_rate numeric;      -- ₱ per unit of PO currency, at payment
+alter table public.pos add column if not exists landed_cost bigint;   -- ₱ freight+customs+brokerage for the whole PO
+```
+
+(pos.eta already exists.) Landed cost & valuation needs no further SQL —
+it computes from po_lines.unit_cost × fx_rate + landed_cost allocation,
+falling back to the item-master cost. Role-scoped Ask AI needs no SQL.
