@@ -196,7 +196,8 @@ function showSbLogin(err){
   const g=$('rolegate');if(!g)return;
   g.style.display='flex';
   g.innerHTML='<div style="background:var(--sf);border:1px solid var(--bd);border-radius:16px;padding:32px 36px;max-width:360px;width:90%;text-align:center">'+
-    '<div style="font-weight:700;font-size:18px;margin-bottom:4px">Healthspan</div>'+
+    '<div style="display:flex;justify-content:center;margin-bottom:12px">'+hsLogo(52,'var(--ac)')+'</div>'+
+    '<div style="font-weight:700;font-size:18px;margin-bottom:4px;letter-spacing:3px">HEALTHSPAN <span style="color:var(--ac)">HQ</span></div>'+
     '<div style="font-size:12.5px;color:var(--tx3);margin-bottom:18px">Sign in with your Healthspan account</div>'+
     '<input id="sb-email" type="email" placeholder="Email" autocomplete="username" style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px 12px;font-size:14px;margin-bottom:8px">'+
     '<input id="sb-pass" type="password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key===\'Enter\')sbLogin()" style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px 12px;font-size:14px">'+

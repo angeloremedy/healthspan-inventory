@@ -311,6 +311,109 @@ alter table public.visits add column if not exists products text;
 Specialists tag which products they endorsed during a visit; shows in recent
 visits, account timelines, and specialist pages ("bida: …").
 
+## Review scorecards (quarterly performance reviews)
+
+```sql
+create table if not exists public.review_notes (
+  spec text not null,
+  quarter text not null check (quarter ~ '^\d{4}-Q[1-4]$'),
+  rating int check (rating between 1 and 5),
+  comments text,
+  updated_by uuid references auth.users,
+  updated_at timestamptz not null default now(),
+  primary key (spec, quarter)
+);
+alter table public.review_notes enable row level security;
+-- manager/admin ONLY — review comments are never visible to specialists
+create policy "read reviews (mgmt)" on public.review_notes for select
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','manager')));
+create policy "write reviews (mgmt)" on public.review_notes for insert
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','manager')));
+create policy "update reviews (mgmt)" on public.review_notes for update
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','manager')));
+```
+
+## Independence module: cutover flags · item master · returns/CM · stock ledger
+
+```sql
+-- cutover switches (the "declare independence" flags)
+create table if not exists public.app_settings (
+  key text primary key,
+  value text not null,
+  updated_by uuid references auth.users,
+  updated_at timestamptz not null default now()
+);
+alter table public.app_settings enable row level security;
+create policy "read settings" on public.app_settings for select
+  using (auth.role() = 'authenticated');
+create policy "write settings (admin)" on public.app_settings for insert
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'));
+create policy "update settings (admin)" on public.app_settings for update
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'));
+
+-- item master (catalog): shadow until use_catalog_pricing = on
+create table if not exists public.items (
+  sku text primary key,
+  name text not null,
+  line text,
+  category text,
+  price bigint,
+  cost bigint,
+  barcode text,
+  active boolean not null default true,
+  updated_by uuid references auth.users,
+  updated_at timestamptz not null default now()
+);
+alter table public.items enable row level security;
+create policy "read items" on public.items for select
+  using (auth.role() = 'authenticated');
+create policy "write items" on public.items for insert
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','manager')));
+create policy "update items" on public.items for update
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','manager')));
+
+-- returns & credit memos (CM number = 1000 + id)
+create table if not exists public.returns (
+  id bigint generated always as identity primary key,
+  account text not null,
+  order_ref text,
+  items text,
+  amount bigint not null check (amount > 0),
+  action text not null default 'restock' check (action in ('restock','writeoff')),
+  reason text,
+  applied boolean not null default false,
+  created_by uuid references auth.users,
+  created_at timestamptz not null default now()
+);
+alter table public.returns enable row level security;
+create policy "read returns" on public.returns for select
+  using (auth.role() = 'authenticated');
+create policy "write returns" on public.returns for insert
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','manager')));
+create policy "update returns" on public.returns for update
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','manager')));
+
+-- stock ledger (SHADOW until ledger_is_truth = on): append-only movements
+create table if not exists public.stock_moves (
+  id bigint generated always as identity primary key,
+  at timestamptz not null default now(),
+  sku text not null,
+  qty int not null,                 -- signed: + receive, − pick
+  kind text not null check (kind in ('receive','pick','count','adjust','return')),
+  ref text,                         -- order label / PO / CM number
+  batch text,
+  note text,
+  by_name text,
+  user_id uuid references auth.users
+);
+alter table public.stock_moves enable row level security;
+create policy "read moves" on public.stock_moves for select
+  using (auth.role() = 'authenticated');
+create policy "insert moves" on public.stock_moves for insert
+  with check (auth.uid() = user_id);
+-- deliberately NO update/delete policies: the ledger is append-only
+```
+
 ## Contacts per account + PDC register
 
 ```sql

@@ -169,7 +169,7 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ FEFO pick lists with bin walk · packing slips · delivery receipts · shipment tracking · fulfillment queue
 
 ### Stage 2 — write-side (warehouse truth moves to the database)
-- ▢ **Stock ledger in Supabase** — fulfillment decrements, receiving increments, counts adjust; Verna's sheet becomes a report, not the source. THE endgame.
+- 🔨 **Stock ledger in Supabase** — append-only ledger live in shadow mode (scans + pick confirms record; counts log variance vs sheet; pick-confirm auto-fulfills the order). Remaining before the flag can flip: **opening-balance snapshot** (freeze sheet stock as adjust entries at cutover) + **stk() switch** (stock = opening + ledger when ledger_is_truth is on). THE endgame.
 - ▢ **Receiving against PO** (shared with ERP) — batch/expiry at the door
 - ▢ **Cycle counts on iPad** — variance log replaces shrinkage guessing
 - ▢ **Transfer orders** — Remedy branch shipments as documents with in-transit state
@@ -190,7 +190,7 @@ platform feeds it via the accounting export; it does not replace it.
 ## Workstream D — Platform & engineering (parallel track)
 
 - ⏭ **Close public endpoints** — data feed, Shopify cache, Ask AI behind Supabase session. TOP security gap.
-- ▢ **Vite restructure** — split index.html (~14k lines) into modules, git-based deploys; order/CRM code first
+- 🔨 **Modular restructure** — Phase 1 DONE: the single 15k-line file is split into `index.html` (shell/CSS) + 9 ordered script modules in `js/`, proven byte-identical on reassembly; zero build step, drag-drop deploys unchanged. Phase 2 (post-cutover): Vite proper — ES modules, per-view code splitting, minification, git-based deploys
 - ▢ **Supabase Pro** at cutover — daily backups, PITR, no pause policy; documented restore drill
 - ▢ Server-side pagination & filtering for the register (~2 MB/load at 9k orders)
 - ▢ Custom domain (e.g. platform.healthspan.ph) + PWA install (home-screen app, offline shell for the field team)
@@ -211,6 +211,11 @@ platform feeds it via the accounting export; it does not replace it.
 **Zoho OFF when:** ownership + pipeline live → all account data confirmed richer in-app than in Zoho → 1 month of full team usage → export Zoho archive, cancel.
 
 **Verna's sheet → report when:** stock ledger live → receiving + pick-confirm + cycle counts running → ledger matches physical count twice in a row → sheet becomes an auto-generated report for continuity. Never delete it; demote it.
+
+## HR decisions (Aug 2026)
+- ✅ **Review scorecards** — shipped (Sales analytics, mgmt-only): quarterly reviews auto-filled from live data + rating/comments (RLS-hidden from specialists)
+- ⏸ Commissions-as-payroll-input — on hold until the commissions feature exists
+- ✗ Employee directory, leave management, geo-check-in attendance — decided against
 
 ## Deliberately NOT building
 - General ledger, financial statements, BIR/tax filing, payroll → QBO

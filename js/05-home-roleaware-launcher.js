@@ -412,7 +412,7 @@ async function showPickSlip(ref){
     '<button onclick="confirmPick(\''+esc(String(o.id))+'\')" title="Confirm without scanning each unit" style="background:var(--gr);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer">✓ Confirm picked</button>'+
     '<button onclick="window.print()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer">🖨 Print</button></div>'+
     '<div class="printdoc">'+
-    '<div style="display:flex;justify-content:space-between;align-items:flex-start"><div><div style="font-size:19px;font-weight:800">HEALTHSPAN GLOBAL, INC.</div><div style="font-size:12px;color:#555">Pick List & Packing Slip</div></div>'+
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start"><div>'+hsLogo(34,'#00168F')+'<div style="font-size:19px;font-weight:800;margin-top:5px">HEALTHSPAN GLOBAL, INC.</div><div style="font-size:12px;color:#555">Pick List & Packing Slip</div></div>'+
     '<div style="text-align:right;font-size:12px"><b style="font-size:15px">'+esc(ordLabel(o))+'</b><br>Date: '+esc(o.date)+'<br>Printed: '+new Date().toISOString().slice(0,10)+'</div></div>'+
     '<div style="display:flex;gap:30px;margin:14px 0;font-size:12.5px"><div><b>Deliver to</b><br>'+esc(o.account||'—')+'</div><div><b>Specialist</b><br>'+esc(o.spec||'—')+'</div><div><b>Status</b><br>'+esc(o.status)+'</div></div>'+
     '<table><thead><tr><th>Product</th><th>SKU</th><th>Qty</th><th>Bin</th><th>Batch (FEFO)</th><th>Expiry</th><th>Pull</th><th>✓</th></tr></thead><tbody>'+rows+'</tbody></table>'+

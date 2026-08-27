@@ -41,11 +41,21 @@ Environment variables (Netlify → Site settings → Environment):
 The page embeds the Supabase **publishable** key — public by design; all
 security lives in RLS policies.
 
-## 3. The frontend (`index.html`)
+## 3. The frontend (`index.html` + `js/`)
 
-One file: CSS, HTML shell (sidebar + content div + mobile nav), and one big
-script. Everything renders by setting `$('content').innerHTML` from
-`render*()` functions.
+`index.html` holds the CSS and HTML shell (sidebar + content div + mobile nav);
+the application script is split into **nine ordered plain-script modules** in
+`js/` (`01-…` through `09-…`), loaded sequentially with classic `<script src>`
+tags. Plain scripts share one global scope, so the split is semantically
+identical to the previous single inline script (verified byte-identical on
+reassembly at split time). **Load order matters — never reorder the tags**, and
+new top-level code goes in the module matching its feature area (or a new
+`10-…` before the INIT block in `09`). Everything renders by setting
+`$('content').innerHTML` from `render*()` functions.
+
+Deploys: upload the changed `js/` file(s) and/or `index.html`. A future step
+(post-cutover) may graduate this layout to Vite proper (ES modules, code
+splitting, minification) — the file boundaries are already drawn for it.
 
 ### 3.1 Views & routing
 - `showView(v, el)` is the single entry point. It enforces role guards

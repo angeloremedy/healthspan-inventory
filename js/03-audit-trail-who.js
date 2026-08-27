@@ -555,7 +555,7 @@ async function printCM(id){
     '<div class="no-print" style="display:flex;gap:10px;margin-bottom:12px"><a href="#" onclick="showView(\'returns\',null);return false" style="color:var(--ac);font-size:12.5px">← Back</a><span style="flex:1"></span>'+
     '<button onclick="window.print()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer">🖨 Print / Save PDF</button></div>'+
     '<div class="printdoc">'+
-    '<div style="display:flex;justify-content:space-between;align-items:flex-start"><div><div style="font-size:19px;font-weight:800">HEALTHSPAN GLOBAL, INC.</div><div style="font-size:12px;color:#555">Credit Memo</div></div>'+
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start"><div>'+hsLogo(34,'#00168F')+'<div style="font-size:19px;font-weight:800;margin-top:5px">HEALTHSPAN GLOBAL, INC.</div><div style="font-size:12px;color:#555">Credit Memo</div></div>'+
     '<div style="text-align:right;font-size:12px"><b style="font-size:15px">CM-'+String(1000+r.id)+'</b><br>Date: '+esc(String(r.created_at||'').slice(0,10))+'</div></div>'+
     '<div style="margin:14px 0;font-size:12.5px"><b>'+esc(r.account)+'</b>'+(acct&&acct.address?'<br>'+esc(acct.address):'')+'</div>'+
     '<table><thead><tr><th>Reference</th><th>Items</th><th>Disposition</th><th>Reason</th><th style="text-align:right">Amount</th></tr></thead><tbody>'+

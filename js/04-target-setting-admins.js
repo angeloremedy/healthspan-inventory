@@ -131,7 +131,7 @@ async function showDeliveryReceipt(ref){
     '<a href="#" onclick="showOrderPage(\''+esc(String(ref)).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac);font-size:12.5px">← Back to order</a><span style="flex:1"></span>'+
     '<button onclick="window.print()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer">🖨 Print / Save PDF</button></div>'+
     '<div class="printdoc">'+
-    '<div style="display:flex;justify-content:space-between;align-items:flex-start"><div><div style="font-size:19px;font-weight:800">HEALTHSPAN GLOBAL, INC.</div><div style="font-size:12px;color:#555">Delivery Receipt</div></div>'+
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start"><div>'+hsLogo(34,'#00168F')+'<div style="font-size:19px;font-weight:800;margin-top:5px">HEALTHSPAN GLOBAL, INC.</div><div style="font-size:12px;color:#555">Delivery Receipt</div></div>'+
     '<div style="text-align:right;font-size:12px"><b style="font-size:15px">DR '+esc(ordLabel(o))+'</b><br>Order date: '+esc(o.date)+'<br>Printed: '+new Date().toISOString().slice(0,10)+'</div></div>'+
     '<div style="display:flex;gap:30px;margin:14px 0;font-size:12.5px">'+
     '<div style="flex:1"><b>Deliver to</b><br>'+esc(o.account||'—')+
@@ -184,7 +184,7 @@ async function showStatement(name){
     '<a href="#" onclick="showAccountPage(\''+esc(e.name).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac);font-size:12.5px">← Back to account</a><span style="flex:1"></span>'+
     '<button onclick="window.print()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer">🖨 Print / Save PDF</button></div>'+
     '<div class="printdoc">'+
-    '<div style="display:flex;justify-content:space-between;align-items:flex-start"><div><div style="font-size:19px;font-weight:800">HEALTHSPAN GLOBAL, INC.</div><div style="font-size:12px;color:#555">Statement of Account</div></div>'+
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start"><div>'+hsLogo(34,'#00168F')+'<div style="font-size:19px;font-weight:800;margin-top:5px">HEALTHSPAN GLOBAL, INC.</div><div style="font-size:12px;color:#555">Statement of Account</div></div>'+
     '<div style="text-align:right;font-size:12px">As of <b>'+new Date().toISOString().slice(0,10)+'</b></div></div>'+
     '<div style="margin:14px 0;font-size:12.5px"><b>'+esc(e.name)+'</b>'+(e.children&&e.children.length?' (incl. '+e.children.length+' branches)':'')+
     (acct&&acct.address?'<br>'+esc(acct.address):'')+(acct&&acct.phone?'<br>'+esc(acct.phone):'')+'</div>'+
