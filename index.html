@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
 <title>Healthspan HQ</title>
 <link rel="icon" type="image/png" href="/favicon.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
@@ -304,7 +304,11 @@ try{
   if((localStorage.getItem('hs_theme')||'healthspan')==='healthspan')document.body.setAttribute('data-theme','healthspan');
   var m=localStorage.getItem('hs_mode')||'system';
   if(m==='dark'||(m==='system'&&matchMedia('(prefers-color-scheme: dark)').matches))document.body.classList.add('dark');
-}catch(e){}</script>
+}catch(e){}
+/* app-like: block iOS pinch-zoom and double-tap zoom */
+document.addEventListener('gesturestart',function(e){e.preventDefault();},{passive:false});
+document.addEventListener('gesturechange',function(e){e.preventDefault();},{passive:false});
+</script>
 <!-- ── SIGN-IN GATE: Supabase accounts only (the login form is rendered by showSbLogin) -->
 <div id="rolegate" style="display:flex;position:fixed;inset:0;z-index:1000;background:var(--bg);align-items:center;justify-content:center">
   <div style="font-size:13px;color:var(--tx3)">Loading…</div>
@@ -324,6 +328,7 @@ body.role-manager #nav-admin-lbl,body.role-manager .ni[onclick*="'users'"],body.
 input[type="date"],input[type="month"],input[type="time"]{-webkit-appearance:none;appearance:none;min-width:0;max-width:100%;min-height:1.4em}
 .g2>div,.g3>div{min-width:0}
 *{-webkit-tap-highlight-color:transparent}
+html,body{touch-action:pan-x pan-y}
 button,a,.ni,.mni,.hmc,.tab,select{touch-action:manipulation}
 .ni,.mni,.nlbl,.hmc,.tab{-webkit-user-select:none;user-select:none}
 .ni:active,.mni:active,.hmc:active,.tab:active{transform:scale(.97);transition:transform .08s}
@@ -427,6 +432,8 @@ button:active{transform:scale(.97)}
     <div class="ni nv-sales" onclick="showView('salespace',this)"><svg viewBox="0 0 24 24"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v4a5 5 0 0 1-10 0z"/><path d="M17 5h3a2 2 0 0 1-2 4h-1"/><path d="M7 5H4a2 2 0 0 0 2 4h1"/></svg>Leaderboard &amp; pace</div>
     <div class="ni nv-sales" onclick="showView('salesdue',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/><path d="M12 2v2"/></svg>Reorder due</div>
     <div class="ni nv-sales" onclick="showView('pipeline',this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="5" height="18" rx="1"/><rect x="10" y="7" width="5" height="14" rx="1"/><rect x="17" y="11" width="5" height="10" rx="1"/></svg>Pipeline</div>
+    <div class="ni nv-sales" onclick="showView('salesevents',this)"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="12" cy="15" r="1.5" fill="currentColor"/></svg>Events calendar</div>
+    <div class="ni" onclick="showView('approvals',this)"><svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>Approvals</div>
     <div class="ni nv-sales" onclick="showView('salesdeals',this)"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Deals vs à la carte</div>
     <div class="ni nv-sales" onclick="showView('salesfree',this)"><svg viewBox="0 0 24 24"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>Free items</div>
     <div class="ni nv-sales" onclick="showView('salesfield',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.4 8 12 8 12s8-6.6 8-12a8 8 0 0 0-8-8z"/></svg>Field coverage</div>
@@ -443,6 +450,7 @@ button:active{transform:scale(.97)}
     <div class="ni" onclick="showView('ar',this)"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><circle cx="12" cy="15" r="2"/></svg>AR aging</div>
     <div class="ni" onclick="showView('pdc',this)"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h6"/><path d="M6 14h3"/><circle cx="17" cy="12" r="2.5"/></svg>PDC register</div>
     <div class="ni" onclick="showView('returns',this)"><svg viewBox="0 0 24 24"><polyline points="9 14 4 9 9 4"/><path d="M4 9h11a5 5 0 0 1 5 5v1a5 5 0 0 1-5 5H9"/></svg>Returns &amp; credit memos</div>
+    <div class="ni" onclick="showView('commissions',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/><path d="M19 19l3 3"/></svg>Commissions</div>
     <div class="ni" onclick="showView('aged',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Aged inventory</div>
     <div class="ni" onclick="showView('shrinkage',this)"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r="1" fill="currentColor"/></svg>Shrinkage tracker</div>
     <div class="ni" onclick="showView('cashexpiry',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Cash in expiring stock</div>

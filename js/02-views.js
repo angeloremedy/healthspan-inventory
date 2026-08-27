@@ -2,17 +2,18 @@
 function showView(v,el){
   const SALES_OK=['home','logvisit','followups','account','neworder','orders','order','spec','pickslip','pipeline']; // non-"sales*" views the sales role may open
   if(typeof ROLE!=='undefined'&&ROLE==='sales'&&!String(v).startsWith('sales')&&!SALES_OK.includes(v)){v='salesoverview';el=document.querySelector('.ni.nv-sales');}
-  if(typeof ROLE!=='undefined'&&ROLE==='manager'&&v==='users'){v='home';el=document.querySelector('.ni[onclick*="\'home\'"]');} // managers: everything except account management
+  if(typeof ROLE!=='undefined'&&ROLE==='manager'&&v==='users'&&!(typeof canUserAdmin==='function'&&canUserAdmin())){v='home';el=document.querySelector('.ni[onclick*="\'home\'"]');} // managers: no account management (unless scoped PS-admin)
   if(v==='cutover'&&typeof isSuper==='function'&&!isSuper()){v='home';el=document.querySelector('.ni[onclick*="\'home\'"]');} // cutover: super admin only
   // circle roles: broad read, no order/visit entry, role-scoped ops (writes are DB-enforced anyway)
   if(typeof ROLE!=='undefined'&&['supply_chain','finance','marketing','viewer'].includes(ROLE)){
-    const common=['neworder','logvisit','users','cutover','targets','scorecards'];
-    const per={supply_chain:['pdc'],finance:['scan','scanpick','fulfillq','recall'],marketing:['scan','scanpick','po','fulfillq','pdc','returns'],viewer:['scan','scanpick','po','fulfillq','pdc','returns','recall','audit']};
+    const common=['neworder','logvisit','cutover','targets','scorecards','approvals'];
+    if(!(typeof canUserAdmin==='function'&&canUserAdmin()))common.push('users');
+    const per={supply_chain:['pdc','commissions'],finance:['scan','scanpick','fulfillq','recall'],marketing:['scan','scanpick','po','fulfillq','pdc','returns','commissions'],viewer:['scan','scanpick','po','fulfillq','pdc','returns','recall','audit','commissions']};
     if(common.includes(v)||(per[ROLE]||[]).includes(v)){v='home';el=document.querySelector('.ni[onclick*="\'home\'"]');}
   }
   if(typeof pushRoute==='function')pushRoute('#/v/'+v); // browser back/forward works across views
   currentView=v;
-  try{if(window._animReady){const _c=$('content');_c.style.animation='none';void _c.offsetHeight;_c.style.animation='viewin .18s ease';}}catch(e){}fLine='';fSearch='';fTab='all';fBin='';fSup='';
+  try{if(window._animReady&&window._lastAnimView!==v){window._lastAnimView=v;const _c=$('content');_c.style.animation='none';void _c.offsetHeight;_c.style.animation='viewin .18s ease';}}catch(e){}fLine='';fSearch='';fTab='all';fBin='';fSup='';
   document.querySelectorAll('.ni').forEach(x=>x.classList.remove('active'));
   if(el) el.classList.add('active');
   const T={dashboard:'Dashboard',action:'Action center',customers:'Accounts (CRM)',health:'Data health',all:'All SKUs',oos:'Out of stock',low:'Low stock',neg:'Negative stock',
@@ -21,7 +22,7 @@ function showView(v,el){
            simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator',
            simmonte:'Monte Carlo stockout risk',simproject:'12-month projection',simcash:'Cash-flow timeline',simbulk:'Bulk-buy trade-off',simbranch:'Remedy branch rebalancing',
            aged:'Aged inventory',shrinkage:'Shrinkage tracker',cashexpiry:'Cash in expiring stock',branchtransfer:'Remedy branch shipments',branchexpiry:'Remedy branch expiry watch',
-           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt',targets:'Set targets',fcastacc:'Forecast accuracy',campaigns:'Campaign calendar',planreview:'AI planning review',salespace:'Leaderboard & pace',pdc:'PDC register',salesdue:'Reorder due',catalog:'Item master',returns:'Returns & credit memos',scan:'Scan — receive / pick / count',cutover:'Cutover switches',creditmemo:'Credit memo',scorecards:'Review scorecards',scanpick:'Scan to pick',recall:'Batch recall trace',pipeline:'Pipeline',po:'Purchase orders'};
+           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt',targets:'Set targets',fcastacc:'Forecast accuracy',campaigns:'Campaign calendar',planreview:'AI planning review',salespace:'Leaderboard & pace',pdc:'PDC register',salesdue:'Reorder due',catalog:'Item master',returns:'Returns & credit memos',scan:'Scan — receive / pick / count',cutover:'Cutover switches',creditmemo:'Credit memo',scorecards:'Review scorecards',scanpick:'Scan to pick',recall:'Batch recall trace',pipeline:'Pipeline',po:'Purchase orders',approvals:'Approvals',commissions:'Commissions',salesevents:'Events calendar'};
   $('ptitle').textContent=T[v]||v;
   if(v==='dashboard') renderDashboard();
   else if(v==='action') renderActionCenter();
@@ -85,6 +86,9 @@ function showView(v,el){
   else if(v==='recall') renderRecall();
   else if(v==='pipeline') renderPipeline();
   else if(v==='po') renderPOs();
+  else if(v==='approvals') renderApprovals();
+  else if(v==='commissions') renderCommissions();
+  else if(v==='salesevents') renderEvents();
   else if(v==='campaigns') renderCampaigns();
   else if(v==='planreview') renderPlanReview();
   else renderTable(v);
@@ -613,7 +617,7 @@ async function loadNativeOrders(force){
   if(!SB){NORDERS=[];return NORDERS;}
   try{
     // lean headers only (no line-count join — that was the slow part), pages in PARALLEL
-    const COLS='id,num,date,account,spec,status,total,deleted_at,source,ext_ref,pay_status,paid,balance,terms_days';
+    const COLS='id,num,date,account,spec,status,total,deleted_at,source,ext_ref,pay_status,paid,balance,terms_days,approved';
     const myTag=(ROLE==='sales'&&SBPROFILE&&SBPROFILE.specialist_tag)||'';
     const q=()=>{
       let x=SB.from('orders').select(COLS).order('date',{ascending:false}).order('id',{ascending:true});
@@ -775,8 +779,25 @@ async function submitOrder(){
       showOrderPage(id);
       return;
     }
-    const {data:ord,error}=await SB.from('orders').insert({account,spec,date:($('no-date')&&$('no-date').value)||undefined,notes:($('no-notes')&&$('no-notes').value||'').trim(),total,user_id:SBUSER.id,pay_status:'pending',paid:0,balance:total}).select().single();
+    // credit / big-order holds: specialist orders that trip a limit are held for approval
+    let holdReason=null;
+    if(ROLE==='sales'){
+      try{
+        const lim=creditLimitOf(account);
+        if(lim!=null&&(openExposure(account)+total)>lim)holdReason='Credit limit ₱'+lim.toLocaleString()+' exceeded (open ₱'+openExposure(account).toLocaleString()+' + this ₱'+total.toLocaleString()+')';
+        const thr=parseInt((FLAGS&&FLAGS.approval_threshold)||'',10);
+        if(!holdReason&&thr>0&&total>thr)holdReason='Order above the ₱'+thr.toLocaleString()+' approval threshold';
+      }catch(e){}
+    }
+    const {data:ord,error}=await SB.from('orders').insert({account,spec,date:($('no-date')&&$('no-date').value)||undefined,notes:($('no-notes')&&$('no-notes').value||'').trim(),total,user_id:SBUSER.id,pay_status:'pending',paid:0,balance:total,approved:!holdReason}).select().single();
     if(error)throw new Error(error.message);
+    if(holdReason){
+      try{
+        await SB.from('approvals').insert({kind:holdReason.startsWith('Credit')?'credit':'threshold',order_id:ord.id,order_label:fmtOrdNum(ord.num),account,amount:total,reason:holdReason,requested_by:SBUSER.id,requested_name:(SBPROFILE&&SBPROFILE.name)||spec});
+        audit('approval.request',{order:fmtOrdNum(ord.num),reason:holdReason});
+        if(msg){msg.style.color='var(--am)';msg.textContent='Order '+fmtOrdNum(ord.num)+' saved — HELD for manager approval ('+holdReason+').';}
+      }catch(e){}
+    }
     const {error:e2}=await SB.from('order_lines').insert(CART.map(l=>({order_id:ord.id,sku:l.sku,name:l.name,qty:l.qty,price:l.price,amount:l.amount,is_free:l.is_free,deal:l.deal})));
     if(e2)throw new Error('Order saved but lines failed: '+e2.message);
     CART=[];NORDERS=null;

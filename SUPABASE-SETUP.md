@@ -923,3 +923,107 @@ only for native (HS-) orders until cutover.
 - Move the public data endpoints behind the Supabase session token.
 - Vite restructure: split index.html into modules, deploys via git.
 - CRM: account profile pages, follow-up queue from "Follow-up needed" visits.
+
+## Finance suite — approvals, credit limits, commissions, supplier AP, scoped PS admin (2026-08-27)
+
+SQL Editor → Run:
+
+```sql
+-- 1) Credit limits per account (finance sets them)
+alter table public.accounts add column if not exists credit_limit bigint;
+
+-- 2) Orders can be held for approval (existing rows stay approved)
+alter table public.orders add column if not exists approved boolean not null default true;
+
+-- 3) Approvals queue
+create table if not exists public.approvals (
+  id bigint generated always as identity primary key,
+  kind text not null check (kind in ('credit','threshold')),
+  order_id uuid,
+  order_label text,
+  account text,
+  amount bigint,
+  reason text,
+  requested_by uuid,
+  requested_name text,
+  status text not null default 'pending' check (status in ('pending','approved','rejected')),
+  decided_by text,
+  decided_at timestamptz,
+  created_at timestamptz not null default now()
+);
+alter table public.approvals enable row level security;
+create policy "approvals read mgmt" on public.approvals for select to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','manager','finance')));
+create policy "approvals insert own" on public.approvals for insert to authenticated
+  with check (auth.uid() = requested_by);
+create policy "approvals decide mgmt" on public.approvals for update to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','manager')));
+
+-- 4) Commission rules (single row, finance-editable)
+create table if not exists public.comm_rules (
+  id int primary key default 1 check (id = 1),
+  rules text,
+  updated_by text,
+  updated_at timestamptz not null default now()
+);
+alter table public.comm_rules enable row level security;
+create policy "comm read" on public.comm_rules for select to authenticated using (true);
+create policy "comm write" on public.comm_rules for insert to authenticated
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','finance')));
+create policy "comm update" on public.comm_rules for update to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','finance')));
+
+-- 5) Supplier AP fields on purchase orders
+alter table public.pos add column if not exists terms text;
+alter table public.pos add column if not exists proforma text;
+alter table public.pos add column if not exists currency text;
+alter table public.pos add column if not exists fx_total numeric;
+alter table public.pos add column if not exists amount_paid numeric;
+alter table public.pos add column if not exists peso_value bigint;
+
+-- 6) Let finance edit the AP fields on POs (drop + recreate the update policy)
+drop policy if exists "pos update" on public.pos;
+create policy "pos update" on public.pos for update to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','supply_chain','finance')));
+
+-- 7) Scoped PS-account admin for Justine (create/disable specialists only)
+alter table public.profiles add column if not exists can_manage_ps boolean not null default false;
+update public.profiles set can_manage_ps = true
+  where id = (select id from auth.users where email = 'itops@remedy.ph');
+```
+
+If your existing PO
+update policy has a different name, check it under Database → Policies → pos
+and drop that name instead. The approval threshold itself is set in-app
+(Approvals view, super admin only) — it's stored in `app_settings` as
+`approval_threshold`, no SQL needed.
+
+## CRM fields on accounts + richer contacts (2026-08-27)
+
+SQL Editor → Run:
+
+```sql
+-- Accounts: CRM enrichment fields
+alter table public.accounts add column if not exists email text;
+alter table public.accounts add column if not exists viber text;
+alter table public.accounts add column if not exists region text;
+alter table public.accounts add column if not exists city text;
+alter table public.accounts add column if not exists clinic_type text;
+alter table public.accounts add column if not exists tier text check (tier is null or tier in ('A','B','C'));
+alter table public.accounts add column if not exists source text;
+alter table public.accounts add column if not exists delivery_notes text;
+alter table public.accounts add column if not exists birthday date;
+alter table public.accounts add column if not exists anniversary date;
+alter table public.accounts add column if not exists lto_no text;
+alter table public.accounts add column if not exists lto_expiry date;
+alter table public.accounts add column if not exists prc_no text;
+alter table public.accounts add column if not exists prc_expiry date;
+
+-- Contacts: email + Viber per person
+alter table public.account_contacts add column if not exists email text;
+alter table public.account_contacts add column if not exists viber text;
+```
+
+No RLS changes — these ride the existing accounts / account_contacts policies.
+Delivery notes print on the DR under "Deliver to"; LTO/PRC expiries show
+red/amber pills on the account page.

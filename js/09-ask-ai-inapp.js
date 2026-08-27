@@ -172,7 +172,7 @@ async function initAuth(){
 }
 async function sbLoadProfile(user){
   SBUSER=user;
-  try{const {data}=await SB.from('profiles').select('name,role,specialist_tag,is_super').eq('id',user.id).single();SBPROFILE=data||null;}
+  try{const {data}=await SB.from('profiles').select('name,role,specialist_tag,is_super,can_manage_ps').eq('id',user.id).single();SBPROFILE=data||null;}
   catch(e){try{const {data}=await SB.from('profiles').select('name,role,specialist_tag').eq('id',user.id).single();SBPROFILE=data||null;}catch(e2){SBPROFILE=null;}}
   ROLE=(SBPROFILE&&SBPROFILE.role)||'sales';
   const g=$('rolegate');if(g)g.style.display='none';
@@ -198,7 +198,7 @@ async function sbLoadProfile(user){
   try{if(!isSuper())document.querySelectorAll('.ni[onclick*="\'cutover\'"]').forEach(el=>el.style.display='none');}catch(e){}
   try{ // circle roles: hide nav for views their guard would bounce anyway
     if(['supply_chain','finance','marketing','viewer'].includes(ROLE)){
-      const common=['neworder','logvisit','users','targets','scorecards'];
+      const common=['neworder','logvisit','targets','scorecards'];if(!canUserAdmin())common.push('users');
       const per={supply_chain:['pdc'],finance:['scan','scanpick','fulfillq','recall'],marketing:['scan','scanpick','po','fulfillq','pdc','returns'],viewer:['scan','scanpick','po','fulfillq','pdc','returns','recall','audit']};
       [...common,...(per[ROLE]||[])].forEach(v=>document.querySelectorAll('.ni[onclick*="\''+v+'\'"]').forEach(el=>el.style.display='none'));
       const lbl=document.getElementById('nav-admin-lbl');if(lbl&&ROLE!=='finance')lbl.style.display='none';

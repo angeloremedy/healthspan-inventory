@@ -279,6 +279,7 @@ function canWarehouse(){return roleIn('admin','supply_chain');}
 function canFulfil(){return roleIn('admin','manager','supply_chain');}
 function canFinance(){return roleIn('admin','finance');}
 function canCatalogEdit(){return roleIn('admin','finance');}
+function canUserAdmin(){return ROLE==='admin'||!!(SBPROFILE&&SBPROFILE.can_manage_ps);}
 function isSuper(){return ROLE==='admin'&&!!(SBPROFILE&&SBPROFILE.is_super);}
 // Cutover flags — the "declare independence" switches
 let FLAGS={};
@@ -965,19 +966,21 @@ async function fillContacts(key,name){
   catch(e){box.innerHTML='';return;}
   const inp='style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:7px 9px;font-size:12px"';
   box.innerHTML='<div class="phd">Contacts</div>'+
-    (list.length?list.map(c=>'<div class="drow" style="align-items:flex-start"><span class="dlbl"><b>'+esc(c.name)+'</b>'+(c.role?' · '+esc(c.role):'')+'<br><span style="color:var(--tx3);font-size:11.5px">'+esc(c.phone||'')+(c.email?' · '+esc(c.email):'')+'</span></span>'+
+    (list.length?list.map(c=>'<div class="drow" style="align-items:flex-start"><span class="dlbl"><b>'+esc(c.name)+'</b>'+(c.role?' · '+esc(c.role):'')+'<br><span style="color:var(--tx3);font-size:11.5px">'+esc(c.phone||'')+(c.email?' · ✉ '+esc(c.email):'')+(c.viber?' · Viber '+esc(c.viber):'')+'</span></span>'+
       '<span class="dval"><a href="#" onclick="acDelContact('+c.id+',\''+esc(key)+'\',\''+esc(name).replace(/'/g,'&#39;')+'\');return false" style="color:var(--rd);font-size:11px">remove</a></span></div>').join(''):'<div style="font-size:12px;color:var(--tx3);margin-bottom:6px">No contacts yet — add the doctor, purchaser, or clinic staff.</div>')+
     '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">'+
     '<input id="ac-cn" placeholder="Name" '+inp+' style="flex:1;min-width:110px;'+inp.slice(7,-1)+'">'+
     '<input id="ac-cr" placeholder="Role (doctor…)" '+inp+' style="width:110px;'+inp.slice(7,-1)+'">'+
     '<input id="ac-cp" placeholder="Phone" '+inp+' style="width:110px;'+inp.slice(7,-1)+'">'+
+    '<input id="ac-ce" placeholder="Email" '+inp+' style="width:130px;'+inp.slice(7,-1)+'">'+
+    '<input id="ac-cv" placeholder="Viber" '+inp+' style="width:100px;'+inp.slice(7,-1)+'">'+
     '<button onclick="acAddContact(\''+esc(key)+'\',\''+esc(name).replace(/'/g,'&#39;')+'\')" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;cursor:pointer">Add</button></div>';
 }
 async function acAddContact(key,name){
   const g=id=>($(id)&&$(id).value||'').trim();
   if(!g('ac-cn'))return;
   try{
-    const {error}=await SB.from('account_contacts').insert({acct_key:key,account:name,name:g('ac-cn'),role:g('ac-cr')||null,phone:g('ac-cp')||null,created_by:(SBUSER&&SBUSER.id)||null});
+    const {error}=await SB.from('account_contacts').insert({acct_key:key,account:name,name:g('ac-cn'),role:g('ac-cr')||null,phone:g('ac-cp')||null,email:g('ac-ce')||null,viber:g('ac-cv')||null,created_by:(SBUSER&&SBUSER.id)||null});
     if(error)throw error;
     audit('contact.add',{account:name,contact:g('ac-cn')});
     fillContacts(key,name);

@@ -5,10 +5,10 @@ let OWNERS=null;
 async function loadOwners(force){
   if(OWNERS&&!force)return OWNERS;
   OWNERS={};
-  window.STAGES={};
+  window.STAGES={};window.CREDITS={};
   try{
-    const {data}=await SB.from('accounts').select('name,owner_tag,stage,lost_reason');
-    (data||[]).forEach(r=>{const k=custNorm(acctDedup(r.name));if(r.owner_tag)OWNERS[k]=r.owner_tag;if(r.stage)window.STAGES[k]={stage:r.stage,lost:r.lost_reason};});
+    const {data}=await SB.from('accounts').select('name,owner_tag,stage,lost_reason,credit_limit');
+    (data||[]).forEach(r=>{const k=custNorm(acctDedup(r.name));if(r.owner_tag)OWNERS[k]=r.owner_tag;if(r.stage)window.STAGES[k]={stage:r.stage,lost:r.lost_reason};if(r.credit_limit!=null)window.CREDITS[k]=r.credit_limit;});
   }catch(e){ // stage columns may not exist yet — fall back to owners only
     try{const {data}=await SB.from('accounts').select('name,owner_tag');(data||[]).forEach(r=>{if(r.owner_tag)OWNERS[custNorm(acctDedup(r.name))]=r.owner_tag;});}catch(e2){}
   }
@@ -412,6 +412,7 @@ async function renderPOs(){
     '<div class="metrics" style="margin-bottom:12px">'+
     '<div class="met bl"><div class="met-lbl">Open POs</div><div class="met-val">'+openArr.length+'</div><div class="met-sub">ordered, awaiting stock</div><div class="met-bar"></div></div>'+
     '<div class="met am"><div class="met-lbl">Units incoming</div><div class="met-val">'+openArr.reduce((a,p)=>a+((byPo[p.id]||[]).reduce((x,l)=>x+Math.max(0,(l.qty||0)-(l.received||0)),0)),0).toLocaleString()+'</div><div class="met-sub">still to receive</div><div class="met-bar"></div></div>'+
+    '<div class="met" style="border-left:3px solid var(--rd)"><div class="met-lbl">Open payables (est ₱)</div><div class="met-val" style="font-size:15px">'+fmtPeso(pos.filter(p=>p.status!=='cancelled').reduce((a,p)=>a+(p.peso_value||0),0))+'</div><div class="met-sub">from the AP blocks below</div><div class="met-bar"></div></div>'+
     '<div class="met gr"><div class="met-lbl">Next arrival</div><div class="met-val" style="font-size:15px">'+((openArr.filter(p=>p.eta).sort((a,b)=>a.eta<b.eta?-1:1)[0]||{}).eta||'—')+'</div><div class="met-sub">earliest ETA</div><div class="met-bar"></div></div>'+
     '</div>'+
     (canWarehouse()?'<div class="panel" style="padding:12px 14px;margin-bottom:12px"><div class="phd">New purchase order</div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+
@@ -431,6 +432,7 @@ async function renderPOs(){
         (ls.length?'<div class="tscroll"><table><thead><tr><th>SKU</th><th>Product</th><th style="text-align:right">Ordered</th><th style="text-align:right">Received</th><th style="text-align:right">Unit cost</th><th></th></tr></thead><tbody>'+
         ls.map(l=>'<tr><td>'+esc(l.sku)+'</td><td style="max-width:220px;overflow:hidden;text-overflow:ellipsis">'+esc(l.name||'')+'</td><td class="r">'+l.qty+'</td><td class="r" style="font-weight:700;color:'+((l.received||0)>=l.qty?'var(--gr)':'var(--tx)')+'">'+(l.received||0)+'</td><td class="r mu">'+(l.unit_cost?fmtPeso(l.unit_cost):'—')+'</td>'+
         '<td>'+((p.status==='ordered'||p.status==='partial')&&(l.received||0)<l.qty?'<a href="#" onclick="poReceive('+p.id+','+l.id+',\''+esc(l.sku)+'\','+l.qty+','+(l.received||0)+');return false" style="color:var(--gr);font-size:11.5px;font-weight:700">receive…</a>':'')+'</td></tr>').join('')+'</tbody></table></div>':'<div class="mu" style="font-size:12px">No lines yet.</div>')+
+        apBlock(p)+
         '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">'+
         (p.status==='draft'?'<input id="pl-sku-'+p.id+'" list="pl-skus" placeholder="SKU" '+inp+' style="width:150px;'+inp.slice(7,-1)+'"><datalist id="pl-skus">'+skuOpts+'</datalist>'+
           '<input id="pl-qty-'+p.id+'" type="number" placeholder="Qty" '+inp+' style="width:90px;'+inp.slice(7,-1)+'">'+
@@ -494,4 +496,246 @@ async function poReceive(poId,lineId,sku,qty,got){
     audit('po.receive',{po:PO_NO(poId),sku,qty:n,batch});
     renderPOs();
   }catch(e){alert('Could not receive: '+(e.message||e));}
+}
+
+/* ══ FINANCE SUITE: credit limits + approvals · commissions · supplier AP · events ══ */
+
+// ── CREDIT LIMITS + APPROVAL QUEUE ──────────────────────────────────────────
+function openExposure(name){ // open balances for an account (native register)
+  const nm=acctDedup(name||'');
+  return (NORDERS||[]).filter(o=>!o.deleted_at&&o.status!=='cancelled'&&(o.balance||0)>0&&acctDedup(o.account||'')===nm)
+    .reduce((a,o)=>a+(o.balance||0),0);
+}
+function creditLimitOf(name){
+  const k=custNorm(acctDedup(name||''));
+  return (window.CREDITS||{})[k]||null;
+}
+async function setCreditLimit(name){
+  if(!roleIn('admin','finance'))return alert('Credit limits are set by finance/admin.');
+  const cur=creditLimitOf(name);
+  const v=prompt('Credit limit for '+name+' (₱ — blank to remove):',cur!=null?String(cur):'');
+  if(v===null)return;
+  try{
+    const nm=acctDedup(name);
+    const lim=v.trim()===''?null:Math.round(parseFloat(v.replace(/,/g,'')));
+    const {data:ex}=await SB.from('accounts').select('name').eq('name',nm).maybeSingle();
+    if(ex){const {error}=await SB.from('accounts').update({credit_limit:lim}).eq('name',nm);if(error)throw error;}
+    else{const {error}=await SB.from('accounts').insert({name:nm,credit_limit:lim});if(error)throw error;}
+    audit('credit.limit',{account:nm,limit:lim});
+    await loadOwners(true);
+    if(currentView==='account')renderAccountPage();
+  }catch(e){alert('Could not save: '+(e.message||e)+(String(e.message||'').includes('credit_limit')?'\n\n(Run the finance-suite SQL from SUPABASE-SETUP.md.)':''));}
+}
+async function renderApprovals(){
+  if(!canManage()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Managers and admins only.</div>';return;}
+  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  let rows=[];
+  try{const {data}=await SB.from('approvals').select('*').order('id',{ascending:false}).limit(200);rows=data||[];}
+  catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Could not load — run the finance-suite SQL from SUPABASE-SETUP.md first.</div>';return;}
+  const pend=rows.filter(r=>r.status==='pending');
+  const pill=st=>st==='approved'?'<span class="pill pgr">approved</span>':st==='rejected'?'<span class="pill prd">rejected</span>':'<span class="pill" style="background:var(--am-bg);color:var(--am)">pending</span>';
+  $('content').innerHTML=
+    '<div class="metrics" style="margin-bottom:12px">'+
+    '<div class="met am"><div class="met-lbl">Awaiting decision</div><div class="met-val">'+pend.length+'</div><div class="met-sub">orders held from fulfillment</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Held value</div><div class="met-val" style="font-size:15px">'+fmtPeso(pend.reduce((a,r)=>a+(r.amount||0),0))+'</div><div class="met-sub">released on approval</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>When</th><th>Type</th><th>Account</th><th>Order</th><th style="text-align:right">Amount</th><th>Why held</th><th>By</th><th>Status</th><th></th></tr></thead><tbody>'+
+    (rows.length?rows.map(r=>'<tr><td class="mu" style="font-size:11px">'+esc(String(r.created_at||'').slice(0,16).replace('T',' '))+'</td>'+
+      '<td>'+(r.kind==='credit'?'<span class="pill prd">credit hold</span>':'<span class="pill pbl">big order</span>')+'</td>'+
+      '<td style="max-width:170px;overflow:hidden;text-overflow:ellipsis"><a href="#" onclick="showAccountPage(\''+esc(r.account).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac)">'+esc(r.account)+'</a></td>'+
+      '<td><a href="#" onclick="showOrderPage(\''+esc(r.order_id||'').replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac)">'+esc(r.order_label||'—')+'</a></td>'+
+      '<td class="r" style="font-weight:700">'+fmtPeso(r.amount||0)+'</td>'+
+      '<td class="mu" style="font-size:11.5px;max-width:220px;overflow:hidden;text-overflow:ellipsis">'+esc(r.reason||'')+'</td>'+
+      '<td class="mu" style="font-size:11.5px">'+esc(r.requested_name||'')+'</td>'+
+      '<td>'+pill(r.status)+'</td>'+
+      '<td style="white-space:nowrap">'+(r.status==='pending'?'<a href="#" onclick="approvalAct('+r.id+',\'approved\');return false" style="color:var(--gr);font-weight:700;font-size:11.5px">approve ✓</a> · <a href="#" onclick="approvalAct('+r.id+',\'rejected\');return false" style="color:var(--rd);font-size:11.5px">reject ✗</a>':'')+'</td></tr>').join(''):
+    '<tr><td colspan="9"><div class="empty">Nothing waiting — orders that trip a credit limit or the big-order threshold land here.</div></td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>Approve = the order is released to the fulfillment queue · reject = the order is cancelled with the reason on record · thresholds: credit limit per account (set by finance on account pages) and the big-order threshold below</span></div></div>'+
+    (ROLE==='admin'?'<div class="panel" style="padding:10px 14px;margin-top:12px;font-size:12px"><b>Big-order threshold:</b> orders above ₱<span id="ap-thr">'+((window.FLAGS&&FLAGS.approval_threshold)?Number(FLAGS.approval_threshold).toLocaleString():'—')+'</span> from specialists need sign-off · <a href="#" onclick="setApprovalThreshold();return false" style="color:var(--ac)">change</a> (blank = off)</div>':'');
+}
+async function setApprovalThreshold(){
+  if(!isSuper())return alert('Cutover-level setting — super admin only.');
+  const v=prompt('Hold specialist orders above this amount for manager approval (₱, blank = off):',(FLAGS&&FLAGS.approval_threshold)||'');
+  if(v===null)return;
+  await setFlagRaw('approval_threshold',v.trim().replace(/,/g,''));
+  renderApprovals();
+}
+async function setFlagRaw(k,v){ // super-admin setting write (no confirm ceremony)
+  try{
+    const {error}=await SB.from('app_settings').upsert({key:k,value:String(v),updated_by:(SBUSER&&SBUSER.id)||null,updated_at:new Date().toISOString()});
+    if(error)throw error;
+    audit('setting.'+k,{value:String(v).slice(0,40)});
+    await loadFlags(true);
+  }catch(e){alert('Could not save: '+(e.message||e));}
+}
+async function approvalAct(id,decision){
+  if(!canManage())return;
+  if(decision==='rejected'&&!confirm('Reject this order? It will be CANCELLED with the reason on record.'))return;
+  try{
+    const {data:r}=await SB.from('approvals').select('*').eq('id',id).maybeSingle();
+    if(!r||r.status!=='pending')return;
+    const {error}=await SB.from('approvals').update({status:decision,decided_by:(SBPROFILE&&SBPROFILE.name)||'',decided_at:new Date().toISOString()}).eq('id',id);
+    if(error)throw error;
+    if(r.order_id){
+      if(decision==='approved')await SB.from('orders').update({approved:true}).eq('id',r.order_id);
+      else await SB.from('orders').update({status:'cancelled',approved:true}).eq('id',r.order_id);
+    }
+    audit('approval.'+decision,{order:r.order_label,account:r.account,amount:r.amount});
+    NORDERS=null;renderApprovals();
+  }catch(e){alert('Could not decide: '+(e.message||e));}
+}
+
+// ── COMMISSIONS (finance-owned): rate tiers by attainment, payroll-ready ────
+async function loadCommRules(){
+  let rules=[{min:0,pct:0},{min:80,pct:1},{min:100,pct:2},{min:120,pct:3}];
+  try{const {data}=await SB.from('comm_rules').select('rules').eq('id',1).maybeSingle();if(data&&data.rules)rules=JSON.parse(data.rules);}catch(e){}
+  return rules;
+}
+async function renderCommissions(){
+  if(!roleIn('admin','finance')){$('content').innerHTML='<div class="empty" style="margin-top:40px">Finance and admin only.</div>';return;}
+  if(!SHOPIFY||!SHOPIFY.specialists){$('content').innerHTML='<div class="empty" style="margin-top:40px">Waiting for the sales cache…</div>';try{loadShopify().then(()=>{if(currentView==='commissions')renderCommissions();});}catch(e){}return;}
+  const rules=await loadCommRules();
+  const yms=[];const d=new Date();for(let i=0;i<13;i++){yms.push(d.toISOString().slice(0,7));d.setMonth(d.getMonth()-1);}
+  const ym=window._commYm&&yms.includes(window._commYm)?window._commYm:yms[1]||yms[0]; // default: last complete month
+  window._commYm=ym;
+  // merged per-specialist booked for the month
+  const S={};
+  for(const raw in (SHOPIFY.specialists||{})){
+    const cn=specCanon(raw);if(!cn||INTERNAL_TAG.test(cn))continue;
+    const k=cn.toLowerCase();const m=(SHOPIFY.specialists[raw].monthly||{})[ym];
+    if(!S[k])S[k]={name:cn,v:0};
+    if(m)S[k].v+=m.v||0;
+  }
+  const tgtOf=k=>{const x=(TARGETS||[]).find(x=>x.month===ym&&x.scope==='SPECIALIST'&&specCanon(x.name||'').toLowerCase()===k);return x?x.value:null;};
+  const rateFor=att=>{let r=0;for(const t of rules.slice().sort((a,b)=>a.min-b.min))if(att>=t.min)r=t.pct;return r;};
+  const rows=Object.keys(S).map(k=>{
+    const e=S[k],T=tgtOf(k);
+    const att=T?e.v/T*100:null;
+    const pct=att!=null?rateFor(att):0;
+    return {name:e.name,booked:e.v,T,att,pct,comm:Math.round(e.v*pct/100)};
+  }).filter(r=>r.booked>0||r.T).sort((a,b)=>b.comm-a.comm);
+  window._COMMROWS=rows;
+  $('content').innerHTML=
+    '<div class="panel" style="padding:12px 16px;margin-bottom:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><b style="font-size:13px">Month</b>'+
+    '<select onchange="window._commYm=this.value;renderCommissions()" style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:7px 9px;font-size:12.5px">'+yms.map(m=>'<option'+(m===ym?' selected':'')+'>'+m+'</option>').join('')+'</select>'+
+    '<span style="font-size:11.5px;color:var(--tx3)">rate tiers by attainment: '+rules.map(t=>t.min+'%→'+t.pct+'%').join(' · ')+'</span>'+
+    '<a href="#" onclick="editCommRules();return false" style="color:var(--ac);font-size:12px">edit tiers</a>'+
+    '<span style="flex:1"></span>'+
+    '<button onclick="commExport()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:12.5px;font-weight:600;cursor:pointer">Export for payroll</button></div>'+
+    '<div class="metrics" style="margin-bottom:12px">'+
+    '<div class="met gr"><div class="met-lbl">Total commissions</div><div class="met-val" style="font-size:15px">'+fmtPeso(rows.reduce((a,r)=>a+r.comm,0))+'</div><div class="met-sub">'+ym+'</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Team booked</div><div class="met-val" style="font-size:15px">'+fmtPeso(rows.reduce((a,r)=>a+r.booked,0))+'</div><div class="met-sub">commissionable sales</div><div class="met-bar"></div></div>'+
+    '<div class="met pu"><div class="met-lbl">Earning</div><div class="met-val">'+rows.filter(r=>r.comm>0).length+' / '+rows.length+'</div><div class="met-sub">specialists above tier 1</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Specialist</th><th style="text-align:right">Booked</th><th style="text-align:right">Target</th><th style="text-align:right">Attainment</th><th style="text-align:right">Rate</th><th style="text-align:right">Commission</th></tr></thead><tbody>'+
+    rows.map(r=>'<tr><td style="font-weight:600">'+esc(r.name)+'</td><td class="r">'+fmtPeso(r.booked)+'</td><td class="r mu">'+(r.T!=null?fmtPeso(r.T):'—')+'</td>'+
+      '<td class="r" style="font-weight:600;color:'+(r.att==null?'var(--tx3)':r.att>=100?'var(--gr)':r.att>=80?'var(--am)':'var(--rd)')+'">'+(r.att!=null?r.att.toFixed(0)+'%':'no target')+'</td>'+
+      '<td class="r">'+r.pct+'%</td><td class="r" style="font-weight:800;color:var(--ac)">'+fmtPeso(r.comm)+'</td></tr>').join('')+
+    '</tbody></table></div><div class="tfooter"><span>Commission = booked × the rate of the highest tier reached · based on booked sales (switch to collected later if policy changes) · export is the payroll input — payroll itself stays outside HQ · rate changes are audited</span></div></div>';
+}
+async function editCommRules(){
+  if(!roleIn('admin','finance'))return;
+  const rules=await loadCommRules();
+  const txt=prompt('Commission tiers — one per line as  min-attainment% : rate%\n(e.g. "80:1" = reaching 80% of target earns 1% of booked)',rules.map(t=>t.min+':'+t.pct).join('\n'));
+  if(txt===null)return;
+  const out=[];
+  for(const line of txt.split('\n')){const m=line.trim().match(/^(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)$/);if(m)out.push({min:+m[1],pct:+m[2]});}
+  if(!out.length)return alert('No valid tiers.');
+  try{
+    const {error}=await SB.from('comm_rules').upsert({id:1,rules:JSON.stringify(out),updated_by:(SBUSER&&SBUSER.id)||null,updated_at:new Date().toISOString()});
+    if(error)throw error;
+    audit('commissions.rules',{tiers:out.length});
+    renderCommissions();
+  }catch(e){alert('Could not save: '+(e.message||e)+(String(e.message||'').includes('comm_rules')?'\n\n(Run the finance-suite SQL.)':''));}
+}
+function commExport(){
+  const rows=window._COMMROWS||[];if(!rows.length)return;
+  const h=['Specialist','Month','Booked','Target','Attainment %','Rate %','Commission'];
+  const body=rows.map(r=>[r.name,window._commYm,r.booked,r.T||'',r.att!=null?r.att.toFixed(1):'',r.pct,r.comm].map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','));
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,﻿'+encodeURIComponent([h.join(','),...body].join('\n'));
+  a.download='healthspan_commissions_'+window._commYm+'.csv';a.click();
+  audit('commissions.export',{month:window._commYm,specialists:rows.length});
+}
+
+// ── EVENTS CALENDAR: one month grid — campaigns, demos, trainings, planned visits ──
+async function renderEvents(){
+  await loadCampaigns();
+  if(!VISITS){loadVisits().then(()=>{if(currentView==='salesevents')renderEvents();});}
+  const ym=window._evYm||new Date().toISOString().slice(0,7);window._evYm=ym;
+  const [Y,M]=ym.split('-').map(Number);
+  const first=new Date(Y,M-1,1),dim=new Date(Y,M,0).getDate(),startDow=first.getDay();
+  const myTag=(ROLE==='sales'&&SBPROFILE&&SBPROFILE.specialist_tag)||'';
+  const items={}; // day -> [{t,txt,color}]
+  const add=(day,txt,color,title)=>{(items[day]||(items[day]=[])).push({txt,color,title:title||txt});};
+  for(const c of (CAMPAIGNS||[])){
+    for(let d=1;d<=dim;d++){
+      const ds=ym+'-'+String(d).padStart(2,'0');
+      if(ds>=c.from_date&&ds<=c.to_date){
+        if(ds===c.from_date||d===1)add(d,'📣 '+c.name,'var(--am)',c.name+' ('+c.from_date+'→'+c.to_date+')');
+        else add(d,'· '+c.name,'var(--am)',c.name);
+      }
+    }
+  }
+  for(const v of (VISITS||[])){
+    if((v.date||'').slice(0,7)!==ym)continue;
+    if(myTag&&specCanon(v.spec||'').toLowerCase()!==specCanon(myTag).toLowerCase())continue;
+    const d=+v.date.slice(8,10);
+    const demo=/demo|event|congress/i.test(v.type||'');
+    if(v.status==='planned')add(d,(demo?'🎓 ':'📍 ')+(v.spec?v.spec.split(' ')[0]+': ':'')+v.account,'var(--bl)',(v.type||'Visit')+' — '+v.account+' ('+v.spec+')');
+    else if(demo)add(d,'🎓 '+v.account,'var(--pu)',(v.type||'Demo')+' — '+v.account+' ('+v.spec+')');
+  }
+  const nav=dlt=>{const nd=new Date(Y,M-1+dlt,1);return nd.toISOString().slice(0,7);};
+  const today=new Date().toISOString().slice(0,10);
+  let cells='';
+  for(let i=0;i<startDow;i++)cells+='<div></div>';
+  for(let d=1;d<=dim;d++){
+    const ds=ym+'-'+String(d).padStart(2,'0');
+    const its=(items[d]||[]).slice(0,4);
+    cells+='<div style="min-height:86px;background:var(--sf);border:1px solid var(--bd);border-radius:10px;padding:6px'+(ds===today?';outline:2px solid var(--ac)':'')+'">'+
+      '<div style="font-size:11px;font-weight:700;color:var(--tx3)">'+d+'</div>'+
+      its.map(x=>'<div title="'+esc(x.title)+'" style="font-size:10px;color:'+x.color+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px">'+esc(x.txt)+'</div>').join('')+
+      ((items[d]||[]).length>4?'<div style="font-size:9px;color:var(--tx3)">+'+((items[d]||[]).length-4)+' more</div>':'')+
+      '</div>';
+  }
+  $('content').innerHTML=
+    '<div class="panel" style="padding:12px 16px;margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">'+
+    '<button onclick="window._evYm=\''+nav(-1)+'\';renderEvents()" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:7px 12px;cursor:pointer">‹</button>'+
+    '<b style="font-size:15px">'+new Date(Y,M-1,15).toLocaleString('en',{month:'long',year:'numeric'})+'</b>'+
+    '<button onclick="window._evYm=\''+nav(1)+'\';renderEvents()" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:7px 12px;cursor:pointer">›</button>'+
+    '<span style="flex:1"></span>'+
+    '<span style="font-size:11px;color:var(--tx3)">📣 campaign · 📍 planned visit · 🎓 demo/training/event'+(myTag?' · showing yours':'')+'</span></div>'+
+    '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;margin-bottom:4px">'+['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(x=>'<div style="padding:0 6px">'+x+'</div>').join('')+'</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px">'+cells+'</div>'+
+    '<div style="font-size:11px;color:var(--tx3);margin-top:10px">One calendar for the room: campaigns (Campaign calendar), demos & trainings, and planned visits — Mench’s weekly Calendar of Events, live · specialists see their own visits; everyone sees campaigns</div>';
+}
+
+// ── SUPPLIER AP (finance): terms, proforma, FX amounts, payments per PO ──
+async function apSet(poId,field,label,cur){
+  if(!roleIn('admin','finance'))return alert('AP fields are finance/admin.');
+  const v=prompt(label+':',cur==null?'':String(cur));
+  if(v===null)return;
+  try{
+    const patch={};
+    if(['fx_total','amount_paid','peso_value'].includes(field))patch[field]=v.trim()===''?null:Math.round(parseFloat(v.replace(/,/g,''))*100)/100;
+    else patch[field]=v.trim()||null;
+    const {error}=await SB.from('pos').update(patch).eq('id',poId);
+    if(error)throw error;
+    audit('ap.'+field,{po:PO_NO(poId),value:String(v).slice(0,40)});
+    renderPOs();
+  }catch(e){alert('Could not save: '+(e.message||e)+(String(e.message||'').includes(field)?'\n\n(Run the finance-suite SQL.)':''));}
+}
+function apBlock(p){
+  const bal=(p.fx_total!=null&&p.amount_paid!=null)?(p.fx_total-p.amount_paid):null;
+  const ed=roleIn('admin','finance');
+  const cell=(field,label,val,fmt)=>'<div class="drow"><span class="dlbl">'+label+'</span><span class="dval">'+(val!=null&&val!==''?esc(fmt?fmt(val):String(val)):'—')+(ed?' <a href="#" onclick="apSet('+p.id+',\''+field+'\',\''+label+'\',\''+esc(String(val==null?'':val)).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac);font-size:10px">✎</a>':'')+'</span></div>';
+  return '<div style="background:var(--sf2);border-radius:10px;padding:10px 14px;margin-top:10px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--tx3);margin-bottom:4px">Supplier AP</div>'+
+    cell('terms','Terms',p.terms)+
+    cell('proforma','Proforma invoice',p.proforma)+
+    cell('currency','Currency',p.currency||'PHP')+
+    cell('fx_total','Invoice total ('+(p.currency||'PHP')+')',p.fx_total,v=>Number(v).toLocaleString())+
+    cell('amount_paid','Paid ('+(p.currency||'PHP')+')',p.amount_paid,v=>Number(v).toLocaleString())+
+    '<div class="drow"><span class="dlbl">Balance</span><span class="dval" style="font-weight:700;color:'+(bal>0?'var(--rd)':'var(--gr)')+'">'+(bal!=null?Number(bal).toLocaleString():'—')+'</span></div>'+
+    cell('peso_value','Est. value in ₱ (open)',p.peso_value,v=>fmtPeso(v))+
+    '</div>';
 }

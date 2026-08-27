@@ -4,6 +4,10 @@ function homeGo(v){
   showView(v,el||undefined);
 }
 function renderHome(){
+  // stable shell: during sync the app re-renders repeatedly — if the home shell is
+  // already on screen for this role, just refresh the live numbers (no flicker)
+  if($('hm-live')&&window._homeRole===ROLE){try{homeLive();}catch(e){}return;}
+  window._homeRole=ROLE;
   const name=(SBPROFILE&&SBPROFILE.name)||'';
   const first=(name.split(' ')[0])||'there';
   const h=new Date().getHours();
@@ -108,7 +112,8 @@ async function adminUsers(action,payload){
   return d;
 }
 async function renderUsers(){
-  if(ROLE!=='admin'){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins only.</div>';return;}
+  if(!canUserAdmin()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins only.</div>';return;}
+  const psOnly=ROLE!=='admin'; // scoped PS-admin (e.g. Justine): create/disable specialists only
   $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading team…</div>';
   let users=[];
   try{users=(await adminUsers('list')).users||[];}
@@ -124,7 +129,8 @@ async function renderUsers(){
       '<td class="mu">'+esc(u.tag||'—')+'</td>'+
       '<td class="mu" style="font-size:11px">'+(u.last?esc(u.last.slice(0,10)):'never')+'</td>'+
       '<td style="white-space:nowrap">'+
-      (u.is_super&&u.id!==(SBUSER&&SBUSER.id)?'<span class="pill pbl" title="The super admin account cannot be modified by other admins">🛡 protected</span>':
+      ((u.is_super&&u.id!==(SBUSER&&SBUSER.id))||(psOnly&&u.role!=='sales')?'<span class="pill pbl" title="Outside your scope">'+(u.is_super?'🛡 protected':'—')+'</span>':
+      psOnly?((u.banned?'<a href="#" onclick="userToggle(\''+u.id+'\',\'enable\');return false" style="color:var(--gr);font-size:11.5px">enable</a>':'<a href="#" onclick="userToggle(\''+u.id+'\',\'disable\');return false" style="color:var(--rd);font-size:11.5px">disable</a>')):
       '<a href="#" onclick="userEdit(\''+u.id+'\',\''+esc(u.name).replace(/'/g,'&#39;')+'\',\''+esc(u.role)+'\',\''+esc(u.tag).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac);font-size:11.5px">edit</a> · '+
       '<a href="#" onclick="userPass(\''+u.id+'\',\''+esc(u.name||u.email).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac);font-size:11.5px">password</a> · '+
       (isSuper()&&u.id!==(SBUSER&&SBUSER.id)?'<a href="#" onclick="userDelete(\''+u.id+'\',\''+esc(u.name||u.email).replace(/'/g,'&#39;')+'\');return false" style="color:var(--rd);font-size:11.5px;font-weight:700">delete</a> · ':'')+
@@ -136,7 +142,7 @@ async function renderUsers(){
     '<label '+lbl+'>Name</label><input id="au-name" '+inp+'>'+
     '<label '+lbl+'>Email</label><input id="au-email" type="email" '+inp+'>'+
     '<label '+lbl+'>Starter password (8+ chars)</label><input id="au-pass" '+inp+'>'+
-    '<label '+lbl+'>Role</label><select id="au-role" onchange="var t=$(\'au-tagwrap\');if(t)t.style.display=this.value===\'sales\'?\'block\':\'none\'" '+inp+'><option value="sales">Product specialist</option><option value="manager">Sales manager</option><option value="supply_chain">Supply chain (Verna) — warehouse, POs, receiving</option><option value="finance">Finance — AR, payments, PDCs, costs</option><option value="marketing">Marketing — campaigns + circle read</option><option value="viewer">Viewer — meeting read-only, no writes</option><option value="admin">Admin — everything</option></select>'+
+    '<label '+lbl+'>Role</label><select id="au-role"'+(psOnly?' disabled':'')+' onchange="var t=$(\'au-tagwrap\');if(t)t.style.display=this.value===\'sales\'?\'block\':\'none\'" '+inp+'><option value="sales">Product specialist</option><option value="manager">Sales manager</option><option value="supply_chain">Supply chain (Verna) — warehouse, POs, receiving</option><option value="finance">Finance — AR, payments, PDCs, costs</option><option value="marketing">Marketing — campaigns + circle read</option><option value="viewer">Viewer — meeting read-only, no writes</option><option value="admin">Admin — everything</option></select>'+
     '<div id="au-tagwrap"><label '+lbl+'>Specialist tag <span style="text-transform:none;font-weight:400">(blank = manager, sees all)</span></label><input id="au-tag" list="au-tags" '+inp+'>'+
     '<datalist id="au-tags">'+specNames().map(s=>'<option value="'+esc(s)+'">').join('')+'</datalist></div>'+
     '<div id="au-msg" style="min-height:16px;font-size:11.5px;margin:8px 0 4px"></div>'+
@@ -244,7 +250,9 @@ function noAcctChanged(){
   const open=(NORDERS||[]).filter(o=>!o.deleted_at&&o.status!=='cancelled'&&(o.balance||0)>0&&acctDedup(o.account||'')===name);
   const owe=open.reduce((a,o)=>a+o.balance,0);
   const overdue=open.filter(o=>(Date.now()-new Date(o.date).getTime())/864e5>((o.terms_days||0)+30)).reduce((a,o)=>a+o.balance,0);
-  let html=owe?'<div style="background:'+(overdue?'var(--rd-bg)':'var(--am-bg)')+';color:'+(overdue?'var(--rd)':'var(--am)')+';border-radius:8px;padding:8px 12px;font-size:12px;margin-top:6px"><b>Credit check:</b> this account owes '+fmtPeso(owe)+' across '+open.length+' unpaid order'+(open.length>1?'s':'')+(overdue?' — '+fmtPeso(overdue)+' overdue':'')+'</div>':'';
+  const _lim=creditLimitOf(name);
+  let html=(_lim!=null&&name?'<div style="font-size:11px;color:var(--tx3);margin-top:4px">Credit limit '+fmtPeso(_lim)+' · open balance '+fmtPeso(openExposure(name))+'</div>':'');
+  html+=owe?'<div style="background:'+(overdue?'var(--rd-bg)':'var(--am-bg)')+';color:'+(overdue?'var(--rd)':'var(--am)')+';border-radius:8px;padding:8px 12px;font-size:12px;margin-top:6px"><b>Credit check:</b> this account owes '+fmtPeso(owe)+' across '+open.length+' unpaid order'+(open.length>1?'s':'')+(overdue?' — '+fmtPeso(overdue)+' overdue':'')+'</div>':'';
   // duplicate-entry guard
   const sug=acctSuggest(($('no-acct')&&$('no-acct').value||'').trim());
   if(sug)html+='<div style="background:var(--am-bg);color:var(--am);border-radius:8px;padding:8px 12px;font-size:12px;margin-top:6px">⚠ Not an existing account — did you mean <a href="#" onclick="$(\'no-acct\').value=\''+esc(sug).replace(/'/g,'&#39;')+'\';noAcctChanged();return false" style="color:var(--am);font-weight:700">'+esc(sug)+'</a>? Tap to use it, or continue if it’s truly new.</div>';
@@ -372,12 +380,13 @@ async function renderFulfillQ(){
   $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
   await loadNativeOrders(true);
   const today=new Date().toISOString().slice(0,10);
-  const pend=(NORDERS||[]).filter(o=>o.status==='pending'&&!o.deleted_at).sort((a,b)=>a.date<b.date?-1:1);
+  const held=(NORDERS||[]).filter(o=>o.status==='pending'&&!o.deleted_at&&o.approved===false).length;
+  const pend=(NORDERS||[]).filter(o=>o.status==='pending'&&!o.deleted_at&&o.approved!==false).sort((a,b)=>a.date<b.date?-1:1);
   const age=d=>Math.max(0,Math.round((Date.now()-new Date(d))/864e5));
   const doneToday=(NORDERS||[]).filter(o=>o.status==='fulfilled'&&o.date===today).length;
   $('content').innerHTML=
     '<div class="metrics" style="margin-bottom:14px">'+
-    '<div class="met am"><div class="met-lbl">Pending orders</div><div class="met-val">'+pend.length+'</div><div class="met-sub">waiting to ship</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Pending orders</div><div class="met-val">'+pend.length+'</div><div class="met-sub">waiting to ship'+(held?' · '+held+' held for approval':'')+'</div><div class="met-bar"></div></div>'+
     '<div class="met rd" style="border-left:3px solid var(--rd)"><div class="met-lbl">Oldest pending</div><div class="met-val">'+(pend.length?age(pend[0].date)+'d':'—')+'</div><div class="met-sub">'+(pend.length?esc(ordLabel(pend[0])):'')+'</div><div class="met-bar"></div></div>'+
     '<div class="met gr"><div class="met-lbl">Fulfilled today</div><div class="met-val">'+doneToday+'</div><div class="met-sub">nice pace</div><div class="met-bar"></div></div>'+
     '<div class="met bl"><div class="met-lbl">Pending value</div><div class="met-val" style="font-size:15px">'+fmtPeso(pend.reduce((a,o)=>a+(o.total||0),0))+'</div><div class="met-sub">booked, unshipped</div><div class="met-bar"></div></div>'+

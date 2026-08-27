@@ -17,6 +17,11 @@ Last updated: 2026-08-27.
 | **marketing** | Maricris, Mench | live |
 | **viewer** | Maria, Justine, Ivy, Agnes — meeting attendees: full circle READ, zero writes | live |
 
+**Justine (IT) additionally holds `can_manage_ps`**: she can open Team & access
+to **create and disable/enable product-specialist (sales) accounts only** — no
+other roles, no role changes, no password resets, no deletion. Enforced
+server-side in `admin-users.mjs`, not just hidden in the UI.
+
 **System administration is reserved to Angelo alone** — Team & access, Cutover
 switches, Supabase, Netlify, and keys. Paul and Dr. April hold admin for full
 data visibility and operational control, not system administration.
@@ -77,7 +82,12 @@ therefore a floor — implementation grants the full circle read to all three.
 | Forecasting suite, MAPE, AI planning review | ✅ | ✅ | ✖ | ✅ | 👁 | 👁 |
 | Ask AI | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Activity log (audit) | ✅ | ✅ | ✖ | ✖ | 👁 | ✖ |
-| Team & access (users) | ✅ | ✖ | ✖ | ✖ | ✖ | ✖ |
+| Approvals queue (credit/threshold holds) | ✅ decide | ✅ decide | auto-request | ✖ | 👁 | ✖ |
+| Credit limits (set per account) | ✅ | 👁 | 👁 own accts | ✖ | ✅ | ✖ |
+| Commissions (tiers, monthly compute, CSV) | ✅ | ✖ | ✖ | ✖ | ✅ | ✖ |
+| Supplier bills / AP (terms, proforma, FX, payments on POs) | ✅ | 👁 | ✖ | 👁 | ✅ | ✖ |
+| Events calendar | ✅ | ✅ | ✅ own | ✅ | ✅ | ✅ |
+| Team & access (users) | ✅ | ✖ | ✖ | ✖ | ✖ | ✖ (Justine: PS accounts only) |
 | Cutover switches | ✅ | ✖ | ✖ | ✖ | ✖ | ✖ |
 
 ### Manager tightening (decided 2026-08-27)
@@ -89,10 +99,14 @@ Managers do NOT see costs or margins — cost visibility is admin + finance only
 
 ### Finance forward-ownership (decided 2026-08-27)
 
-When these planned features ship, they belong to **finance** (not managers):
-**commissions** (they compute incentives), **credit limits** (finance sets
-limits; sales requests overrides), **supplier bills / AP** (terms, proforma
-refs, FX balances — completes their weekly Inventory AP table).
+SHIPPED 2026-08-27, owned by **finance** (not managers) as decided:
+**commissions** (finance edits tiers + exports the payroll CSV), **credit
+limits** (finance sets limits; over-limit orders hold for manager approval),
+**supplier bills / AP** (terms, proforma refs, FX balances on POs — completes
+their weekly Inventory AP table). Approval *decisions* sit with managers/admin
+since they're order sign-offs. The **approval threshold** flag is super-admin
+only. The **Events calendar** ships to everyone (marketing's Calendar of
+Events + sales' own visit plans in one grid).
 
 ## Principles
 

@@ -41,12 +41,15 @@ export const handler = async (event) => {
     caller = await r.json();
   } catch (e) { return out(401, { error: 'Session invalid — sign in again' }); }
   let callerName = caller.email || '';
-  let callerSuper = false;
+  let callerSuper = false, callerScoped = false;
   try {
-    const prof = await svc('/rest/v1/profiles?id=eq.' + caller.id + '&select=role,name,is_super');
-    if (!prof || !prof[0] || prof[0].role !== 'admin') return out(403, { error: 'Admins only' });
-    callerName = prof[0].name || callerName;
-    callerSuper = !!prof[0].is_super;
+    const prof = await svc('/rest/v1/profiles?id=eq.' + caller.id + '&select=role,name,is_super,can_manage_ps');
+    const isAdmin = prof && prof[0] && prof[0].role === 'admin';
+    const isScoped = prof && prof[0] && !!prof[0].can_manage_ps; // e.g. Justine: PS accounts only
+    if (!isAdmin && !isScoped) return out(403, { error: 'Admins only' });
+    callerName = (prof[0] && prof[0].name) || callerName;
+    callerSuper = !!(prof[0] && prof[0].is_super);
+    callerScoped = !isAdmin;
   } catch (e) { return out(403, { error: 'Admins only' }); }
   // audit trail (best-effort; the table may not exist yet)
   const log = async (action, detail) => {
@@ -56,6 +59,18 @@ export const handler = async (event) => {
   let p = {};
   try { p = JSON.parse(event.body || '{}'); } catch (e) {}
   const act = p.action;
+
+  // ── scoped PS-admin (can_manage_ps): only list/create/disable/enable, and only specialists
+  if (callerScoped) {
+    if (!['list', 'create', 'disable', 'enable'].includes(act)) return out(403, { error: 'Your access covers product-specialist accounts only' });
+    if (act === 'create' && p.role !== 'sales') return out(403, { error: 'You can only create product-specialist (sales) accounts' });
+    if ((act === 'disable' || act === 'enable') && p.id) {
+      try {
+        const t = await svc('/rest/v1/profiles?id=eq.' + p.id + '&select=role');
+        if (!t || !t[0] || t[0].role !== 'sales') return out(403, { error: 'You can only disable/enable product-specialist accounts' });
+      } catch (e) { return out(403, { error: 'Target check failed' }); }
+    }
+  }
 
   // ── SUPER ADMIN PROTECTION: nobody may disable, delete, demote, or reset the
   // password of the super admin account except the super admin themself.

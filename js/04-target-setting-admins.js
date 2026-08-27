@@ -135,7 +135,8 @@ async function showDeliveryReceipt(ref){
     '<div style="text-align:right;font-size:12px"><b style="font-size:15px">DR '+esc(ordLabel(o))+'</b><br>Order date: '+esc(o.date)+'<br>Printed: '+new Date().toISOString().slice(0,10)+'</div></div>'+
     '<div style="display:flex;gap:30px;margin:14px 0;font-size:12.5px">'+
     '<div style="flex:1"><b>Deliver to</b><br>'+esc(o.account||'—')+
-      (acct&&acct.address?'<br>'+esc(acct.address):'')+(acct&&acct.phone?'<br>'+esc(acct.phone):'')+'</div>'+
+      (acct&&acct.address?'<br>'+esc(acct.address):'')+(acct&&acct.phone?'<br>'+esc(acct.phone):'')+
+      (acct&&acct.delivery_notes?'<br><i style="color:#555">'+esc(acct.delivery_notes)+'</i>':'')+'</div>'+
     '<div><b>Specialist</b><br>'+esc(o.spec||'—')+'</div>'+
     '<div><b>Courier</b><br>'+esc(o.courier||'________________')+'<br><b>Waybill</b> '+esc(o.waybill||'____________')+'</div></div>'+
     '<table><thead><tr><th>#</th><th>Product</th><th>SKU</th><th style="text-align:center">Qty</th><th style="text-align:right">Amount</th></tr></thead><tbody>'+
@@ -449,6 +450,9 @@ async function renderAccountPage(){
     (e.shop?'':'<span class="pill pgy">no Shopify orders</span>')+
     (openFu?'<span class="pill prd">'+openFu+' open follow-up'+(openFu>1?'s':'')+'</span>':'')+
     (canManage()?ownerSelHTML(name):(ownerOf(name)?'<span class="pill pbl">owner: '+esc(ownerOf(name))+'</span>':''))+
+    (function(){const l=creditLimitOf(e.name);const ed=roleIn('admin','finance');
+      if(l==null&&!ed)return '';
+      return '<span class="pill" style="background:var(--am-bg);color:var(--am)'+(ed?';cursor:pointer':'')+'"'+(ed?' onclick="setCreditLimit(\''+esc(e.name).replace(/'/g,'&#39;')+'\')" title="Credit limit — tap to change (finance/admin)"':'')+'>limit: '+(l!=null?fmtPeso(l):'set…')+'</span>';})()+
     (function(){try{const st=stageOf({name:e.name,booked:AGG.booked,shipped:AGG.shipped,last:AGG.last,src:e.shop?'shopify':'prospect'});return '<span class="pill" style="background:var(--pu-bg);color:var(--pu)" title="Pipeline stage - manage in the Pipeline view">'+st+'</span>';}catch(ex){return '';}})()+
     (aliases.length>1?'<span class="pill pgy" title="'+esc(aliases.join(' / '))+'">'+aliases.length+' name spellings merged</span>':'')+
     '<span style="flex:1"></span>'+
@@ -492,6 +496,13 @@ async function renderAccountPage(){
 }
 /* Details panel: read-only by default, Edit button switches to the form (per Angelo) */
 let ACCT_REC=null;
+function licPill(exp){ // license expiry status pill
+  if(!exp)return'';
+  const d=Math.floor((new Date(exp).getTime()-Date.now())/864e5);
+  if(d<0)return' <span class="pill prd">expired</span>';
+  if(d<=60)return' <span class="pill pam" style="background:rgba(186,117,23,.15);color:var(--am)">expires in '+d+'d</span>';
+  return' <span style="color:var(--tx3);font-size:11px">until '+esc(exp)+'</span>';
+}
 function acctDetailsHTML(name,acct,editing){
   ACCT_REC=acct;
   const lbl=t=>'<div style="font-size:10.5px;color:var(--tx3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin:10px 0 2px">'+t+'</div>';
@@ -502,16 +513,42 @@ function acctDetailsHTML(name,acct,editing){
       (SB?'<button onclick="editAccount(\''+nameArg+'\')" style="background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:5px 12px;font-size:11.5px;font-weight:600;cursor:pointer">Edit</button>':'<span style="font-size:10px;color:var(--tx3)">sign in to edit</span>')+'</div>'+
       lbl('Contact person')+val(acct&&acct.contact_person)+
       lbl('Phone')+val(acct&&acct.phone)+
+      lbl('Email / Viber')+val(acct&&(acct.email||acct.viber)?esc([acct.email,acct.viber].filter(Boolean).join(' · ')):null)+
       lbl('Address')+val(acct&&acct.address)+
+      lbl('Region / City')+val(acct&&(acct.region||acct.city)?esc([acct.region,acct.city].filter(Boolean).join(' · ')):null)+
+      lbl('Clinic type')+val(acct&&acct.clinic_type)+
       lbl('Specialty')+val(acct&&acct.specialty)+
+      lbl('Tier')+(acct&&acct.tier?'<span class="pill '+(acct.tier==='A'?'pgr':acct.tier==='B'?'pbl':'pam')+'" style="font-weight:700">'+esc(acct.tier)+'</span>':'<span style="color:var(--tx3)">—</span>')+
+      lbl('Source')+val(acct&&acct.source)+
+      lbl('Delivery notes')+(acct&&acct.delivery_notes?'<div style="font-size:12.5px;white-space:pre-wrap">'+esc(acct.delivery_notes)+'</div>':'<span style="color:var(--tx3);font-size:12.5px">—</span>')+
+      lbl('Birthday / anniversary')+val(acct&&(acct.birthday||acct.anniversary)?esc([acct.birthday?'🎂 '+acct.birthday:'',acct.anniversary?'🏥 '+acct.anniversary:''].filter(Boolean).join(' · ')):null)+
+      lbl('Licenses')+((acct&&(acct.lto_no||acct.prc_no))?
+        '<div style="font-size:12.5px">'+(acct.lto_no?'LTO '+esc(acct.lto_no)+licPill(acct.lto_expiry)+'<br>':'')+(acct.prc_no?'PRC '+esc(acct.prc_no)+licPill(acct.prc_expiry):'')+'</div>'
+        :'<span style="color:var(--tx3);font-size:12.5px">—</span>')+
       lbl('Notes')+'<div style="font-size:12.5px;white-space:pre-wrap">'+(acct&&acct.notes?esc(acct.notes):'<span style="color:var(--tx3)">—</span>')+'</div>';
   }
   const F=(id,label,v,ph)=>lbl(label)+'<input id="'+id+'" value="'+esc(v||'')+'" placeholder="'+ph+'" style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:9px 10px;font-size:13px">';
+  const D=(id,label,v)=>lbl(label)+'<input id="'+id+'" type="date" value="'+esc(v||'')+'" style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:9px 10px;font-size:13px">';
+  const SEL=(id,label,v,opts)=>lbl(label)+'<select id="'+id+'" style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:9px 10px;font-size:13px"><option value="">—</option>'+opts.map(o=>'<option'+(v===o?' selected':'')+'>'+o+'</option>').join('')+'</select>';
   return '<div class="phd">Editing account details</div>'+
     F('ac-person','Contact person',acct&&acct.contact_person,'e.g. Dr. Santos / clinic manager')+
     F('ac-phone','Phone',acct&&acct.phone,'')+
+    F('ac-email','Email',acct&&acct.email,'clinic@…')+
+    F('ac-viber','Viber',acct&&acct.viber,'if different from phone')+
     F('ac-addr','Address',acct&&acct.address,'')+
+    F('ac-region','Region',acct&&acct.region,'e.g. NCR / Region IV-A')+
+    F('ac-city','City',acct&&acct.city,'e.g. Quezon City')+
+    SEL('ac-ctype','Clinic type',acct&&acct.clinic_type,['Derma clinic','Multi-specialty clinic','Hospital','Aesthetic center / spa','Distributor','Pharmacy','Other'])+
     F('ac-spec','Specialty',acct&&acct.specialty,'e.g. Dermatology')+
+    SEL('ac-tier','Tier (A = top value)',acct&&acct.tier,['A','B','C'])+
+    SEL('ac-source','Source',acct&&acct.source,['Rep visit','Event / demo','Referral','Walk-in / inbound','Online','Existing (migrated)'])+
+    lbl('Delivery notes (prints on the DR)')+'<textarea id="ac-dnotes" rows="2" placeholder="receiving hours, guard instructions…" style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:9px 10px;font-size:13px">'+esc(acct&&acct.delivery_notes||'')+'</textarea>'+
+    D('ac-bday','Doctor\'s birthday',acct&&acct.birthday)+
+    D('ac-anniv','Clinic anniversary',acct&&acct.anniversary)+
+    F('ac-lto','LTO no.',acct&&acct.lto_no,'clinic license')+
+    D('ac-ltoexp','LTO expiry',acct&&acct.lto_expiry)+
+    F('ac-prc','PRC no.',acct&&acct.prc_no,'doctor license')+
+    D('ac-prcexp','PRC expiry',acct&&acct.prc_expiry)+
     lbl('Notes')+'<textarea id="ac-notes" rows="4" style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:9px 10px;font-size:13px">'+esc(acct&&acct.notes||'')+'</textarea>'+
     '<div id="ac-msg" style="min-height:14px;font-size:11px;margin-top:8px"></div>'+
     '<div style="display:flex;gap:8px;margin-top:2px">'+
@@ -568,7 +605,10 @@ async function saveAccount(name){
   if(!SB)return;
   const g=id=>($(id)&&$(id).value||'').trim();
   const msg=$('ac-msg');
+  const N=v=>v||null; // '' → null (dates & optional text)
   const rec={name,contact_person:g('ac-person'),phone:g('ac-phone'),address:g('ac-addr'),specialty:g('ac-spec'),notes:g('ac-notes'),updated_at:new Date().toISOString(),updated_by:SBUSER?SBUSER.id:null};
+  // CRM fields (only when the full editor is on screen — the legacy drawer lacks them)
+  if($('ac-email')){Object.assign(rec,{email:N(g('ac-email')),viber:N(g('ac-viber')),region:N(g('ac-region')),city:N(g('ac-city')),clinic_type:N(g('ac-ctype')),tier:N(g('ac-tier')),source:N(g('ac-source')),delivery_notes:N(g('ac-dnotes')),birthday:N(g('ac-bday')),anniversary:N(g('ac-anniv')),lto_no:N(g('ac-lto')),lto_expiry:N(g('ac-ltoexp')),prc_no:N(g('ac-prc')),prc_expiry:N(g('ac-prcexp'))});}
   try{
     const {error}=await SB.from('accounts').upsert(rec,{onConflict:'name'});
     if(error)throw new Error(error.message);
