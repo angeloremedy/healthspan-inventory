@@ -1,7 +1,7 @@
 /* ── VIEWS ── */
 /* ── ONE permission truth for views: showView redirects with it, the sidebar and
    mobile menu hide with it — they can never drift apart again. ── */
-const SALES_VIEWS=['home','logvisit','followups','account','neworder','orders','order','spec','pickslip','pipeline','quotes','salesevents','complaints','pullouts','manual'];
+const SALES_VIEWS=['home','logvisit','followups','account','neworder','orders','order','spec','pickslip','pipeline','quotes','salesevents','complaints','pullouts','manual'].concat(['voucher','orderpay','proofpay','replenish','reimburse','cashadvance']);
 const CIRCLE_BLOCK_COMMON=['neworder','logvisit','targets','scorecards'];
 const CIRCLE_BLOCK={finance:['scan','scanpick','fulfillq','recall','cyclecount','transfers'],marketing:['scan','scanpick','po','fulfillq','pdc','returns','commissions','cyclecount','quarantine','suppliers','transfers','approvals','poscore'],viewer:['scan','scanpick','po','fulfillq','pdc','returns','recall','commissions','cyclecount','quarantine','suppliers','transfers','approvals','poscore'],supply_chain:['pdc','commissions','approvals']};
 function viewAllowed(v){
@@ -9,7 +9,10 @@ function viewAllowed(v){
   // Pull-outs are company-wide: anyone may file one, and anyone named as a fund-source
   // approver must be able to decide regardless of their access level elsewhere — several
   // approvers are viewers. Stated as a rule so no future CIRCLE_BLOCK edit can revoke it.
-  if(v==='pullouts')return true;
+  // FIN_KINDS lives in js/10; viewAllowed can run before that file has loaded
+  if(v==='pullouts'||(typeof FIN_KINDS!=='undefined'&&FIN_KINDS.indexOf(v)>=0))return true; // anyone may file a finance form; the approval route is the control
+  if(v==='routes')return ROLE==='admin';
+  if(v==='codelists')return ROLE==='admin'||ROLE==='finance';
   if(v==='cutover'||v==='archive'||v==='numbering')return typeof isSuper==='function'&&isSuper();
   if(v==='users')return ROLE==='admin'||(typeof canUserAdmin==='function'&&canUserAdmin());
   if(v==='audit')return ROLE==='admin';                    // admin + super only (2026-08-28)
@@ -42,7 +45,7 @@ function showView(v,el){
            simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator',
            simmonte:'Monte Carlo stockout risk',simproject:'12-month projection',simcash:'Cash-flow timeline',simbulk:'Bulk-buy trade-off',simbranch:'Remedy branch rebalancing',
            aged:'Aged inventory',shrinkage:'Shrinkage tracker',cashexpiry:'Cash in expiring stock',branchtransfer:'Remedy branch shipments',branchexpiry:'Remedy branch expiry watch',
-           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt',targets:'Set targets',fcastacc:'Forecast accuracy',campaigns:'Campaign calendar',planreview:'AI planning review',salespace:'Leaderboard & pace',pdc:'PDC register',salesdue:'Reorder due',catalog:'Item master',returns:'Returns & credit memos',scan:'Scan — receive / pick / count',cutover:'Cutover switches',creditmemo:'Credit memo',scorecards:'Review scorecards',scanpick:'Scan to pick',recall:'Batch recall trace',pipeline:'Pipeline',po:'Purchase orders',approvals:'Approvals',commissions:'Commissions',salesevents:'Events calendar',quotes:'Quotations',promos:'Promotions',regs:'Product registrations',cyclecount:'Cycle counts',cashflow:'Cash-flow forecast',quarantine:'Quarantine & disposal',pullouts:'Pull-out requests',archive:'Archive — deleted records',numbering:'Document numbering',shortdated:'Short-dated stock',poscore:'Receiving & supplier scorecard',whkpi:'Warehouse KPIs',complaints:'Complaints log',suppliers:'Suppliers & imports',valuation:'Landed cost & valuation',transfers:'Transfer orders',manual:'Your manual'};
+           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt',targets:'Set targets',fcastacc:'Forecast accuracy',campaigns:'Campaign calendar',planreview:'AI planning review',salespace:'Leaderboard & pace',pdc:'PDC register',salesdue:'Reorder due',catalog:'Item master',returns:'Returns & credit memos',scan:'Scan — receive / pick / count',cutover:'Cutover switches',creditmemo:'Credit memo',scorecards:'Review scorecards',scanpick:'Scan to pick',recall:'Batch recall trace',pipeline:'Pipeline',po:'Purchase orders',approvals:'Approvals',commissions:'Commissions',salesevents:'Events calendar',quotes:'Quotations',promos:'Promotions',regs:'Product registrations',cyclecount:'Cycle counts',cashflow:'Cash-flow forecast',quarantine:'Quarantine & disposal',pullouts:'Pull-out requests',archive:'Archive — deleted records',numbering:'Document numbering',codelists:'Option lists',routes:'Approval routes',voucher:'Voucher for approval',orderpay:'Request to order / pay',proofpay:'Proof of payment',replenish:'Request for replenishment',reimburse:'Expense reimbursement',cashadvance:'Request for cash advance',shortdated:'Short-dated stock',poscore:'Receiving & supplier scorecard',whkpi:'Warehouse KPIs',complaints:'Complaints log',suppliers:'Suppliers & imports',valuation:'Landed cost & valuation',transfers:'Transfer orders',manual:'Your manual'};
   $('ptitle').textContent=T[v]||v;
   if(v==='dashboard') renderDashboard();
   else if(v==='action') renderActionCenter();
@@ -116,6 +119,14 @@ function showView(v,el){
   else if(v==='cashflow') renderCashflow();
   else if(v==='quarantine') renderQuarantine();
   else if(v==='pullouts') renderPullouts();
+  else if(v==='voucher') renderFinForm('voucher');
+  else if(v==='orderpay') renderFinForm('orderpay');
+  else if(v==='proofpay') renderFinForm('proofpay');
+  else if(v==='replenish') renderFinForm('replenish');
+  else if(v==='reimburse') renderFinForm('reimburse');
+  else if(v==='cashadvance') renderFinForm('cashadvance');
+  else if(v==='codelists') renderCodeLists();
+  else if(v==='routes') renderRoutes();
   else if(v==='archive') renderArchive();
   else if(v==='numbering') renderNumbering();
   else if(v==='shortdated') renderShortDated();
@@ -151,7 +162,7 @@ function openSalesDrawer(sku){
   const inSheet=DATA.some(p=>p.sku===sku);
   const rows=ords.length?ords.map(o=>
     '<div class="drow" style="align-items:flex-start"><span class="dlbl" style="max-width:190px">'+
-    '<b>'+esc(o.n||'—')+'</b> · '+esc(o.dt)+'<br><span style="color:var(--tx3)">'+(o.c?'<a href="#" onclick="openAccountDrawer(\''+esc(o.c).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac)">'+esc(o.c)+'</a>':'no customer name')+(o.t?' · PS: '+esc(o.t):'')+'</span></span>'+
+    '<b>'+esc(o.n||'—')+'</b> · '+esc(o.dt)+'<br><span style="color:var(--tx3)">'+(o.c?'<a href="#" onclick="openAccountDrawer(\''+jsq(o.c)+'\');return false" style="color:var(--ac)">'+esc(o.c)+'</a>':'no customer name')+(o.t?' · PS: '+esc(o.t):'')+'</span></span>'+
     '<span class="dval" style="text-align:right">'+o.q.toLocaleString()+' u'+(o.a>0?'<br>'+fmtPeso(o.a):'<br><span style="color:var(--pu)">₱0</span>')+'</span></div>').join(''):
     '<div style="font-size:11.5px;color:var(--tx3)">No orders for this product in the drill-down window (last ~6 months). Older sales are still counted in the totals.</div>';
   const tot=ords.reduce((x,o)=>({q:x.q+o.q,a:x.a+o.a}),{q:0,a:0});
@@ -479,7 +490,7 @@ function renderSalesSpec(){
     '<div class="met am"><div class="met-lbl">Top specialist</div><div class="met-val" style="font-size:15px">'+(rows[0]?esc(rows[0].n):'—')+'</div><div class="met-sub">'+(rows[0]?fmtPeso(rows[0].v):'')+'</div><div class="met-bar"></div></div>'+
     '</div>'+
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>#</th><th>Specialist</th><th style="text-align:right">Units</th><th style="text-align:right">Revenue</th><th style="text-align:right">Share</th>'+(anyTg?'<th style="text-align:right">Target ('+ymNow+')</th><th style="min-width:130px">Attainment (MTD)</th>':'')+'</tr></thead><tbody>'+
-    rows.map((r,i)=>'<tr onclick="showSpecPage(\''+esc(r.n).replace(/'/g,'&#39;')+'\')" style="cursor:pointer"><td class="mu">'+(i+1)+'</td><td style="font-weight:600">'+esc(r.n)+'</td>'+
+    rows.map((r,i)=>'<tr onclick="showSpecPage(\''+jsq(r.n)+'\')" style="cursor:pointer"><td class="mu">'+(i+1)+'</td><td style="font-weight:600">'+esc(r.n)+'</td>'+
       '<td class="r">'+r.u.toLocaleString()+'</td><td class="r" style="font-weight:600">'+fmtPeso(r.v)+'</td>'+
       '<td class="r mu">'+(totV>0?(r.v/totV*100).toFixed(1)+'%':'—')+'</td>'+
       (anyTg?('<td class="r mu">'+(r.tg&&r.tg.value>0?fmtPeso(r.tg.value):(r.tg&&r.tg.units>0?r.tg.units.toLocaleString()+' u':'—'))+'</td>'+
@@ -989,10 +1000,10 @@ async function renderOrdersServer(){
     (!trash?'<button onclick="showView(\'neworder\',null)" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer">+ New order</button>':'')+
     '</div></div>'+
     (rows.length?'<div class="tcard"><div class="tscroll"><table><thead><tr><th>Order</th><th>DR</th><th>Date</th><th>Account</th><th>Specialist</th><th style="text-align:right">Total</th><th>Status</th>'+(trash?'<th></th>':'')+'</tr></thead><tbody>'+
-    rows.map(o=>'<tr'+(trash?'':' onclick="showOrderPage(\''+esc(String(o.id)).replace(/'/g,'&#39;')+'\')" style="cursor:pointer"')+'><td style="font-weight:700">'+esc(ordLabel(o))+'</td><td class="mu" style="font-size:11px">'+esc(o.dr_no||'—')+'</td><td class="mu">'+esc(o.date)+'</td>'+
+    rows.map(o=>'<tr'+(trash?'':' onclick="showOrderPage(\''+jsq(String(o.id))+'\')" style="cursor:pointer"')+'><td style="font-weight:700">'+esc(ordLabel(o))+'</td><td class="mu" style="font-size:11px">'+esc(o.dr_no||'—')+'</td><td class="mu">'+esc(o.date)+'</td>'+
       '<td style="font-weight:600;max-width:220px;overflow:hidden;text-overflow:ellipsis">'+esc(acctDedup(o.account||'')||'—')+'</td><td>'+esc(o.spec||'—')+'</td>'+
       '<td class="r" style="font-weight:600">'+fmtPeso(o.total)+'</td><td>'+stPill(o.status)+'</td>'+
-      (trash?'<td><button onclick="orderRestore(\'native\',\''+esc(String(o.id)).replace(/'/g,'&#39;')+'\')" style="background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer">Restore</button></td>':'')+'</tr>').join('')+
+      (trash?'<td><button onclick="orderRestore(\'native\',\''+jsq(String(o.id))+'\')" style="background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer">Restore</button></td>':'')+'</tr>').join('')+
     '</tbody></table></div>'+(trash?'<div class="tfooter"><span>Restore puts an order back in the register · Empty trash is permanent</span></div>':'')+'</div>'+pager:
     '<div class="empty" style="margin-top:30px">'+(q?'Nothing matches “'+esc(q)+'”.':trash?'Trash is empty.':'No orders yet.')+'</div>');
 }
@@ -1042,10 +1053,10 @@ async function renderOrdersLocal(){
     (!trash?'<button onclick="showView(\'neworder\',null)" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer">+ New order</button>':'')+
     '</div></div>'+
     (shown.length?'<div class="tcard"><div class="tscroll"><table><thead><tr><th>Order</th><th>Date</th><th>Account</th><th>Specialist</th><th style="text-align:right">Items</th><th style="text-align:right">Total</th><th>Status</th>'+(trash?'<th></th>':'')+'</tr></thead><tbody>'+
-    shown.map(o=>'<tr'+(trash?'':' onclick="showOrderPage(\''+esc(String(o.ref)).replace(/'/g,'&#39;')+'\')" style="cursor:pointer"')+'><td style="font-weight:700">'+esc(o.label)+'</td><td class="mu">'+esc(o.date)+'</td>'+
+    shown.map(o=>'<tr'+(trash?'':' onclick="showOrderPage(\''+jsq(String(o.ref))+'\')" style="cursor:pointer"')+'><td style="font-weight:700">'+esc(o.label)+'</td><td class="mu">'+esc(o.date)+'</td>'+
       '<td style="font-weight:600;max-width:220px;overflow:hidden;text-overflow:ellipsis">'+esc(o.account||'—')+'</td><td>'+esc(o.spec||'—')+'</td>'+
       '<td class="r mu">'+(o.items==null?'—':o.items)+'</td><td class="r" style="font-weight:600">'+fmtPeso(o.total)+'</td><td>'+stPill(o.status)+'</td>'+
-      (trash?'<td><button onclick="orderRestore(\''+(o.native?'native':'shopify')+'\',\''+esc(String(o.ref)).replace(/'/g,'&#39;')+'\')" style="background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer">Restore</button></td>':'')+'</tr>').join('')+
+      (trash?'<td><button onclick="orderRestore(\''+(o.native?'native':'shopify')+'\',\''+jsq(String(o.ref))+'\')" style="background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer">Restore</button></td>':'')+'</tr>').join('')+
     '</tbody></table></div>'+(trash?'<div class="tfooter"><span>Restore puts an order back in the register · Empty trash is permanent for orders entered here; Shopify imports keep a tombstone so they never reappear</span></div>':'')+'</div>'+pager:
     '<div class="empty" style="margin-top:30px">'+(trash?'Trash is empty.':'No orders yet — tap “+ New order” to take the first one.')+'</div>');
 }
@@ -1081,7 +1092,7 @@ async function renderOrderPage(){
   const canStatus=isAdmin||ROLE==='supply_chain';
   const stPill=s=>s==='fulfilled'?'<span class="pill pgr">fulfilled</span>':s==='cancelled'?'<span class="pill prd">cancelled</span>':s==='imported'?'<span class="pill pbl">Shopify import</span>':'<span class="pill" style="background:var(--am-bg);color:var(--am)">pending</span>';
   const btn=(label,color,fn)=>'<button onclick="'+fn+'" style="background:'+color+';color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer">'+label+'</button>';
-  const act=a=>'orderAct(\''+src+'\',\''+esc(String(src==='shopify'?o.id:o.id)).replace(/'/g,'&#39;')+'\',\''+a+'\')';
+  const act=a=>'orderAct(\''+src+'\',\''+jsq(String(src==='shopify'?o.id:o.id))+'\',\''+a+'\')';
   let actions='';
   if(canStatus&&SB&&!inTrash){
     if(eff!=='fulfilled'&&eff!=='cancelled')actions+=btn('Mark fulfilled','var(--gr)',act('fulfilled'));
@@ -1102,7 +1113,7 @@ async function renderOrderPage(){
     '</div>'+
     '<div class="metrics" style="margin-bottom:14px">'+
     '<div class="met gr"><div class="met-lbl">Total</div><div class="met-val" style="font-size:16px">'+fmtPeso(o.total)+'</div><div class="met-sub">'+(o.order_lines||[]).length+' lines</div><div class="met-bar"></div></div>'+
-    '<div class="met bl"><div class="met-lbl">Account</div><div class="met-val" style="font-size:13px"><a href="#" onclick="showAccountPage(\''+esc(o.account).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac)">'+esc(o.account||'—')+'</a></div><div class="met-sub">tap for profile</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Account</div><div class="met-val" style="font-size:13px"><a href="#" onclick="showAccountPage(\''+jsq(o.account)+'\');return false" style="color:var(--ac)">'+esc(o.account||'—')+'</a></div><div class="met-sub">tap for profile</div><div class="met-bar"></div></div>'+
     '<div class="met pu"><div class="met-lbl">Specialist</div><div class="met-val" style="font-size:14px">'+esc(o.spec||'—')+'</div><div class="met-sub">'+esc(o.date)+'</div><div class="met-bar"></div></div>'+
     '<div class="met am"><div class="met-lbl">Source</div><div class="met-val" style="font-size:13px">'+(src==='shopify'?'Shopify':(o.source==='shopify'?'Shopify (migrated)':'Healthspan'))+'</div><div class="met-sub">'+(src==='shopify'?'imported order':(o.source==='shopify'?'in our database now':'entered here'))+'</div><div class="met-bar"></div></div>'+
     '</div>'+

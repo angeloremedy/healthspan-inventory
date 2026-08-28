@@ -77,14 +77,14 @@ function renderProspects(){
   window._PROSPECTS=withM;
   const pill=r=>r.src==='prospect'?'<span class="pill" style="background:rgba(127,119,221,.15);color:var(--pu)">visit log only</span>':
     (r.last||'')>=y1?'<span class="pill pgr">active</span>':'<span class="pill pgy">lapsed</span>';
-  const row=(r,i)=>'<tr onclick="showAccountPage(\''+esc(r.name).replace(/'/g,'&#39;')+'\')" style="cursor:pointer"><td class="mu">'+(i+1)+'</td>'+
+  const row=(r,i)=>'<tr onclick="showAccountPage(\''+jsq(r.name)+'\')" style="cursor:pointer"><td class="mu">'+(i+1)+'</td>'+
     '<td style="font-weight:600;max-width:250px;overflow:hidden;text-overflow:ellipsis">'+esc(r.name)+'</td>'+
     '<td>'+pill(r)+'</td>'+
     '<td class="r" style="font-weight:600">'+(r.booked?fmtPeso(r.booked):'—')+'</td>'+
     '<td class="r mu">'+(r.v90?fmtPeso(r.v90):'—')+'</td>'+
     '<td class="r mu" style="font-size:11px">'+esc(r.last||'—')+'</td>'+
-    '<td class="mu" style="font-size:11.5px;max-width:250px;overflow:hidden;text-overflow:ellipsis">'+(r.m?'≈ <a href="#" onclick="event.stopPropagation();showAccountPage(\''+esc(r.m).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac)">'+esc(r.m)+'</a>'+
-      (canManage()?' · <a href="#" onclick="event.stopPropagation();prospectMerge(\''+esc(r.name).replace(/'/g,'&#39;')+'\',\''+esc(r.m).replace(/'/g,'&#39;')+'\');return false" style="color:var(--gr);font-weight:600">merge →</a>':''):'')+(canStage(r.name)?' · <a href="#" onclick="event.stopPropagation();setStage(\''+esc(r.name).replace(/'/g,'&#39;')+'\',\'qualified\');return false" style="color:var(--pu);font-size:11px">→ pipeline</a>':'')+'</td></tr>';
+    '<td class="mu" style="font-size:11.5px;max-width:250px;overflow:hidden;text-overflow:ellipsis">'+(r.m?'≈ <a href="#" onclick="event.stopPropagation();showAccountPage(\''+jsq(r.m)+'\');return false" style="color:var(--ac)">'+esc(r.m)+'</a>'+
+      (canManage()?' · <a href="#" onclick="event.stopPropagation();prospectMerge(\''+jsq(r.name)+'\',\''+jsq(r.m)+'\');return false" style="color:var(--gr);font-weight:600">merge →</a>':''):'')+(canStage(r.name)?' · <a href="#" onclick="event.stopPropagation();setStage(\''+jsq(r.name)+'\',\'qualified\');return false" style="color:var(--pu);font-size:11px">→ pipeline</a>':'')+'</td></tr>';
   $('content').innerHTML=
     '<div class="metrics" style="margin-bottom:14px">'+
     '<div class="met pu"><div class="met-lbl">Shopify-only / prospects</div><div class="met-val">'+withM.length+'</div><div class="met-sub">never in the OUT sheet</div><div class="met-bar"></div></div>'+
@@ -181,7 +181,7 @@ function renderCustomers(){
       '<div class="tcard"><div class="tscroll"><table><thead><tr><th>#</th><th>Account</th><th style="text-align:center">Health</th><th>Owner</th><th style="text-align:right">Shipped ₱</th><th style="text-align:right">Booked ₱ (13mo)</th><th style="text-align:right">Booked ₱ 90d</th><th style="text-align:right">Last activity</th></tr></thead><tbody>'+
       (function(){const arSet=NORDERS?arOverdueSet():null;
       return rows.map((r,i)=>{const h=healthOf(r,arSet);
-        return '<tr onclick="showAccountPage(\''+esc(r.name).replace(/\'/g,'&#39;')+'\')" style="cursor:pointer'+(r.e.isRemedy?';background:var(--sf2)':'')+'"><td class="mu">'+(i+1)+'</td>'+
+        return '<tr onclick="showAccountPage(\''+jsq(r.name)+'\')" style="cursor:pointer'+(r.e.isRemedy?';background:var(--sf2)':'')+'"><td class="mu">'+(i+1)+'</td>'+
         '<td style="font-weight:600;max-width:250px;overflow:hidden;text-overflow:ellipsis">'+esc(r.name)+(r.branches?' <span class="pill pbl">'+r.branches+' branches</span>':'')+(r.e.isRemedy?' <span class="pill pbl">sister co.</span>':'')+(r.src==='prospect'?' <span class="pill" style="background:rgba(127,119,221,.15);color:var(--pu)">prospect</span>':'')+'</td>'+
         '<td style="text-align:center"><span title="'+esc(h.why)+'" style="font-weight:700;color:'+h.c+'">'+h.s+'</span></td>'+
         '<td>'+(canManage()?ownerSelHTML(r.name):esc(ownerOf(r.name)||'—'))+'</td>'+

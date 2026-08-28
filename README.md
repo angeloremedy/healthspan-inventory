@@ -297,7 +297,8 @@ admin, deliberately override it.
 ## 9.10 Document numbering, in one place
 
 **Admin → Document numbering** controls how every number prints — sales orders,
-quotations, credit memos, pull-outs, purchase orders and transfers. For each
+quotations, credit memos, pull-outs, purchase orders, transfers and
+complaints. For each
 series you set the prefix, how many digits to pad to, and the number the series
 appears to start at, with a live example of what the next one will look like.
 
@@ -310,9 +311,53 @@ and stay on the Cutover page where the BIR series lives.
 
 ## 9.11 Finance forms
 
-The sidebar now has a **Finance forms** section. Pull-out requests lives there,
-and the five Google forms — voucher for approval, request to order/pay, proof of
-payment, replenishment, expense reimbursement — will join it as they're built.
+The sidebar's **Finance forms** section now holds all seven: pull-out requests,
+voucher for approval, request to order/pay, proof of payment, replenishment,
+expense reimbursement, and cash advance.
+
+The six new ones share one engine rather than being six near-identical pages.
+Each is a *spec* — its fields, which are required, which option list feeds each
+dropdown, which sections appear only for a given answer, and whether it takes
+line items. That means they behave identically: same numbering, same
+attachments, same approval chain, same register, and a new form is a spec rather
+than a new page.
+
+**Anyone signed in can file one.** Who signs it off is configured per form in
+**Admin → Approval routes**: a step can point at a named person, at whoever
+holds a role (so it survives someone leaving), or at *the request's own fund
+source* — which sends marketing spend to the marketing approver and sales spend
+to the sales approver without a step each. A step can carry a minimum amount, so
+small claims skip it. Requests move one step at a time and the register shows
+which step each is sitting on and who it's waiting for.
+
+Two rules worth knowing. **Nobody approves their own request** — not even an
+admin; only the super admin can, because someone has to be able to unstick
+things, and it's on the record. And the register is **not** open to everyone
+inside the company: these carry bank details and personal claims, so you see
+your own, the ones you must decide, and finance/admin see all. Attachments
+follow the same rule.
+
+**Option lists** (Admin → Option lists, finance + admin) hold the dropdowns
+finance keeps changing: 41 event codes, 35 cash-flow tags, product lines,
+payment modes, replenishment and reimbursement types, teams. Add a code when a
+programme starts; *retire* rather than delete when one ends, so historical
+requests keep reading correctly.
+
+Each form has its own document series — `V-`, `RO-`, `PP-`, `RP-`, `RE-`, `CA-`
+— editable like every other series on the Document numbering page. One honest
+note: the underlying counter is shared across the forms, so each series will
+have gaps (your first voucher might be V-1001 and your first order-to-pay
+RO-1002). The numbers are unique and stable, just not contiguous per form.
+
+**Attachments now work.** Files go to a Google Shared Drive through a service
+account: the browser uploads straight to Google (so a large scan never hits
+Netlify's request limit), Supabase keeps only the pointer, and opening a file
+goes back through HQ — so your access *here* decides what you can see, rather
+than whether you happen to be on the Drive. Files over about 4 MB open in Drive
+instead of streaming back, because a function response can't exceed 6 MB.
+Pull-out requests carry attachments today; the finance forms will use the same
+control. The super admin can verify the wiring at any time from Cutover →
+Attachments → Test the connection.
 
 ## 9.12 Pages refresh in place, not from scratch
 

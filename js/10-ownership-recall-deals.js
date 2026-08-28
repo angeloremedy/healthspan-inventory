@@ -30,7 +30,7 @@ async function setOwner(name,tag){
 }
 function ownerSelHTML(name){
   const cur=ownerOf(name)||'';
-  return '<select onchange="setOwner(\''+esc(acctDedup(name)).replace(/'/g,'&#39;')+'\',this.value)" onclick="event.stopPropagation()" style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:7px;padding:5px 7px;font-size:11.5px;max-width:110px">'+
+  return '<select onchange="setOwner(\''+jsq(acctDedup(name))+'\',this.value)" onclick="event.stopPropagation()" style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:7px;padding:5px 7px;font-size:11.5px;max-width:110px">'+
     '<option value="">— owner —</option>'+specNames().map(s=>'<option'+(specCanon(s).toLowerCase()===specCanon(cur).toLowerCase()?' selected':'')+'>'+esc(s)+'</option>').join('')+'</select>';
 }
 
@@ -369,12 +369,12 @@ async function renderPipeline(){
     const days=r.last?Math.floor((Date.now()-new Date(r.last).getTime())/864e5):null;
     const can=canStage(r.name);
     return '<div style="background:var(--sf);border:1px solid var(--bd);border-radius:10px;padding:9px 11px;margin-bottom:8px">'+
-    '<a href="#" onclick="showAccountPage(\''+esc(r.name).replace(/'/g,'&#39;')+'\');return false" style="color:var(--tx);font-weight:600;font-size:12.5px;text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(r.name)+'</a>'+
+    '<a href="#" onclick="showAccountPage(\''+jsq(r.name)+'\');return false" style="color:var(--tx);font-weight:600;font-size:12.5px;text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(r.name)+'</a>'+
     '<div style="font-size:10.5px;color:var(--tx3);margin:2px 0 6px">'+(r.owner?esc(r.owner)+' · ':'')+(days!=null?days+'d since activity':'no activity')+(r.booked?' · '+fmtPeso(r.booked):'')+'</div>'+
     (can?'<div style="display:flex;gap:6px;font-size:11px">'+
-      (r.stage!=='lead'?'<a href="#" onclick="stageMove(\''+esc(r.name).replace(/'/g,'&#39;')+'\',\''+r.stage+'\',-1);return false" style="color:var(--tx3)">‹ back</a>':'')+
-      (r.stage!=='active'?'<a href="#" onclick="stageMove(\''+esc(r.name).replace(/'/g,'&#39;')+'\',\''+r.stage+'\',1);return false" style="color:var(--gr);font-weight:700">advance ›</a>':'')+
-      '<span style="flex:1"></span><a href="#" onclick="stageLost(\''+esc(r.name).replace(/'/g,'&#39;')+'\');return false" style="color:var(--rd)">lost</a></div>':'')+
+      (r.stage!=='lead'?'<a href="#" onclick="stageMove(\''+jsq(r.name)+'\',\''+r.stage+'\',-1);return false" style="color:var(--tx3)">‹ back</a>':'')+
+      (r.stage!=='active'?'<a href="#" onclick="stageMove(\''+jsq(r.name)+'\',\''+r.stage+'\',1);return false" style="color:var(--gr);font-weight:700">advance ›</a>':'')+
+      '<span style="flex:1"></span><a href="#" onclick="stageLost(\''+jsq(r.name)+'\');return false" style="color:var(--rd)">lost</a></div>':'')+
     '</div>';
   };
   const col=(st,label)=>{
@@ -396,7 +396,7 @@ async function renderPipeline(){
     '<input id="op-val" type="number" placeholder="Est. ₱" '+inp+' style="width:110px;'+inp.slice(7,-1)+'">'+
     '<input id="op-month" type="month" title="Expected close" '+inp+'>'+
     '<button onclick="oppAdd()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12.5px;font-weight:600;cursor:pointer">Add</button></div>'+
-    (open.length?'<div style="margin-top:10px">'+open.map(o=>'<div class="drow"><span class="dlbl"><b>'+esc(o.title)+'</b> — <a href="#" onclick="showAccountPage(\''+esc(o.account).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac)">'+esc(o.account)+'</a>'+(o.owner_tag?' · '+esc(o.owner_tag):'')+(o.expected_month?' · closes '+esc(o.expected_month):'')+'</span>'+
+    (open.length?'<div style="margin-top:10px">'+open.map(o=>'<div class="drow"><span class="dlbl"><b>'+esc(o.title)+'</b> — <a href="#" onclick="showAccountPage(\''+jsq(o.account)+'\');return false" style="color:var(--ac)">'+esc(o.account)+'</a>'+(o.owner_tag?' · '+esc(o.owner_tag):'')+(o.expected_month?' · closes '+esc(o.expected_month):'')+'</span>'+
       '<span class="dval">'+fmtPeso(o.est_value||0)+' · <a href="#" onclick="oppSet('+o.id+',\'won\');return false" style="color:var(--gr);font-size:11px">won ✓</a> <a href="#" onclick="oppSet('+o.id+',\'lost\');return false" style="color:var(--rd);font-size:11px">lost ✗</a></span></div>').join('')+'</div>':'')+
     '</div>'+
     '<div style="display:flex;gap:10px;flex-wrap:wrap">'+col('lead','Lead')+col('contacted','Contacted')+col('qualified','Qualified')+col('active','Active')+'</div>'+
@@ -616,8 +616,8 @@ async function renderApprovals(){
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>When</th><th>Type</th><th>Account</th><th>Order</th><th style="text-align:right">Amount</th><th>Why held</th><th>By</th><th>Status</th><th></th></tr></thead><tbody>'+
     (rows.length?rows.map(r=>'<tr><td class="mu" style="font-size:11px">'+esc(String(r.created_at||'').slice(0,16).replace('T',' '))+'</td>'+
       '<td>'+(r.kind==='credit'?'<span class="pill prd">credit hold</span>':r.kind==='po'?'<span class="pill pam" style="background:rgba(186,117,23,.15);color:var(--am)">purchase</span>':'<span class="pill pbl">big order</span>')+'</td>'+
-      '<td style="max-width:170px;overflow:hidden;text-overflow:ellipsis"><a href="#" onclick="showAccountPage(\''+esc(r.account).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac)">'+esc(r.account)+'</a></td>'+
-      '<td>'+(r.kind==='po'?'<a href="#" onclick="showView(\'po\');return false" style="color:var(--ac)">'+esc(r.order_label||'—')+'</a>':'<a href="#" onclick="showOrderPage(\''+esc(r.order_id||'').replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac)">'+esc(r.order_label||'—')+'</a>')+'</td>'+
+      '<td style="max-width:170px;overflow:hidden;text-overflow:ellipsis"><a href="#" onclick="showAccountPage(\''+jsq(r.account)+'\');return false" style="color:var(--ac)">'+esc(r.account)+'</a></td>'+
+      '<td>'+(r.kind==='po'?'<a href="#" onclick="showView(\'po\');return false" style="color:var(--ac)">'+esc(r.order_label||'—')+'</a>':'<a href="#" onclick="showOrderPage(\''+jsq(r.order_id||'')+'\');return false" style="color:var(--ac)">'+esc(r.order_label||'—')+'</a>')+'</td>'+
       '<td class="r" style="font-weight:700">'+fmtPeso(r.amount||0)+'</td>'+
       '<td class="mu" style="font-size:11.5px;max-width:220px;overflow:hidden;text-overflow:ellipsis">'+esc(r.reason||'')+'</td>'+
       '<td class="mu" style="font-size:11.5px">'+esc(r.requested_name||'')+'</td>'+
@@ -843,7 +843,7 @@ async function apSet(poId,field,label,cur){
 function apBlock(p){
   const bal=(p.fx_total!=null&&p.amount_paid!=null)?(p.fx_total-p.amount_paid):null;
   const ed=roleIn('admin','finance');
-  const cell=(field,label,val,fmt)=>'<div class="drow"><span class="dlbl">'+label+'</span><span class="dval">'+(val!=null&&val!==''?esc(fmt?fmt(val):String(val)):'—')+(ed?' <a href="#" onclick="apSet('+p.id+',\''+field+'\',\''+label+'\',\''+esc(String(val==null?'':val)).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac);font-size:10px">✎</a>':'')+'</span></div>';
+  const cell=(field,label,val,fmt)=>'<div class="drow"><span class="dlbl">'+label+'</span><span class="dval">'+(val!=null&&val!==''?esc(fmt?fmt(val):String(val)):'—')+(ed?' <a href="#" onclick="apSet('+p.id+',\''+field+'\',\''+label+'\',\''+jsq(String(val==null?'':val))+'\');return false" style="color:var(--ac);font-size:10px">✎</a>':'')+'</span></div>';
   return '<div style="background:var(--sf2);border-radius:10px;padding:10px 14px;margin-top:10px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--tx3);margin-bottom:4px">Supplier AP</div>'+
     cell('terms','Terms',p.terms)+
     cell('proforma','Proforma invoice',p.proforma)+
@@ -865,7 +865,7 @@ function apBlock(p){
 function impCell(p,field,label){
   const ed=canWarehouse()||roleIn('finance');
   const val=p[field];
-  return '<div class="drow"><span class="dlbl">'+label+'</span><span class="dval">'+(val?esc(String(val)):'—')+(ed?' <a href="#" onclick="impSet('+p.id+',\''+field+'\',\''+label.replace(/'/g,'')+'\',\''+esc(String(val==null?'':val)).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac);font-size:10px">✎</a>':'')+'</span></div>';
+  return '<div class="drow"><span class="dlbl">'+label+'</span><span class="dval">'+(val?esc(String(val)):'—')+(ed?' <a href="#" onclick="impSet('+p.id+',\''+field+'\',\''+label.replace(/'/g,'')+'\',\''+jsq(String(val==null?'':val))+'\');return false" style="color:var(--ac);font-size:10px">✎</a>':'')+'</span></div>';
 }
 async function impSet(poId,field,label,cur){
   if(!canWarehouse()&&!roleIn('finance'))return;
@@ -1178,7 +1178,7 @@ async function renderRegs(){
     '</div>'+
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>SKU</th><th>Product</th><th>Type</th><th>Registration no.</th><th>Status</th>'+(canW?'<th></th>':'')+'</tr></thead><tbody>'+
     items.map(x=>'<tr><td style="font-weight:600">'+esc(x.sku)+'</td><td>'+esc(x.name||'')+'</td><td class="mu">'+esc(x.reg_type||'—')+'</td><td>'+esc(x.reg_no||'—')+'</td><td>'+pill(x)+'</td>'+
-      (canW?'<td><a href="#" onclick="regEdit(\''+esc(x.sku).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac);font-size:11.5px">edit</a></td>':'')+
+      (canW?'<td><a href="#" onclick="regEdit(\''+jsq(x.sku)+'\');return false" style="color:var(--ac);font-size:11.5px">edit</a></td>':'')+
       '</tr>').join('')+
     '</tbody></table></div><div class="tfooter"><span>CPR/FDA registration per SKU — expired and expiring-soon float to the top · alerts at 6 months because renewals take time · registration data lives on the item master</span></div></div>';
 }
@@ -1473,7 +1473,7 @@ async function renderCycleCounts(){
       '<div style="font-size:12px;color:var(--tx3);margin-bottom:10px">Blind count: expected quantities stay hidden until you close the session. Count physically, type what you see.</div>'+
       '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
       '<button onclick="ccStart(\'\')" style="background:var(--ac);color:#fff;border:none;border-radius:10px;padding:11px 18px;font-size:13px;font-weight:700;cursor:pointer">Count everything</button>'+
-      lines.map(l=>'<button onclick="ccStart(\''+esc(l).replace(/'/g,'&#39;')+'\')" style="background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px 14px;font-size:12.5px;cursor:pointer">'+esc(l)+'</button>').join('')+
+      lines.map(l=>'<button onclick="ccStart(\''+jsq(l)+'\')" style="background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px 14px;font-size:12.5px;cursor:pointer">'+esc(l)+'</button>').join('')+
       '</div></div>':'')+
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Date</th><th>Scope</th><th>Counted by</th><th class="r">SKUs</th><th class="r">Matched</th><th class="r">Variance (units)</th><th>Result</th></tr></thead><tbody>'+
     (sessions.length?sessions.map(x=>'<tr><td>'+esc((x.closed_at||'').slice(0,16).replace('T',' '))+'</td><td>'+esc(x.scope||'all')+'</td><td class="mu">'+esc(x.started_name||'')+'</td>'+
@@ -1743,11 +1743,11 @@ async function renderComplaints(){
     '</div>'+
     '<div class="g2" style="align-items:start;gap:14px">'+
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>#</th><th>Account</th><th>Product / batch</th><th>What happened</th><th>Filed by</th><th>Status</th>'+(canM?'<th></th>':'')+'</tr></thead><tbody>'+
-    (rows.length?rows.map(r=>'<tr><td class="mu">C-'+r.id+'</td><td style="font-weight:600">'+esc(r.account||'—')+'</td>'+
+    (rows.length?rows.map(r=>'<tr><td class="mu">'+CX_NO(r.id)+'</td><td style="font-weight:600">'+esc(r.account||'—')+'</td>'+
       '<td>'+esc(r.sku||'—')+(r.batch?' <span class="pill pbl" style="cursor:pointer" onclick="showView(\'recall\',null)" title="Trace this batch in Batch recall trace">'+esc(r.batch)+'</span>':'')+'</td>'+
       '<td style="font-size:11.5px;max-width:240px">'+esc(r.description||'')+(r.resolution?'<br><span style="color:var(--gr)">→ '+esc(r.resolution)+'</span>':'')+'</td>'+
       '<td class="mu" style="font-size:11px">'+esc(r.created_name||'')+'<br>'+esc((r.created_at||'').slice(0,10))+'</td><td>'+pill(r)+'</td>'+
-      (canM?'<td style="white-space:nowrap;font-size:11.5px">'+(r.status!=='closed'?(r.status==='open'?'<a href="#" onclick="complaintSet('+r.id+',\'investigating\');return false" style="color:var(--ac)">investigate</a> · ':'')+'<a href="#" onclick="complaintSet('+r.id+',\'closed\');return false" style="color:var(--gr)">close</a>':'')+'</td>':'')+
+      (canM?'<td style="white-space:nowrap;font-size:11.5px">'+(r.status!=='closed'?(r.status==='open'?'<a href="#" onclick="complaintSet('+r.id+',\'investigating\');return false" style="color:var(--ac)">investigate</a> · ':'')+'<a href="#" onclick="complaintSet('+r.id+',\'closed\');return false" style="color:var(--gr)">close</a>':'')+delLink('complaints',r.id)+'</td>':'')+
       '</tr>').join(''):'<tr><td colspan="7" class="mu">No complaints on record.</td></tr>')+
     '</tbody></table></div><div class="tfooter"><span>Every complaint keeps its batch reference — one tap into the recall trace shows every other clinic that received the same lot · closing requires a resolution note</span></div></div>'+
     '<div class="panel" style="padding:16px"><div class="phd">File a complaint</div>'+
@@ -1769,7 +1769,7 @@ async function complaintAdd(){
     const {data,error}=await SB.from('complaints').insert({account:g('cp-acct'),sku:p?p.sku:(g('cp-sku')||null),batch:g('cp-batch')||null,description:g('cp-desc'),created_by:SBUSER.id,created_name:(SBPROFILE&&SBPROFILE.name)||''}).select().single();
     if(error)throw error;
     audit('complaint.file',{c:data.id,account:g('cp-acct'),sku:p?p.sku:g('cp-sku'),batch:g('cp-batch')});
-    notify({roles:['supply_chain']},'auto','Complaint C-'+data.id+': '+g('cp-acct'),(p?p.name:g('cp-sku'))+(g('cp-batch')?' · batch '+g('cp-batch'):'')+' — '+g('cp-desc').slice(0,120),'#/v/complaints');
+    notify({roles:['supply_chain']},'auto','Complaint '+CX_NO(data.id)+': '+g('cp-acct'),(p?p.name:g('cp-sku'))+(g('cp-batch')?' · batch '+g('cp-batch'):'')+' — '+g('cp-desc').slice(0,120),'#/v/complaints');
     renderComplaints();
   }catch(e){if(msg){msg.style.color='var(--rd)';msg.textContent=(e.message||e)+(String(e.message||'').includes('complaints')?' (run the complaints SQL)':'');}}
 }
@@ -2136,6 +2136,8 @@ const VIEW_WRITERS={
   shortdated:{roles:['supply_chain','manager','marketing'],label:'the warehouse team, sales managers and marketing'},
   pullouts:null, // everyone may request; approving/releasing is gated inside the page
   archive:null, numbering:null, // super-admin pages
+  voucher:null,  orderpay:null,  proofpay:null,  replenish:null,  reimburse:null,  cashadvance:null, // anyone files; approving is gated inside the page
+  codelists:{roles:['finance'],label:'finance and admin'}, routes:{roles:['admin'],label:'the admins'},
 
   poscore:null, // report — read-only by nature
   transfers:{roles:['supply_chain','manager'],label:'the warehouse team'},
@@ -2236,6 +2238,7 @@ function mbarClose(){const ov=document.getElementById('mbar-ov');if(ov)ov.remove
                  ticks it here so nothing is left half-done
    Rejecting or cancelling frees the reservation immediately. */
 const PL_NO=id=>docNo('pullout',id);
+const CX_NO=id=>docNo('complaint',id);
 const PL_REASONS=['KOL & Speaker Engagements','Market Building & Brand Campaigns','FOC & Sales Promotion','Key Accounts & Trade Partnerships','Product Launches & Training Programs'];
 const PL_LINES_OPT=['Innoaesthetic','Termosalud','GTG','Skinpen','Biojuve','Mark Vu','Mesoestetic'];
 let FUNDS=null;
@@ -2253,6 +2256,7 @@ function canDecidePullout(p){
   return (f.approver_id&&f.approver_id===me)||(f.backup_id&&f.backup_id===me)||(typeof isSuper==='function'&&isSuper());
 }
 async function renderPullouts(cheap){
+  // attachments hang off each request; loaded with the page, not per row
   if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
   // cheap = the only thing that changed is the local cart (you added or removed a
   // line you just typed). Repaint from what we already have — no placeholder, no
@@ -2285,6 +2289,9 @@ async function renderPullouts(cheap){
     if(a.error)throw a.error;if(b.error)throw b.error;
     rows=a.data||[];lines=b.data||[];
   }catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Needs the pull-out SQL (SUPABASE-SETUP.md): '+esc(e.message||e)+'</div>';return;}
+  window._PLATT={};
+  try{const {data:at}=await SB.from('attachments').select('*').eq('rec_type','pullout');
+    for(const f of (at||[]))(window._PLATT[f.rec_id]||(window._PLATT[f.rec_id]=[])).push(f);}catch(e){}
   const byPl={};lines.forEach(l=>(byPl[l.pullout_id]||(byPl[l.pullout_id]=[])).push(l));
   window._PLROWS=rows;window._PLLINES=byPl; // the QBO export reads what is on screen
   plPaint(rows,byPl);
@@ -2371,7 +2378,8 @@ function plPaint(rows,byPl){
       '<td class="mu" style="font-size:11.5px;max-width:130px;overflow:hidden;text-overflow:ellipsis">'+esc(r.requester_name||r.requester_email||'—')+'</td>'+
       '<td style="font-size:11.5px">'+esc(r.fund_class)+(f&&f.approver_name?'<div class="mu" style="font-size:10px">'+esc(f.approver_name)+'</div>':'<div style="font-size:10px;color:var(--rd)">no approver set</div>')+'</td>'+
       '<td class="mu" style="font-size:11px;max-width:150px;overflow:hidden;text-overflow:ellipsis">'+esc(r.reason||'—')+(r.purpose?'<div style="font-size:10px">'+esc(r.purpose)+'</div>':'')+'</td>'+
-      '<td class="mu" style="font-size:11px;max-width:200px">'+(ls.length?ls.map(l=>esc(l.sku)+' ×'+l.qty+(l.released_qty?' <span style="color:var(--gr)">('+l.released_qty+' out)</span>':'')).join('<br>'):'—')+'</td>'+
+      '<td class="mu" style="font-size:11px;max-width:230px">'+(ls.length?ls.map(l=>esc(l.sku)+' ×'+l.qty+(l.released_qty?' <span style="color:var(--gr)">('+l.released_qty+' out)</span>':'')).join('<br>'):'—')+
+        '<div style="margin-top:5px">'+(typeof attBlock==='function'?attBlock('pullout',r.id,((window._PLATT||{})[String(r.id)]||[]),(isMine&&r.status==='pending')||canW||roleIn('admin','finance')):'')+'</div></td>'+
       '<td>'+pill(r.status)+(r.booked_ref?'<div class="mu" style="font-size:10px">booked '+esc(r.booked_ref)+'</div>':'')+(r.decision_note?'<div class="mu" style="font-size:10px">'+esc(r.decision_note)+'</div>':'')+'</td>'+
       '<td style="white-space:nowrap;font-size:11.5px">'+acts.join(' · ')+'</td></tr>';
     }).join(''):'<tr><td colspan="9" class="mu">No pull-out requests yet.</td></tr>')+
@@ -2418,7 +2426,7 @@ function plPaint(rows,byPl){
         const us=window._PLUSERS||[];
         const sel=(f,isB)=>{
           const cur=isB?(f.backup_id||''):(f.approver_id||'');
-          const cls=esc(f.class).replace(/'/g,'&#39;');
+          const cls=jsq(f.class);
           return '<select onchange="plSetApprover(\''+cls+'\','+(isB?'true':'false')+',this.value)" '+
             'style="background:var(--bg);color:var(--tx);border:1px solid '+((!isB&&!cur)?'var(--rd)':'var(--bd)')+';border-radius:8px;padding:6px 8px;font-size:12px;max-width:210px">'+
             '<option value="">'+(isB?'— no backup —':'— not set —')+'</option>'+
@@ -2429,7 +2437,7 @@ function plPaint(rows,byPl){
           '<td>'+(us.length?sel(f,false):(f.approver_name?esc(f.approver_name):'<span style="color:var(--rd)">not set</span>'))+'</td>'+
           '<td>'+(us.length?sel(f,true):(f.backup_name?esc(f.backup_name):'—'))+'</td>'+
           '<td>'+(f.active?'<span class="pill pgr">yes</span>':'<span class="pill" style="background:var(--sf2);color:var(--tx3)">no</span>')+'</td>'+
-          '<td style="font-size:11.5px;white-space:nowrap"><a href="#" onclick="plToggleFund(\''+esc(f.class).replace(/'/g,'&#39;')+'\','+(f.active?'false':'true')+');return false" style="color:var(--tx3)">'+(f.active?'deactivate':'activate')+'</a></td></tr>').join('');
+          '<td style="font-size:11.5px;white-space:nowrap"><a href="#" onclick="plToggleFund(\''+jsq(f.class)+'\','+(f.active?'false':'true')+');return false" style="color:var(--tx3)">'+(f.active?'deactivate':'activate')+'</a></td></tr>').join('');
       })()+
       '</tbody></table></div><div style="font-size:11px;color:var(--tx3);margin-top:8px">Pick from the dropdown — changes save immediately. An approver can be anyone with an HQ login, including someone whose role is read-only everywhere else; approval rights come from this table, not from their access level. The super admin can decide any class as a fallback.</div></div>':'');
   plRestore();
@@ -2736,17 +2744,18 @@ const ARCH_KINDS={ // table → how to describe it, and which children travel wi
   pullouts:{label:'Pull-out request',no:r=>PL_NO(r.id),sum:r=>r.fund_class+' · '+(r.reason||'')+' · '+(r.requester_name||''),children:[{table:'pullout_lines',fk:'pullout_id'}]},
   quotes:{label:'Quotation',no:r=>qtLabel(r),sum:r=>r.account+' · '+fmtPeso(r.total||0),children:[{table:'quote_lines',fk:'quote_id'}]},
   pos:{label:'Purchase order',no:r=>PO_NO(r.id),sum:r=>r.supplier+' · '+r.status,children:[{table:'po_lines',fk:'po_id'}]},
-  transfers:{label:'Transfer order',no:r=>TR_NO(r.id),sum:r=>(r.branch||'')+' · '+r.status,children:[{table:'transfer_lines',fk:'transfer_id'}]},
+  transfers:{label:'Transfer order',no:r=>TR_NO(r.id),sum:r=>(r.to_branch||'')+' · '+r.status,children:[{table:'transfer_lines',fk:'transfer_id'}]},
   returns:{label:'Credit memo',no:r=>docNo('cm',r.id),sum:r=>r.account+' · '+fmtPeso(r.amount||0),children:[]},
   pdcs:{label:'Cheque (PDC)',no:r=>'PDC-'+r.id,sum:r=>r.account+' · '+fmtPeso(r.amount||0)+' · matures '+(r.maturity||''),children:[]},
   promos:{label:'Promotion',no:r=>'PROMO-'+r.id,sum:r=>r.name||'',children:[]},
   campaigns:{label:'Campaign',no:r=>'CAMP-'+r.id,sum:r=>r.name||'',children:[]},
-  complaints:{label:'Complaint',no:r=>'CX-'+r.id,sum:r=>(r.account||'')+' · '+(r.product||''),children:[]},
+  complaints:{label:'Complaint',no:r=>CX_NO(r.id),sum:r=>(r.account||'')+' · '+(r.sku||''),children:[]},
   quarantine:{label:'Quarantine lot',no:r=>'Q-'+r.id,sum:r=>(r.name||r.sku)+' · '+r.qty+'u',children:[]},
   shortdated:{label:'Short-dated plan',no:r=>'SD-'+r.id,sum:r=>(r.name||r.sku)+' · '+(r.plan||''),children:[]},
   visits:{label:'Visit',no:r=>'VISIT-'+r.id,sum:r=>(r.account||'')+' · '+(r.date||''),children:[]},
-  opportunities:{label:'Opportunity',no:r=>'OPP-'+r.id,sum:r=>(r.account||'')+' · '+fmtPeso(r.value||0),children:[]},
+  opportunities:{label:'Opportunity',no:r=>'OPP-'+r.id,sum:r=>(r.account||'')+' · '+fmtPeso(r.est_value||0),children:[]},
   approvals:{label:'Approval request',no:r=>'APR-'+r.id,sum:r=>(r.order_label||'')+' · '+(r.status||''),children:[]},
+  fin_requests:{label:'Finance request',no:r=>FIN_NO(r.kind,r.num),sum:r=>(FIN_SPEC[r.kind]?FIN_SPEC[r.kind].title:r.kind)+' · '+(r.payee||r.requester_name||'')+' · '+fmtPeso(r.amount||0),children:[{table:'fin_lines',fk:'req_id'}]},
   fund_sources:{label:'Fund source',no:r=>r.class,sum:r=>'approver: '+(r.approver_name||'none'),children:[]}
 };
 /* archiveRecord(table, id) — the one entry point. Returns true when archived. */
@@ -2774,8 +2783,14 @@ async function archiveRecord(table,id,noOverride){
       summary:(K.label+' · '+(K.sum(row)||'')).slice(0,300),payload:{row,children},reason:reason||null,
       archived_by:(SBUSER&&SBUSER.id)||null,archived_name:(SBPROFILE&&SBPROFILE.name)||''});
     if(eB)throw new Error('Could not archive it, so nothing was deleted: '+(eB.message||eB));
-    const {error:eD}=await SB.from(table).delete().eq(table==='fund_sources'?'class':'id',id);
-    if(eD)throw new Error('Archived, but the original could not be deleted: '+(eD.message||eD));
+    // RLS filters a forbidden DELETE to zero rows and still returns success —
+    // so ask for the deleted rows back and check we actually got one. Otherwise
+    // the app would cheerfully report a delete that never happened.
+    const {data:gone,error:eD}=await SB.from(table).delete().eq(table==='fund_sources'?'class':'id',id).select();
+    if(eD||!gone||!gone.length){
+      try{await SB.from('archive_bin').delete().eq('src_table',table).eq('src_id',String(id)).is('restored_at',null);}catch(e2){}
+      throw new Error(eD?('Could not delete it: '+(eD.message||eD)):'The database refused the delete (nothing was removed, and the archive entry was rolled back). Run the super-admin delete policies from SUPABASE-SETUP.md.');
+    }
     audit('archive.delete',{table,no,reason});
     alert(no+' deleted. You can restore it from Admin → Archive.');
     return true;
@@ -2821,6 +2836,8 @@ async function archRestore(binId){
     const row=Object.assign({},(b.payload&&b.payload.row)||{});
     const isFS=b.src_table==='fund_sources';
     if(!isFS)delete row.id; // identity column: let the database issue a fresh one
+    delete row.num;         // quotes/orders carry a second identity column
+    delete row.created_at;  // let the restore stamp itself
     const {data:ins,error}=await SB.from(b.src_table).insert(row).select().single();
     if(error)throw error;
     const newId=isFS?ins.class:ins.id;
@@ -2898,4 +2915,677 @@ async function numEdit(kind){
     await loadDocFormats(true);
     renderNumbering();
   }catch(e){alert('Could not save: '+(e.message||e));}
+}
+
+/* ══════════════════ ATTACHMENTS ══════════════════
+   Files go to a Google Shared Drive through the `upload` function; Supabase
+   keeps the pointer. Two upload paths, tried in order:
+     1. a resumable session — the browser PUTs the bytes straight to Google, so
+        big receipts never touch Netlify's 6 MB request limit;
+     2. base64 through the function, for when a network or browser blocks (1).
+   Reading always goes through the function, so an HQ session — not Drive
+   membership — decides who can open a document. */
+const ATT_MAX=20*1024*1024; // Drive accepts more, but this is a sane per-receipt cap
+function attIcon(m){m=String(m||'');return m.indexOf('image/')===0?'🖼':m.indexOf('pdf')>=0?'📕':m.indexOf('sheet')>=0||m.indexOf('excel')>=0?'📊':m.indexOf('word')>=0||m.indexOf('document')>=0?'📄':'📎';}
+function attSize(n){n=Number(n||0);return n>=1048576?(n/1048576).toFixed(1)+' MB':n>=1024?Math.round(n/1024)+' KB':n+' B';}
+async function attList(recType,recId){
+  try{const {data,error}=await SB.from('attachments').select('*').eq('rec_type',recType).eq('rec_id',String(recId)).order('id');
+    if(error)throw error;return data||[];}catch(e){return [];}
+}
+/* the markup for a record's attachments — call it wherever a record is drawn */
+function attBlock(recType,recId,files,canAdd){
+  const key=recType+':'+recId;
+  return '<div class="attblock" data-att="'+esc(key)+'">'+
+    (files.length?files.map(f=>'<span class="attchip" title="'+esc(f.name)+(f.uploaded_name?' · '+esc(f.uploaded_name):'')+'">'+
+      '<a href="#" onclick="attOpen(\''+esc(f.file_id)+'\',\''+jsq(f.name)+'\');return false" style="color:var(--ac)">'+attIcon(f.mime)+' '+esc(f.name.length>28?f.name.slice(0,26)+'…':f.name)+'</a>'+
+      '<span class="mu" style="font-size:10px"> '+attSize(f.size)+'</span>'+
+      (canAdd?' <a href="#" onclick="attRemove('+f.id+',\''+esc(f.file_id)+'\');return false" style="color:var(--rd);font-size:10px" title="Remove">✕</a>':'')+
+      '</span>').join(' '):'<span class="mu" style="font-size:11.5px">No files attached.</span>')+
+    (canAdd?' <label class="attadd">＋ Attach<input type="file" multiple style="display:none" onchange="attPick(this,\''+esc(recType)+'\',\''+String(recId).replace(/'/g,'')+'\')"></label>':'')+
+    '<span class="mu" id="att-msg-'+esc(key).replace(/[^a-z0-9]/gi,'')+'" style="font-size:11px;margin-left:6px"></span></div>';
+}
+function attMsg(recType,recId,txt,bad){
+  const el=document.getElementById('att-msg-'+(recType+':'+recId).replace(/[^a-z0-9]/gi,''));
+  if(el){el.textContent=txt||'';el.style.color=bad?'var(--rd)':'var(--tx3)';}
+}
+async function attPick(input,recType,recId){
+  const files=[...(input.files||[])];input.value='';
+  if(!files.length)return;
+  let skipped='';
+  for(const f of files){
+    if(f.size>ATT_MAX){skipped=f.name+' is over 20 MB — put it in Drive and paste the link instead.';continue;}
+    try{
+      attMsg(recType,recId,'Uploading '+f.name+'…');
+      const meta=await attUpload(f);
+      const {error}=await SB.from('attachments').insert({rec_type:recType,rec_id:String(recId),file_id:meta.id,
+        name:f.name,mime:f.type||null,size:f.size,uploaded_by:(SBUSER&&SBUSER.id)||null,uploaded_name:(SBPROFILE&&SBPROFILE.name)||''});
+      if(error)throw new Error(error.message);
+      audit('attachment.add',{rec:recType+' '+recId,name:f.name,size:f.size});
+    }catch(e){attMsg(recType,recId,'Could not attach '+f.name+': '+(e.message||e),true);return;}
+  }
+  attMsg(recType,recId,skipped,!!skipped);
+  if(typeof reRender==='function')reRender();
+}
+/* upload one file: direct to Google first, function fallback second */
+async function attUpload(file){
+  const h=await sbAuthHeaders({'Content-Type':'application/json'});
+  try{
+    const r=await fetch('/.netlify/functions/upload',{method:'POST',headers:h,
+      body:JSON.stringify({action:'session',name:file.name,mime:file.type||'application/octet-stream'})});
+    const j=await r.json();
+    if(!j.uploadUrl)throw new Error(j.error||'no upload url');
+    const put=await fetch(j.uploadUrl,{method:'PUT',headers:{'Content-Type':file.type||'application/octet-stream'},body:file});
+    if(!put.ok)throw new Error('direct upload failed ('+put.status+')');
+    const done=await put.json();
+    if(!done.id)throw new Error('Drive did not return a file id');
+    return done;
+  }catch(e){
+    // the direct PUT can be blocked (CORS, proxy, offline) — fall back for smaller files
+    if(file.size>4*1024*1024)throw new Error((e.message||e)+' — and the file is too big for the fallback route');
+    const b64=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result).split(',')[1]||'');fr.onerror=()=>rej(new Error('could not read the file'));fr.readAsDataURL(file);});
+    const r2=await fetch('/.netlify/functions/upload',{method:'POST',headers:h,
+      body:JSON.stringify({action:'put',name:file.name,mime:file.type||'application/octet-stream',data:b64})});
+    const j2=await r2.json();
+    if(!j2.id)throw new Error(j2.error||'upload failed');
+    return j2;
+  }
+}
+async function attOpen(fileId,name){
+  try{
+    const r=await fetch('/.netlify/functions/upload?id='+encodeURIComponent(fileId),{headers:await sbAuthHeaders()});
+    if(!r.ok){
+      const j=await r.json().catch(()=>({}));
+      if(j.tooBig){ // over ~4MB: Netlify cannot stream it back, so hand over a Drive link
+        const l=await fetch('/.netlify/functions/upload',{method:'POST',headers:await sbAuthHeaders({'Content-Type':'application/json'}),body:JSON.stringify({action:'link',id:fileId})});
+        const lj=await l.json();
+        if(lj.url){window.open(lj.url,'_blank');return;}
+      }
+      throw new Error(j.error||('HTTP '+r.status));
+    }
+    const blob=await r.blob();
+    const url=URL.createObjectURL(blob);
+    const w=window.open(url,'_blank');
+    if(!w){const a=document.createElement('a');a.href=url;a.download=name||'file';a.click();}
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+  }catch(e){alert('Could not open it: '+(e.message||e));}
+}
+async function attRemove(rowId,fileId){
+  if(!confirm('Remove this attachment? It is deleted from Drive too.'))return;
+  try{
+    const {error}=await SB.from('attachments').delete().eq('id',rowId);
+    if(error)throw new Error(error.message);
+    try{await fetch('/.netlify/functions/upload',{method:'POST',headers:await sbAuthHeaders({'Content-Type':'application/json'}),
+      body:JSON.stringify({action:'remove',id:fileId})});}catch(e){} // row is gone either way
+    audit('attachment.remove',{file:fileId});
+    if(typeof reRender==='function')reRender();
+  }catch(e){alert('Could not remove it: '+(e.message||e));}
+}
+/* super admin: is Drive actually wired up? shown on the Cutover page */
+async function attCheck(){
+  try{
+    const r=await fetch('/.netlify/functions/upload',{method:'POST',headers:await sbAuthHeaders({'Content-Type':'application/json'}),
+      body:JSON.stringify({action:'check'})});
+    const j=await r.json();
+    alert(j.ok?('Drive is connected.\n\nFolder: '+(j.folder||'?')+(j.sharedDrive?'\nOn a Shared Drive ✓':'\n\nWARNING: this folder is NOT on a Shared Drive. A service account has no storage of its own, so uploads will fail with a quota error. Move the folder into a Shared Drive.'))
+      :('Drive is not working yet:\n\n'+(j.error||'unknown')));
+  }catch(e){alert('Could not reach the upload function: '+(e.message||e));}
+}
+
+/* ══════════════════ FINANCE FORMS ══════════════════
+   Six Google forms — voucher for approval, request to order/pay, proof of
+   payment, replenishment, expense reimbursement, cash advance — as one engine.
+
+   Rather than six near-identical views, each form is a SPEC: its fields, which
+   are required, which option list feeds each dropdown, which sections only
+   appear for a given answer, and whether it takes line items. One renderer
+   draws them, one submit path saves them, one approval chain routes them, and
+   attachments work the same everywhere.
+
+   Anyone signed in can file one; who signs it off is configured per form in
+   approval_routes (Admin → Approval routes), so a route can point at a named
+   person, at whoever holds a role, or at the request's own fund source. */
+const FIN_KINDS=['voucher','orderpay','proofpay','replenish','reimburse','cashadvance'];
+const FIN_SPEC={
+  voucher:{title:'Voucher for approval',no:'voucher',
+    blurb:'For payments that need a voucher raised — supplier invoices, honoraria, reimbursable costs already incurred.',
+    fields:[
+      {k:'ref_no',t:'text',l:'Request no. (if any)',col:'ref_no'},
+      {k:'date_requested',t:'date',l:'Date',req:1,col:'date_requested'},
+      {k:'payee_type',t:'radio',l:'Payee type',opts:['Internal (employee, intern, consultant)','External (supplier, govt agency)']},
+      {k:'fund_class',t:'fund',l:'Fund source',req:1,col:'fund_class'},
+      {k:'payee',t:'text',l:'Payee name',req:1,col:'payee'},
+      {k:'purpose',t:'area',l:'Nature of transaction',req:1,col:'purpose'},
+      {k:'amount',t:'money',l:'Invoice / receipt amount',req:1,col:'amount'},
+      {k:'input_vat',t:'money',l:'Input VAT (if any)'},
+      {k:'ewt',t:'money',l:'Expanded withholding tax (if any)'},
+      {k:'cash_payable',t:'money',l:'Cash payable'},
+      {k:'product_line',t:'list',list:'product_line',l:'Product line',col:'product_line'},
+      {k:'event_code',t:'list',list:'event_code',l:'Event code (product marketing)',col:'event_code'},
+      {k:'cashflow_tag',t:'list',list:'cashflow_tag',l:'Cash-flow tag',req:1,col:'cashflow_tag'},
+      {k:'po_number',t:'text',l:'PO number (for inventory)'},
+      {k:'pay_mode',t:'list',list:'pay_mode',l:'Mode of payment'}
+    ],
+    attach:'Supporting documents (SOA, invoice)'},
+
+  orderpay:{title:'Request to order / pay',no:'orderpay',
+    blurb:'To ORDER (supply chain, 3–5 days after an approved quotation) or to PAY (finance, 3–5 days after an approved quotation/invoice). Payments upload on Fridays.',
+    fields:[
+      {k:'date_requested',t:'date',l:'Date submitted',req:1,col:'date_requested'},
+      {k:'date_needed',t:'date',l:'Date needed',req:1,col:'date_needed'},
+      {k:'request_to',t:'sel',l:'Request to',req:1,opts:[
+        'Order (no approved quotation — non-inventory)','Order (no approved quotation — inventory)',
+        'Pay (with approved quotation or invoice)','Settle a balance']},
+      // to PAY
+      {k:'payee',t:'text',l:'Payee (supplier name)',col:'payee',when:{request_to:['Pay (with approved quotation or invoice)','Settle a balance']},req:1},
+      {k:'supplier_contact',t:'text',l:'Supplier contact person',when:{request_to:['Pay (with approved quotation or invoice)']}},
+      {k:'supplier_phone',t:'text',l:'Supplier phone',when:{request_to:['Pay (with approved quotation or invoice)']}},
+      {k:'supplier_email',t:'text',l:'Supplier email',when:{request_to:['Pay (with approved quotation or invoice)']}},
+      {k:'bank_details',t:'area',l:'Supplier bank details',when:{request_to:['Pay (with approved quotation or invoice)']}},
+      {k:'currency',t:'sel',l:'Currency',opts:['PHP','EUR','USD','HKD'],col:'currency',when:{request_to:['Pay (with approved quotation or invoice)','Settle a balance']}},
+      {k:'amount',t:'money',l:'Amount to pay',col:'amount',when:{request_to:['Pay (with approved quotation or invoice)','Settle a balance']},req:1},
+      {k:'delivery_status',t:'radio',l:'Delivery status',opts:['Delivered','Not yet delivered'],when:{request_to:['Pay (with approved quotation or invoice)']}},
+      {k:'delivery_ref',t:'text',l:'Delivery reference no.',when:{request_to:['Pay (with approved quotation or invoice)']}},
+      // to SETTLE
+      {k:'delivered_on',t:'date',l:'When were the goods/services fully delivered?',when:{request_to:['Settle a balance']},req:1},
+      {k:'prev_request',t:'text',l:'Previous request no. for the initial payment',when:{request_to:['Settle a balance']},req:1},
+      // both
+      {k:'purpose',t:'area',l:'Purpose of the transaction',req:1,col:'purpose'},
+      {k:'product_line',t:'list',list:'product_line',l:'Product line',col:'product_line'},
+      {k:'fund_class',t:'fund',l:'Fund source',req:1,col:'fund_class'},
+      {k:'event_code',t:'list',list:'event_code',l:'Event code',col:'event_code'},
+      {k:'po_number',t:'text',l:'Related PO / request-to-pay no.'}
+    ],
+    lines:{label:'Items to order',hint:'One row per item — what it is, how many, and a preferred supplier if you have one.',
+      cols:[{k:'description',l:'Item (name & units)',t:'text',w:'flex:1;min-width:180px'},
+            {k:'qty',l:'Qty',t:'num',w:'width:80px'},
+            {k:'supplier',l:'Preferred supplier & contact',t:'text',w:'flex:1;min-width:160px'},
+            {k:'link',l:'Link (if any)',t:'text',w:'flex:1;min-width:140px'}],
+      when:{request_to:['Order (no approved quotation — non-inventory)','Order (no approved quotation — inventory)']}},
+    attach:'Approved/signed quotation or SOA · BIR 2303 · supplier proof of account · item photos'},
+
+  proofpay:{title:'Proof of payment',no:'proofpay',
+    blurb:'Filed after a payment goes out, so the voucher can be closed and the supplier sent their proof.',
+    fields:[
+      {k:'ref_no',t:'text',l:'Voucher no.',req:1,col:'ref_no'},
+      {k:'date_requested',t:'date',l:'Date paid',req:1,col:'date_requested'},
+      {k:'payee',t:'text',l:'Supplier',req:1,col:'payee'},
+      {k:'purpose',t:'area',l:'Nature of the transaction paid',req:1,col:'purpose'},
+      {k:'amount',t:'money',l:'Gross amount',req:1,col:'amount'},
+      {k:'cash_payment',t:'money',l:'Cash payment',req:1},
+      {k:'tax_withheld',t:'money',l:'Tax withheld'},
+      {k:'supplier_email',t:'text',l:'Supplier email'},
+      {k:'notes_requestor',t:'area',l:'Notes to the requestor'},
+      {k:'notes_supplier',t:'area',l:'Notes to the supplier'}
+    ],
+    attach:'Bank approval · BIR 2307 · OR from the supplier'},
+
+  replenish:{title:'Request for replenishment',no:'replenish',
+    blurb:'Topping up a float — courier credits, petty cash, waybill pads.',
+    fields:[
+      {k:'requesting_for',t:'text',l:'Requesting for',req:1},
+      {k:'date_requested',t:'date',l:'Date of request',req:1,col:'date_requested'},
+      {k:'replenish_type',t:'list',list:'replenish_type',l:'Replenishment of',req:1},
+      {k:'amount',t:'money',l:'Amount',col:'amount'},
+      {k:'purpose',t:'area',l:'Notes',col:'purpose'}
+    ],
+    attach:'Supporting document'},
+
+  reimburse:{title:'Expense reimbursement',no:'reimburse',
+    blurb:'Money you spent that the company owes back. Attach every receipt — finance cannot process a line without one.',
+    fields:[
+      {k:'date_requested',t:'date',l:'Date submitted',req:1,col:'date_requested'},
+      {k:'team',t:'list',list:'team',l:'Team',req:1,col:'team'},
+      {k:'reimburse_type',t:'list',list:'reimburse_type',l:'Reimbursement type',req:1},
+      {k:'car_type',t:'list',list:'car_type',l:'Car reimbursement type',when:{reimburse_type:['Car Reimbursement']},req:1},
+      {k:'purpose',t:'area',l:'Description',req:1,col:'purpose'},
+      {k:'amount',t:'money',l:'Total amount',req:1,col:'amount'},
+      {k:'credit_to',t:'radio',l:'Where to credit it',opts:['UnionBank payroll account','Other account (payroll not active yet)']},
+      {k:'bank_details',t:'text',l:'Bank / e-wallet, account name, account no.',when:{credit_to:['Other account (payroll not active yet)']},req:1}
+    ],
+    lines:{label:'Transactions',hint:'One row per receipt. The total above should match these.',
+      cols:[{k:'description',l:'Description',t:'text',w:'flex:1;min-width:220px'},
+            {k:'amount',l:'Amount ₱',t:'money',w:'width:130px'}],
+      when:{reimburse_type:['Healthspan Other Expense','Remedy Other Expense']}},
+    attach:'Receipts / invoices for every line'},
+
+  cashadvance:{title:'Request for cash advance',no:'cashadvance',
+    blurb:'Money needed up front for a project. Liquidate with receipts afterwards.',
+    fields:[
+      {k:'team',t:'list',list:'team',l:'Team',req:1,col:'team'},
+      {k:'date_requested',t:'date',l:'Date of request',req:1,col:'date_requested'},
+      {k:'last_day',t:'date',l:'Last day of the project',req:1},
+      {k:'purpose',t:'area',l:'Purpose',req:1,col:'purpose'},
+      {k:'amount',t:'money',l:'Amount requested',req:1,col:'amount'},
+      {k:'fund_class',t:'fund',l:'Fund source',req:1,col:'fund_class'},
+      {k:'breakdown_link',t:'text',l:'Link to the expected-expenses breakdown',req:1},
+      {k:'credit_to',t:'text',l:'Where to credit it — bank, account name, account no.',req:1}
+    ],
+    attach:'Breakdown or supporting documents'}
+};
+const FIN_NO=(kind,num)=>docNo(kind,num);
+
+/* ── option lists (finance-owned) and approval routes ── */
+let CODES=null,ROUTES=null;
+async function loadCodes(force){
+  if(CODES&&!force)return CODES;
+  CODES={};
+  try{const {data}=await SB.from('code_lists').select('*').eq('active',true).order('sort');
+    for(const r of (data||[]))(CODES[r.list]||(CODES[r.list]=[])).push(r.label||r.code);}catch(e){}
+  return CODES;
+}
+async function loadRoutes(force){
+  if(ROUTES&&!force)return ROUTES;
+  ROUTES={};
+  try{const {data}=await SB.from('approval_routes').select('*').eq('active',true).order('step');
+    for(const r of (data||[]))(ROUTES[r.kind]||(ROUTES[r.kind]=[])).push(r);}catch(e){}
+  return ROUTES;
+}
+function finSteps(kind,amount){ // the steps that actually apply to this request
+  return (ROUTES[kind]||[]).filter(r=>(amount||0)>=(r.min_amount||0));
+}
+function finStepOf(req){const st=finSteps(req.kind,req.amount);return st[(req.step||1)-1]||null;}
+function finStepWho(r,req){ // who this step is waiting on, in words
+  if(!r)return '';
+  if(r.approver_name)return r.approver_name;
+  if(r.use_fund_source){const f=fundOf(req.fund_class);return f&&f.approver_name?f.approver_name+' ('+req.fund_class+')':(req.fund_class||'the fund source')+' — no approver set';}
+  if(r.approver_role)return String(r.approver_role).replace('_',' ');
+  return r.label||'someone';
+}
+function canDecideFin(req){ // may I decide the step it is sitting on?
+  if(!req||req.status!=='pending')return false;
+  // nobody signs off their own spending — not even an admin. The super admin can,
+  // because someone has to be able to unstick a request, and it is on the record.
+  const me0=(SBUSER&&SBUSER.id)||'';
+  if(typeof isSuper==='function'&&isSuper())return true;
+  if(req.requester_id&&req.requester_id===me0)return false;
+  if(roleIn('admin'))return true;
+  const r=finStepOf(req);if(!r)return false;
+  const me=(SBUSER&&SBUSER.id)||'';
+  if(r.approver_id&&r.approver_id===me)return true;
+  if(r.approver_role&&ROLE===r.approver_role)return true;
+  if(r.use_fund_source){const f=fundOf(req.fund_class);if(f&&(f.approver_id===me||f.backup_id===me))return true;}
+  return false;
+}
+/* ── the form renderer: one function, six forms ── */
+function finVisible(f,vals){ // a field or section shown only for certain answers
+  if(!f.when)return true;
+  for(const k in f.when){if(!(f.when[k]||[]).includes(vals[k]||''))return false;}
+  return true;
+}
+function finField(f,vals){
+  const id='fn-'+f.k, v=vals[f.k]==null?'':vals[f.k];
+  const inp='style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:9px 10px;font-size:13px"';
+  const lbl='<div style="font-size:10.5px;color:var(--tx3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">'+esc(f.l)+(f.req?' <span style="color:var(--rd)">*</span>':'')+'</div>';
+  let body='';
+  const opts=f.t==='list'?((CODES||{})[f.list]||[]):(f.opts||[]);
+  if(f.t==='area')body='<textarea id="'+id+'" rows="2" oninput="finSet(\''+f.k+'\',this.value)" '+inp+'>'+esc(v)+'</textarea>';
+  else if(f.t==='sel'||f.t==='list')body='<select id="'+id+'" onchange="finSet(\''+f.k+'\',this.value,1)" '+inp+'><option value="">— choose —</option>'+
+    opts.map(o=>'<option'+(o===v?' selected':'')+'>'+esc(o)+'</option>').join('')+'</select>';
+  else if(f.t==='fund')body='<select id="'+id+'" onchange="finSet(\''+f.k+'\',this.value,1)" '+inp+'><option value="">— choose —</option>'+
+    (FUNDS||[]).filter(x=>x.active).map(x=>'<option'+(x.class===v?' selected':'')+'>'+esc(x.class)+'</option>').join('')+'</select>';
+  else if(f.t==='radio')body='<div style="display:flex;gap:12px;flex-wrap:wrap;padding:4px 0">'+opts.map(o=>
+    '<label style="display:flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer"><input type="radio" name="'+id+'"'+(o===v?' checked':'')+' onchange="finSet(\''+f.k+'\',\''+jsq(o)+'\',1)"> '+esc(o)+'</label>').join('')+'</div>';
+  else if(f.t==='date')body='<input id="'+id+'" type="date" value="'+esc(v)+'" onchange="finSet(\''+f.k+'\',this.value)" '+inp+'>';
+  else if(f.t==='money'||f.t==='num')body='<input id="'+id+'" type="number" step="'+(f.t==='money'?'0.01':'1')+'" value="'+esc(v)+'" oninput="finSet(\''+f.k+'\',this.value)" '+inp+'>';
+  else body='<input id="'+id+'" type="text" value="'+esc(v)+'" oninput="finSet(\''+f.k+'\',this.value)" '+inp+'>';
+  return '<div style="flex:1 1 240px;min-width:200px;margin-bottom:10px">'+lbl+body+'</div>';
+}
+function finLinesTable(spec){
+  const rows=window._finLines||[];
+  const inp='style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:7px 9px;font-size:12.5px"';
+  return '<div class="panel" style="padding:12px 14px;margin-bottom:12px">'+
+    '<div class="phd" style="margin-bottom:2px">'+esc(spec.label)+'</div>'+
+    '<div class="mu" style="font-size:11.5px;margin-bottom:8px">'+esc(spec.hint||'')+'</div>'+
+    rows.map((r,i)=>'<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px">'+
+      spec.cols.map(c=>'<input value="'+esc(r[c.k]==null?'':r[c.k])+'" placeholder="'+esc(c.l)+'" '+
+        (c.t==='num'||c.t==='money'?'type="number" ':'')+'oninput="finLineSet('+i+',\''+c.k+'\',this.value)"'+
+        ' style="'+c.w+';'+inp.slice(7,-1)+'">').join('')+
+      '<a href="#" onclick="finLineDrop('+i+');return false" style="color:var(--rd);font-size:11.5px">remove</a></div>').join('')+
+    '<button onclick="finLineAdd()" style="background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:7px 13px;font-size:12px;font-weight:600;cursor:pointer">+ Add row</button>'+
+    (spec.cols.some(c=>c.k==='amount')?'<span class="mu" style="font-size:12px;margin-left:10px">Rows total: <b>'+fmtPeso(rows.reduce((a,r)=>a+(parseFloat(r.amount)||0),0))+'</b></span>':'')+
+    '</div>';
+}
+function finSet(k,v,repaint){window._finVals=window._finVals||{};window._finVals[k]=v;if(repaint)renderFinForm(window._finKind,true);}
+function finLineAdd(){(window._finLines=window._finLines||[]).push({});renderFinForm(window._finKind,true);}
+function finLineDrop(i){(window._finLines||[]).splice(i,1);renderFinForm(window._finKind,true);}
+function finLineSet(i,k,v){const L=window._finLines||[];if(L[i])L[i][k]=v;}
+
+/* ── the view: file one, and the register of everything of this kind ── */
+async function renderFinForm(kind,cheap){
+  kind=kind||window._finKind||'voucher';
+  if(!FIN_SPEC[kind])return;
+  if(window._finKind!==kind){window._finVals={};window._finLines=[];window._finKind=kind;cheap=false;}
+  if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
+  if(cheap&&window._FINROWS)return finPaint(kind,window._FINROWS,window._FINLINES,window._FINATT);
+  loadingHint();
+  await loadFunds();await loadCodes();await loadRoutes(true); // routes change; don't serve a stale chain
+  let rows=[],lines={},att={};
+  try{
+    const [a,b,c]=await Promise.all([
+      SB.from('fin_requests').select('*').eq('kind',kind).order('id',{ascending:false}).limit(300),
+      SB.from('fin_lines').select('*').order('seq').limit(2000),
+      SB.from('attachments').select('*').eq('rec_type',kind)
+    ]);
+    if(a.error)throw a.error;
+    rows=a.data||[];
+    const ids=new Set(rows.map(r=>r.id));
+    for(const l of (b.data||[]))if(ids.has(l.req_id))(lines[l.req_id]||(lines[l.req_id]=[])).push(l);
+    for(const f of (c.data||[]))(att[f.rec_id]||(att[f.rec_id]=[])).push(f);
+  }catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Needs the finance-forms SQL (SUPABASE-SETUP.md): '+esc(e.message||e)+'</div>';return;}
+  window._FINROWS=rows;window._FINLINES=lines;window._FINATT=att;
+  finPaint(kind,rows,lines,att);
+}
+function finPaint(kind,rows,lines,att){
+  const S=FIN_SPEC[kind];
+  const vals=window._finVals=window._finVals||{};
+  if(!vals.date_requested)vals.date_requested=new Date().toISOString().slice(0,10);
+  const me=(SBUSER&&SBUSER.id)||'';
+  const mine=rows.filter(r=>r.requester_id===me);
+  const toDecide=rows.filter(r=>canDecideFin(r));
+  const steps=(ROUTES[kind]||[]);
+  const pill=r=>r.status==='pending'?'<span class="pill pam" style="background:rgba(186,117,23,.15);color:var(--am)">step '+(r.step||1)+' · '+esc(finStepWho(finStepOf(r),r))+'</span>'
+    :r.status==='approved'?'<span class="pill pgr">approved</span>'
+    :r.status==='rejected'?'<span class="pill prd">rejected</span>'
+    :r.status==='settled'?'<span class="pill pbl">settled</span>':'<span class="pill" style="background:var(--sf2);color:var(--tx3)">cancelled</span>';
+  const tabs=FIN_KINDS.map(k=>'<button onclick="showView(\''+k+'\')" style="background:'+(k===kind?'var(--ac)':'var(--sf)')+';color:'+(k===kind?'#fff':'var(--tx)')+
+    ';border:1px solid '+(k===kind?'var(--ac)':'var(--bd)')+';border-radius:999px;padding:6px 13px;font-size:12px;font-weight:600;cursor:pointer">'+esc(FIN_SPEC[k].title)+'</button>').join(' ');
+  $('content').innerHTML=
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">'+tabs+'</div>'+
+    '<div class="panel" style="padding:12px 16px;margin-bottom:12px;font-size:12px;color:var(--tx2)">'+esc(S.blurb)+
+      ' <b style="color:var(--tx)">Route:</b> '+(steps.length?steps.map(r=>esc(r.label||('step '+r.step))).join(' → '):'<span style="color:var(--rd)">no approval route set — an admin needs to configure one</span>')+'.</div>'+
+    '<div class="metrics" style="margin-bottom:12px">'+
+    '<div class="met '+(toDecide.length?'am':'gr')+'"><div class="met-lbl">Waiting on you</div><div class="met-val">'+toDecide.length+'</div><div class="met-sub">'+(toDecide.length?'they cannot move until you decide':'nothing on your desk')+'</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Open</div><div class="met-val">'+rows.filter(r=>r.status==='pending').length+'</div><div class="met-sub">'+fmtPeso(rows.filter(r=>r.status==='pending').reduce((a,r)=>a+(r.amount||0),0))+' in flight</div><div class="met-bar"></div></div>'+
+    '<div class="met pu"><div class="met-lbl">Mine</div><div class="met-val">'+mine.length+'</div><div class="met-sub">'+mine.filter(r=>r.status==='pending').length+' still pending</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    // ── the form ──
+    '<div class="panel" style="padding:14px 16px;margin-bottom:14px">'+
+      '<div class="phd" style="margin-bottom:10px">New '+esc(S.title.toLowerCase())+'</div>'+
+      '<div style="display:flex;gap:10px;flex-wrap:wrap">'+S.fields.filter(f=>finVisible(f,vals)).map(f=>finField(f,vals)).join('')+'</div>'+
+      (S.lines&&finVisible(S.lines,vals)?finLinesTable(S.lines):'')+
+      '<div style="font-size:11px;color:var(--tx3);margin:6px 0 10px">'+(S.attach?'<b>Attach after submitting:</b> '+esc(S.attach)+' — the request appears in the register below with a ＋ Attach button.':'')+'</div>'+
+      '<button onclick="finSubmit()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer">Submit request</button>'+
+    '</div>'+
+    // ── the register ──
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>No.</th><th>Date</th><th>Requested by</th><th>What for</th><th class="r">Amount</th><th>Status</th><th>Files</th><th></th></tr></thead><tbody>'+
+    (rows.length?rows.map(r=>{
+      const isMine=r.requester_id===me, can=canDecideFin(r);
+      const acts=[];
+      if(can)acts.push('<a href="#" onclick="finDecide('+r.id+',\'approve\');return false" style="color:var(--gr);font-weight:700">approve ✓</a>','<a href="#" onclick="finDecide('+r.id+',\'reject\');return false" style="color:var(--rd)">reject</a>');
+      if(isMine&&r.status==='pending')acts.push('<a href="#" onclick="finCancel('+r.id+');return false" style="color:var(--tx3)">cancel</a>');
+      if(r.status==='approved'&&roleIn('admin','finance'))acts.push('<a href="#" onclick="finSettle('+r.id+');return false" style="color:var(--ac)">mark settled</a>');
+      if(typeof delLink==='function'){const d=delLink('fin_requests',r.id);if(d)acts.push(d.replace(/^ · /,''));}
+      const ls=lines[r.id]||[];
+      return '<tr'+(isMine?' style="background:var(--sf2)"':'')+'><td style="font-weight:700">'+FIN_NO(kind,r.num)+(r.ref_no?'<div class="mu" style="font-size:10px">'+esc(r.ref_no)+'</div>':'')+'</td>'+
+      '<td class="mu" style="font-size:11px">'+esc(String(r.date_requested||'').slice(0,10))+(r.date_needed?'<div style="font-size:10px">need '+esc(r.date_needed)+'</div>':'')+'</td>'+
+      '<td class="mu" style="font-size:11.5px;max-width:120px;overflow:hidden;text-overflow:ellipsis">'+esc(r.requester_name||r.requester_email||'—')+'</td>'+
+      '<td style="font-size:11.5px;max-width:250px"><div style="max-height:52px;overflow:hidden">'+esc(r.purpose||r.payee||'—')+'</div>'+
+        (r.fund_class?'<div class="mu" style="font-size:10px">'+esc(r.fund_class)+(r.event_code?' · '+esc(r.event_code):'')+(r.cashflow_tag?' · '+esc(r.cashflow_tag):'')+'</div>':'')+
+        (ls.length?'<div class="mu" style="font-size:10px">'+ls.length+' line'+(ls.length>1?'s':'')+'</div>':'')+'</td>'+
+      '<td class="r" style="font-weight:700">'+(r.amount?((r.currency&&r.currency!=='PHP'?esc(r.currency)+' ':'')+fmtPeso(r.amount)):'—')+'</td>'+
+      '<td>'+pill(r)+(r.decision_note?'<div class="mu" style="font-size:10px;max-width:150px">'+esc(r.decision_note)+'</div>':'')+'</td>'+
+      '<td>'+(typeof attBlock==='function'?attBlock(kind,r.id,(att[String(r.id)]||[]),isMine||can||roleIn('admin','finance')):'')+'</td>'+
+      '<td style="white-space:nowrap;font-size:11.5px">'+acts.join(' · ')+'</td></tr>';
+    }).join(''):'<tr><td colspan="8" class="mu">Nothing filed yet.</td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>Anyone can file one · it moves through '+(steps.length||1)+' approval step'+((steps.length||1)>1?'s':'')+' before it is actionable · every decision is recorded with who and when. Attach supporting documents to the row after submitting.</span></div></div>';
+}
+
+/* ── submit, decide, cancel ── */
+async function finSubmit(){
+  const kind=window._finKind,S=FIN_SPEC[kind],vals=window._finVals||{};
+  const shown=S.fields.filter(f=>finVisible(f,vals));
+  for(const f of shown){
+    if(f.req&&!String(vals[f.k]||'').trim())return alert('“'+f.l+'” is required.');
+  }
+  const lines=(S.lines&&finVisible(S.lines,vals))?(window._finLines||[]).filter(l=>Object.values(l).some(v=>String(v||'').trim())):[];
+  if(S.lines&&finVisible(S.lines,vals)&&!lines.length&&kind!=='reimburse')return alert('Add at least one row under “'+S.lines.label+'”.');
+  // the money on the lines should agree with the total the person typed
+  if(lines.length&&vals.amount&&S.lines.cols.some(c=>c.k==='amount')){
+    const sum=lines.reduce((a,l)=>a+(parseFloat(l.amount)||0),0);
+    if(Math.abs(sum-parseFloat(vals.amount||0))>1&&!confirm('The rows add up to '+fmtPeso(sum)+' but the total says '+fmtPeso(parseFloat(vals.amount)||0)+'.\n\nSubmit anyway?'))return;
+  }
+  const st=finSteps(kind,Math.round(parseFloat(vals.amount||0)));
+  if(!st.length&&!confirm('No approval route is set for this form, so nobody will be notified. Submit anyway and ask an admin to configure one?'))return;
+  const row={kind,requester_id:SBUSER.id,requester_name:(SBPROFILE&&SBPROFILE.name)||'',requester_email:(SBUSER&&SBUSER.email)||'',
+    status:'pending',step:1,data:{}};
+  for(const f of shown){ // only what the form actually showed — a field hidden by
+    const v=vals[f.k];    // an earlier answer must not smuggle a stale value through
+    if(v==null||v==='')continue;
+    if(f.col)row[f.col]=(f.t==='money'||f.t==='num')?Math.round(parseFloat(v)||0):v;
+    else row.data[f.k]=v;
+  }
+  if(!row.date_requested)row.date_requested=new Date().toISOString().slice(0,10);
+  if(typeof blockIfClosed==='function'&&blockIfClosed(row.date_requested,'Request not filed'))return;
+  try{
+    const {data,error}=await SB.from('fin_requests').insert(row).select().single();
+    if(error)throw error;
+    if(lines.length){
+      const {error:eL}=await SB.from('fin_lines').insert(lines.map((l,i)=>({req_id:data.id,seq:i+1,
+        description:l.description||null,qty:l.qty?parseFloat(l.qty):null,
+        amount:l.amount?Math.round(parseFloat(l.amount)):null,
+        meta:{supplier:l.supplier||'',link:l.link||''}})));
+      if(eL){ // never leave a lineless request in everyone's queue
+        try{await SB.from('fin_requests').update({status:'cancelled',decision_note:'auto-cancelled: the lines failed to save'}).eq('id',data.id);}catch(e2){}
+        throw new Error('The lines could not be saved, so the request was cancelled: '+(eL.message||eL));
+      }
+    }
+    audit('fin.'+kind+'.file',{no:FIN_NO(kind,data.num),amount:row.amount||0,fund:row.fund_class||''});
+    await finNotifyStep(data,st[0]);
+    window._finVals={};window._finLines=[];
+    alert(FIN_NO(kind,data.num)+' submitted.'+(st[0]?' Sent to '+finStepWho(st[0],data)+'.':''));
+    renderFinForm(kind);
+  }catch(e){alert('Could not submit: '+(e.message||e));}
+}
+async function finNotifyStep(req,step){
+  if(!step)return;
+  const title=FIN_SPEC[req.kind].title+' needs approval: '+FIN_NO(req.kind,req.num);
+  const body=(req.requester_name||'Someone')+' · '+(req.amount?fmtPeso(req.amount):'')+(req.purpose?' · '+String(req.purpose).slice(0,80):'');
+  try{
+    if(step.approver_id)return notify({user_id:step.approver_id},'approval',title,body,'#/v/'+req.kind);
+    if(step.use_fund_source){
+      const f=fundOf(req.fund_class);
+      if(f&&f.approver_id)await notify({user_id:f.approver_id},'approval',title,body,'#/v/'+req.kind);
+      if(f&&f.backup_id)await notify({user_id:f.backup_id},'approval',title+' (backup)',body,'#/v/'+req.kind);
+      return;
+    }
+    if(step.approver_role)return notify({roles:[step.approver_role]},'approval',title,body,'#/v/'+req.kind);
+  }catch(e){}
+}
+async function finDecide(id,what){
+  const {data:r}=await SB.from('fin_requests').select('*').eq('id',id).maybeSingle();
+  if(!r||r.status!=='pending')return renderFinForm(window._finKind);
+  if(!canDecideFin(r))return alert('This one is waiting on '+finStepWho(finStepOf(r),r)+'.');
+  const no=FIN_NO(r.kind,r.num);
+  const note=(prompt((what==='approve'?'Approve ':'Reject ')+no+' — note for the record'+(what==='reject'?' (goes back to the requester)':' (optional)')+':','')||'').trim();
+  if(what==='reject'&&!note&&!confirm('Reject with no reason given?'))return;
+  const steps=finSteps(r.kind,r.amount);
+  const decisions=(r.decisions||[]).concat([{step:r.step,by:(SBUSER&&SBUSER.id)||'',name:(SBPROFILE&&SBPROFILE.name)||'',at:new Date().toISOString(),decision:what,note:note||''}]);
+  const last=(r.step||1)>=steps.length;
+  const patch=what==='reject'
+    ?{status:'rejected',decision_note:note||null,decisions,updated_at:new Date().toISOString()}
+    :(last?{status:'approved',decision_note:note||null,decisions,updated_at:new Date().toISOString()}
+          :{step:(r.step||1)+1,decisions,decision_note:note||null,updated_at:new Date().toISOString()});
+  try{
+    const {data:done,error}=await SB.from('fin_requests').update(patch).eq('id',id).select();
+    if(error)throw error;
+    if(!done||!done.length)throw new Error('The database refused the update — you may not be on this step.');
+    audit('fin.'+r.kind+'.'+what,{no,step:r.step,note});
+    try{
+      if(r.requester_id&&(what==='reject'||last))
+        notify({user_id:r.requester_id},'decision',FIN_SPEC[r.kind].title+' '+(what==='reject'?'REJECTED':'APPROVED')+': '+no,
+          what==='reject'?(note||'No reason given.'):'Approved in full — finance will action it.','#/v/'+r.kind);
+      if(what==='approve'&&!last)await finNotifyStep(r,steps[r.step]); // step is 1-based, so this is the next one
+      if(what==='approve'&&last&&r.kind!=='proofpay')
+        notify({roles:['finance']},'auto',FIN_SPEC[r.kind].title+' approved: '+no,(r.payee||r.requester_name||'')+' · '+fmtPeso(r.amount||0)+' — ready to action','#/v/'+r.kind);
+    }catch(e){}
+    renderFinForm(r.kind);
+  }catch(e){alert('Could not save the decision: '+(e.message||e));}
+}
+async function finSettle(id){ // the money actually moved — closes the loop for finance
+  if(!roleIn('admin','finance'))return;
+  const ref=(prompt('Mark settled — reference (voucher no., bank ref, cheque no.):','')||'').trim();
+  if(ref===null)return;
+  try{
+    const {data:done,error}=await SB.from('fin_requests').update({status:'settled',ref_no:ref||null,updated_at:new Date().toISOString()}).eq('id',id).eq('status','approved').select();
+    if(error)throw error;
+    if(!done||!done.length)throw new Error('It is not in an approved state.');
+    audit('fin.settle',{id,ref});
+    try{const r=done[0];if(r.requester_id)notify({user_id:r.requester_id},'decision','Settled: '+FIN_NO(r.kind,r.num),'Finance has released the payment'+(ref?' ('+ref+')':'')+'.','#/v/'+r.kind);}catch(e){}
+    renderFinForm(window._finKind);
+  }catch(e){alert('Could not mark it settled: '+(e.message||e));}
+}
+async function finCancel(id){
+  if(!confirm('Cancel this request?'))return;
+  try{
+    const {data:done,error}=await SB.from('fin_requests').update({status:'cancelled',updated_at:new Date().toISOString()}).eq('id',id).eq('status','pending').select();
+    if(error)throw error;
+    if(!done||!done.length)throw new Error('The database refused it.');
+    audit('fin.cancel',{id});renderFinForm(window._finKind);
+  }catch(e){alert('Could not cancel: '+(e.message||e));}
+}
+
+/* ── code lists: the dropdowns finance keeps changing ── */
+const CODE_LISTS=[['event_code','Event codes'],['cashflow_tag','Cash-flow tags'],['product_line','Product lines'],
+  ['pay_mode','Modes of payment'],['replenish_type','Replenishment types'],['reimburse_type','Reimbursement types'],
+  ['car_type','Car reimbursement types'],['team','Teams']];
+async function renderCodeLists(){
+  if(!roleIn('admin','finance')){$('content').innerHTML='<div class="empty" style="margin-top:40px">Finance and admin only.</div>';return;}
+  loadingHint();
+  const which=window._clWhich||'event_code';
+  let rows=[];
+  try{const {data,error}=await SB.from('code_lists').select('*').eq('list',which).order('sort');if(error)throw error;rows=data||[];}
+  catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Needs the finance-forms SQL (SUPABASE-SETUP.md): '+esc(e.message||e)+'</div>';return;}
+  $('content').innerHTML=
+    '<div class="panel" style="padding:12px 16px;margin-bottom:12px;font-size:12px;color:var(--tx2)">'+
+      'The dropdown options behind the finance forms. Add a code when a new programme starts; <b>deactivate</b> rather than delete when one ends — historical requests keep showing the code they were filed under, and a deactivated code simply stops appearing in new forms.</div>'+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">'+
+      CODE_LISTS.map(([k,l])=>'<button onclick="window._clWhich=\''+k+'\';renderCodeLists()" style="background:'+(k===which?'var(--ac)':'var(--sf)')+';color:'+(k===which?'#fff':'var(--tx)')+';border:1px solid '+(k===which?'var(--ac)':'var(--bd)')+';border-radius:999px;padding:6px 13px;font-size:12px;font-weight:600;cursor:pointer">'+esc(l)+'</button>').join(' ')+
+    '</div>'+
+    '<div class="panel" style="padding:12px 14px;margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+
+      '<input id="cl-new" placeholder="New '+esc((CODE_LISTS.find(x=>x[0]===which)||[,''])[1].replace(/s$/,'').toLowerCase())+'" style="flex:1;min-width:220px;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:9px 10px;font-size:13px">'+
+      '<button onclick="clAdd()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:700;cursor:pointer">Add</button></div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th class="r">#</th><th>Code</th><th>Status</th><th></th></tr></thead><tbody>'+
+    (rows.length?rows.map(r=>'<tr><td class="r mu">'+(r.sort||'')+'</td><td style="font-weight:600">'+esc(r.label||r.code)+'</td>'+
+      '<td>'+(r.active?'<span class="pill pgr">active</span>':'<span class="pill" style="background:var(--sf2);color:var(--tx3)">retired</span>')+'</td>'+
+      '<td style="white-space:nowrap;font-size:11.5px"><a href="#" onclick="clRename('+r.id+',\''+jsq(r.label||r.code)+'\');return false" style="color:var(--ac)">rename</a> · '+
+      '<a href="#" onclick="clToggle('+r.id+','+(r.active?'false':'true')+');return false" style="color:var(--tx3)">'+(r.active?'retire':'reactivate')+'</a></td></tr>').join('')
+      :'<tr><td colspan="4" class="mu">Nothing in this list yet.</td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>Renaming changes how the code reads on new AND existing requests, because requests store the code itself. Retiring only hides it from new forms.</span></div></div>';
+}
+async function clAdd(){
+  const v=(($('cl-new')||{}).value||'').trim();if(!v)return;
+  const which=window._clWhich||'event_code';
+  try{
+    const {data:mx}=await SB.from('code_lists').select('sort').eq('list',which).order('sort',{ascending:false}).limit(1);
+    const next=((mx&&mx[0]&&mx[0].sort)||0)+1;
+    const {error}=await SB.from('code_lists').insert({list:which,code:v,label:v,sort:next,updated_by:(SBUSER&&SBUSER.id)||null});
+    if(error)throw error;
+    audit('codelist.add',{list:which,code:v});
+    await loadCodes(true);renderCodeLists();
+  }catch(e){alert(String(e.message||e).match(/duplicate|unique/i)?'That one is already in the list.':'Could not add: '+(e.message||e));}
+}
+async function clRename(id,cur){
+  const v=(prompt('Rename this option. It changes on existing requests too, because they store the code itself:',cur)||'').trim();
+  if(!v||v===cur)return;
+  try{
+    const {error}=await SB.from('code_lists').update({label:v,code:v,updated_at:new Date().toISOString(),updated_by:(SBUSER&&SBUSER.id)||null}).eq('id',id);
+    if(error)throw error;
+    audit('codelist.rename',{id,from:cur,to:v});
+    await loadCodes(true);renderCodeLists();
+  }catch(e){alert('Could not rename: '+(e.message||e));}
+}
+async function clToggle(id,active){
+  try{
+    const {error}=await SB.from('code_lists').update({active:!!active,updated_at:new Date().toISOString()}).eq('id',id);
+    if(error)throw error;
+    audit('codelist.'+(active?'activate':'retire'),{id});
+    await loadCodes(true);renderCodeLists();
+  }catch(e){alert('Could not save: '+(e.message||e));}
+}
+
+/* ── approval routes: who signs off which form ── */
+async function renderRoutes(){
+  if(!roleIn('admin')){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins only.</div>';return;}
+  loadingHint();
+  await loadRoutes(true);
+  if(!window._PLUSERS){try{
+    const o=(typeof adminUsers==='function')?await adminUsers('list'):null;
+    let arr=(o&&(o.users||o.list))||o||[];if(!Array.isArray(arr))arr=[];
+    window._PLUSERS=arr.filter(u=>u&&u.id&&u.role!=='sales').sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
+  }catch(e){window._PLUSERS=[];}}
+  const rows=[];
+  for(const k of FIN_KINDS)for(const r of ((ROUTES||{})[k]||[]))rows.push(r);
+  const nameOf=k=>(FIN_SPEC[k]?FIN_SPEC[k].title:k);
+  $('content').innerHTML=
+    '<div class="panel" style="padding:12px 16px;margin-bottom:12px;font-size:12px;color:var(--tx2)">'+
+      'Who signs off each form, in order. A step can point at <b>a named person</b>, at <b>whoever holds a role</b> (so it survives someone leaving), or at <b>the request’s own fund source</b> — which routes marketing spend to the marketing approver and sales spend to the sales approver without a step each. '+
+      'A step with a minimum amount only applies at or above that figure, so small claims skip it. '+
+      '<b>Pull-out requests are not here</b> \u2014 they route off the fund-source table directly.</div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Form</th><th class="r">Step</th><th>Label</th><th>Goes to</th><th class="r">Applies from</th><th></th></tr></thead><tbody>'+
+    (rows.length?rows.map(r=>'<tr><td style="font-weight:600">'+esc(nameOf(r.kind))+'</td><td class="r">'+r.step+'</td>'+
+      '<td class="mu">'+esc(r.label||'')+'</td>'+
+      '<td>'+(r.use_fund_source?'<span class="pill pbl">the request’s fund source</span>':r.approver_name?esc(r.approver_name):r.approver_role?'<span class="pill" style="background:var(--sf2);color:var(--tx2)">any '+esc(String(r.approver_role).replace('_',' '))+'</span>':'<span style="color:var(--rd)">not set</span>')+'</td>'+
+      '<td class="r mu">'+(r.min_amount?fmtPeso(r.min_amount):'any amount')+'</td>'+
+      '<td style="white-space:nowrap;font-size:11.5px"><a href="#" onclick="routeEdit('+r.id+');return false" style="color:var(--ac)">change</a> · '+
+      '<a href="#" onclick="routeDrop('+r.id+');return false" style="color:var(--rd)">remove</a></td></tr>').join('')
+      :'<tr><td colspan="6" class="mu">No routes configured — every form would submit with nobody notified.</td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>Steps run in order; a request sits at one step until it is approved, then moves to the next. Rejecting at any step ends it.</span></div></div>'+
+    '<div class="panel" style="padding:12px 14px;margin-top:12px"><button onclick="routeAdd()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:700;cursor:pointer">+ Add a step</button></div>';
+}
+function routeWhoPrompt(){
+  const us=window._PLUSERS||[];
+  const list=us.map((u,i)=>(i+1)+') '+(u.name||u.email)+' — '+String(u.role||'').replace('_',' ')).join('\n');
+  const v=prompt('Who approves this step?\n\n  F = the request’s own fund source\n  R:<role> = anyone with that role (admin, finance, manager, supply_chain, marketing)\n'+list+'\n\nEnter F, R:finance, or a number:','F');
+  if(v===null)return null;
+  const t=v.trim();
+  if(/^f$/i.test(t))return {use_fund_source:true,approver_id:null,approver_name:null,approver_role:null};
+  if(/^r:/i.test(t)){
+    const role=t.slice(2).trim().toLowerCase();
+    const ROLES=['admin','manager','sales','supply_chain','finance','marketing','viewer'];
+    if(!ROLES.includes(role))return alert('“'+role+'” is not a role. Use one of: '+ROLES.join(', ')),null;
+    return {use_fund_source:false,approver_id:null,approver_name:null,approver_role:role};
+  }
+  const u=us[parseInt(t,10)-1];
+  if(!u)return alert('No match — nothing changed.'),null;
+  return {use_fund_source:false,approver_id:u.id,approver_name:u.name||u.email,approver_role:null};
+}
+async function routeAdd(){
+  if(!roleIn('admin'))return;
+  const kinds=FIN_KINDS.slice(); // pull-outs route off fund_sources, not this table
+  const pick=prompt('Which form?\n\n'+kinds.map((k,i)=>(i+1)+') '+FIN_SPEC[k].title).join('\n')+'\n\nEnter a number:','1');
+  if(pick===null)return;
+  const kind=kinds[parseInt(pick,10)-1];if(!kind)return alert('No match.');
+  const step=parseInt(prompt('Step number (1 = first to approve):','1')||'0',10);
+  if(!step||step<1)return alert('Step must be 1 or more.');
+  const label=(prompt('Label for this step (e.g. Fund source, Finance):','')||'').trim();
+  const who=routeWhoPrompt();if(!who)return;
+  const min=Math.round(parseFloat(prompt('Only apply this step at or above what amount? (0 = always)','0')||'0')||0);
+  try{
+    const {error}=await SB.from('approval_routes').insert(Object.assign({kind,step,label:label||null,min_amount:min,active:true},who));
+    if(error)throw error;
+    audit('route.add',{kind,step,who:who.approver_name||who.approver_role||'fund source'});
+    await loadRoutes(true);renderRoutes();
+  }catch(e){alert(String(e.message||e).match(/duplicate|unique/i)?'That form already has a step '+step+' — change it instead.':'Could not add: '+(e.message||e));}
+}
+async function routeEdit(id){
+  if(!roleIn('admin'))return;
+  let cur=null;try{const {data}=await SB.from('approval_routes').select('*').eq('id',id).maybeSingle();cur=data;}catch(e){}
+  const who=routeWhoPrompt();if(!who)return;
+  const min=Math.round(parseFloat(prompt('Only apply this step at or above what amount? (0 = always)',String((cur&&cur.min_amount)||0))||'0')||0);
+  try{
+    const {error}=await SB.from('approval_routes').update(Object.assign({min_amount:min},who)).eq('id',id);
+    if(error)throw error;
+    audit('route.edit',{id,who:who.approver_name||who.approver_role||'fund source'});
+    await loadRoutes(true);renderRoutes();
+  }catch(e){alert('Could not save: '+(e.message||e));}
+}
+async function routeDrop(id){
+  if(!roleIn('admin'))return;
+  if(!confirm('Remove this approval step? Requests already waiting on it will fall to the next step.'))return;
+  try{
+    const {error}=await SB.from('approval_routes').delete().eq('id',id);
+    if(error)throw error;
+    audit('route.remove',{id});
+    await loadRoutes(true);renderRoutes();
+  }catch(e){alert('Could not remove: '+(e.message||e));}
 }

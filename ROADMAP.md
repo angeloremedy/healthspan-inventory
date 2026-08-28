@@ -99,9 +99,15 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ Mobile once-and-for-all: sticky top bar (never scrolls away, no rubber-band gap) · customizable bottom bar (each user picks their 4 quick-access pages; Home + Menu fixed)
 - ✅ HD home-screen icons: white logo on brand blue (192/512/maskable/apple-touch)
 
+**Attachments (Aug 28)**
+- ✅ Google Drive attachments live: service-account JWT (RS256, no dependencies), resumable upload straight from the browser to a Shared Drive with a base64 fallback through the function, and reads streamed back through HQ so the app's own permissions decide who can open a document — not Drive membership
+- ✅ `attachments` table (pointer only: file id, name, mime, size, uploader); files over ~4 MB open via a Drive link because Netlify caps a function response at 6 MB
+- ✅ Attach control live on pull-out requests; Cutover page has a "Test the connection" check that also warns when the folder is not on a Shared Drive (the misconfiguration that looks right and fails on first upload)
+- ✅ ATTACHMENTS-SETUP.md: click-by-click service-account setup
+
 **Super-admin control (Aug 28)**
 - ✅ Delete anything, archived not destroyed: typing the record's number is required, the row + its child lines are copied to `archive_bin`, then removed. Admin → Archive restores (new id; links not rebuilt) or purges behind a second typed confirmation. All audited; the bin is in the nightly backup
-- ✅ Document numbering settings: one super-admin page for HS / QT / CM / PL / PO / TR — prefix, zero-padding, and the number each series appears to start at, with a live example. Numbers still derive from the record's own position, so a format change can never collide two documents. DR numbers stay on the Cutover page (stamped permanently at print)
+- ✅ Document numbering settings: one super-admin page for HS / QT / CM / PL / PO / TR / C (complaints) — prefix, zero-padding, and the number each series appears to start at, with a live example. Numbers still derive from the record's own position, so a format change can never collide two documents. DR numbers stay on the Cutover page (stamped permanently at print)
 - ✅ Product specialists removed from the fund-source approver picker
 - ✅ New **Finance forms** sidebar section (pull-out requests today; the five finance forms as they land)
 
@@ -117,6 +123,10 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ Release is the only step that moves stock: FEFO batch-stamped picks ref PL-n, so a pulled lot is as traceable as a sold one; "mark booked" closes the Shopify parallel-run loop
 - ✅ Approval rights are role-independent by rule: a viewer-level approver decides their class normally, and the page names what they own; enforced in viewAllowed, canDecidePullout and the RLS policy (which keys off fund_sources, not profiles.role)
 - ✅ Finance visibility: fund-source spend by class and month (requests, units, value at item-master cost, released vs open) + Export for QBO, one row per line with class, approver, cost and booking ref
+- ✅ **Seven finance forms** — shipped: pull-outs plus voucher, request to order/pay, proof of payment, replenishment, reimbursement and cash advance, as one spec-driven engine (fields, conditional sections, line items, attachments, numbering and register all shared)
+- ✅ Per-form approval chains (`approval_routes`): a step points at a person, a role, or the request's own fund source, with an optional amount threshold; DB enforces the step, so no reaching past step 1. Nobody approves their own request
+- ✅ Editable option lists (`code_lists`): 41 event codes + 35 cash-flow tags seeded from the Google forms, plus product lines, payment modes, replenishment/reimbursement types and teams — finance and admin add and retire them
+- ✅ Finance request register is need-to-know (own + ones you decide + finance/admin), and attachments follow the request
 - ▢ Push pull-outs (and all orders) to QBO directly — today the Shopify↔QBO integration carries them; separate piece of work
 
 **Accounting integrity pack (Aug 28)**

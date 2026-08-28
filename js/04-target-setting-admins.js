@@ -39,12 +39,12 @@ async function renderTargets(){
       '<td class="r"><input class="tg-in" data-spec="'+esc(s)+'" type="number" min="0" step="1000" value="'+(m?m.amount:'')+'" placeholder="'+(sh!=null?sh:'—')+'" '+inp+'></td>'+
       '<td class="r">'+(m?'<b>'+fmtPeso(m.amount)+'</b> <span class="pill pgr" style="font-size:9px">set here</span>':sh!=null?fmtPeso(sh)+' <span class="pill pgy" style="font-size:9px">sheet</span>':'<span class="mu">none</span>')+'</td>'+
       '<td class="r mu">'+(prevOf(s)!=null?fmtPeso(prevOf(s)):'—')+'</td>'+
-      '<td style="white-space:nowrap">'+(m?'<a href="#" onclick="tgClear(\''+esc(s).replace(/'/g,'&#39;')+'\');return false" style="color:var(--rd);font-size:11px">clear</a> ':'')+
-      (ROLE==='admin'?'<a href="#" onclick="specDeact(\''+esc(s).replace(/'/g,'&#39;')+'\');return false" title="Hide from pickers & targets — history is kept" style="color:var(--tx3);font-size:11px">deactivate</a>':'')+'</td></tr>';}).join('')+
+      '<td style="white-space:nowrap">'+(m?'<a href="#" onclick="tgClear(\''+jsq(s)+'\');return false" style="color:var(--rd);font-size:11px">clear</a> ':'')+
+      (ROLE==='admin'?'<a href="#" onclick="specDeact(\''+jsq(s)+'\');return false" title="Hide from pickers & targets — history is kept" style="color:var(--tx3);font-size:11px">deactivate</a>':'')+'</td></tr>';}).join('')+
     '</tbody></table></div><div class="tfooter"><span>Targets set here override the sheet/corporate numbers for that specialist & month, everywhere (Vs target, Specialists, their own pages) · blank = keep the sheet value · specialists see targets, only admins & sales managers set them · deactivating hides a PS from pickers and this list; every record they ever made stays</span></div></div>'+
     (function(){const inact=(SPEC_ROSTER||[]).filter(r=>!r.active);
       return inact.length&&ROLE==='admin'?'<div class="panel" style="padding:10px 16px;margin-top:12px;font-size:12px"><b>Inactive specialists:</b> '+
-        inact.map(r=>esc(r.spec)+' <a href="#" onclick="specReact(\''+esc(r.spec).replace(/'/g,'&#39;')+'\');return false" style="color:var(--gr);font-size:11px">reactivate</a>').join(' · ')+'</div>':'';})();
+        inact.map(r=>esc(r.spec)+' <a href="#" onclick="specReact(\''+jsq(r.spec)+'\');return false" style="color:var(--gr);font-size:11px">reactivate</a>').join(' · ')+'</div>':'';})();
 }
 async function tgSaveAll(){
   if(!canManage()||!SB)return;
@@ -138,7 +138,7 @@ async function showDeliveryReceipt(ref){
   const lines=(o.order_lines||[]);
   $('content').innerHTML=
     '<div class="no-print" style="display:flex;gap:10px;margin-bottom:12px">'+
-    '<a href="#" onclick="showOrderPage(\''+esc(String(ref)).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac);font-size:12.5px">← Back to order</a><span style="flex:1"></span>'+
+    '<a href="#" onclick="showOrderPage(\''+jsq(String(ref))+'\');return false" style="color:var(--ac);font-size:12.5px">← Back to order</a><span style="flex:1"></span>'+
     '<button onclick="window.print()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer">🖨 Print / Save PDF</button></div>'+
     '<div class="printdoc">'+
     '<div style="display:flex;justify-content:space-between;align-items:flex-start"><div>'+hsLogo(34,'#00168F')+'<div style="font-size:19px;font-weight:800;margin-top:5px">HEALTHSPAN GLOBAL, INC.</div><div style="font-size:12px;color:#555">Delivery Receipt</div></div>'+
@@ -192,7 +192,7 @@ async function showStatement(name){
   const stat=o=>o.pay_status==='paid'?'Paid':o.pay_status==='partial'?'Partial':'Unpaid';
   $('content').innerHTML=
     '<div class="no-print" style="display:flex;gap:10px;margin-bottom:12px">'+
-    '<a href="#" onclick="showAccountPage(\''+esc(e.name).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac);font-size:12.5px">← Back to account</a><span style="flex:1"></span>'+
+    '<a href="#" onclick="showAccountPage(\''+jsq(e.name)+'\');return false" style="color:var(--ac);font-size:12.5px">← Back to account</a><span style="flex:1"></span>'+
     '<button onclick="window.print()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer">🖨 Print / Save PDF</button></div>'+
     '<div class="printdoc">'+
     '<div style="display:flex;justify-content:space-between;align-items:flex-start"><div>'+hsLogo(34,'#00168F')+'<div style="font-size:19px;font-weight:800;margin-top:5px">HEALTHSPAN GLOBAL, INC.</div><div style="font-size:12px;color:#555">Statement of Account</div></div>'+
@@ -462,17 +462,17 @@ async function renderAccountPage(){
     (canManage()?ownerSelHTML(name):(ownerOf(name)?'<span class="pill pbl">owner: '+esc(ownerOf(name))+'</span>':''))+
     (function(){const l=creditLimitOf(e.name);const ed=roleIn('admin','finance');
       if(l==null&&!ed)return '';
-      return '<span class="pill" style="background:var(--am-bg);color:var(--am)'+(ed?';cursor:pointer':'')+'"'+(ed?' onclick="setCreditLimit(\''+esc(e.name).replace(/'/g,'&#39;')+'\')" title="Credit limit — tap to change (finance/admin)"':'')+'>limit: '+(l!=null?fmtPeso(l):'set…')+'</span>';})()+
+      return '<span class="pill" style="background:var(--am-bg);color:var(--am)'+(ed?';cursor:pointer':'')+'"'+(ed?' onclick="setCreditLimit(\''+jsq(e.name)+'\')" title="Credit limit — tap to change (finance/admin)"':'')+'>limit: '+(l!=null?fmtPeso(l):'set…')+'</span>';})()+
     (function(){try{const st=stageOf({name:e.name,booked:AGG.booked,shipped:AGG.shipped,last:AGG.last,src:e.shop?'shopify':'prospect'});return '<span class="pill" style="background:var(--pu-bg);color:var(--pu)" title="Pipeline stage - manage in the Pipeline view">'+st+'</span>';}catch(ex){return '';}})()+
     (aliases.length>1?'<span class="pill pgy" title="'+esc(aliases.join(' / '))+'">'+aliases.length+' name spellings merged</span>':'')+
     '<span style="flex:1"></span>'+
-    '<button onclick="showStatement(\''+esc(name).replace(/'/g,'&#39;')+'\')" title="Printable statement of account: orders, payments, balance, aging" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer">🖨 Statement</button>'+
-    (canManage()&&!e.virtual?'<button onclick="linkAccount(\''+esc(name).replace(/'/g,'&#39;')+'\',\'merge\')" title="This is the same customer as another account, under a different spelling" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer">⇢ Merge into…</button>'+
-    (e.parentKey?'':'<button onclick="linkAccount(\''+esc(name).replace(/'/g,'&#39;')+'\',\'branch\')" title="Group this account under a parent company" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer">⌂ Set parent…</button>'):'')+
-    '<button onclick="window._noAccount=\''+esc(name).replace(/'/g,'&#39;')+'\';showView(\'neworder\',null)" style="background:var(--gr);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:600;cursor:pointer">+ New order</button>'+
-    '<button onclick="window._lvAccount=\''+esc(name).replace(/'/g,'&#39;')+'\';showView(\'logvisit\',null)" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:600;cursor:pointer">+ Log visit here</button>'+
-    '<button onclick="commLog(\''+esc(name).replace(/'/g,'&#39;')+'\',\'Call\')" title="Log a phone touch — counts like a visit for coverage and dormancy" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer">📞 Call</button>'+
-    '<button onclick="commLog(\''+esc(name).replace(/'/g,'&#39;')+'\',\'Viber\')" title="Log a Viber touch" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer">Viber</button>'+
+    '<button onclick="showStatement(\''+jsq(name)+'\')" title="Printable statement of account: orders, payments, balance, aging" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer">🖨 Statement</button>'+
+    (canManage()&&!e.virtual?'<button onclick="linkAccount(\''+jsq(name)+'\',\'merge\')" title="This is the same customer as another account, under a different spelling" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer">⇢ Merge into…</button>'+
+    (e.parentKey?'':'<button onclick="linkAccount(\''+jsq(name)+'\',\'branch\')" title="Group this account under a parent company" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer">⌂ Set parent…</button>'):'')+
+    '<button onclick="window._noAccount=\''+jsq(name)+'\';showView(\'neworder\',null)" style="background:var(--gr);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:600;cursor:pointer">+ New order</button>'+
+    '<button onclick="window._lvAccount=\''+jsq(name)+'\';showView(\'logvisit\',null)" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:600;cursor:pointer">+ Log visit here</button>'+
+    '<button onclick="commLog(\''+jsq(name)+'\',\'Call\')" title="Log a phone touch — counts like a visit for coverage and dormancy" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer">📞 Call</button>'+
+    '<button onclick="commLog(\''+jsq(name)+'\',\'Viber\')" title="Log a Viber touch" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer">Viber</button>'+
     '</div>'+
     '<div class="metrics" style="margin-bottom:14px">'+
     '<div class="met gr"><div class="met-lbl">Booked (13mo)</div><div class="met-val" style="font-size:15px">'+fmtPeso(AGG.booked)+'</div><div class="met-sub">'+AGG.orders+' Shopify orders'+(e.children?' · all branches':'')+'</div><div class="met-bar"></div></div>'+
@@ -482,17 +482,17 @@ async function renderAccountPage(){
     '</div>'+
     ((e.children&&e.children.length)?'<div class="panel" style="padding:12px 16px;margin-bottom:14px"><div class="phd">Branches</div><div style="display:flex;flex-wrap:wrap;gap:8px">'+
       e.children.map(k=>{const c=ACCTBYNORM[k];if(!c)return '';const ca=acctAgg(c);
-        return '<a href="#" onclick="showAccountPage(\''+esc(c.name).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac);font-size:12px;background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:6px 10px;text-decoration:none">'+esc(c.name.slice(e.name.length).replace(/^\s*-\s*/,''))+' · '+fmtPeso(ca.booked+ca.shipped)+'</a>';}).join('')+'</div></div>':'')+
-    (e.parentKey&&ACCTBYNORM[e.parentKey]?'<div style="font-size:12px;margin-bottom:12px">Branch of <a href="#" onclick="showAccountPage(\''+esc(ACCTBYNORM[e.parentKey].name).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac);font-weight:600">'+esc(ACCTBYNORM[e.parentKey].name)+'</a>'+
-      (canManage()&&(ACCT_LINKS||[]).some(l=>l.kind==='branch'&&l.from_key===custNorm(e.name))?' · <a href="#" onclick="unlinkAccount(\''+custNorm(e.name)+'\',\''+esc(e.name).replace(/'/g,'&#39;')+'\');return false" style="color:var(--rd);font-size:11px">unlink</a>':'')+'</div>':'')+
+        return '<a href="#" onclick="showAccountPage(\''+jsq(c.name)+'\');return false" style="color:var(--ac);font-size:12px;background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:6px 10px;text-decoration:none">'+esc(c.name.slice(e.name.length).replace(/^\s*-\s*/,''))+' · '+fmtPeso(ca.booked+ca.shipped)+'</a>';}).join('')+'</div></div>':'')+
+    (e.parentKey&&ACCTBYNORM[e.parentKey]?'<div style="font-size:12px;margin-bottom:12px">Branch of <a href="#" onclick="showAccountPage(\''+jsq(ACCTBYNORM[e.parentKey].name)+'\');return false" style="color:var(--ac);font-weight:600">'+esc(ACCTBYNORM[e.parentKey].name)+'</a>'+
+      (canManage()&&(ACCT_LINKS||[]).some(l=>l.kind==='branch'&&l.from_key===custNorm(e.name))?' · <a href="#" onclick="unlinkAccount(\''+custNorm(e.name)+'\',\''+jsq(e.name)+'\');return false" style="color:var(--rd);font-size:11px">unlink</a>':'')+'</div>':'')+
     (function(){const merged=(ACCT_LINKS||[]).filter(l=>l.kind==='merge'&&custNorm(l.to_name)===custNorm(e.name));
       return merged.length?'<div class="panel" style="padding:10px 16px;margin-bottom:14px;font-size:12px"><div class="phd" style="margin-bottom:6px">Merged into this account</div>'+
-        merged.map(l=>'<div style="display:flex;justify-content:space-between;padding:3px 0"><span>'+esc(l.from_name)+'</span>'+(canManage()?'<a href="#" onclick="unlinkAccount(\''+esc(l.from_key).replace(/'/g,'&#39;')+'\',\''+esc(e.name).replace(/'/g,'&#39;')+'\');return false" style="color:var(--rd);font-size:11px">unmerge</a>':'')+'</div>').join('')+'</div>':'';})()+
+        merged.map(l=>'<div style="display:flex;justify-content:space-between;padding:3px 0"><span>'+esc(l.from_name)+'</span>'+(canManage()?'<a href="#" onclick="unlinkAccount(\''+jsq(l.from_key)+'\',\''+jsq(e.name)+'\');return false" style="color:var(--rd);font-size:11px">unmerge</a>':'')+'</div>').join('')+'</div>':'';})()+
     '<div class="g2" style="align-items:start">'+
     '<div>'+
     '<div class="panel" style="padding:16px;margin-bottom:14px"><div class="phd">Timeline — orders, visits, shipments'+(e.children?' (all branches)':'')+'</div>'+
     (tl.length?tl.map(t=>{
-      const click=t.k==='order'?' onclick="showOrderPage(\''+esc(String(t.ref)).replace(/'/g,'&#39;')+'\')" style="cursor:pointer;align-items:flex-start;border-bottom:1px solid var(--bd);padding:8px 0"':' style="align-items:flex-start;border-bottom:1px solid var(--bd);padding:8px 0"';
+      const click=t.k==='order'?' onclick="showOrderPage(\''+jsq(String(t.ref))+'\')" style="cursor:pointer;align-items:flex-start;border-bottom:1px solid var(--bd);padding:8px 0"':' style="align-items:flex-start;border-bottom:1px solid var(--bd);padding:8px 0"';
       return '<div class="drow"'+click+'>'+
         '<span class="dlbl" style="max-width:65%">'+pill(t.k)+(t.native?' <span class="pill pgr">HS</span>':'')+' <b>'+esc(t.label||'')+'</b> · '+esc(t.dt)+(t.k==='order'?' <span style="color:var(--ac);font-size:10px">open →</span>':'')+
         '<br><span style="color:var(--tx3);font-size:11.5px">'+esc(t.who||'')+(t.out?' · '+esc(t.out):'')+(t.notes?' · '+esc(t.notes):'')+'</span></span>'+
@@ -518,7 +518,7 @@ function licPill(exp){ // license expiry status pill
 function acctDetailsHTML(name,acct,editing){
   ACCT_REC=acct;
   const lbl=t=>'<div style="font-size:10.5px;color:var(--tx3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin:10px 0 2px">'+t+'</div>';
-  const nameArg=esc(name).replace(/'/g,'&#39;');
+  const nameArg=jsq(name);
   if(!editing){
     const val=v=>v?esc(v):'<span style="color:var(--tx3)">—</span>';
     return '<div class="phd" style="display:flex;justify-content:space-between;align-items:center">Account details'+
@@ -605,7 +605,7 @@ async function openAccountDrawer_legacy(name){
     '<label style="font-size:10.5px;color:var(--tx3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin:8px 0 3px">Notes</label>'+
     '<textarea id="ac-notes" rows="2" style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;font-size:12.5px">'+esc(acct&&acct.notes||'')+'</textarea>'+
     (SB?'<div id="ac-msg" style="min-height:14px;font-size:11px;margin-top:6px"></div>'+
-    '<button onclick="saveAccount(\''+esc(name).replace(/'/g,'&#39;')+'\')" style="width:100%;background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px;font-size:12.5px;font-weight:600;cursor:pointer;margin-top:2px">Save details</button>':'')+
+    '<button onclick="saveAccount(\''+jsq(name)+'\')" style="width:100%;background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px;font-size:12.5px;font-weight:600;cursor:pointer;margin-top:2px">Save details</button>':'')+
     '</div>'+
     '<div class="dsec"><div class="dsectitle">Timeline — orders & visits</div>'+
     (tl.length?tl.map(e=>'<div class="drow" style="align-items:flex-start"><span class="dlbl" style="max-width:200px">'+pill(e.k)+' <b>'+esc(e.label||'')+'</b> · '+esc(e.dt)+'<br><span style="color:var(--tx3)">'+esc(e.t||'')+(e.out?' · '+esc(e.out):'')+(e.notes?' · '+esc(e.notes):'')+'</span></span><span class="dval">'+(e.amt!=null?fmtPeso(e.amt):'')+'</span></div>').join(''):'<div style="font-size:11.5px;color:var(--tx3)">No recorded orders or visits in the recent window.</div>')+'</div>'+
@@ -648,7 +648,7 @@ async function renderFollowups(){
   const fus=(VISITS||[]).filter(v=>v.status!=='planned'&&v.outcome==='Follow-up needed'&&!v.fu_done&&mine(v));
   const plans=(VISITS||[]).filter(v=>v.status==='planned'&&mine(v)).sort((a,b)=>a.dt<b.dt?-1:1);
   const row=(v,btnLabel,field)=>'<div class="drow" style="align-items:flex-start;border-bottom:1px solid var(--bd);padding:10px 0">'+
-    '<span class="dlbl" style="max-width:60%"><a href="#" onclick="openAccountDrawer(\''+esc(v.account).replace(/'/g,'&#39;')+'\');return false" style="color:var(--tx);font-weight:600">'+esc(v.account)+'</a> · '+esc(v.date)+(v.date<today&&v.status==='planned'?' <span class="pill prd">overdue</span>':'')+
+    '<span class="dlbl" style="max-width:60%"><a href="#" onclick="openAccountDrawer(\''+jsq(v.account)+'\');return false" style="color:var(--tx);font-weight:600">'+esc(v.account)+'</a> · '+esc(v.date)+(v.date<today&&v.status==='planned'?' <span class="pill prd">overdue</span>':'')+
     '<br><span style="color:var(--tx3);font-size:11.5px">'+esc(v.spec)+(v.notes?' · '+esc(v.notes):'')+'</span></span>'+
     '<button onclick="fuMark(\''+v.id+'\',\''+field+'\')" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer">'+btnLabel+'</button></div>';
   $('content').innerHTML=

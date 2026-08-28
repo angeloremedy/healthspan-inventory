@@ -19,6 +19,8 @@ const TABLES = {
   // tables added after the first backup pass — without these the dated cash
   // detail and the permanent month-end figures would be the only data not backed up
   payments: 'id', valuation_snapshots: 'id', shortdated: 'id',
+  attachments: 'id', pullouts: 'id', pullout_lines: 'id', fund_sources: 'class',
+  doc_formats: 'kind', archive_bin: 'id',
   backorders: 'id', quarantine: 'id', complaints: 'id', suppliers: 'id',
   transfers: 'id', transfer_lines: 'id', notifications: 'id', doc_series: 'kind'
 };

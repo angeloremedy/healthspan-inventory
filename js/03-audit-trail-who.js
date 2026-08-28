@@ -239,7 +239,7 @@ async function renderScorecards(){
     (rows.length?rows.map(r=>{
       const n=r.note||{};
       return '<div class="panel" style="padding:16px;margin-bottom:12px">'+
-      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px"><b style="font-size:15px"><a href="#" onclick="showSpecPage(\''+esc(r.name).replace(/'/g,'&#39;')+'\');return false" style="color:var(--tx);text-decoration:none">'+esc(r.name)+'</a></b>'+dPill(r.rev,r.prev)+'<span style="flex:1"></span>'+
+      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px"><b style="font-size:15px"><a href="#" onclick="showSpecPage(\''+jsq(r.name)+'\');return false" style="color:var(--tx);text-decoration:none">'+esc(r.name)+'</a></b>'+dPill(r.rev,r.prev)+'<span style="flex:1"></span>'+
       (r.att!=null?'<span class="pill '+(r.att>=100?'pgr':r.att>=80?'':'prd')+'" style="'+(r.att<100&&r.att>=80?'background:var(--am-bg);color:var(--am)':'')+'">'+r.att.toFixed(0)+'% of target</span>':'<span class="pill pgy">no target set</span>')+'</div>'+
       '<div class="metrics" style="margin-bottom:10px">'+
       '<div class="met gr"><div class="met-lbl">Booked</div><div class="met-val" style="font-size:14px">'+fmtPeso(r.rev)+'</div><div class="met-sub">'+(r.T?'target '+fmtPeso(r.T):'—')+'</div><div class="met-bar"></div></div>'+
@@ -250,7 +250,7 @@ async function renderScorecards(){
       '<div class="no-print" style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">'+
       '<select id="sc-r-'+r.k+'" style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px;font-size:12.5px"><option value="">Rating…</option>'+[5,4,3,2,1].map(x=>'<option value="'+x+'"'+(n.rating===x?' selected':'')+'>'+'★'.repeat(x)+' '+x+'</option>').join('')+'</select>'+
       '<textarea id="sc-c-'+r.k+'" rows="2" placeholder="Manager comments — wins, coaching points, agreements…" style="flex:1;min-width:220px;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;font-size:12.5px">'+esc(n.comments||'')+'</textarea>'+
-      '<button onclick="scSave(\''+r.k+'\',\''+esc(r.name).replace(/'/g,'&#39;')+'\')" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12px;font-weight:600;cursor:pointer">Save</button></div>'+
+      '<button onclick="scSave(\''+r.k+'\',\''+jsq(r.name)+'\')" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12px;font-weight:600;cursor:pointer">Save</button></div>'+
       (n.comments?'<div style="display:none" class="print-note"><b>Review:</b> '+(n.rating?'★'.repeat(n.rating)+' · ':'')+esc(n.comments)+'</div>':'')+
       (n.updated_at?'<div class="no-print" style="font-size:10px;color:var(--tx3);margin-top:4px">Last saved '+esc(String(n.updated_at).slice(0,16).replace('T',' '))+'</div>':'')+
       '</div>';}).join(''):'<div class="empty" style="margin-top:30px">No specialist activity found for '+sel+'.</div>')+
@@ -385,6 +385,11 @@ async function renderCutover(){
     sw('ledger_is_truth','Stock truth: platform ledger (replaces Verna’s sheet)',
       'OFF: the scan/pick ledger records shadow movements for comparison only; the sheet remains stock truth. ON: the ledger is authoritative (WMS Stage 2 endgame — flip LAST).',
       moves+' shadow movements recorded so far · requires receiving + pick confirmation + two matching cycle counts, and Verna’s sign-off')+
+    '<div class="panel" style="padding:14px 16px;margin-bottom:12px">'+
+      '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:13.5px">Attachments — Google Drive</b>'+
+      '<span style="flex:1"></span>'+
+      '<button onclick="attCheck()" style="background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer">Test the connection</button></div>'+
+      '<div style="font-size:12px;color:var(--tx2);margin-top:6px">Files attached anywhere in HQ go to the Healthspan Shared Drive through a service account; Supabase keeps only the pointer, and opening a file goes back through HQ so your access here decides what you can see. This button confirms the key, the folder, and that the folder really is on a Shared Drive — a service account has no storage of its own, so a personal-Drive folder fails with a quota error.</div></div>'+
     (function(){ // PERIOD CLOSE — the accounting cut-off
       const c=closedThrough();
       return '<div class="panel" style="padding:14px 16px;margin-bottom:12px;border-left:3px solid '+(c?'var(--gr)':'var(--bd)')+'">'+
@@ -551,14 +556,14 @@ function renderSalesDue(){
     '<div class="met gr"><div class="met-lbl">The play</div><div class="met-val" style="font-size:13px">Call today</div><div class="met-sub">they buy on rhythm — be the reminder</div><div class="met-bar"></div></div>'+
     '</div>'+
     (rows.length?'<div class="tcard"><div class="tscroll"><table><thead><tr><th>Account</th><th>Specialist</th><th style="text-align:right">Usual cycle</th><th style="text-align:right">Last order</th><th style="text-align:right">Days over</th><th style="text-align:right">13-mo value</th><th></th></tr></thead><tbody>'+
-    rows.map(r=>'<tr onclick="showAccountPage(\''+esc(r.name).replace(/'/g,'&#39;')+'\')" style="cursor:pointer"><td style="font-weight:600;max-width:230px;overflow:hidden;text-overflow:ellipsis">'+esc(r.name)+'</td>'+
+    rows.map(r=>'<tr onclick="showAccountPage(\''+jsq(r.name)+'\')" style="cursor:pointer"><td style="font-weight:600;max-width:230px;overflow:hidden;text-overflow:ellipsis">'+esc(r.name)+'</td>'+
       '<td class="mu">'+esc(r.spec||'—')+'</td>'+
       '<td class="r mu">~'+r.cycle+'d ('+r.orders+' orders)</td>'+
       '<td class="r mu" style="font-size:11px">'+esc(r.last)+'</td>'+
       '<td class="r" style="font-weight:700;color:'+(r.over>r.cycle?'var(--rd)':'var(--am)')+'">+'+r.over+'d</td>'+
       '<td class="r">'+fmtPeso(r.val)+'</td>'+
-      '<td style="white-space:nowrap"><a href="#" onclick="event.stopPropagation();window._lvAccount=\''+esc(r.name).replace(/'/g,'&#39;')+'\';showView(\'logvisit\',null);return false" style="color:var(--ac);font-size:11.5px">log visit</a> · '+
-      '<a href="#" onclick="event.stopPropagation();window._noAccount=\''+esc(r.name).replace(/'/g,'&#39;')+'\';showView(\'neworder\',null);return false" style="color:var(--gr);font-size:11.5px">order</a></td></tr>').join('')+
+      '<td style="white-space:nowrap"><a href="#" onclick="event.stopPropagation();window._lvAccount=\''+jsq(r.name)+'\';showView(\'logvisit\',null);return false" style="color:var(--ac);font-size:11.5px">log visit</a> · '+
+      '<a href="#" onclick="event.stopPropagation();window._noAccount=\''+jsq(r.name)+'\';showView(\'neworder\',null);return false" style="color:var(--gr);font-size:11.5px">order</a></td></tr>').join('')+
     '</tbody></table></div><div class="tfooter"><span>Rhythm = median gap between this account’s orders (needs 3+ orders) · listed when 25% past their cycle, dropped after 6 cycles (that’s the dormant list) · specialists see their own accounts, managers see all</span></div></div>':
     '<div class="empty" style="margin-top:30px">Nobody is overdue against their buying rhythm right now. 🎉</div>');
 }
@@ -588,7 +593,7 @@ async function renderReturns(){
     '<button onclick="returnAdd()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer">Record</button></div></div>'+
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>CM no.</th><th>Date</th><th>Account</th><th>Specialist</th><th>Items</th><th style="text-align:right">Amount</th><th>Disposition</th><th>Reason</th><th></th></tr></thead><tbody>'+
     (rows.length?rows.map(r=>'<tr><td style="font-weight:700">CM-'+String(1000+r.id)+'</td><td class="mu" style="font-size:11px">'+esc(String(r.date||r.created_at||'').slice(0,10))+(r.date&&String(r.date).slice(0,10)!==String(r.created_at||'').slice(0,10)?'<div style="font-size:9.5px">entered '+esc(String(r.created_at||'').slice(0,10))+'</div>':'')+'</td>'+
-      '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis"><a href="#" onclick="showAccountPage(\''+esc(r.account).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac)">'+esc(r.account)+'</a></td>'+
+      '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis"><a href="#" onclick="showAccountPage(\''+jsq(r.account)+'\');return false" style="color:var(--ac)">'+esc(r.account)+'</a></td>'+
       '<td class="mu" style="font-size:11.5px">'+(r.spec?esc(r.spec):'<span title="Nobody\u2019s commission is reduced by this CM">—</span>')+(r.shopify_refunded?'<div style="font-size:9.5px">refunded in Shopify</div>':'')+'</td>'+
       '<td class="mu" style="font-size:11.5px;max-width:200px;overflow:hidden;text-overflow:ellipsis">'+esc(r.items||'—')+(r.order_ref?' · '+esc(r.order_ref):'')+'</td>'+
       '<td class="r" style="font-weight:700">'+fmtPeso(r.amount||0)+'</td>'+
@@ -969,7 +974,7 @@ function dupeHint(inId,outId,rerun){
   const v=($(inId)&&$(inId).value||'').trim();
   const m=v?acctSuggest(v):null;
   el.innerHTML=m?'<div style="background:var(--am-bg);color:var(--am);border-radius:8px;padding:8px 12px;font-size:12px;margin-top:6px">⚠ Not an existing account — did you mean '+
-    '<a href="#" onclick="$(\''+inId+'\').value=\''+esc(m).replace(/'/g,'&#39;')+'\';'+(rerun||'')+'dupeHint(\''+inId+'\',\''+outId+'\');return false" style="color:var(--am);font-weight:700">'+esc(m)+'</a>? Tap to use it, or continue if this really is a new account.</div>':'';
+    '<a href="#" onclick="$(\''+inId+'\').value=\''+jsq(m)+'\';'+(rerun||'')+'dupeHint(\''+inId+'\',\''+outId+'\');return false" style="color:var(--am);font-weight:700">'+esc(m)+'</a>? Tap to use it, or continue if this really is a new account.</div>':'';
 }
 
 // Upsell recommendations: co-occurrence mined from our own 13-month order history
@@ -1087,7 +1092,7 @@ function renderSalesPace(){
     '<div class="met pu"><div class="met-lbl">On pace for target</div><div class="met-val">'+rows.filter(r=>r.att!=null&&r.att>=100).length+' / '+rows.filter(r=>r.att!=null).length+'</div><div class="met-sub">specialists with targets</div><div class="met-bar"></div></div>'+
     '</div>'+
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th></th><th>Specialist</th><th style="text-align:right">MTD booked</th><th style="text-align:right">Target</th><th style="text-align:right">Now at</th><th style="text-align:right">Projected finish</th><th style="text-align:right">Pace</th><th style="text-align:right">Visits MTD</th></tr></thead><tbody>'+
-    rows.map((r,i)=>'<tr onclick="showSpecPage(\''+esc(r.name).replace(/'/g,'&#39;')+'\')" style="cursor:pointer'+(i<3?';font-weight:600':'')+'">'+
+    rows.map((r,i)=>'<tr onclick="showSpecPage(\''+jsq(r.name)+'\')" style="cursor:pointer'+(i<3?';font-weight:600':'')+'">'+
       '<td style="font-size:15px">'+medal(i)+'</td><td>'+esc(r.name)+'</td>'+
       '<td class="r" style="font-weight:700">'+fmtPeso(r.mtd)+'</td>'+
       '<td class="r mu">'+(r.T!=null?fmtPeso(r.T):'—')+'</td>'+
@@ -1107,14 +1112,14 @@ async function fillContacts(key,name){
   const inp='style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:7px 9px;font-size:12px"';
   box.innerHTML='<div class="phd">Contacts</div>'+
     (list.length?list.map(c=>'<div class="drow" style="align-items:flex-start"><span class="dlbl"><b>'+esc(c.name)+'</b>'+(c.role?' · '+esc(c.role):'')+'<br><span style="color:var(--tx3);font-size:11.5px">'+esc(c.phone||'')+(c.email?' · ✉ '+esc(c.email):'')+(c.viber?' · Viber '+esc(c.viber):'')+'</span></span>'+
-      '<span class="dval"><a href="#" onclick="acDelContact('+c.id+',\''+esc(key)+'\',\''+esc(name).replace(/'/g,'&#39;')+'\');return false" style="color:var(--rd);font-size:11px">remove</a></span></div>').join(''):'<div style="font-size:12px;color:var(--tx3);margin-bottom:6px">No contacts yet — add the doctor, purchaser, or clinic staff.</div>')+
+      '<span class="dval"><a href="#" onclick="acDelContact('+c.id+',\''+esc(key)+'\',\''+jsq(name)+'\');return false" style="color:var(--rd);font-size:11px">remove</a></span></div>').join(''):'<div style="font-size:12px;color:var(--tx3);margin-bottom:6px">No contacts yet — add the doctor, purchaser, or clinic staff.</div>')+
     '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">'+
     '<input id="ac-cn" placeholder="Name" '+inp+' style="flex:1;min-width:110px;'+inp.slice(7,-1)+'">'+
     '<input id="ac-cr" placeholder="Role (doctor…)" '+inp+' style="width:110px;'+inp.slice(7,-1)+'">'+
     '<input id="ac-cp" placeholder="Phone" '+inp+' style="width:110px;'+inp.slice(7,-1)+'">'+
     '<input id="ac-ce" placeholder="Email" '+inp+' style="width:130px;'+inp.slice(7,-1)+'">'+
     '<input id="ac-cv" placeholder="Viber" '+inp+' style="width:100px;'+inp.slice(7,-1)+'">'+
-    '<button onclick="acAddContact(\''+esc(key)+'\',\''+esc(name).replace(/'/g,'&#39;')+'\')" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;cursor:pointer">Add</button></div>';
+    '<button onclick="acAddContact(\''+esc(key)+'\',\''+jsq(name)+'\')" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;cursor:pointer">Add</button></div>';
 }
 async function acAddContact(key,name){
   const g=id=>($(id)&&$(id).value||'').trim();
@@ -1172,11 +1177,11 @@ async function renderPDC(){
     '<button onclick="pdcAdd()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer">Add</button></div></div>'+
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Maturity</th><th>Account</th><th>Bank · cheque no.</th><th style="text-align:right">Amount</th><th>Status</th><th>Order</th><th></th></tr></thead><tbody>'+
     (rows.length?rows.map(r=>'<tr'+(r.status!=='cleared'&&r.maturity<=today?' style="background:var(--am-bg)"':'')+'><td style="font-weight:600">'+esc(r.maturity)+(r.status!=='cleared'&&r.status!=='bounced'&&r.maturity<=today?' <span class="pill prd" style="font-size:9px">due</span>':'')+'</td>'+
-      '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis"><a href="#" onclick="showAccountPage(\''+esc(r.account).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac)">'+esc(r.account)+'</a></td>'+
+      '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis"><a href="#" onclick="showAccountPage(\''+jsq(r.account)+'\');return false" style="color:var(--ac)">'+esc(r.account)+'</a></td>'+
       '<td class="mu" style="font-size:11.5px">'+esc(r.bank||'—')+' · '+esc(r.cheque_no||'—')+'</td>'+
       '<td class="r" style="font-weight:700">'+fmtPeso(r.amount||0)+'</td>'+
       '<td>'+pill(r.status)+'</td>'+
-      '<td class="mu" style="font-size:11px">'+(r.order_ref?'<a href="#" onclick="showOrderPage(\''+esc(r.order_ref).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac)">'+esc(r.order_ref)+'</a>':'—')+'</td>'+
+      '<td class="mu" style="font-size:11px">'+(r.order_ref?'<a href="#" onclick="showOrderPage(\''+jsq(r.order_ref)+'\');return false" style="color:var(--ac)">'+esc(r.order_ref)+'</a>':'—')+'</td>'+
       '<td style="white-space:nowrap">'+act(r)+'</td></tr>').join(''):'<tr><td colspan="7"><div class="empty">No cheques recorded yet — PDCs from order notes ("50% PDC 30 days") belong here.</div></td></tr>')+
     '</tbody></table></div><div class="tfooter"><span>Highlighted rows are at/past maturity and not yet cleared · deposit → cleared marks the cash real (record the payment on the order too) · bounced cheques stay visible until replaced</span></div></div>';
 }

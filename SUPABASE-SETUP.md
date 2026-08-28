@@ -1921,7 +1921,8 @@ insert into public.doc_formats (kind,label,prefix,pad,offset_no,sort) values
   ('cm','Credit memos','CM-',0,1000,3),
   ('pullout','Pull-outs','PL-',0,1000,4),
   ('po','Purchase orders','PO-',0,1000,5),
-  ('transfer','Transfer orders','TR-',0,1000,6)
+  ('transfer','Transfer orders','TR-',0,1000,6),
+  ('complaint','Complaints','C-',0,0,7)   -- historically C-1, C-2: no offset
 on conflict (kind) do nothing;
 
 alter table public.doc_formats enable row level security;
@@ -1974,3 +1975,336 @@ Deleting requires typing the record's number, restoring re-inserts it (child
 rows get re-pointed at the restored parent), and purging asks again. Every step
 is written to the Activity log. The archive is also in the nightly backup, so a
 purge is still recoverable from the previous night's snapshot.
+
+---
+
+## Attachments (2026-08-28)
+
+Files live in a Google Shared Drive (see ATTACHMENTS-SETUP.md); Supabase keeps
+only the pointer. Reading a file goes through the `upload` function, so HQ's own
+permissions decide who can see it — not who happens to have Drive access.
+
+```sql
+create table if not exists public.attachments (
+  id bigint generated always as identity primary key,
+  rec_type text not null,         -- 'pullout' | 'visit' | 'account' | 'voucher' | ...
+  rec_id text not null,           -- the record's id, as text (ids are bigint or uuid)
+  file_id text not null,          -- Google Drive file id
+  name text not null,
+  mime text,
+  size bigint,
+  note text,
+  uploaded_by uuid,
+  uploaded_name text,
+  created_at timestamptz not null default now()
+);
+create index if not exists attachments_rec on public.attachments (rec_type, rec_id);
+
+alter table public.attachments enable row level security;
+-- Anyone signed in may see that a document exists and open it: these are
+-- company records (quotations, receipts, DRs), and the pages that show them
+-- are already role-gated. Cost figures are not stored here.
+drop policy if exists "att read" on public.attachments;
+-- receipts and bank approvals hang off finance requests, so those follow the
+-- request's own visibility; everything else (pull-outs, visits) stays open.
+create policy "att read" on public.attachments for select to authenticated using (
+  rec_type not in ('voucher','orderpay','proofpay','replenish','reimburse','cashadvance')
+  or exists (select 1 from public.fin_requests q where q.id::text = attachments.rec_id
+             and (q.requester_id = auth.uid()
+                  or exists (select 1 from public.profiles p where p.id = auth.uid() and (p.role in ('admin','finance') or p.is_super))
+                  or exists (select 1 from public.approval_routes r where r.kind = q.kind and r.active
+                             and (r.approver_id = auth.uid()
+                                  or (r.approver_role is not null and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = r.approver_role))
+                                  or (r.use_fund_source and exists (select 1 from public.fund_sources f where f.class = q.fund_class
+                                       and (f.approver_id = auth.uid() or f.backup_id = auth.uid())))))))
+);
+drop policy if exists "att write" on public.attachments;
+create policy "att write" on public.attachments for insert to authenticated
+  with check (auth.uid() = uploaded_by);
+-- remove your own, or any if you manage the area
+drop policy if exists "att delete" on public.attachments;
+create policy "att delete" on public.attachments for delete to authenticated using (
+  uploaded_by = auth.uid()
+  or exists (select 1 from public.profiles p where p.id = auth.uid()
+             and p.role in ('admin','finance','supply_chain'))
+);
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- 3) SUPER-ADMIN DELETE + RESTORE POLICIES
+--    Without these the archive silently does nothing: RLS filters the DELETE
+--    to zero rows, PostgREST returns success, and the app reports a delete
+--    that never happened. Restoring needs matching inserts, because the
+--    restored row keeps its ORIGINAL owner (created_by / requester_id), which
+--    the normal "you may only insert your own" policies would reject.
+-- ─────────────────────────────────────────────────────────────────────────
+do $$
+declare t text;
+begin
+  foreach t in array array['pullouts','pullout_lines','shortdated','quotes','quote_lines',
+                           'pos','po_lines','returns','complaints','quarantine','visits',
+                           'opportunities','approvals','fund_sources','transfer_lines',
+                           'transfers','promos','pdcs','campaigns','payments',
+                           'valuation_snapshots','attachments','fin_requests','fin_lines',
+                           'code_lists','approval_routes']
+  loop
+    execute format('drop policy if exists "super deletes" on public.%I', t);
+    execute format($f$create policy "super deletes" on public.%I for delete to authenticated
+      using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_super))$f$, t);
+    execute format('drop policy if exists "super restores" on public.%I', t);
+    execute format($f$create policy "super restores" on public.%I for insert to authenticated
+      with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_super))$f$, t);
+  end loop;
+end $$;
+```
+
+
+---
+
+## Finance forms (2026-08-28)
+
+Six Google forms become one engine: `fin_requests` + `fin_lines`, driven by a
+form spec in the app. Routing is per form (`approval_routes`), and the option
+lists finance keeps changing — event codes, cash-flow tags — live in
+`code_lists` rather than in code.
+
+```sql
+-- ── the option lists finance owns ──────────────────────────────────────────
+create table if not exists public.code_lists (
+  id bigint generated always as identity primary key,
+  list text not null,               -- 'event_code' | 'cashflow_tag' | 'replenish_type' | ...
+  code text not null,
+  label text,
+  sort int not null default 0,
+  active boolean not null default true,
+  updated_by uuid,
+  updated_at timestamptz not null default now(),
+  unique (list, code)
+);
+create index if not exists code_lists_list on public.code_lists (list, active, sort);
+
+alter table public.code_lists enable row level security;
+drop policy if exists "cl read" on public.code_lists;
+create policy "cl read" on public.code_lists for select to authenticated using (true);
+drop policy if exists "cl write" on public.code_lists;
+create policy "cl write" on public.code_lists for insert to authenticated
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','finance')));
+drop policy if exists "cl update" on public.code_lists;
+create policy "cl update" on public.code_lists for update to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','finance')));
+
+-- ── who signs off, per form and per step ───────────────────────────────────
+create table if not exists public.approval_routes (
+  id bigint generated always as identity primary key,
+  kind text not null,               -- 'voucher' | 'orderpay' | ...
+  step int not null default 1,      -- 1, then 2, … in order
+  label text,                       -- 'Fund source', 'Finance countersign'
+  approver_id uuid,                 -- a named person …
+  approver_name text,
+  approver_role text,               -- … or any holder of a role
+  use_fund_source boolean not null default false,  -- … or the request's own fund source
+  min_amount bigint not null default 0,            -- step only applies at/above this
+  active boolean not null default true,
+  unique (kind, step)
+);
+alter table public.approval_routes enable row level security;
+drop policy if exists "ar read" on public.approval_routes;
+create policy "ar read" on public.approval_routes for select to authenticated using (true);
+drop policy if exists "ar write" on public.approval_routes;
+create policy "ar write" on public.approval_routes for insert to authenticated
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'));
+drop policy if exists "ar update" on public.approval_routes;
+create policy "ar update" on public.approval_routes for update to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'));
+drop policy if exists "ar delete" on public.approval_routes;
+create policy "ar delete" on public.approval_routes for delete to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'));
+
+-- ── the requests themselves ────────────────────────────────────────────────
+create table if not exists public.fin_requests (
+  id bigint generated always as identity primary key,
+  num bigint generated always as identity,
+  kind text not null check (kind in ('voucher','orderpay','proofpay','replenish','reimburse','cashadvance')),
+  requester_id uuid,
+  requester_name text,
+  requester_email text,
+  date_requested date not null default current_date,
+  date_needed date,
+  fund_class text,
+  event_code text,
+  cashflow_tag text,
+  product_line text,
+  team text,
+  payee text,
+  amount bigint not null default 0,
+  currency text not null default 'PHP',
+  purpose text,
+  data jsonb not null default '{}'::jsonb,   -- the form's own fields
+  status text not null default 'pending'
+    check (status in ('pending','approved','rejected','cancelled','settled')),
+  step int not null default 1,               -- which approval step it is waiting on
+  decisions jsonb not null default '[]'::jsonb, -- [{step,by,name,at,decision,note}]
+  decision_note text,
+  ref_no text,                               -- voucher no. / PO no. / previous request
+  created_at timestamptz not null default now(),
+  updated_at timestamptz
+);
+create index if not exists fin_requests_kind on public.fin_requests (kind, status);
+create index if not exists fin_requests_who on public.fin_requests (requester_id);
+
+create table if not exists public.fin_lines (
+  id bigint generated always as identity primary key,
+  req_id bigint not null references public.fin_requests(id) on delete cascade,
+  seq int not null default 1,
+  description text,
+  qty numeric,
+  amount bigint,
+  meta jsonb not null default '{}'::jsonb    -- supplier, link, unit, etc.
+);
+create index if not exists fin_lines_req on public.fin_lines (req_id);
+
+alter table public.fin_requests enable row level security;
+alter table public.fin_lines enable row level security;
+
+-- These carry bank details, payslip-adjacent claims and supplier terms, so the
+-- register is NOT world-readable inside the company: you see your own, ones you
+-- must decide, and finance/admin see everything.
+drop policy if exists "fr read" on public.fin_requests;
+create policy "fr read" on public.fin_requests for select to authenticated using (
+  requester_id = auth.uid()
+  or exists (select 1 from public.profiles p where p.id = auth.uid() and (p.role in ('admin','finance') or p.is_super))
+  or exists (select 1 from public.approval_routes r where r.kind = fin_requests.kind and r.active
+             and (r.approver_id = auth.uid()
+                  or (r.approver_role is not null and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = r.approver_role))
+                  or (r.use_fund_source and exists (select 1 from public.fund_sources f where f.class = fin_requests.fund_class
+                       and (f.approver_id = auth.uid() or f.backup_id = auth.uid())))))
+);
+drop policy if exists "fr write" on public.fin_requests;
+create policy "fr write" on public.fin_requests for insert to authenticated
+  with check (auth.uid() = requester_id);
+
+-- Deciding is limited to the approver of the step the request is ACTUALLY on
+-- (r.step = fin_requests.step) — otherwise a step-2 approver could reach past
+-- step 1 and approve outright. The requester keeps one power only: cancelling
+-- their own request, enforced by the WITH CHECK, not by hiding a button.
+drop policy if exists "fr update" on public.fin_requests;
+create policy "fr update" on public.fin_requests for update to authenticated
+using (
+  exists (select 1 from public.approval_routes r where r.kind = fin_requests.kind and r.active
+          and r.step = fin_requests.step
+          and (r.approver_id = auth.uid()
+               or (r.approver_role is not null and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = r.approver_role))
+               or (r.use_fund_source and exists (select 1 from public.fund_sources f where f.class = fin_requests.fund_class
+                    and (f.approver_id = auth.uid() or f.backup_id = auth.uid())))))
+  or exists (select 1 from public.profiles p where p.id = auth.uid() and (p.role in ('admin','finance') or p.is_super))
+  or (requester_id = auth.uid() and status = 'pending')
+)
+with check (
+  exists (select 1 from public.approval_routes r where r.kind = fin_requests.kind and r.active
+          and (r.approver_id = auth.uid()
+               or (r.approver_role is not null and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = r.approver_role))
+               or (r.use_fund_source and exists (select 1 from public.fund_sources f where f.class = fin_requests.fund_class
+                    and (f.approver_id = auth.uid() or f.backup_id = auth.uid())))))
+  or exists (select 1 from public.profiles p where p.id = auth.uid() and (p.role in ('admin','finance') or p.is_super))
+  or (requester_id = auth.uid() and status = 'cancelled')   -- cancel, and nothing else
+);
+
+drop policy if exists "fl read" on public.fin_lines;
+create policy "fl read" on public.fin_lines for select to authenticated using (true);
+drop policy if exists "fl write" on public.fin_lines;
+create policy "fl write" on public.fin_lines for insert to authenticated
+  with check (exists (select 1 from public.fin_requests q where q.id = req_id and q.requester_id = auth.uid()));
+drop policy if exists "fl update" on public.fin_lines;
+create policy "fl update" on public.fin_lines for update to authenticated using (
+  exists (select 1 from public.fin_requests q where q.id = req_id
+          and q.requester_id = auth.uid() and q.status = 'pending')
+  or exists (select 1 from public.profiles p where p.id = auth.uid() and (p.role in ('admin','finance') or p.is_super))
+);
+drop policy if exists "fl delete" on public.fin_lines;
+create policy "fl delete" on public.fin_lines for delete to authenticated using (
+  exists (select 1 from public.fin_requests q where q.id = req_id
+          and q.requester_id = auth.uid() and q.status = 'pending')
+  or exists (select 1 from public.profiles p where p.id = auth.uid() and (p.role in ('admin','finance') or p.is_super))
+);
+
+-- ── document numbers for the new forms ─────────────────────────────────────
+insert into public.doc_formats (kind,label,prefix,pad,offset_no,sort) values
+  ('voucher','Vouchers','V-',0,1000,10),
+  ('orderpay','Requests to order/pay','RO-',0,1000,11),
+  ('proofpay','Proofs of payment','PP-',0,1000,12),
+  ('replenish','Replenishments','RP-',0,1000,13),
+  ('reimburse','Reimbursements','RE-',0,1000,14),
+  ('cashadvance','Cash advances','CA-',0,1000,15)
+on conflict (kind) do nothing;
+
+-- ── default routes: every form goes to its fund source, then finance ───────
+insert into public.approval_routes (kind,step,label,use_fund_source,approver_role,min_amount) values
+  ('voucher',1,'Fund source',true,null,0),
+  ('voucher',2,'Finance',false,'finance',0),
+  ('orderpay',1,'Fund source',true,null,0),
+  ('orderpay',2,'Finance',false,'finance',0),
+  ('proofpay',1,'Finance',false,'finance',0),
+  ('replenish',1,'Finance',false,'finance',0),
+  ('reimburse',1,'People Ops / manager',false,'manager',0),
+  ('reimburse',2,'Finance',false,'finance',0),
+  ('cashadvance',1,'Fund source',true,null,0),
+  ('cashadvance',2,'Finance',false,'finance',0)
+on conflict (kind,step) do nothing;
+
+-- ── seed the option lists from the Google forms ────────────────────────────
+insert into public.code_lists (list,code,sort) values
+  ('event_code','T2 KOL Management',1),('event_code','SI 3: Local Conventions',2),
+  ('event_code','T2 Machine Specialist Marketing revolving fund',3),
+  ('event_code','T2 Patient Safety Assurance Program',4),('event_code','T2 Quarterly Product Awards',5),
+  ('event_code','T2 Amplify Patient Demand through Clinic Focused Marketing support',6),
+  ('event_code','T2 Brand Awareness',7),('event_code','Healthspan Awards',8),
+  ('event_code','T2 VIP Event',9),('event_code','T2 Referral Advantage Program',10),
+  ('event_code','FOC Skinpen Kits',11),('event_code','FOC Biocellulose masks',12),
+  ('event_code','FOC Symmed / Neutra',13),('event_code','FOC Zionic Conducting Cream',14),
+  ('event_code','Skinpen Champion Program',15),('event_code','VIP In Clinic launch event',16),
+  ('event_code','Skinpen Biome Boosted program',17),('event_code','Termosalud Experts Summit',18),
+  ('event_code','Skinpen Promotional Materials',19),('event_code','Termosalud Promotional Materials',20),
+  ('event_code','Healthspan CME Sponsorship',21),('event_code','Healthspan Roadshow',22),
+  ('event_code','KAM New Drs Training Belo',23),('event_code','T2 Marketing Manager Engagement Budget',24),
+  ('event_code','KOL Engagement',25),('event_code','SI 1: Masterclass - GMA',26),
+  ('event_code','SI 1: Masterclass - Luzon',27),('event_code','SI 1: Masterclass - Visayas',28),
+  ('event_code','SI 1: Masterclass - Mindanao',29),('event_code','SI 1: Masterclass - Contingency',30),
+  ('event_code','SI 1: Spain Training 2027',31),('event_code','SI 2: Bidens Starter Kit',32),
+  ('event_code','SI 2: Bidens Promo Bundle',33),('event_code','SI 2: Inno-TDS Promo Bundle',34),
+  ('event_code','SI 2: Return and Renew Program',35),('event_code','SI 3: Aivee Bidens Exclusive Launch',36),
+  ('event_code','SI 3: Innoaesthetics Plaque Provider',37),('event_code','SI 3: Innoaesthetics Awarding',38),
+  ('event_code','SI 3: Digital Program',39),('event_code','Key Accounts Program - Belo Medical Group',40),
+  ('event_code','2025 Budget - Accrual',41)
+on conflict (list,code) do nothing;
+
+insert into public.code_lists (list,code,sort) values
+  ('cashflow_tag','Advances to employees',1),('cashflow_tag','BOC',2),
+  ('cashflow_tag','Business Taxes and Licenses',3),('cashflow_tag','Courier',4),
+  ('cashflow_tag','Event',5),('cashflow_tag','Executives',6),('cashflow_tag','Fuel',7),
+  ('cashflow_tag','Honorarium',8),('cashflow_tag','Intercompany remittance - Remedy',9),
+  ('cashflow_tag','Intercompany Remittance - Cosimo',10),('cashflow_tag','Inventory',11),
+  ('cashflow_tag','Investment purchase',12),('cashflow_tag','Leasehold Improvements',13),
+  ('cashflow_tag','Loan repayment',14),('cashflow_tag','Marketing',15),
+  ('cashflow_tag','Medify - Disbursement',16),('cashflow_tag','Miscellaneous',17),
+  ('cashflow_tag','Office Expenses',18),('cashflow_tag','Opex',19),
+  ('cashflow_tag','Outsourced Services',20),('cashflow_tag','Other Licenses',21),
+  ('cashflow_tag','Paul Reim',22),('cashflow_tag','PCF',23),('cashflow_tag','People Ops',24),
+  ('cashflow_tag','Purchase of PPE',25),('cashflow_tag','Rebates',26),('cashflow_tag','Refund',27),
+  ('cashflow_tag','Rent',28),('cashflow_tag','Rev fund',29),('cashflow_tag','Shipping',30),
+  ('cashflow_tag','Supplies & Consumables',31),('cashflow_tag','Travel & Accom',32),
+  ('cashflow_tag','Utilities',33),('cashflow_tag','Intercompany Remittance - Tihrse',34),
+  ('cashflow_tag','Car Reim',35)
+on conflict (list,code) do nothing;
+
+insert into public.code_lists (list,code,sort) values
+  ('product_line','Inno',1),('product_line','Skinpen / Biojuve',2),('product_line','Termosalud',3),
+  ('product_line','MarkVu',4),('product_line','GTG',5),('product_line','Mesoestetic',6),('product_line','All',7),
+  ('replenish_type','Borzo',1),('replenish_type','Petty Cash',2),('replenish_type','LBC Pad',3),('replenish_type','Lalamove',4),
+  ('reimburse_type','Car Reimbursement',1),('reimburse_type','Healthspan Other Expense',2),('reimburse_type','Remedy Other Expense',3),
+  ('car_type','Preventive Maintenance Services (PMS)',1),('car_type','Parts Replacements (Car battery/tires)',2),
+  ('car_type','Change oil',3),('car_type','Car Insurance',4),
+  ('pay_mode','Bank transfer via PNB',1),('pay_mode','Bank transfer via UnionBank',2),
+  ('pay_mode','Check Payment',3),('pay_mode','Cash Advance c/o Finance',4),
+  ('team','Sales',1),('team','Product Marketing',2),('team','Digital Marketing',3),('team','Logistics',4),
+  ('team','Finance',5),('team','IT',6),('team','Executives',7),('team','People Ops',8)
+on conflict (list,code) do nothing;
+```

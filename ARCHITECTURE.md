@@ -447,3 +447,34 @@ the top.
 `renderPullouts(cheap)` shows the other half of the pattern: when only local
 state changed (the request cart), it re-paints from `window._PLROWS/_PLLINES`
 via `plPaint()` instead of re-querying — no placeholder, no round-trip.
+
+## 3.12 Finance forms — one engine, six forms
+
+`FIN_SPEC` (js/10) describes each form as data: fields with a type, an optional
+`col` (promoted to a real column) or nothing (kept in `data` jsonb), a `req`
+flag, a `list` naming the `code_lists` list that feeds its dropdown, a `when`
+map for conditional sections, and an optional `lines` block. One renderer
+(`finField`/`finPaint`) draws all six; one `finSubmit` saves them.
+
+Only fields the form actually *showed* are written — `finSubmit` iterates the
+`finVisible`-filtered set, so switching an answer can't smuggle a stale amount
+or supplier bank detail from a section that disappeared.
+
+Approval is a chain, not a flag. `approval_routes` holds `(kind, step)` rows
+that resolve to a named person, a role, or `use_fund_source` (defer to the
+request's fund source), with an optional `min_amount` so a step only applies
+above a threshold. A request carries `step`; approving advances it, the final
+step sets `approved`, rejection ends it, and each decision is appended to a
+`decisions` jsonb array with who, when and the note.
+
+The database enforces the chain rather than trusting the UI: `fr update`'s
+USING clause requires `r.step = fin_requests.step`, so a step-2 approver cannot
+reach past step 1. The requester's own branch is `status = 'pending'` in USING
+and `status = 'cancelled'` in WITH CHECK — they can cancel and do nothing else.
+`fr read` is scoped to requester / decider / finance / admin, and the
+attachments policy defers to the parent request for the six finance
+`rec_type`s, so receipts aren't company-readable.
+
+`canDecideFin` mirrors all of it client-side and adds one rule the UI owns:
+you never decide your own request (super admin excepted, so a stuck request can
+always be moved).

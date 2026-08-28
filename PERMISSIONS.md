@@ -109,6 +109,12 @@ therefore a floor — implementation grants the full circle read to all three.
 | Pull-out fund-source spend + QBO export | ✅ | ✖ | ✖ | ✖ | ✅ | ✖ |
 | Pull-out release (writes the ledger) | ✅ | ✖ | ✖ | ✅ | ✖ | ✖ |
 | Pull-out mark booked | ✅ | ✅ | ✅ | ✅ | ✖ | ✖ |
+| File any finance form | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (viewer/IT too) |
+| See a finance request | own + ones you decide | own + decide | own | own | ✅ all | own + decide |
+| Approve a finance step | only if the route names you (never your own request) | — | — | — | — | — |
+| Mark a request settled | ✅ | ✖ | ✖ | ✖ | ✅ | ✖ |
+| Option lists (event codes, cash-flow tags…) | ✅ | ✖ | ✖ | ✖ | ✅ | ✖ |
+| Approval routes | ✅ | ✖ | ✖ | ✖ | ✖ | ✖ |
 | Fund-source approver mapping | ✅ | ✖ | ✖ | ✖ | ✖ | ✖ |
 | Eligible to BE a fund-source approver | ✅ | ✅ | ✖ (product specialists excluded) | ✅ | ✅ | ✅ |
 | Delete any record (archives it) | super admin only | ✖ | ✖ | ✖ | ✖ | ✖ |

@@ -110,3 +110,27 @@ Then I build:
   because the Shared Drive owns the files — that is the whole point of doing it
   this way rather than under someone's personal Drive.
 - Storage counts against the Workspace pool, same as any Shared Drive.
+
+---
+
+## Note on the Drive scope
+
+The function requests the full `https://www.googleapis.com/auth/drive` scope
+rather than the narrower `drive.file`. That is deliberate and necessary:
+`drive.file` only lets a service account touch files **it created itself**, so
+it cannot see the `HQ` folder you made by hand — every upload would fail with
+"File not found" on the parent folder.
+
+The robot is still tightly confined, because a service account can only reach
+what has been shared with it: the `HQ Attachments` Shared Drive, and nothing
+else in Healthspan's Google account. If you would rather use `drive.file`, the
+alternative is to let the function create its own folder on first run and store
+that id — say the word and I will switch it.
+
+## Testing it
+
+Once the variables are set and the site has redeployed, sign in as the super
+admin and open **Admin → Cutover switches → Attachments → Test the connection**.
+It reports the folder name, confirms the key works, and warns if the folder is
+*not* on a Shared Drive — the one misconfiguration that looks correct but fails
+with a quota error on the first upload.
