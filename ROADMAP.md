@@ -111,6 +111,13 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ Product specialists removed from the fund-source approver picker
 - ✅ New **Finance forms** sidebar section (pull-out requests today; the five finance forms as they land)
 
+**Favourites, CRM attachments, camera (Aug 29)**
+- ✅ Favourites: star any page (top bar) or pick up to 8 in one go; the same list pins to the top of the sidebar and the top of the home page. Per person, per device, like the bottom bar
+- ✅ CRM attachments: a Documents panel on account profiles (licences, signed DRs, agreements) and an attach button on the visit you just logged
+- ✅ Camera scanning works on iPhone/iPad: Safari has no BarcodeDetector, so a JS decoder loads on demand and drives the same camera stream — the button is no longer hidden on non-Chrome browsers
+- ✅ Mobile top bar shows the page you are actually on (it only updated after a sync, so it read "Dashboard" everywhere)
+- ⚠ Regression caught in review: a careless edit deleted renderScan/pickRefresh/pickCode/pickFinish; restored from the deployed build and a name-level integrity check now runs after every edit (node --check alone cannot see a missing function)
+
 **Device fixes (Aug 28)**
 - ✅ Sync bar no longer breaks the layout: it was a static block ABOVE the 100dvh shell, so showing it pushed everything down — black gap under the top bar on phones, bottom of the page unreachable, and on iPad it collided with the fixed Ask AI drawer. Now lives inside the scrolling main column
 - ✅ iPad: desktop layout reserves the status-bar inset (`.topbar`/`.sb`), and the standalone probe now falls back to 24px on tablets as well as 47px on notched phones — iOS reports 0 on both while still drawing over the app

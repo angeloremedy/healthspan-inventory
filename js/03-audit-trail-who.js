@@ -778,9 +778,10 @@ async function showScanPick(orderId){
     '<b style="font-size:14px">'+esc(ordLabel(o))+'</b><span class="mu" style="font-size:12px">'+esc(o.account||'')+'</span></div>'+
     '<div class="panel" style="padding:16px">'+
     '<div id="pk-prog" style="margin-bottom:10px"></div>'+
-    (supported?'<button id="scan-btn" onclick="scanStart()" style="width:100%;background:var(--gr);color:#fff;border:none;border-radius:10px;padding:12px;font-size:13.5px;font-weight:700;cursor:pointer;margin-bottom:8px">📷 Scan next item</button>'+
-      '<video id="scan-video" playsinline style="display:none;width:100%;border-radius:12px;margin-bottom:8px"></video>':'')+
-    '<input id="pk-code" placeholder="…or type/paste the code and press Enter" onkeydown="if(event.key===\'Enter\'){pickCode(this.value);this.value=\'\';}" style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:14px">'+
+    '<button id="scan-btn" onclick="scanStart()" style="width:100%;background:var(--gr);color:#fff;border:none;border-radius:10px;padding:12px;font-size:13.5px;font-weight:700;cursor:pointer;margin-bottom:8px">\u{1F4F7} Scan next item</button>'+
+    '<video id="scan-video" playsinline muted style="display:none;width:100%;border-radius:12px;margin-bottom:8px"></video>'+
+    (supported?'':'<div style="font-size:11.5px;color:var(--tx3);margin-bottom:8px">This browser has no built-in barcode reader, so the first scan downloads a small decoder \u2014 after that it behaves the same.</div>')+
+    '<input id="pk-code" placeholder="\u2026or type/paste the code and press Enter" onkeydown="if(event.key===\'Enter\'){pickCode(this.value);this.value=\'\';}" style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:14px">'+
     '<div id="pk-msg" style="min-height:34px;margin-top:8px"></div>'+
     '<div id="pk-lines"></div>'+
     '<div id="pk-done"></div>'+
@@ -797,24 +798,24 @@ function pickRefresh(){
   if(ln)ln.innerHTML=P.lines.map((l,i)=>{
     const done=l.got>=l.qty;
     return '<div class="drow" style="align-items:center;'+(done?'opacity:.55':'')+'">'+
-    '<span class="dlbl">'+(done?'✅':'⬜')+' <b>'+esc(l.name)+'</b><br><span style="color:var(--tx3);font-size:11px">'+esc(l.sku)+'</span></span>'+
+    '<span class="dlbl">'+(done?'\u2705':'\u2B1C')+' <b>'+esc(l.name)+'</b><br><span style="color:var(--tx3);font-size:11px">'+esc(l.sku)+'</span></span>'+
     '<span class="dval" style="font-weight:700;font-size:14px;color:'+(done?'var(--gr)':'var(--tx)')+'">'+l.got+' / '+l.qty+
     (!done?' <a href="#" onclick="window._PICK.lines['+i+'].got=window._PICK.lines['+i+'].qty;pickRefresh();return false" title="Mark this line complete without scanning each unit" style="color:var(--tx3);font-size:10px">fill</a>':'')+'</span></div>';
   }).join('');
   const dn=$('pk-done');
-  if(dn)dn.innerHTML=P.lines.every(l=>l.got>=l.qty)?'<button onclick="pickFinish()" style="width:100%;background:var(--ac);color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;margin-top:10px">✓ All scanned — confirm pick'+(canManage()?' & fulfill':'')+'</button>':'';
+  if(dn)dn.innerHTML=P.lines.every(l=>l.got>=l.qty)?'<button onclick="pickFinish()" style="width:100%;background:var(--ac);color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;margin-top:10px">\u2713 All scanned \u2014 confirm pick'+(canManage()?' & fulfill':'')+'</button>':'';
 }
 function pickCode(code){
   const P=window._PICK;if(!P)return;
   const msg=$('pk-msg');
   const m=scanMatch(code);
   const show=(html,bg,fg)=>{if(msg)msg.innerHTML='<div style="background:'+bg+';color:'+fg+';border-radius:8px;padding:8px 12px;font-size:12.5px;font-weight:600">'+html+'</div>';};
-  if(!m){show('“'+esc(String(code))+'” doesn’t match any SKU or barcode. Link it in the Item master, or type the SKU.','var(--rd-bg)','var(--rd)');return;}
+  if(!m){show('\u201C'+esc(String(code))+'\u201D doesn\u2019t match any SKU or barcode. Link it in the Item master, or type the SKU.','var(--rd-bg)','var(--rd)');return;}
   const line=P.lines.find(l=>l.sku===m.sku);
-  if(!line){show('🛑 <b>'+esc(m.name)+'</b> is NOT on this order — wrong item, put it back.','var(--rd-bg)','var(--rd)');return;}
-  if(line.got>=line.qty){show('⚠ '+esc(m.name)+' is already complete ('+line.qty+'/'+line.qty+') — that’s one too many.','var(--am-bg)','var(--am)');return;}
+  if(!line){show('\u{1F6D1} <b>'+esc(m.name)+'</b> is NOT on this order \u2014 wrong item, put it back.','var(--rd-bg)','var(--rd)');return;}
+  if(line.got>=line.qty){show('\u26A0 '+esc(m.name)+' is already complete ('+line.qty+'/'+line.qty+') \u2014 that\u2019s one too many.','var(--am-bg)','var(--am)');return;}
   line.got++;
-  show('✓ '+esc(m.name)+' — '+line.got+' of '+line.qty,'var(--gr-bg)','var(--gr)');
+  show('\u2713 '+esc(m.name)+' \u2014 '+line.got+' of '+line.qty,'var(--gr-bg)','var(--gr)');
   pickRefresh();
   const c=$('pk-code');if(c)c.focus();
 }
@@ -834,7 +835,7 @@ async function pickFinish(){
       if(!error){audit('order.fulfilled',{order:P.label,via:'scan-pick'});NORDERS=null;ftxt=' and marked fulfilled';try{notifyOrderOwner(P.id,'fulfilled','Order fulfilled: '+P.label,'Every unit scanned and shipped','#/v/orders');}catch(ex){}}
     }
     window._scanHandler=null;scanStop();
-    alert('✓ '+P.label+' picked'+ftxt+' — every unit scanned and in the ledger.');
+    alert('\u2713 '+P.label+' picked'+ftxt+' \u2014 every unit scanned and in the ledger.');
     const id=P.id;window._PICK=null;
     showOrderPage(id);
   }catch(e){alert('Could not record: '+(e.message||e));}
@@ -849,17 +850,17 @@ async function renderScan(){
   $('content').innerHTML=
     '<div style="max-width:640px">'+
     '<div class="panel" style="padding:14px 16px;margin-bottom:12px;border-left:3px solid '+(flagOn('ledger_is_truth')?'var(--gr)':'var(--am)')+';font-size:12px">'+
-    (flagOn('ledger_is_truth')?'Ledger is the stock truth — every scan moves real inventory.':'Shadow mode: scans build the platform ledger for comparison; <b>Verna’s sheet remains the stock truth</b> until independence is declared on the Cutover page.')+'</div>'+
+    (flagOn('ledger_is_truth')?'Ledger is the stock truth \u2014 every scan moves real inventory.':'Shadow mode: scans build the platform ledger for comparison; <b>Verna\u2019s sheet remains the stock truth</b> until independence is declared on the Cutover page.')+'</div>'+
     '<div class="panel" style="padding:16px">'+
-    '<div style="display:flex;gap:8px;margin-bottom:12px">'+['receive','pick','count'].map(m=>'<button onclick="SCAN_MODE=\''+m+'\';renderScan()" style="flex:1;padding:10px;border-radius:10px;border:1px solid var(--bd);font-weight:700;font-size:13px;cursor:pointer;background:'+(SCAN_MODE===m?'var(--ac)':'var(--sf)')+';color:'+(SCAN_MODE===m?'#fff':'var(--tx)')+'">'+(m==='receive'?'📦 Receive':m==='pick'?'📤 Pick':'🔢 Count')+'</button>').join('')+'</div>'+
-    (supported?'<button id="scan-btn" onclick="scanStart()" style="width:100%;background:var(--gr);color:#fff;border:none;border-radius:10px;padding:12px;font-size:13.5px;font-weight:700;cursor:pointer;margin-bottom:10px">📷 Start camera scan</button>'+
-      '<video id="scan-video" playsinline style="display:none;width:100%;border-radius:12px;margin-bottom:10px"></video>':
-      '<div style="font-size:12px;color:var(--tx3);margin-bottom:10px">Camera scanning needs Chrome/Edge (or Android). On this browser, type or paste the code below — same result.</div>')+
+    '<div style="display:flex;gap:8px;margin-bottom:12px">'+['receive','pick','count'].map(m=>'<button onclick="SCAN_MODE=\''+m+'\';renderScan()" style="flex:1;padding:10px;border-radius:10px;border:1px solid var(--bd);font-weight:700;font-size:13px;cursor:pointer;background:'+(SCAN_MODE===m?'var(--ac)':'var(--sf)')+';color:'+(SCAN_MODE===m?'#fff':'var(--tx)')+'">'+(m==='receive'?'\u{1F4E6} Receive':m==='pick'?'\u{1F4E4} Pick':'\u{1F522} Count')+'</button>').join('')+'</div>'+
+    '<button id="scan-btn" onclick="scanStart()" style="width:100%;background:var(--gr);color:#fff;border:none;border-radius:10px;padding:12px;font-size:13.5px;font-weight:700;cursor:pointer;margin-bottom:10px">\u{1F4F7} Start camera scan</button>'+
+    '<video id="scan-video" playsinline muted style="display:none;width:100%;border-radius:12px;margin-bottom:10px"></video>'+
+    (supported?'':'<div style="font-size:11.5px;color:var(--tx3);margin-bottom:10px">This browser has no built-in barcode reader, so the first scan downloads a small decoder \u2014 after that it behaves the same.</div>')+
     '<label style="font-size:11px;color:var(--tx3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">Barcode / SKU</label>'+
-    '<input id="scan-code" placeholder="Scan, type, or paste a code…" onkeydown="if(event.key===\'Enter\')scanResolve(this.value)" style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:12px;font-size:15px">'+
+    '<input id="scan-code" placeholder="Scan, type, or paste a code\u2026" onkeydown="if(event.key===\'Enter\')scanResolve(this.value)" style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:12px;font-size:15px">'+
     '<div id="scan-hit" style="margin-top:12px"></div>'+
     '</div>'+
-    '<div class="panel" style="padding:14px 16px;margin-top:12px" id="scan-log"><div class="phd">Recent movements</div><div class="mu" style="font-size:12px">Loading…</div></div></div>';
+    '<div class="panel" style="padding:14px 16px;margin-top:12px" id="scan-log"><div class="phd">Recent movements</div><div class="mu" style="font-size:12px">Loading\u2026</div></div></div>';
   scanLog();
 }
 async function scanLog(){
@@ -869,21 +870,64 @@ async function scanLog(){
   box.innerHTML='<div class="phd">Recent movements ('+(flagOn('ledger_is_truth')?'live ledger':'shadow ledger')+')</div>'+
     (rows.length?rows.map(r=>'<div class="drow"><span class="dlbl" style="font-size:12px"><b>'+esc(r.sku)+'</b> · '+esc(r.kind)+(r.ref?' · '+esc(r.ref):'')+'<br><span style="color:var(--tx3);font-size:11px">'+esc(String(r.at||'').slice(0,16).replace('T',' '))+' · '+esc(r.by_name||'')+'</span></span><span class="dval" style="font-weight:700;color:'+(r.qty>0?'var(--gr)':r.qty<0?'var(--rd)':'var(--tx3)')+'">'+(r.qty>0?'+':'')+r.qty+'</span></div>').join(''):'<div class="mu" style="font-size:12px">Nothing recorded yet.</div>');
 }
+/* Camera scanning works on every phone, not just Chrome/Android.
+   Chrome and Edge ship BarcodeDetector natively; Safari (so every iPhone and
+   iPad, including the installed app) does not. Rather than hide the button
+   there, we load a JS decoder on demand and use the same camera stream. */
+let ZXING=null;
+async function scanReader(){ // → {detect(video) -> [{rawValue}]}
+  if('BarcodeDetector' in window){
+    try{
+      const fmts=await window.BarcodeDetector.getSupportedFormats().catch(()=>null);
+      const want=['ean_13','ean_8','upc_a','upc_e','code_128','code_39','qr_code','itf'];
+      const use=fmts?want.filter(f=>fmts.includes(f)):null;
+      const det=use&&use.length?new window.BarcodeDetector({formats:use}):new window.BarcodeDetector();
+      return {detect:v=>det.detect(v)};
+    }catch(e){}
+  }
+  if(!ZXING){ // load once, only on browsers that need it
+    await new Promise((res,rej)=>{
+      const sc=document.createElement('script');
+      sc.src='https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js';
+      sc.onload=res;sc.onerror=()=>rej(new Error('could not load the barcode decoder — check the connection'));
+      document.head.appendChild(sc);
+    });
+    if(!window.ZXing)throw new Error('the barcode decoder did not load');
+    ZXING=new window.ZXing.BrowserMultiFormatReader();
+  }
+  const canvas=document.createElement('canvas');
+  return {detect:async v=>{
+    if(!v.videoWidth)return [];
+    canvas.width=v.videoWidth;canvas.height=v.videoHeight;
+    canvas.getContext('2d',{willReadFrequently:true}).drawImage(v,0,0);
+    try{const r=ZXING.decodeFromCanvas(canvas);return r?[{rawValue:r.getText()}]:[];}
+    catch(e){return [];} // NotFoundException on a frame with no barcode is normal
+  }};
+}
 async function scanStart(){
   const v=$('scan-video'),btn=$('scan-btn');
   if(!v)return;
   try{
+    if(btn){btn.textContent='Starting the camera…';btn.disabled=true;}
+    const det=await scanReader();
     SCAN_STREAM=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
-    v.srcObject=SCAN_STREAM;v.style.display='block';await v.play();
-    if(btn){btn.textContent='Scanning… point at a barcode';btn.disabled=true;}
-    const det=new window.BarcodeDetector();
+    v.srcObject=SCAN_STREAM;v.style.display='block';v.setAttribute('playsinline','');await v.play();
+    if(btn)btn.textContent='Scanning… point at a barcode';
+    let busy=false;
     const tick=async()=>{
       if(!SCAN_STREAM||(currentView!=='scan'&&currentView!=='scanpick'))return scanStop();
-      try{const codes=await det.detect(v);if(codes&&codes.length){scanStop();(window._scanHandler||scanResolve)(codes[0].rawValue);return;}}catch(e){}
+      if(!busy){
+        busy=true;
+        try{const codes=await det.detect(v);if(codes&&codes.length){scanStop();(window._scanHandler||scanResolve)(codes[0].rawValue);return;}}catch(e){}
+        busy=false;
+      }
       requestAnimationFrame(tick);
     };
     tick();
-  }catch(e){alert('Camera unavailable: '+(e.message||e)+' — type the code instead.');}
+  }catch(e){
+    scanStop();
+    alert('Camera unavailable: '+(e.message||e)+'\n\nType or paste the code instead — it does the same thing.');
+  }
 }
 function scanStop(){
   try{if(SCAN_STREAM){SCAN_STREAM.getTracks().forEach(t=>t.stop());SCAN_STREAM=null;}}catch(e){}

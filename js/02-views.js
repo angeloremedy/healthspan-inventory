@@ -47,6 +47,7 @@ function showView(v,el){
            aged:'Aged inventory',shrinkage:'Shrinkage tracker',cashexpiry:'Cash in expiring stock',branchtransfer:'Remedy branch shipments',branchexpiry:'Remedy branch expiry watch',
            salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt',targets:'Set targets',fcastacc:'Forecast accuracy',campaigns:'Campaign calendar',planreview:'AI planning review',salespace:'Leaderboard & pace',pdc:'PDC register',salesdue:'Reorder due',catalog:'Item master',returns:'Returns & credit memos',scan:'Scan — receive / pick / count',cutover:'Cutover switches',creditmemo:'Credit memo',scorecards:'Review scorecards',scanpick:'Scan to pick',recall:'Batch recall trace',pipeline:'Pipeline',po:'Purchase orders',approvals:'Approvals',commissions:'Commissions',salesevents:'Events calendar',quotes:'Quotations',promos:'Promotions',regs:'Product registrations',cyclecount:'Cycle counts',cashflow:'Cash-flow forecast',quarantine:'Quarantine & disposal',pullouts:'Pull-out requests',archive:'Archive — deleted records',numbering:'Document numbering',codelists:'Option lists',routes:'Approval routes',voucher:'Voucher for approval',orderpay:'Request to order / pay',proofpay:'Proof of payment',replenish:'Request for replenishment',reimburse:'Expense reimbursement',cashadvance:'Request for cash advance',shortdated:'Short-dated stock',poscore:'Receiving & supplier scorecard',whkpi:'Warehouse KPIs',complaints:'Complaints log',suppliers:'Suppliers & imports',valuation:'Landed cost & valuation',transfers:'Transfer orders',manual:'Your manual'};
   $('ptitle').textContent=T[v]||v;
+  try{if(typeof favPaint==='function')favPaint();}catch(e){} // star reflects this page
   if(v==='dashboard') renderDashboard();
   else if(v==='action') renderActionCenter();
   else if(v==='customers') renderCustomers();
@@ -637,8 +638,9 @@ async function submitVisit(){
       const dt=g('lv-date')||new Date().toISOString().slice(0,10);
       const planned=dt>new Date().toISOString().slice(0,10); // future date = planned visit
       const prods=(window._lvProds||[]).join(', ')||null;
-      const {error}=await SB.from('visits').insert({spec,account,type:g('lv-type'),outcome:planned?'Planned':g('lv-out'),date:dt,notes:g('lv-notes'),products:prods,user_id:SBUSER.id,status:planned?'planned':'done'});
+      const {data:vrow,error}=await SB.from('visits').insert({spec,account,type:g('lv-type'),outcome:planned?'Planned':g('lv-out'),date:dt,notes:g('lv-notes'),products:prods,user_id:SBUSER.id,status:planned?'planned':'done'}).select().single();
       if(error)throw new Error(error.message);
+      window._lastVisit=vrow?{id:vrow.id,account:account}:null; // so a photo can be attached to it
     }else{
       const r=await fetch('/.netlify/functions/visits',{method:'POST',headers:await sbAuthHeaders({'Content-Type':'application/json'}),
         body:JSON.stringify({spec,account,type:g('lv-type'),outcome:g('lv-out'),date:g('lv-date'),notes:g('lv-notes')})});
@@ -646,7 +648,14 @@ async function submitVisit(){
       if(d.error)throw new Error(d.error);
     }
     localStorage.setItem('hs_visit_spec',spec);
-    if(msg){msg.style.color='var(--gr)';msg.textContent='Saved — '+account+' logged.';}
+    if(msg){
+      msg.style.color='var(--gr)';
+      msg.innerHTML='Saved \u2014 '+esc(account)+' logged.'+
+        (window._lastVisit&&typeof attBlock==='function'
+          ?'<div style="margin-top:8px">'+attBlock('visit',window._lastVisit.id,[],true)+
+           '<div class="mu" style="font-size:11px;margin-top:4px">Add a photo of the shelf, a signed slip \u2014 anything worth keeping with this visit.</div></div>'
+          :'');
+    }
     if($('lv-acct'))$('lv-acct').value='';if($('lv-notes'))$('lv-notes').value='';
     window._lvProds=[];lvChips();
     VISITS=null;renderRecentVisits();

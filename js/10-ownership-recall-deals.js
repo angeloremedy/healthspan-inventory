@@ -216,6 +216,7 @@ function navSync(){
     });
     const ln=document.getElementById('lnav');
     if(ln){ln.dataset.deny=(ROLE==='sales')?'1':'0';if(ROLE==='sales')ln.style.display='none';}
+    try{if(typeof favPaint==='function')favPaint();}catch(e){} // re-pin favourites after the sidebar is rebuilt
     // a section whose every item is denied disappears entirely (e.g. Admin for finance)
     document.querySelectorAll('.nav .nlbl').forEach(lbl=>{
       let n=lbl.nextElementSibling,any=false;
@@ -286,6 +287,7 @@ function buildMobileMenu(q){
     '<div style="display:flex;gap:10px;margin-top:10px">'+
     '<button onclick="closeMobileMenu();openChangePassword()" style="flex:1;background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px">Change password</button>'+
     '<button onclick="closeMobileMenu();downloadManual()" style="flex:1;background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px">📖 My manual</button>'+
+    '<button onclick="favOpen()" style="flex:1;background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px">★ Favourites</button>'+
     '<button onclick="mbarOpen()" style="flex:1;background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px">☆ Customize bar</button>'+
     '<button onclick="roleLogout()" style="flex:1;background:var(--rd-bg);color:var(--rd);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px;font-weight:600">Sign out</button></div>'+
     '<div style="display:flex;gap:8px;margin-top:10px;align-items:center;font-size:12px;color:var(--tx3)">Theme:'+
@@ -1260,6 +1262,7 @@ async function toggleNotifs(){
 
 /* ── late INIT (js/10 loads last, so calls here see every module) ── */
 try{navApplyCollapse();}catch(e){} // the js/09 call runs before this file loads — THIS one is the real startup apply
+try{favPaint();}catch(e){}          // pin favourites once the sidebar exists
 
 /* ══ SHORT-DATED STOCK QUEUE ══
    Expiry watch says WHAT is short-dated; this says WHAT WE'RE DOING ABOUT IT.
@@ -3589,3 +3592,131 @@ async function routeDrop(id){
     await loadRoutes(true);renderRoutes();
   }catch(e){alert('Could not remove: '+(e.message||e));}
 }
+
+/* ══════════════════ FAVOURITES ══════════════════
+   Up to eight pages you pick, pinned to the top of the sidebar AND the top of
+   the home page — one list, both places, so there is nothing to keep in sync.
+   Stored per person per device (same as the bottom bar), because it is a
+   personal shortcut rather than company data.
+   The star in the top bar toggles the page you are on; "Choose favourites"
+   in the mobile menu and on the home row opens the full picker. */
+const FAV_MAX=8;
+function favKey(){return 'hs_fav_'+((SBUSER&&SBUSER.id)||'anon');}
+function favGet(){
+  try{const v=JSON.parse(localStorage.getItem(favKey())||'[]');
+    return Array.isArray(v)?v.filter(x=>typeof x==='string').slice(0,FAV_MAX):[];}catch(e){return [];}
+}
+function favSet(list){
+  try{localStorage.setItem(favKey(),JSON.stringify((list||[]).slice(0,FAV_MAX)));}catch(e){}
+}
+function favHas(v){return favGet().indexOf(v)>=0;}
+/* every page this role can actually open, read from the sidebar */
+function favOptions(){
+  const out=[];
+  document.querySelectorAll('.nav .ni').forEach(el=>{
+    if(el.closest('#fav-sec'))return; // skip the pinned copies of themselves
+    const m=(el.getAttribute('onclick')||'').match(/showView\('([a-z_]+)'/);
+    if(!m||m[1]==='home')return;
+    if(typeof viewAllowed==='function'&&!viewAllowed(m[1]))return;
+    let t='';el.childNodes.forEach(n=>{if(n.nodeType===3)t+=n.textContent;});
+    if(!out.some(o=>o[0]===m[1]))out.push([m[1],(t||'').trim()||m[1]]);
+  });
+  return out;
+}
+function favTitle(v){
+  const hit=favOptions().find(o=>o[0]===v);
+  return hit?hit[1]:v;
+}
+/* toggle the page you are on, from the star in the top bar */
+function favToggleCurrent(){
+  const v=currentView;
+  if(!v||v==='home')return;
+  const list=favGet(),i=list.indexOf(v);
+  if(i>=0)list.splice(i,1);
+  else{
+    if(list.length>=FAV_MAX)return alert('That is '+FAV_MAX+' favourites already — remove one first (the star on that page, or Choose favourites).');
+    list.push(v);
+  }
+  favSet(list);favPaint();
+  try{audit('favourite.'+(i>=0?'remove':'add'),{view:v});}catch(e){}
+}
+/* paint: the star's state, the sidebar section, and the home row */
+function favPaint(){
+  const btn=document.getElementById('fav-btn');
+  if(btn){
+    const on=favHas(currentView);
+    btn.innerHTML=(on?'★':'☆');
+    btn.title=on?'Remove this page from your favourites':'Add this page to your favourites';
+    btn.style.color=on?'var(--ac)':'var(--tx3)';
+    btn.style.display=(currentView&&currentView!=='home')?'':'none';
+  }
+  favSidebar();
+}
+/* the sidebar section, rebuilt from the same list */
+function favSidebar(){
+  const nav=document.querySelector('.nav');if(!nav)return;
+  let sec=document.getElementById('fav-sec');
+  const list=favGet().filter(v=>typeof viewAllowed!=='function'||viewAllowed(v));
+  if(sec)sec.remove();
+  if(!list.length)return;
+  sec=document.createElement('div');sec.id='fav-sec';
+  const lbl=document.createElement('div');
+  lbl.className='nlbl';lbl.textContent='Favourites';
+  sec.appendChild(lbl);
+  list.forEach(v=>{
+    const src=[...document.querySelectorAll('.nav .ni')].find(el=>!el.closest('#fav-sec')&&(el.getAttribute('onclick')||'').indexOf("showView('"+v+"'")>=0);
+    const d=document.createElement('div');
+    d.className='ni';
+    d.setAttribute('onclick',"showView('"+v+"',this)");
+    const svg=src&&src.querySelector('svg');
+    if(svg)d.appendChild(svg.cloneNode(true));
+    d.appendChild(document.createTextNode(favTitle(v)));
+    sec.appendChild(d);
+  });
+  nav.insertBefore(sec,nav.firstChild);
+}
+/* the picker — same shape as the bottom-bar customiser, so it feels familiar */
+function favOpen(){
+  if(typeof closeMobileMenu==='function')closeMobileMenu();
+  window._favSel=favGet().slice();
+  const opts=favOptions();
+  let ov=document.getElementById('fav-ov');
+  if(!ov){ov=document.createElement('div');ov.id='fav-ov';document.body.appendChild(ov);}
+  ov.style.cssText='position:fixed;inset:0;z-index:700;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch;padding:calc(16px + var(--sat,0px)) 16px calc(24px + env(safe-area-inset-bottom,0px))';
+  const chip=(v,t)=>{
+    const on=window._favSel.includes(v);
+    return '<button data-v="'+v+'" onclick="favToggle(this)" style="margin:0 6px 8px 0;padding:9px 13px;border-radius:20px;font-size:12.5px;cursor:pointer;border:1px solid '+(on?'var(--ac)':'var(--bd)')+';background:'+(on?'var(--ac)':'var(--sf)')+';color:'+(on?'#fff':'var(--tx)')+';font-weight:'+(on?'600':'400')+'">'+esc(t)+'</button>';
+  };
+  ov.innerHTML=
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><b style="font-size:16px">Choose your favourites</b><span style="flex:1"></span>'+
+    '<button onclick="favClose()" style="background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 14px;font-size:14px;font-weight:700;cursor:pointer">✕</button></div>'+
+    '<div style="font-size:12px;color:var(--tx3);margin-bottom:12px">Pick up to <b>'+FAV_MAX+'</b> pages. They pin to the top of the sidebar and the top of your home page — the same list in both places. <span id="fav-n">'+window._favSel.length+'/'+FAV_MAX+'</span></div>'+
+    '<div id="fav-chips">'+opts.map(o=>chip(o[0],o[1])).join('')+'</div>'+
+    '<div style="display:flex;gap:10px;margin-top:16px">'+
+    '<button onclick="favSave()" style="flex:1;background:var(--ac);color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:700;cursor:pointer">Save favourites</button>'+
+    '<button onclick="favClear()" style="background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:13px 16px;font-size:13px;cursor:pointer">Clear all</button></div>';
+}
+function favToggle(btn){
+  const v=btn.getAttribute('data-v');
+  window._favSel=window._favSel||[];
+  const i=window._favSel.indexOf(v);
+  if(i>=0)window._favSel.splice(i,1);
+  else{
+    if(window._favSel.length>=FAV_MAX){alert('That is '+FAV_MAX+' already — unpick one first.');return;}
+    window._favSel.push(v);
+  }
+  const on=window._favSel.includes(v);
+  btn.style.border='1px solid '+(on?'var(--ac)':'var(--bd)');
+  btn.style.background=on?'var(--ac)':'var(--sf)';
+  btn.style.color=on?'#fff':'var(--tx)';
+  btn.style.fontWeight=on?'600':'400';
+  const n=document.getElementById('fav-n');if(n)n.textContent=window._favSel.length+'/'+FAV_MAX;
+}
+function favSave(){
+  favSet(window._favSel||[]);
+  try{audit('favourite.set',{picks:(window._favSel||[]).join(',')});}catch(e){}
+  favClose();favPaint();
+  if(currentView==='home'&&typeof renderHome==='function')renderHome();
+}
+function favClear(){window._favSel=[];favSave();}
+function favClose(){const ov=document.getElementById('fav-ov');if(ov)ov.remove();}

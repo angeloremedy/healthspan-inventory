@@ -440,6 +440,27 @@ function docNo(kind,n){
   if(f.pad>0)while(num.length<f.pad)num='0'+num;
   return (f.prefix||'')+num;
 }
+/* The phone's top bar mirrors the desktop page title. It used to be copied only
+   when a sync finished, so it was stuck on whatever the app first loaded —
+   "Dashboard" on every page. Watching #ptitle catches every place a view sets
+   its own title (showView, the order page, the credit memo, the DR, and so on)
+   without each of them having to remember. */
+(function(){
+  function mirror(){
+    const a=document.getElementById('ptitle'),b=document.getElementById('mptitle');
+    if(a&&b&&b.textContent!==a.textContent)b.textContent=a.textContent;
+    const c=document.getElementById('psub'),d=document.getElementById('mpsub');
+    if(c&&d&&d.textContent!==c.textContent)d.textContent=c.textContent;
+  }
+  function start(){
+    const a=document.getElementById('ptitle');if(!a)return setTimeout(start,200);
+    mirror();
+    try{new MutationObserver(mirror).observe(a,{childList:true,characterData:true,subtree:true});}catch(e){}
+    const c=document.getElementById('psub');
+    if(c){try{new MutationObserver(mirror).observe(c,{childList:true,characterData:true,subtree:true});}catch(e){}}
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
+})();
 /* ── SILENT RE-RENDER ───────────────────────────────────────────────────────
    Almost every view starts by blanking #content to "Loading…" and re-querying.
    That is right when you NAVIGATE to a page — you have nothing to look at yet.

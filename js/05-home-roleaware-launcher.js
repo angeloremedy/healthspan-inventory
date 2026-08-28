@@ -18,6 +18,7 @@ function renderHome(){
   const dstr=new Date().toLocaleDateString('en-PH',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
   // icons (24px stroke set, matches the sidebar)
   const HI={
+    star:'<polygon points="12 2 15.1 8.6 22 9.5 17 14.4 18.2 21.4 12 18.1 5.8 21.4 7 14.4 2 9.5 8.9 8.6 12 2"/>',
     cart:'<path d="M9 22a1 1 0 1 0 0-2 1 1 0 0 0 0 2z" fill="currentColor"/><path d="M20 22a1 1 0 1 0 0-2 1 1 0 0 0 0 2z" fill="currentColor"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>',
     pin:'<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>',
     check:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
@@ -243,6 +244,15 @@ function renderHome(){
   '<div style="font-size:12.5px;opacity:.85;margin-top:4px;position:relative">'+(ROLE==='admin'?'Everything Healthspan, in one place.':ROLE==='manager'?'Sales manager view — the whole team, all accounts.':ROLE==='supply_chain'?'Supply chain view — warehouse, POs, and inventory.':ROLE==='finance'?'Finance view — receivables, cheques, and exports.':ROLE==='marketing'?'Marketing view — campaigns, pipeline, and analytics.':ROLE==='viewer'?'Viewer — the weekly-meeting numbers, live.':(myTag?'Signed in as '+esc(myTag)+' — your orders and visits log under your name.':'Manager view — you see the whole team.'))+'</div></div>'+
   '<div id="hm-live" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:4px"></div>'+
   '<div id="hm-attn"></div>'+
+  (function(){ // favourites first — the same list that pins to the sidebar
+    if(typeof favGet!=='function')return '';
+    const favs=favGet().filter(v=>typeof viewAllowed!=='function'||viewAllowed(v));
+    const pick='<a href="#" onclick="favOpen();return false" style="color:var(--ac);font-size:11px;font-weight:600;margin-left:8px">'+(favs.length?'edit':'choose')+'</a>';
+    if(!favs.length)return '<div class="hm-lbl">Favourites'+pick+'</div>'+
+      '<div class="mu" style="font-size:12px;margin:-4px 0 14px">Star the pages you use most \u2014 they pin here and to the top of the sidebar.</div>';
+    return '<div class="hm-lbl">Favourites'+pick+'</div><div class="hm-grid">'+
+      favs.map(v=>card(go(v),favTitle(v),(SUBS&&SUBS[v])||'',HI.star||HI.check,1)).join('')+'</div>';
+  })()+
   sections.map(s=>'<div class="hm-lbl">'+s[0]+'</div><div class="hm-grid">'+s[1].join('')+'</div>').join('')+
   autoSec;
   try{homeLive();}catch(e){}

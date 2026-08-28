@@ -359,7 +359,34 @@ Pull-out requests carry attachments today; the finance forms will use the same
 control. The super admin can verify the wiring at any time from Cutover →
 Attachments → Test the connection.
 
-## 9.12 Pages refresh in place, not from scratch
+## 9.12 Favourites
+
+Star any page — the star sits next to the bell in the top bar — and it pins to
+the **top of the sidebar** and the **top of your home page**. One list, both
+places, up to eight. The star fills in when you're on a page you've favourited,
+so it doubles as "is this one of mine?".
+
+To pick several at once: **Favourites → edit** on the home page, or **★
+Favourites** in the phone menu. Both open the same chip picker as the bottom-bar
+customiser.
+
+Favourites are yours and live on the device you set them on, the same as your
+custom bottom bar. They're a shortcut, not company data — nothing about them
+changes what you're allowed to open, and a page you can't access can't be
+favourited.
+
+## 9.13 Attachments on the CRM
+
+Account profiles have a **Documents** panel: licences (LTO, PRC), signed
+delivery receipts, agreements — anything that belongs to the clinic rather than
+to a single order. And when you log a visit, the confirmation offers an attach
+button right there, so a photo of the shelf or a signed slip goes on the visit
+while you're still standing in the clinic.
+
+Both use the same Google Drive storage as the finance forms, so the same rule
+applies: HQ decides who can open a file, not who happens to be on the Drive.
+
+## 9.14 Pages refresh in place, not from scratch
 
 Every view used to start by wiping the screen to "Loading…" and re-querying the
 database. That's right when you *navigate* somewhere — there's nothing to look at
@@ -376,7 +403,7 @@ The pull-out cart goes further: adding or removing an item you just typed doesn'
 touch the database at all. It repaints from what's already loaded, so the line
 appears instantly.
 
-## 9.13 Sorting any table
+## 9.15 Sorting any table
 
 Click any column header to sort A–Z; click it again for Z–A. The header you
 sorted by turns blue with a ▲ or ▼. It works on every table in HQ — the
@@ -397,7 +424,7 @@ dataset rather than the page you're looking at.
 A sort lasts until the page redraws (a filter, a refresh, an action you take).
 That's intentional: it's a way to look at what's on screen, not a saved setting.
 
-## 9.14 Inventory pull-outs — the form, with teeth
+## 9.16 Inventory pull-outs — the form, with teeth
 
 Stock leaves the warehouse for internal reasons all the time: KOL engagements,
 brand campaigns, FOC promos, trade partnerships, launches and training. That
@@ -455,7 +482,7 @@ long-standing pull-out convention. The QBO side stays as it is for now: the
 Shopify↔QBO integration carries it, and pushing *all* orders to QBO directly is
 a separate piece of work.
 
-## 9.15 Accounting integrity: closing a period, and what freezes
+## 9.17 Accounting integrity: closing a period, and what freezes
 
 Until now any month could be edited forever. A July order's amount could change
 in September, after accounting had signed July off — and nothing said no. The
@@ -518,7 +545,7 @@ draft and lands in Approvals as a "purchase" hold, pinging admin. Approving mark
 it ordered; rejecting cancels it. Both thresholds are super-admin settings on the
 Approvals page.
 
-## 9.16 Your manual, in-app
+## 9.18 Your manual, in-app
 
 Sidebar → **manual** (mobile: Menu → My manual) opens the user manual for YOUR
 role right inside the app — read it there, download it, or pop it full screen.

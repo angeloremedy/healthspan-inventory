@@ -502,9 +502,22 @@ async function renderAccountPage(){
     upsellPanelHTML(e.name)+
     '</div>'+
     '<div><div class="panel" style="padding:16px" id="ac-panel">'+acctDetailsHTML(e.name,acct,false)+'</div>'+
-    '<div class="panel" style="padding:16px;margin-top:14px" id="ac-contacts"><div class="phd">Contacts</div><div style="font-size:12px;color:var(--tx3)">Loading…</div></div></div>'+
+    '<div class="panel" style="padding:16px;margin-top:14px" id="ac-contacts"><div class="phd">Contacts</div><div style="font-size:12px;color:var(--tx3)">Loading…</div></div>'+
+    '<div class="panel" style="padding:16px;margin-top:14px" id="ac-docs"><div class="phd">Documents</div><div style="font-size:12px;color:var(--tx3)">Loading…</div></div></div>'+
     '</div>';
   try{fillContacts(custNorm(e.name),e.name);}catch(ex){}
+  try{fillAcctDocs(e.name);}catch(ex){}
+}
+/* Documents on an account: LTO/PRC licences, signed DRs, letters. Stored in the
+   Healthspan Shared Drive; the account name is the key, so a document follows
+   the account even if it is later merged under a different spelling. */
+async function fillAcctDocs(name){
+  const box=$('ac-docs');if(!box)return;
+  const files=(typeof attList==='function')?await attList('account',name):[];
+  const canAdd=typeof canManage==='function'?canManage():false;
+  box.innerHTML='<div class="phd">Documents</div>'+
+    (typeof attBlock==='function'?attBlock('account',name,files,canAdd||roleIn('sales')):'')+
+    '<div class="mu" style="font-size:11px;margin-top:8px">Licences (LTO, PRC), signed delivery receipts, agreements \u2014 anything that belongs to this clinic rather than to one order.</div>';
 }
 /* Details panel: read-only by default, Edit button switches to the form (per Angelo) */
 let ACCT_REC=null;

@@ -104,6 +104,9 @@ therefore a floor — implementation grants the full circle read to all three.
 | Short-dated stock (set plan / close lot) | ✅ | ✅ | ✖ | ✅ | 👁 | ✅ |
 | Receiving & supplier score (shows PO cost) | ✅ | ✖ | ✖ | ✅ | ✅ | ✖ |
 | PO unit-cost column (on Purchase orders) | ✅ | ✖ | ✖ | ✅ | ✅ | ✖ |
+| Favourites (own shortcuts, up to 8) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (every role) |
+| Account documents (view / add) | ✅ | ✅ | ✅ | ✅ | ✅ | 👁 |
+| Visit photos (on your own visit) | ✅ | ✅ | ✅ | ✅ | ✅ | ✖ |
 | Pull-out request (file one) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (viewer/IT too — `viewAllowed` returns true for every role by rule) |
 | Pull-out approve / reject | mapped fund-source approver or backup only, **regardless of role** (super admin as fallback) | — | — | — | — | — |
 | Pull-out fund-source spend + QBO export | ✅ | ✖ | ✖ | ✖ | ✅ | ✖ |
