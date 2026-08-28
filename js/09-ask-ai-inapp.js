@@ -204,6 +204,7 @@ async function sbLoadProfile(user){
   try{await loadAcctLinks(true);}catch(e){} // curated merges/branches apply everywhere
   try{loadSpecTargets(true);}catch(e){}     // in-app specialist targets (override sheet)
   try{loadSpecRoster(true);}catch(e){}      // added/deactivated specialists for pickers
+  try{await loadDocFormats(true);}catch(e){} // document numbers before anything paints one
   try{await loadFlags(true);if(flagOn('use_catalog_pricing')){await loadItems(true);applyCatalog();}}catch(e){} // cutover switches
   try{maybeSnapshotForecast();}catch(e){}   // monthly forecast freeze (runs if data is ready)
   // endpoints are session-locked: pull anything that failed before sign-in

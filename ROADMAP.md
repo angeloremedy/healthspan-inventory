@@ -99,6 +99,12 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ Mobile once-and-for-all: sticky top bar (never scrolls away, no rubber-band gap) · customizable bottom bar (each user picks their 4 quick-access pages; Home + Menu fixed)
 - ✅ HD home-screen icons: white logo on brand blue (192/512/maskable/apple-touch)
 
+**Super-admin control (Aug 28)**
+- ✅ Delete anything, archived not destroyed: typing the record's number is required, the row + its child lines are copied to `archive_bin`, then removed. Admin → Archive restores (new id; links not rebuilt) or purges behind a second typed confirmation. All audited; the bin is in the nightly backup
+- ✅ Document numbering settings: one super-admin page for HS / QT / CM / PL / PO / TR — prefix, zero-padding, and the number each series appears to start at, with a live example. Numbers still derive from the record's own position, so a format change can never collide two documents. DR numbers stay on the Cutover page (stamped permanently at print)
+- ✅ Product specialists removed from the fund-source approver picker
+- ✅ New **Finance forms** sidebar section (pull-out requests today; the five finance forms as they land)
+
 **Usability (Aug 28)**
 - ✅ Silent re-render: the "Loading…" blank-out now only happens on real navigation. All 28 views refresh in place after an action and keep the scroll position (MutationObserver-timed, not a guess); the pull-out cart repaints from cache with no DB round-trip
 - ✅ App-wide table sorting: click any column header for A–Z, again for Z–A, on all 87 tables — one delegated listener, type-aware (money, units, MM/YYYY expiry, ISO dates, %), blanks last, section/TOTAL rows pinned, existing row handlers preserved; All SKUs keeps its own dataset-level sort

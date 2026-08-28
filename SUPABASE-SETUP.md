@@ -1893,3 +1893,84 @@ the admin themselves. No extra RLS policy is needed.
 
 Set each class's approver in **Pull-out requests → fund sources** (admin only).
 Until a class has an approver, its requests sit unrouted and the page says so.
+
+---
+
+## Numbering settings + super-admin archive (2026-08-28)
+
+```sql
+-- ─────────────────────────────────────────────────────────────────────────
+-- 1) DOCUMENT NUMBER FORMATS — one place for every number the app prints.
+--    Numbers are still generated from the row's own identity; this controls
+--    how they are FORMATTED (prefix, padding, and the number the series
+--    appears to start at). Changing a format changes how existing documents
+--    display, so it is a super-admin setting. Permanent DR numbers already
+--    written onto orders are NOT affected — those are stored, not derived.
+-- ─────────────────────────────────────────────────────────────────────────
+create table if not exists public.doc_formats (
+  kind text primary key,          -- order | quote | cm | pullout | po | transfer
+  label text not null,
+  prefix text not null default '',
+  pad int not null default 0,     -- 0 = no zero padding
+  offset_no int not null default 1000,  -- displayed number = offset + row id
+  sort int not null default 0
+);
+insert into public.doc_formats (kind,label,prefix,pad,offset_no,sort) values
+  ('order','Sales orders','HS-',0,1000,1),
+  ('quote','Quotations','QT-',4,0,2),   -- historically QT-0007: pad 4, no offset
+  ('cm','Credit memos','CM-',0,1000,3),
+  ('pullout','Pull-outs','PL-',0,1000,4),
+  ('po','Purchase orders','PO-',0,1000,5),
+  ('transfer','Transfer orders','TR-',0,1000,6)
+on conflict (kind) do nothing;
+
+alter table public.doc_formats enable row level security;
+drop policy if exists "df read" on public.doc_formats;
+create policy "df read" on public.doc_formats for select to authenticated using (true);
+drop policy if exists "df write" on public.doc_formats;
+create policy "df write" on public.doc_formats for update to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_super));
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- 2) ARCHIVE BIN — the super admin can delete anything, but nothing
+--    evaporates on the first click. Deleting copies the row (and its child
+--    rows) here as JSON and removes the original; the Archive page can
+--    restore it or purge it for good, each behind its own confirmation.
+-- ─────────────────────────────────────────────────────────────────────────
+create table if not exists public.archive_bin (
+  id bigint generated always as identity primary key,
+  src_table text not null,
+  src_id text not null,
+  label text,                     -- what it was called on screen: HS-1042, PL-1007
+  summary text,                   -- a human line so the bin is readable
+  payload jsonb not null,         -- {row:{...}, children:{table:[...]}}
+  reason text,
+  archived_by uuid,
+  archived_name text,
+  archived_at timestamptz not null default now(),
+  restored_at timestamptz,
+  restored_by text
+);
+create index if not exists archive_bin_at on public.archive_bin (archived_at desc);
+create index if not exists archive_bin_src on public.archive_bin (src_table, src_id);
+
+alter table public.archive_bin enable row level security;
+-- the bin can hold anything, including costs and customer data: super admin only
+drop policy if exists "bin read" on public.archive_bin;
+create policy "bin read" on public.archive_bin for select to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_super));
+drop policy if exists "bin write" on public.archive_bin;
+create policy "bin write" on public.archive_bin for insert to authenticated
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_super));
+drop policy if exists "bin update" on public.archive_bin;
+create policy "bin update" on public.archive_bin for update to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_super));
+drop policy if exists "bin purge" on public.archive_bin;
+create policy "bin purge" on public.archive_bin for delete to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_super));
+```
+
+Deleting requires typing the record's number, restoring re-inserts it (child
+rows get re-pointed at the restored parent), and purging asks again. Every step
+is written to the Activity log. The archive is also in the nightly backup, so a
+purge is still recoverable from the previous night's snapshot.

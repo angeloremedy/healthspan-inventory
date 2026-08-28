@@ -110,6 +110,10 @@ therefore a floor — implementation grants the full circle read to all three.
 | Pull-out release (writes the ledger) | ✅ | ✖ | ✖ | ✅ | ✖ | ✖ |
 | Pull-out mark booked | ✅ | ✅ | ✅ | ✅ | ✖ | ✖ |
 | Fund-source approver mapping | ✅ | ✖ | ✖ | ✖ | ✖ | ✖ |
+| Eligible to BE a fund-source approver | ✅ | ✅ | ✖ (product specialists excluded) | ✅ | ✅ | ✅ |
+| Delete any record (archives it) | super admin only | ✖ | ✖ | ✖ | ✖ | ✖ |
+| Archive: restore / purge | super admin only | ✖ | ✖ | ✖ | ✖ | ✖ |
+| Document numbering (prefix, padding, series start) | super admin only | ✖ | ✖ | ✖ | ✖ | ✖ |
 | Period close (set closed-through date) | super admin only | ✖ | ✖ | ✖ | ✖ | ✖ |
 | Record a payment (dated, append-only) | ✅ | ✖ | ✖ | ✖ | ✅ | ✖ |
 | Collections CSV (dated payments in a period) | ✅ | ✅ | ✖ | ✖ | ✅ | ✖ |

@@ -426,7 +426,7 @@ async function oppSet(id,stage){
 }
 
 /* ── PURCHASE ORDERS + RECEIVING (procure-to-pay, feeds the scan ledger) ── */
-const PO_NO=id=>'PO-'+String(1000+id);
+const PO_NO=id=>docNo('po',id);
 async function renderPOs(){
   if(!roleIn('admin','manager','supply_chain','finance')){$('content').innerHTML='<div class="empty" style="margin-top:40px">Warehouse, finance, and management only.</div>';return;}
   loadingHint();
@@ -888,7 +888,7 @@ async function loadQuotes(force){
   catch(e){QUOTES=[];}
   return QUOTES;
 }
-const qtLabel=q=>'QT-'+String(q.num||0).padStart(4,'0');
+const qtLabel=q=>docNo('quote',q.num);
 function qtMine(q){
   const myTag=(ROLE==='sales'&&SBPROFILE&&SBPROFILE.specialist_tag)||'';
   return !myTag||specCanon(q.spec||'').toLowerCase()===specCanon(myTag).toLowerCase();
@@ -1305,7 +1305,7 @@ async function renderShortDated(){
       '<td>'+pill(l)+(l.plan&&l.plan.notes?'<div class="mu" style="font-size:10.5px;margin-top:2px">'+esc(l.plan.notes)+'</div>':'')+'</td>'+
       (canW?'<td style="white-space:nowrap;font-size:11.5px">'+
         (l.plan&&l.plan.status==='done'?'':'<a href="#" onclick="sdPlan(\''+esc(l.sku)+'\',\''+esc(l.batch)+'\');return false" style="color:var(--ac)">'+(l.plan?'change':'set plan')+'</a>'+
-          (l.plan?' · <a href="#" onclick="sdClose('+l.plan.id+');return false" style="color:var(--gr)">done</a>':''))+'</td>':'')+
+          (l.plan?' · <a href="#" onclick="sdClose('+l.plan.id+');return false" style="color:var(--gr)">done</a>'+delLink('shortdated',l.plan.id):''))+'</td>':'')+
       '</tr>').join(''):'<tr><td colspan="'+(canW?8:7)+'" class="mu">Nothing expiring within 6 months — clean.</td></tr>')+
     '</tbody></table></div><div class="tfooter"><span>Every lot inside 6 months, earliest first · a plan names what we do and who does it · closing a lot records the outcome. Discounts and FOC still go through the normal promo/order flow — this is the worklist, not a separate discount channel.</span></div></div>';
 }
@@ -2030,7 +2030,7 @@ async function valFreeze(month){
 })();
 
 /* ══════════ TRANSFER ORDERS — Remedy branch shipments as documents ══════════ */
-const TR_NO=id=>'TR-'+String(1000+Number(id));
+const TR_NO=id=>docNo('transfer',id);
 let TCART=[];
 async function renderTransfers(){
   if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
@@ -2135,6 +2135,7 @@ const VIEW_WRITERS={
   quarantine:{roles:['supply_chain'],label:'the warehouse team (finance can add from returns)'},
   shortdated:{roles:['supply_chain','manager','marketing'],label:'the warehouse team, sales managers and marketing'},
   pullouts:null, // everyone may request; approving/releasing is gated inside the page
+  archive:null, numbering:null, // super-admin pages
 
   poscore:null, // report — read-only by nature
   transfers:{roles:['supply_chain','manager'],label:'the warehouse team'},
@@ -2234,7 +2235,7 @@ function mbarClose(){const ov=document.getElementById('mbar-ov');if(ov)ov.remove
      booked    → the PS records it in Shopify during the parallel run, and
                  ticks it here so nothing is left half-done
    Rejecting or cancelling frees the reservation immediately. */
-const PL_NO=id=>'PL-'+String(1000+Number(id));
+const PL_NO=id=>docNo('pullout',id);
 const PL_REASONS=['KOL & Speaker Engagements','Market Building & Brand Campaigns','FOC & Sales Promotion','Key Accounts & Trade Partnerships','Product Launches & Training Programs'];
 const PL_LINES_OPT=['Innoaesthetic','Termosalud','GTG','Skinpen','Biojuve','Mark Vu','Mesoestetic'];
 let FUNDS=null;
@@ -2270,7 +2271,9 @@ async function renderPullouts(cheap){
       const out=(typeof adminUsers==='function')?await adminUsers('list'):null;
       let arr=(out&&(out.users||out.list))||out||[];
       if(!Array.isArray(arr))arr=[];
-      window._PLUSERS=arr.filter(u=>u&&u.id).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
+      // product specialists never approve spending — keep them out of the picker
+      window._PLUSERS=arr.filter(u=>u&&u.id&&u.role!=='sales')
+        .sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
     }catch(e){window._PLUSERS=[];}
   }
   let rows=[],lines=[];
@@ -2361,6 +2364,7 @@ function plPaint(rows,byPl){
       if(r.status==='pending'&&isMine)acts.push('<a href="#" onclick="plCancel('+r.id+');return false" style="color:var(--tx3)">cancel</a>');
       if(r.status==='approved'&&canW)acts.push('<a href="#" onclick="plRelease('+r.id+');return false" style="color:var(--ac);font-weight:700">release stock →</a>');
       if(r.status==='released'&&!r.booked_ref&&(canW||roleIn('admin','sales','manager')))acts.push('<a href="#" onclick="plBooked('+r.id+');return false" style="color:var(--ac)">mark booked</a>');
+      const _d=delLink('pullouts',r.id);if(_d)acts.push(_d.replace(/^ · /,''));
       return '<tr'+(isMine?' style="background:var(--sf2)"':'')+'><td style="font-weight:700">'+PL_NO(r.id)+'</td>'+
       '<td class="mu" style="font-size:11px">'+esc(String(r.date_requested||'').slice(0,10))+'</td>'+
       '<td class="mu" style="font-size:11px">'+esc(String(r.date_needed||'—').slice(0,10))+'</td>'+
@@ -2711,3 +2715,187 @@ async function plToggleFund(cls,active){
     th.appendChild(arrow);
   },true);
 })();
+
+/* super-admin delete link, for use inside any row's action cell */
+function reRender(){ // repaint the view we are on, keeping the sidebar highlight
+  const el=document.querySelector('.ni.active');
+  try{showView(currentView,el);}catch(e){}
+}
+function delLink(table,id){
+  if(typeof isSuper!=='function'||!isSuper())return '';
+  return ' · <a href="#" onclick="archiveRecord(\''+table+'\',\''+String(id).replace(/'/g,'')+'\').then(function(ok){if(ok)reRender();});return false" style="color:var(--rd)" title="Archive this record (super admin)">delete</a>';
+}
+/* ══════════════════ SUPER-ADMIN ARCHIVE & DELETE ══════════════════
+   The super admin can delete anything — but nothing evaporates on a click.
+   Deleting asks you to TYPE the record's number (no muscle-memory accidents),
+   copies the row and its children into the archive bin as JSON, then removes
+   the original. The Archive page can put it back or purge it for good, and
+   purging asks again. Every step lands in the Activity log, and the bin is in
+   the nightly backup — so even a purge is recoverable from last night. */
+const ARCH_KINDS={ // table → how to describe it, and which children travel with it
+  pullouts:{label:'Pull-out request',no:r=>PL_NO(r.id),sum:r=>r.fund_class+' · '+(r.reason||'')+' · '+(r.requester_name||''),children:[{table:'pullout_lines',fk:'pullout_id'}]},
+  quotes:{label:'Quotation',no:r=>qtLabel(r),sum:r=>r.account+' · '+fmtPeso(r.total||0),children:[{table:'quote_lines',fk:'quote_id'}]},
+  pos:{label:'Purchase order',no:r=>PO_NO(r.id),sum:r=>r.supplier+' · '+r.status,children:[{table:'po_lines',fk:'po_id'}]},
+  transfers:{label:'Transfer order',no:r=>TR_NO(r.id),sum:r=>(r.branch||'')+' · '+r.status,children:[{table:'transfer_lines',fk:'transfer_id'}]},
+  returns:{label:'Credit memo',no:r=>docNo('cm',r.id),sum:r=>r.account+' · '+fmtPeso(r.amount||0),children:[]},
+  pdcs:{label:'Cheque (PDC)',no:r=>'PDC-'+r.id,sum:r=>r.account+' · '+fmtPeso(r.amount||0)+' · matures '+(r.maturity||''),children:[]},
+  promos:{label:'Promotion',no:r=>'PROMO-'+r.id,sum:r=>r.name||'',children:[]},
+  campaigns:{label:'Campaign',no:r=>'CAMP-'+r.id,sum:r=>r.name||'',children:[]},
+  complaints:{label:'Complaint',no:r=>'CX-'+r.id,sum:r=>(r.account||'')+' · '+(r.product||''),children:[]},
+  quarantine:{label:'Quarantine lot',no:r=>'Q-'+r.id,sum:r=>(r.name||r.sku)+' · '+r.qty+'u',children:[]},
+  shortdated:{label:'Short-dated plan',no:r=>'SD-'+r.id,sum:r=>(r.name||r.sku)+' · '+(r.plan||''),children:[]},
+  visits:{label:'Visit',no:r=>'VISIT-'+r.id,sum:r=>(r.account||'')+' · '+(r.date||''),children:[]},
+  opportunities:{label:'Opportunity',no:r=>'OPP-'+r.id,sum:r=>(r.account||'')+' · '+fmtPeso(r.value||0),children:[]},
+  approvals:{label:'Approval request',no:r=>'APR-'+r.id,sum:r=>(r.order_label||'')+' · '+(r.status||''),children:[]},
+  fund_sources:{label:'Fund source',no:r=>r.class,sum:r=>'approver: '+(r.approver_name||'none'),children:[]}
+};
+/* archiveRecord(table, id) — the one entry point. Returns true when archived. */
+async function archiveRecord(table,id,noOverride){
+  if(!isSuper())return alert('Deleting records is reserved to the super admin.'),false;
+  const K=ARCH_KINDS[table];
+  if(!K)return alert('That record type is not set up for archiving yet.'),false;
+  let row=null;
+  try{const {data,error}=await SB.from(table).select('*').eq(table==='fund_sources'?'class':'id',id).maybeSingle();if(error)throw error;row=data;}
+  catch(e){return alert('Could not read the record: '+(e.message||e)),false;}
+  if(!row)return alert('That record no longer exists.'),false;
+  const no=noOverride||K.no(row);
+  const typed=prompt('DELETE '+K.label+' '+no+'\n\n'+(K.sum(row)||'')+
+    '\n\nIt will be archived — hidden everywhere, restorable from Admin → Archive.\n\nType '+no+' to confirm:','');
+  if(typed===null)return false;
+  if(String(typed).trim()!==String(no)){alert('That did not match "'+no+'" — nothing was deleted.');return false;}
+  const reason=(prompt('Why is this being deleted? (goes on the record)','')||'').trim();
+  try{
+    const children={};
+    for(const c of (K.children||[])){
+      const {data}=await SB.from(c.table).select('*').eq(c.fk,id);
+      children[c.table]={fk:c.fk,rows:data||[]};
+    }
+    const {error:eB}=await SB.from('archive_bin').insert({src_table:table,src_id:String(id),label:no,
+      summary:(K.label+' · '+(K.sum(row)||'')).slice(0,300),payload:{row,children},reason:reason||null,
+      archived_by:(SBUSER&&SBUSER.id)||null,archived_name:(SBPROFILE&&SBPROFILE.name)||''});
+    if(eB)throw new Error('Could not archive it, so nothing was deleted: '+(eB.message||eB));
+    const {error:eD}=await SB.from(table).delete().eq(table==='fund_sources'?'class':'id',id);
+    if(eD)throw new Error('Archived, but the original could not be deleted: '+(eD.message||eD));
+    audit('archive.delete',{table,no,reason});
+    alert(no+' deleted. You can restore it from Admin → Archive.');
+    return true;
+  }catch(e){alert(e.message||e);return false;}
+}
+async function renderArchive(){
+  if(!isSuper()){$('content').innerHTML='<div class="empty" style="margin-top:40px">The archive is super-admin only.</div>';return;}
+  loadingHint();
+  let rows=[];
+  try{const {data,error}=await SB.from('archive_bin').select('id,src_table,src_id,label,summary,reason,archived_name,archived_at,restored_at,restored_by').order('archived_at',{ascending:false}).limit(300);
+    if(error)throw error;rows=data||[];}
+  catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Needs the archive SQL (SUPABASE-SETUP.md): '+esc(e.message||e)+'</div>';return;}
+  const live=rows.filter(r=>!r.restored_at);
+  $('content').innerHTML=
+    '<div class="panel" style="padding:12px 16px;margin-bottom:14px;font-size:12px;color:var(--tx2)">'+
+      '<b style="color:var(--tx)">Everything you have deleted.</b> Deleting a record archives it here rather than destroying it: it disappears from the app, but the row and its lines are kept as data. '+
+      '<b>Restore</b> puts it back (it is re-created, so it may come back with a new id and its links to other records are not rebuilt). '+
+      '<b>Purge</b> removes it from here permanently — though the nightly backup still holds last night’s copy.</div>'+
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met bl"><div class="met-lbl">In the archive</div><div class="met-val">'+live.length+'</div><div class="met-sub">deleted, still recoverable</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Restored</div><div class="met-val">'+(rows.length-live.length)+'</div><div class="met-sub">put back at some point</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Record</th><th>Type</th><th>What it was</th><th>Reason</th><th>Deleted by</th><th>When</th><th>Status</th><th></th></tr></thead><tbody>'+
+    (rows.length?rows.map(r=>'<tr><td style="font-weight:700">'+esc(r.label||'—')+'</td>'+
+      '<td class="mu" style="font-size:11.5px">'+esc((ARCH_KINDS[r.src_table]&&ARCH_KINDS[r.src_table].label)||r.src_table)+'</td>'+
+      '<td class="mu" style="font-size:11.5px;max-width:260px;overflow:hidden;text-overflow:ellipsis">'+esc(r.summary||'')+'</td>'+
+      '<td class="mu" style="font-size:11px;max-width:150px;overflow:hidden;text-overflow:ellipsis">'+esc(r.reason||'—')+'</td>'+
+      '<td class="mu" style="font-size:11px">'+esc(r.archived_name||'')+'</td>'+
+      '<td class="mu" style="font-size:11px">'+esc(String(r.archived_at||'').slice(0,16).replace('T',' '))+'</td>'+
+      '<td>'+(r.restored_at?'<span class="pill pgr">restored '+esc(String(r.restored_at).slice(0,10))+'</span>':'<span class="pill pam" style="background:rgba(186,117,23,.15);color:var(--am)">archived</span>')+'</td>'+
+      '<td style="white-space:nowrap;font-size:11.5px">'+(r.restored_at?'':'<a href="#" onclick="archRestore('+r.id+');return false" style="color:var(--gr);font-weight:700">restore</a> · ')+
+        '<a href="#" onclick="archPurge('+r.id+');return false" style="color:var(--rd)">purge</a></td></tr>').join('')
+      :'<tr><td colspan="8" class="mu">Nothing has been deleted.</td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>Deleting requires typing the record’s number · restoring re-creates the record and its lines · purging asks again and is permanent here. Every action is in the Activity log.</span></div></div>';
+}
+async function archRestore(binId){
+  if(!isSuper())return;
+  let b=null;
+  try{const {data,error}=await SB.from('archive_bin').select('*').eq('id',binId).maybeSingle();if(error)throw error;b=data;}catch(e){return alert('Could not read it: '+(e.message||e));}
+  if(!b||b.restored_at)return renderArchive();
+  if(!confirm('Restore '+b.label+'?\n\n'+(b.summary||'')+'\n\nIt is re-created from the archived copy. Note: it may come back with a new id, and links from other records to the old one are not rebuilt.'))return;
+  try{
+    const row=Object.assign({},(b.payload&&b.payload.row)||{});
+    const isFS=b.src_table==='fund_sources';
+    if(!isFS)delete row.id; // identity column: let the database issue a fresh one
+    const {data:ins,error}=await SB.from(b.src_table).insert(row).select().single();
+    if(error)throw error;
+    const newId=isFS?ins.class:ins.id;
+    const ch=(b.payload&&b.payload.children)||{};
+    for(const t in ch){
+      const spec=ch[t];const kids=(spec.rows||[]).map(k=>{const c=Object.assign({},k);delete c.id;c[spec.fk]=newId;return c;});
+      if(kids.length){const {error:eK}=await SB.from(t).insert(kids);if(eK)throw new Error('The record came back but its lines did not: '+(eK.message||eK));}
+    }
+    await SB.from('archive_bin').update({restored_at:new Date().toISOString(),restored_by:(SBPROFILE&&SBPROFILE.name)||''}).eq('id',binId);
+    audit('archive.restore',{table:b.src_table,label:b.label,newId:String(newId)});
+    alert(b.label+' restored.');
+    renderArchive();
+  }catch(e){alert('Could not restore: '+(e.message||e));}
+}
+async function archPurge(binId){
+  if(!isSuper())return;
+  let b=null;
+  try{const {data}=await SB.from('archive_bin').select('id,label,summary').eq('id',binId).maybeSingle();b=data;}catch(e){}
+  if(!b)return renderArchive();
+  if(!confirm('PURGE '+b.label+' from the archive?\n\n'+(b.summary||'')+'\n\nThis removes the archived copy for good. Only last night’s backup would still have it.'))return;
+  const typed=prompt('This is permanent. Type '+b.label+' once more to purge it:','');
+  if(typed===null)return;
+  if(String(typed).trim()!==String(b.label))return alert('That did not match — nothing was purged.');
+  try{
+    const {error}=await SB.from('archive_bin').delete().eq('id',binId);
+    if(error)throw error;
+    audit('archive.purge',{label:b.label});
+    renderArchive();
+  }catch(e){alert('Could not purge: '+(e.message||e));}
+}
+
+/* ── DOCUMENT NUMBERING (super admin) — one panel for every series ── */
+async function renderNumbering(){
+  if(!isSuper()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Numbering is a super-admin setting.</div>';return;}
+  loadingHint();
+  let rows=[];
+  try{const {data,error}=await SB.from('doc_formats').select('*').order('sort');if(error)throw error;rows=data||[];}
+  catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Needs the numbering SQL (SUPABASE-SETUP.md): '+esc(e.message||e)+'</div>';return;}
+  let ds=null;try{const {data}=await SB.from('doc_series').select('*').eq('kind','dr').maybeSingle();ds=data;}catch(e){}
+  const ex=r=>{let n=String((r.offset_no||0)+1);if(r.pad>0)while(n.length<r.pad)n='0'+n;return (r.prefix||'')+n;};
+  $('content').innerHTML=
+    '<div class="panel" style="padding:12px 16px;margin-bottom:14px;font-size:12px;color:var(--tx2)">'+
+      '<b style="color:var(--tx)">How every document number is printed.</b> The number itself always comes from the record’s own position in its series, so two documents can never collide. What you control here is how it is <i>shown</i>: the prefix, how many digits it is padded to, and the number the series appears to start at. '+
+      'Changing a format changes it everywhere that number appears, including on documents already issued — so agree it with accounting before you touch it. '+
+      '<b>Delivery receipt numbers are different</b>: those are stamped permanently onto the order at first print and are set on the Cutover page.</div>'+
+    '<div class="tcard" style="margin-bottom:16px"><div class="tscroll"><table><thead><tr><th>Document</th><th>Prefix</th><th class="r">Pad to</th><th class="r">Series starts at</th><th>Next looks like</th><th></th></tr></thead><tbody>'+
+    rows.map(r=>'<tr><td style="font-weight:600">'+esc(r.label||r.kind)+'</td>'+
+      '<td class="mu">'+esc(r.prefix||'(none)')+'</td><td class="r mu">'+(r.pad||'—')+'</td><td class="r mu">'+((r.offset_no||0)+1)+'</td>'+
+      '<td style="font-weight:700;color:var(--ac)">'+esc(ex(r))+'</td>'+
+      '<td style="font-size:11.5px"><a href="#" onclick="numEdit(\''+esc(r.kind)+'\');return false" style="color:var(--ac)">change</a></td></tr>').join('')+
+    '</tbody></table></div><div class="tfooter"><span>Example shows the first number in each series with the current format.</span></div></div>'+
+    '<div class="panel" style="padding:14px 16px"><div class="phd">Delivery receipts (BIR series)</div>'+
+      '<div style="font-size:12px;color:var(--tx2);margin-top:6px">'+(ds?'Currently <b>'+esc(ds.prefix||'')+String(ds.next_no||1).padStart(ds.pad||0,'0')+'</b> next, padded to '+(ds.pad||0)+' digits.':'Not configured — orders fall back to their HS number on the printed DR.')+
+      ' DR numbers are assigned once, at first print, and never move. Set them on the <a href="#" onclick="showView(\'cutover\');return false" style="color:var(--ac)">Cutover page</a>.</div></div>';
+}
+async function numEdit(kind){
+  if(!isSuper())return;
+  let r=null;try{const {data}=await SB.from('doc_formats').select('*').eq('kind',kind).maybeSingle();r=data;}catch(e){}
+  if(!r)return alert('Unknown series.');
+  const prefix=prompt('Prefix for '+(r.label||kind)+' (e.g. HS- · blank for none):',r.prefix||'');
+  if(prefix===null)return;
+  const pad=prompt('Pad the number to how many digits? (0 = no padding)\n\ne.g. pad 4 shows 7 as 0007',String(r.pad||0));
+  if(pad===null)return;
+  const off=prompt('The series should appear to start at which number?\n\n(Internally records are still 1,2,3… — this only shifts what is printed. Currently the first is '+((r.offset_no||0)+1)+'.)',String((r.offset_no||0)+1));
+  if(off===null)return;
+  const padN=parseInt(pad,10),offN=parseInt(off,10);
+  if(isNaN(padN)||padN<0||padN>12)return alert('Padding must be 0–12.');
+  if(isNaN(offN)||offN<0)return alert('The starting number must be 0 or more.');
+  let ex=String(offN);while(ex.length<padN)ex='0'+ex;
+  if(!confirm('Numbers for '+(r.label||kind)+' will read '+prefix.trim()+ex+' onwards.\n\nThis changes how EXISTING documents of this type display too. Continue?'))return;
+  try{
+    const {error}=await SB.from('doc_formats').update({prefix:prefix.trim(),pad:padN,offset_no:offN-1}).eq('kind',kind);
+    if(error)throw error;
+    audit('numbering.set',{kind,prefix:prefix.trim(),pad:padN,starts:offN});
+    await loadDocFormats(true);
+    renderNumbering();
+  }catch(e){alert('Could not save: '+(e.message||e));}
+}

@@ -275,7 +275,46 @@ the validity date has passed) — sales dies in the follow-up gap. And a
 **birthday or clinic anniversary** three days out pings the account owner,
 once a year, using the dates the CRM already stores.
 
-## 9.9 Pages refresh in place, not from scratch
+## 9.9 Deleting things, and getting them back
+
+The super admin can delete any record, but nothing evaporates on a click.
+Deleting asks you to **type the record's number** — HS-1042, PL-1007 — so a
+mis-click can't do it. The row and its lines are copied into an archive, then
+removed from the app.
+
+**Admin → Archive** lists everything ever deleted, with who deleted it, when,
+and the reason they gave. **Restore** re-creates the record and its lines;
+**Purge** removes the archived copy for good and asks you to type the number
+again first. Both are in the Activity log, and the archive is in the nightly
+backup, so even a purge is recoverable from last night.
+
+Two honest limits. A restored record comes back with a **new id**, so links
+from other records to the old one aren't rebuilt — restoring is for "that
+shouldn't have gone", not for surgical repair. And a record inside a closed
+accounting period is still protected by the period lock unless you, as super
+admin, deliberately override it.
+
+## 9.10 Document numbering, in one place
+
+**Admin → Document numbering** controls how every number prints — sales orders,
+quotations, credit memos, pull-outs, purchase orders and transfers. For each
+series you set the prefix, how many digits to pad to, and the number the series
+appears to start at, with a live example of what the next one will look like.
+
+The number itself always derives from the record's own position in its series,
+so changing a format can never collide two documents onto one number. But it
+*is* presentation applied everywhere, including documents already issued — so
+agree a change with accounting before making it. Delivery receipts are the
+exception: those numbers are stamped permanently onto the order at first print,
+and stay on the Cutover page where the BIR series lives.
+
+## 9.11 Finance forms
+
+The sidebar now has a **Finance forms** section. Pull-out requests lives there,
+and the five Google forms — voucher for approval, request to order/pay, proof of
+payment, replenishment, expense reimbursement — will join it as they're built.
+
+## 9.12 Pages refresh in place, not from scratch
 
 Every view used to start by wiping the screen to "Loading…" and re-querying the
 database. That's right when you *navigate* somewhere — there's nothing to look at
@@ -292,7 +331,7 @@ The pull-out cart goes further: adding or removing an item you just typed doesn'
 touch the database at all. It repaints from what's already loaded, so the line
 appears instantly.
 
-## 9.10 Sorting any table
+## 9.13 Sorting any table
 
 Click any column header to sort A–Z; click it again for Z–A. The header you
 sorted by turns blue with a ▲ or ▼. It works on every table in HQ — the
@@ -313,7 +352,7 @@ dataset rather than the page you're looking at.
 A sort lasts until the page redraws (a filter, a refresh, an action you take).
 That's intentional: it's a way to look at what's on screen, not a saved setting.
 
-## 9.11 Inventory pull-outs — the form, with teeth
+## 9.14 Inventory pull-outs — the form, with teeth
 
 Stock leaves the warehouse for internal reasons all the time: KOL engagements,
 brand campaigns, FOC promos, trade partnerships, launches and training. That
@@ -371,7 +410,7 @@ long-standing pull-out convention. The QBO side stays as it is for now: the
 Shopify↔QBO integration carries it, and pushing *all* orders to QBO directly is
 a separate piece of work.
 
-## 9.12 Accounting integrity: closing a period, and what freezes
+## 9.15 Accounting integrity: closing a period, and what freezes
 
 Until now any month could be edited forever. A July order's amount could change
 in September, after accounting had signed July off — and nothing said no. The
@@ -434,7 +473,7 @@ draft and lands in Approvals as a "purchase" hold, pinging admin. Approving mark
 it ordered; rejecting cancels it. Both thresholds are super-admin settings on the
 Approvals page.
 
-## 9.13 Your manual, in-app
+## 9.16 Your manual, in-app
 
 Sidebar → **manual** (mobile: Menu → My manual) opens the user manual for YOUR
 role right inside the app — read it there, download it, or pop it full screen.

@@ -10,7 +10,7 @@ function viewAllowed(v){
   // approver must be able to decide regardless of their access level elsewhere — several
   // approvers are viewers. Stated as a rule so no future CIRCLE_BLOCK edit can revoke it.
   if(v==='pullouts')return true;
-  if(v==='cutover')return typeof isSuper==='function'&&isSuper();
+  if(v==='cutover'||v==='archive'||v==='numbering')return typeof isSuper==='function'&&isSuper();
   if(v==='users')return ROLE==='admin'||(typeof canUserAdmin==='function'&&canUserAdmin());
   if(v==='audit')return ROLE==='admin';                    // admin + super only (2026-08-28)
   if(v==='valuation')return ROLE==='admin'||ROLE==='finance'; // THE costs page
@@ -42,7 +42,7 @@ function showView(v,el){
            simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator',
            simmonte:'Monte Carlo stockout risk',simproject:'12-month projection',simcash:'Cash-flow timeline',simbulk:'Bulk-buy trade-off',simbranch:'Remedy branch rebalancing',
            aged:'Aged inventory',shrinkage:'Shrinkage tracker',cashexpiry:'Cash in expiring stock',branchtransfer:'Remedy branch shipments',branchexpiry:'Remedy branch expiry watch',
-           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt',targets:'Set targets',fcastacc:'Forecast accuracy',campaigns:'Campaign calendar',planreview:'AI planning review',salespace:'Leaderboard & pace',pdc:'PDC register',salesdue:'Reorder due',catalog:'Item master',returns:'Returns & credit memos',scan:'Scan — receive / pick / count',cutover:'Cutover switches',creditmemo:'Credit memo',scorecards:'Review scorecards',scanpick:'Scan to pick',recall:'Batch recall trace',pipeline:'Pipeline',po:'Purchase orders',approvals:'Approvals',commissions:'Commissions',salesevents:'Events calendar',quotes:'Quotations',promos:'Promotions',regs:'Product registrations',cyclecount:'Cycle counts',cashflow:'Cash-flow forecast',quarantine:'Quarantine & disposal',pullouts:'Pull-out requests',shortdated:'Short-dated stock',poscore:'Receiving & supplier scorecard',whkpi:'Warehouse KPIs',complaints:'Complaints log',suppliers:'Suppliers & imports',valuation:'Landed cost & valuation',transfers:'Transfer orders',manual:'Your manual'};
+           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt',targets:'Set targets',fcastacc:'Forecast accuracy',campaigns:'Campaign calendar',planreview:'AI planning review',salespace:'Leaderboard & pace',pdc:'PDC register',salesdue:'Reorder due',catalog:'Item master',returns:'Returns & credit memos',scan:'Scan — receive / pick / count',cutover:'Cutover switches',creditmemo:'Credit memo',scorecards:'Review scorecards',scanpick:'Scan to pick',recall:'Batch recall trace',pipeline:'Pipeline',po:'Purchase orders',approvals:'Approvals',commissions:'Commissions',salesevents:'Events calendar',quotes:'Quotations',promos:'Promotions',regs:'Product registrations',cyclecount:'Cycle counts',cashflow:'Cash-flow forecast',quarantine:'Quarantine & disposal',pullouts:'Pull-out requests',archive:'Archive — deleted records',numbering:'Document numbering',shortdated:'Short-dated stock',poscore:'Receiving & supplier scorecard',whkpi:'Warehouse KPIs',complaints:'Complaints log',suppliers:'Suppliers & imports',valuation:'Landed cost & valuation',transfers:'Transfer orders',manual:'Your manual'};
   $('ptitle').textContent=T[v]||v;
   if(v==='dashboard') renderDashboard();
   else if(v==='action') renderActionCenter();
@@ -116,6 +116,8 @@ function showView(v,el){
   else if(v==='cashflow') renderCashflow();
   else if(v==='quarantine') renderQuarantine();
   else if(v==='pullouts') renderPullouts();
+  else if(v==='archive') renderArchive();
+  else if(v==='numbering') renderNumbering();
   else if(v==='shortdated') renderShortDated();
   else if(v==='poscore') renderPoScore();
   else if(v==='whkpi') renderWhKpi();
@@ -643,7 +645,7 @@ async function submitVisit(){
 
 /* ── ORDER TAKING (native orders — the Shopify replacement, pilot) ── */
 let NORDERS=null,CUR_ORDER=null,ORDER_BACK='orders';
-const fmtOrdNum=n=>'HS-'+String(1000+Number(n||0));
+const fmtOrdNum=n=>docNo('order',n); // format lives in doc_formats (super admin)
 async function loadNativeOrders(force){
   // cached; mutations set NORDERS=null; auto-refreshes when older than 2 minutes
   const fresh=Date.now()-(window._nordTs||0)<120000;

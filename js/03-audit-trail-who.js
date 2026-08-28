@@ -608,11 +608,11 @@ async function returnAdd(){
   try{
     const {data,error}=await SB.from('returns').insert({account:g('rt-acct'),order_ref:g('rt-ref')||null,items:g('rt-items')||null,amount:Math.round(parseFloat(g('rt-amt'))),action:($('rt-act')||{}).value||'restock',reason:g('rt-why')||null,date:cmDate,spec:g('rt-spec')||null,shopify_refunded:!!($('rt-shop')&&$('rt-shop').checked),created_by:(SBUSER&&SBUSER.id)||null}).select().single();
     if(error)throw error;
-    audit('return.record',{cm:'CM-'+String(1000+data.id),account:g('rt-acct'),amount:g('rt-amt'),action:($('rt-act')||{}).value});
+    audit('return.record',{cm:docNo('cm',data.id),account:g('rt-acct'),amount:g('rt-amt'),action:($('rt-act')||{}).value});
     if((($('rt-act')||{}).value)==='restock'){
       // walk the returned units into stock — sellable straight to the ledger, doubtful to quarantine
       if(confirm('Receive the returned units into stock now?\n\nYou\u2019ll enter each SKU; per SKU you choose SELLABLE (back to the ledger) or QUARANTINE (held for inspection).')){
-        try{await returnsReceive('CM-'+String(1000+data.id));}catch(e){}
+        try{await returnsReceive(docNo('cm',data.id));}catch(e){}
       }
     }
     renderReturns();
@@ -638,7 +638,7 @@ async function applyCM(id){
     if(eFlag)throw new Error('Could not mark the credit memo applied, so the balance was left alone: '+(eFlag.message||eFlag));
     const {error}=await SB.from('orders').update({balance,pay_status:balance<=0?'paid':o.pay_status==='pending'?'partial':o.pay_status}).eq('id',o.id);
     if(error){await SB.from('returns').update({applied:false}).eq('id',id);throw error;}
-    audit('return.apply',{cm:'CM-'+String(1000+id),order:ordLabel(o),amount:r.amount,newBalance:balance});
+    audit('return.apply',{cm:docNo('cm',id),order:ordLabel(o),amount:r.amount,newBalance:balance});
     NORDERS=null;renderReturns();
   }catch(e){alert('Could not apply: '+(e.message||e));}
 }
