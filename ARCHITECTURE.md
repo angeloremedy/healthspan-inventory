@@ -204,6 +204,18 @@ Self-disable is rejected. Three privilege tiers:
 ### 4.5 Nightly jobs (2am Manila, JOB_KEY-guarded)
 `manual.mjs` serves each signed-in user their role's PDF manual (bundled via
 netlify.toml included_files; the /manuals/* static path is force-redirected
+
+### tools/manuals — where the PDFs come from
+
+The nine role manuals are generated, not hand-edited. `tools/manuals/content/*.json`
+holds the words; `fw.py` holds the layout, every number of it measured off the
+shipped PDFs rather than chosen; `compose.py` renders; `diffcheck.py` compares an
+old build against a new one on geometry, styles, text and rendered pixels. Edit
+the JSON and rebuild — see `tools/manuals/README.md`.
+
+The pixel comparison is not decoration. A text-only diff reported a perfect match
+while the rebuild was still missing the decorative disc on every cover and the
+grid on every table.
 through the function so the files are never publicly reachable).
 `nightly.mjs` (cron 18:00 UTC) triggers four background functions: the Shopify
 backfill (order/payment/shipment sync), the sales-cache rebuild,

@@ -111,9 +111,18 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ Product specialists removed from the fund-source approver picker
 - ✅ New **Finance forms** sidebar section (pull-out requests today; the five finance forms as they land)
 
+**Sidebar, visit files, manual toolkit (Aug 29)**
+- ✅ Sidebar: Home sits above Favourites; the Favourites heading collapses like every other section and remembers it; the search no longer lists a favourited page twice
+- ✅ Editing favourites repaints the home row live instead of waiting for a refresh; the limit is now 10
+- ✅ Attachments on Log a visit: every visit in the recent list carries its own control, so a photo or signed slip can be added later, not only in the seconds after saving
+- 🔒 Removing an attachment is decided on the server: the browser's delete looked successful even when RLS filtered it to nothing, and the Drive file was destroyed anyway. The function now checks who owns the row, removes it, then removes the file
+- 🔒 XSS closed in the attachments block: an account name with a quote in it broke out of the Attach control's onclick, and a name with an apostrophe silently lost every file attached to it
+- ✅ Manual toolkit rebuilt into `tools/manuals/` — the generator was lost, so it was reconstructed by measuring the shipped PDFs; regenerating reproduces them page for page
+- ✅ All nine manuals gained a Favourites section and a role-aware list of where files attach
+
 **Favourites, CRM attachments, camera (Aug 29)**
-- ✅ Favourites: star any page (top bar) or pick up to 8 in one go; the same list pins to the top of the sidebar and the top of the home page. Per person, per device, like the bottom bar
-- ✅ CRM attachments: a Documents panel on account profiles (licences, signed DRs, agreements) and an attach button on the visit you just logged
+- ✅ Favourites: star any page (top bar) or pick up to 10 in one go; the same list pins to the top of the sidebar and the top of the home page. Per person, per device, like the bottom bar
+- ✅ CRM attachments: a Documents panel on account profiles (licences, signed DRs, agreements) and an attach control on every visit in the recent-visits list — not just the one you just saved
 - ✅ Camera scanning works on iPhone/iPad: Safari has no BarcodeDetector, so a JS decoder loads on demand and drives the same camera stream — the button is no longer hidden on non-Chrome browsers
 - ✅ Mobile top bar shows the page you are actually on (it only updated after a sync, so it read "Dashboard" everywhere)
 - ⚠ Regression caught in review: a careless edit deleted renderScan/pickRefresh/pickCode/pickFinish; restored from the deployed build and a name-level integrity check now runs after every edit (node --check alone cannot see a missing function)

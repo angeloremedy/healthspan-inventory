@@ -1,0 +1,1787 @@
+{
+ "file": "HQ-Manual-6-Admin.pdf",
+ "cover": {
+  "brand": "HEALTHSPAN HQ",
+  "role": "Admin",
+  "kicker": "User Manual",
+  "audience": "For the admins",
+  "foot": "hq.healthspan.ph · August 2026 · the app updates weekly — this manual describes what is live today"
+ },
+ "foot": "Everything operational — system administration itself stays with the super admin.",
+ "blocks": [
+  {
+   "t": "h1",
+   "v": "<b>1 · Getting started</b>"
+  },
+  {
+   "t": "h2",
+   "v": "<b>Sign in</b>"
+  },
+  {
+   "t": "step",
+   "v": "Open hq.healthspan.ph in any browser (Safari, Chrome — phone, iPad, or computer).",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Enter your Healthspan email and password. Tick Remember me on your own device; leave it unticked on shared computers.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Forgot your password? Ask an admin — they can set a new one in seconds. You can change it anytime via the password link at the bottom of the sidebar.",
+   "n": "3"
+  },
+  {
+   "t": "h2",
+   "v": "<b>Install it as an app (do this once)</b>"
+  },
+  {
+   "t": "step",
+   "v": "On iPhone/iPad: open hq.healthspan.ph in Safari → tap Share → Add to Home Screen.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "On Android: open it in Chrome → menu ⋮ → Add to Home screen.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "It now opens full-screen like a real app, with the Healthspan icon.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Make the bottom bar yours: Menu → ☆ Customize bar — pick the pages you use most for one-tap access. Home and Menu are always there (specialists also keep Log visit and New order fixed, with 2 free slots; everyone else picks 4).",
+   "n": "4"
+  },
+  {
+   "t": "h2",
+   "v": "<b>Your favourites</b>"
+  },
+  {
+   "t": "step",
+   "v": "Star any page from the ☆ in the top bar. It pins to the top of the sidebar, directly under Home, and to the top of your home page — one list, both places, so there is nothing to keep in sync.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Prefer to set them all at once? <b>Choose favourites</b> — the edit link on the home row, or Menu → Choose favourites on a phone — opens the full picker. Up to <b>10</b>.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "The Favourites heading in the sidebar collapses and expands like every other section, and remembers which way you left it.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "They are yours, on this device, the same as the bottom bar — and only pages your role can open are ever offered.",
+   "n": "4"
+  },
+  {
+   "t": "h2",
+   "v": "<b>Sorting any table</b>"
+  },
+  {
+   "t": "p",
+   "v": "Click any column heading to sort A–Z; click it again for Z–A. It works on every table in HQ. Money, quantities, dates and expiry months sort by their real value, not alphabetically, and blank cells always go to the bottom. Section headings and TOTAL lines stay put. The sort lasts until the page redraws — it is a way to look at what is on screen, not a saved setting."
+  },
+  {
+   "t": "h2",
+   "v": "<b>When a page refreshes</b>"
+  },
+  {
+   "t": "p",
+   "v": "After you do something — add a line, submit a form, approve, release — the page updates in place. It does not blank out or jump back to the top; whatever you were looking at stays put while the new numbers land. You only see a \"Loading\" message when you open a page for the first time."
+  },
+  {
+   "t": "h2",
+   "v": "<b>Attaching files</b>"
+  },
+  {
+   "t": "p",
+   "v": "Where you see + Attach, you can add files straight from your phone or computer — photos, quotations, receipts, signed slips. They are stored in the Healthspan Google Drive, and opening one goes back through HQ, so your access here decides what you can see. Anything over about 4 MB opens in Drive instead. Remove a file with the ✕ beside it."
+  },
+  {
+   "t": "step",
+   "n": "1",
+   "v": "On an account: the <b>Documents</b> panel on the profile page, so a clinic’s own paperwork lives with the clinic."
+  },
+  {
+   "t": "step",
+   "n": "2",
+   "v": "On a visit: the recent-visits list under Log a visit. You attach to visits you logged yourself — a photo of the shelf, a signed slip — and can see, but not touch, files on anyone else’s."
+  },
+  {
+   "t": "step",
+   "n": "3",
+   "v": "On an order: the order page, where the DR, the signed copy and the proof of delivery belong."
+  },
+  {
+   "t": "step",
+   "n": "4",
+   "v": "On a pull-out request: the register row underneath the form."
+  },
+  {
+   "t": "step",
+   "n": "5",
+   "v": "On any of the seven finance forms: the register row that appears once you submit — quotations, receipts, bank approvals, BIR forms."
+  },
+  {
+   "t": "step",
+   "n": "6",
+   "v": "On a complaint: the report row, which is where the batch photo belongs."
+  },
+  {
+   "t": "step",
+   "n": "7",
+   "v": "A file can only be removed by whoever uploaded it (or by whoever runs that area). Removing it deletes it from Drive too, so the ✕ asks first."
+  },
+  {
+   "t": "h2",
+   "v": "<b>The bell</b>"
+  },
+  {
+   "t": "p",
+   "v": "The bell at the top pings you when the system needs you — a red badge shows unread items. Tap it to see what happened and jump straight to the right page. It checks for news every 90 seconds. What pings whom is listed at the end of this manual."
+  },
+  {
+   "t": "h2",
+   "v": "<b>Ask AI</b>"
+  },
+  {
+   "t": "p",
+   "v": "The Ask AI button answers plain-language questions over everything HQ knows — inventory, sales, receivables, cheques, approvals, backorders, quotes, pipeline — and its knowledge is automatically scoped to YOUR role: specialists get their own numbers, costs and margins only answer for finance and admin. Any hour, in the app or on Slack (/stock)."
+  },
+  {
+   "t": "h2",
+   "v": "<b>Your manual & view-only pages</b>"
+  },
+  {
+   "t": "p",
+   "v": "The manual link at the bottom of the sidebar (phone: Menu → My manual) opens this manual INSIDE the app — read it there, download it, or pop it full screen. And wherever a page is read-only for your role, a banner at the top says so and names who actually edits it; the same pages carry a small “VIEW” badge on your home screen."
+  },
+  {
+   "t": "p",
+   "v": "Admin sees every view and every number, including costs and margins."
+  },
+  {
+   "t": "callout",
+   "v": "TIP — Every number view has a plain-language description at the top and a “how is this calculated” section — read those before asking. Most views also export to CSV.",
+   "c": "#0E8A5F"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Home, navigation & everyday mechanics</b>"
+  },
+  {
+   "t": "p",
+   "v": "Home is the command center: live stat chips (orders today, pending, open follow-ups…), a needs-attention line, and big launcher cards for your role. It updates in place while the data syncs — no flicker, no reload."
+  },
+  {
+   "t": "step",
+   "v": "Sidebar search: type in the box at the top of the sidebar to filter every menu item; sections collapse and remember their state (Product lines starts collapsed).",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Every page has a real URL: bookmark an account, an order, a pick list; the browser back button works; share links with teammates — they’ll see it with THEIR permissions.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Mobile: the bottom bar carries your essentials; the Menu button reaches every view, plus password change, sign-out, and theme.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Themes: Healthspan (brand blue, light/dark/system) or Classic — bottom of the sidebar.",
+   "n": "4"
+  },
+  {
+   "t": "step",
+   "v": "Data freshness: the sheet syncs every 15 minutes; Shopify nightly at 2am; the footer shows the last sync. “Refresh” forces one.",
+   "n": "5"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Taking an order — the full mechanics</b>"
+  },
+  {
+   "t": "p",
+   "v": "Order entry is where five checks run for you automatically. Open it from the Home card, the sidebar, or + New order on an account page (pre-fills the clinic)."
+  },
+  {
+   "t": "h2",
+   "v": "<b>The account line</b>"
+  },
+  {
+   "t": "step",
+   "v": "Start typing; pick from the list. A “did you mean…?” guard catches near-duplicate spellings — pick the existing account, don’t create twins.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "The moment an account is chosen you see its credit limit and open balance (if any). Promise deliveries with that line in view.",
+   "n": "2"
+  },
+  {
+   "t": "h2",
+   "v": "<b>Adding products</b>"
+  },
+  {
+   "t": "step",
+   "v": "Type/pick the product. Under the picker you immediately get the stock truth: X on hand · Y promised to pending orders · Z available to promise.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Pricing selector: À la carte, or any configured deal (5+1, 10+8…). Deals price per set and add the free line automatically.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Live promos apply themselves: if marketing has a promo running for that SKU, the discount or free units appear on their own, tagged with the promo name.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Qty is in sets when a deal is selected, units otherwise.",
+   "n": "4"
+  },
+  {
+   "t": "step",
+   "v": "Free of charge tick = true samples/goodwill only (₱0, counted as giveaways, never as deal units).",
+   "n": "5"
+  },
+  {
+   "t": "callout",
+   "v": "AVAILABLE TO PROMISE — ATP is a hard rule for specialists: you cannot add more units than Z. Managers and admins can override with a confirmation — the shortfall becomes a backorder problem they own.",
+   "c": "#B7791F"
+  },
+  {
+   "t": "h2",
+   "v": "<b>Submitting — what happens in the background</b>"
+  },
+  {
+   "t": "step",
+   "v": "The order gets an HS-number and lands in the register instantly.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Within credit limit and threshold → it goes straight to the warehouse queue (supply chain is pinged).",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Over the account’s credit limit, or above the company approval threshold → the order saves but HOLDS: managers are pinged, nothing ships until they decide, and you’re pinged the moment they do. Rejected = cancelled with the reason on record.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Unusual orders (3× the account’s usual size, or lines >30% below list outside a deal/promo) are flagged to managers automatically — not blocked, just visible.",
+   "n": "4"
+  },
+  {
+   "t": "step",
+   "v": "During the parallel run, also enter the order in Shopify — the banner reminds you until cutover.",
+   "n": "5"
+  },
+  {
+   "t": "p",
+   "v": "Editing: any PENDING order can be edited (specialists: their own; you: anyone’s) — it reuses the order form, replaces the lines, recalculates balances, and audits the change. Fulfilled orders must be unfulfilled/reopened first."
+  },
+  {
+   "t": "h1",
+   "v": "<b>The orders register & order pages</b>"
+  },
+  {
+   "t": "p",
+   "v": "Every order ever — native HS orders plus the full migrated Shopify history (8,900+) — searchable, paginated (50/100/250 per page). You see everything."
+  },
+  {
+   "t": "step",
+   "v": "Search & pages: the register is served page-by-page from the database — search by account, specialist, or order number (HS-1042 works); 50/100/250 per page.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Tap an order for its full page: lines, status, shipment panel (courier, waybill, dispatched/delivered), payment panel (paid, balance, terms), notes.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Statuses: pending → fulfilled, or cancelled. Held orders show an approval banner until decided.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Printables from the order page: FEFO pick list / packing slip, and the branded Delivery Receipt with VAT split, the clinic’s delivery notes, and signature blocks.",
+   "n": "4"
+  },
+  {
+   "t": "step",
+   "v": "Status controls (admin): fulfill / unfulfill / cancel / reopen from the order page.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Payments (admin/finance): record amounts on native orders; migrated orders sync their payment status from Shopify nightly.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Trash (admin): delete → recycle bin (restorable) → Empty trash permanently removes, double-confirmed. Deletion of history is never silent.",
+   "n": "3"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Approvals — the control gate</b>"
+  },
+  {
+   "t": "p",
+   "v": "Specialist orders that cross the account’s credit limit (finance-set) or the company approval threshold (super-admin flag) save as HELD: invisible to the warehouse, waiting in Sales & CRM → Approvals."
+  },
+  {
+   "t": "step",
+   "v": "Each row: account, amount, requester, and the exact trip reason with numbers (open balance + this order vs the limit).",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Approve → order releases to the fulfillment queue; specialist and warehouse are pinged.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Reject → order is cancelled, reason on record; specialist is pinged.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Every decision is audited under your name. Decide fast — a held order is a waiting clinic.",
+   "n": "4"
+  },
+  {
+   "t": "p",
+   "v": "Admins can also set credit limits on account pages (shared with finance). The approval threshold itself is set by the super admin on this view."
+  },
+  {
+   "t": "h1",
+   "v": "<b>Quotations</b>"
+  },
+  {
+   "t": "p",
+   "v": "Formal, numbered paper for clinics that decide by document. Quotes use the exact same pricing engine as orders — catalog prices, deals, live promos — so an accepted quote converts without a single number changing."
+  },
+  {
+   "t": "h2",
+   "v": "<b>Creating and sending</b>"
+  },
+  {
+   "t": "step",
+   "v": "Sales & CRM → Quotations → + New quotation.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Account, items (same picker and pricing selector as orders), validity date — defaults to 30 days.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Save → it gets a QT-number. Print produces the branded A4 with VAT split and validity date.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Mark it sent when it goes to the clinic. Expired open quotes get flagged automatically.",
+   "n": "4"
+  },
+  {
+   "t": "h2",
+   "v": "<b>Closing the loop</b>"
+  },
+  {
+   "t": "step",
+   "v": "Clinic says yes → mark accepted → → order: the order form opens prefilled; review and submit — credit, ATP, and approval checks all run as normal.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Clinic says no → lost with a reason (price / competitor / timing / no response). Honest reasons make the win-rate number mean something.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Pipeline syncs itself: accepting a quote marks the account’s open opportunities WON and moves its stage to active; a lost quote records the loss and reason on the opportunity — the funnel maintains itself.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "The view header shows open quote value, accepted count, and win rate for the whole team.",
+   "n": "4"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Visits, follow-ups & the automatic to-do list</b>"
+  },
+  {
+   "t": "h2",
+   "v": "<b>Logging a visit (~10 seconds)</b>"
+  },
+  {
+   "t": "step",
+   "v": "Log visit → account → visit type → outcome → optional note → save. Add which products you endorsed — they show on the account’s timeline.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Pick a FUTURE date to create a planned visit instead — it appears on the calendar and in the queue below.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "A duplicate-name guard protects here too — always pick the existing account.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "n": "4",
+   "v": "Attach as you go: each visit you logged carries + Attach in the list below the form, so a photo or a signed slip stays with the visit it belongs to."
+  },
+  {
+   "t": "h2",
+   "v": "<b>Follow-ups & plans — the queue</b>"
+  },
+  {
+   "t": "p",
+   "v": "One list of everything owed: follow-ups born from visit outcomes (“Follow-up needed”), planned visits, and the tasks the system creates by itself. Overdue items flag red. Tick ✓ done / ✓ visited as you go."
+  },
+  {
+   "t": "h2",
+   "v": "<b>What the machine adds on its own (nightly)</b>"
+  },
+  {
+   "t": "step",
+   "v": "Post-delivery follow-up: ~2 weeks after an order is fulfilled, a follow-up task appears for the account’s owner.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Welcome call: a brand-new account’s first order creates an onboarding task the next morning.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Both also ring the bell. They’re deduplicated — the same order never nags twice.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Monday digest: every Monday the bell brings your week in one ping — booked ₱, orders, visits, open follow-ups.",
+   "n": "4"
+  },
+  {
+   "t": "p",
+   "v": "Managers see the whole team’s queue; specialists see their own."
+  },
+  {
+   "t": "h1",
+   "v": "<b>Reorder due, pipeline & events</b>"
+  },
+  {
+   "t": "h2",
+   "v": "<b>Reorder due</b>"
+  },
+  {
+   "t": "step",
+   "v": "The system computes each clinic’s median reorder cycle from its real history.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Accounts 25%+ past their cycle appear here — routed to each owner; you see everyone.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "One tap: log the visit or start the order. Going-quiet alerts follow the account’s TIER: A = 30 days, B = 45, C = 60 — an important clinic gets flagged three times sooner.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Your 3 best calls: Monday mornings the bell brings each specialist their three highest-value accounts drifting past their rhythm — ranked by six-month value × how overdue.",
+   "n": "4"
+  },
+  {
+   "t": "h2",
+   "v": "<b>Pipeline & opportunities</b>"
+  },
+  {
+   "t": "step",
+   "v": "Stages: lead → contacted → qualified → active, seeded from real behavior; every move is audited; losses need a reason.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Opportunities: estimated value + expected close date per card; the header shows weighted pipeline (25/50/75/85%) and win rate.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Prospects convert with one tap from the Prospects tab.",
+   "n": "3"
+  },
+  {
+   "t": "h2",
+   "v": "<b>Events calendar</b>"
+  },
+  {
+   "t": "p",
+   "v": "One month grid merging campaigns, planned visits, and demo/training days across the team. The weekly Calendar of Events, live."
+  },
+  {
+   "t": "h1",
+   "v": "<b>Accounts (CRM) — one memory per clinic</b>"
+  },
+  {
+   "t": "p",
+   "v": "One row per customer, merged across the OUT sheet, Shopify, and the visit log. Tap any row for the full profile page."
+  },
+  {
+   "t": "h2",
+   "v": "<b>The account page</b>"
+  },
+  {
+   "t": "step",
+   "v": "KPI cards (booked, shipped, momentum, visits) · health score 0–100 with its reasons · merged clickable timeline (orders open) · what-they-buy · “worth offering next” upsell panel mined from co-purchase history.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Details (Edit): contact person, phone, email/Viber, address, region & city, clinic type, specialty, tier A/B/C, source, delivery notes (these print on the DR), doctor’s birthday & clinic anniversary, LTO/PRC licenses with red/amber expiry pills, notes.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Contacts: doctor / purchaser / nurse with phone, email, Viber — add or remove inline.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Credit line: limit and open balance, right where you quote from.",
+   "n": "4"
+  },
+  {
+   "t": "step",
+   "v": "Quick actions: + New order · + Log visit · Call / Viber quick-log (a phone touch counts like a visit — timeline, coverage, and the going-quiet alert all see it) · Statement.",
+   "n": "5"
+  },
+  {
+   "t": "step",
+   "n": "6",
+   "v": "Documents: quotations, signed DRs, clinic paperwork — attached to the account itself, so they are still there when the next person opens it."
+  },
+  {
+   "t": "h2",
+   "v": "<b>Keeping it clean (manager/admin powers)</b>"
+  },
+  {
+   "t": "step",
+   "v": "Merge duplicates: open the WRONG account → ⇢ Merge into… → type the real one → confirm. Reversible (unmerge links on the target). Check both pages side-by-side first.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Parent / child: open the child → ⌂ Set parent… — child keeps its page, rolls into the parent’s totals and branch chips. “X - Branch” names group automatically.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Ownership: assign the owning specialist from the page or inline in the list — reorder-due, dormancy alerts, and auto-tasks route to the owner.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Prospects engine: 500+ Shopify-only names split into likely mismatches (≈ suggestion + one-click merge), active prospects, and lapsed buyers. Export CSV to hand out call sheets.",
+   "n": "4"
+  },
+  {
+   "t": "h2",
+   "v": "<b>Tabs</b>"
+  },
+  {
+   "t": "p",
+   "v": "All accounts · Prospects · Growing / Declining / Dormant (momentum screens) · Vs Shopify (booked vs shipped reconciliation)."
+  },
+  {
+   "t": "h1",
+   "v": "<b>Targets, scorecards & the roster</b>"
+  },
+  {
+   "t": "step",
+   "v": "Set targets: monthly ₱ per specialist, in-app (copy-from-last-month). Overrides sheet/corporate numbers everywhere instantly. Audited.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Roster: add a new PS or deactivate one — deactivated specialists vanish from pickers and targets; history stays.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Monday team digest: the bell brings the team’s week — booked, orders, visits — every Monday morning; each specialist gets their own version.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Review scorecards (mgmt-only, DB-enforced): quarterly per-specialist reviews auto-filled from live data — booked vs target, trend vs prior quarter, visits, accounts touched, ₱/visit — plus your 1–5 rating and private comments. Printable for the review meeting. Specialists can never read them.",
+   "n": "4"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Sales analytics — the scoreboard</b>"
+  },
+  {
+   "t": "step",
+   "v": "Sales overview: units and value for any period (today → 12 months → custom), split deals vs à-la-carte vs true giveaways, charts included.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Sales vs target: monthly attainment by total, brand line, product, and specialist — the 245-row corporate target file, or in-app targets when set.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Per-specialist drill-downs and profile pages with month calendars.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Field coverage: contacts/day, accounts reached vs the whole universe, not-reached ranked by value.",
+   "n": "4"
+  },
+  {
+   "t": "step",
+   "v": "Vs accounting: continuous peso-for-peso reconciliation to the official Sales Report.",
+   "n": "5"
+  },
+  {
+   "t": "step",
+   "v": "Leaderboard & pace: MTD race + projected month-end attainment per specialist — the mid-month coaching tool.",
+   "n": "6"
+  },
+  {
+   "t": "p",
+   "v": "Baked-in conventions: deal +1s are deal units (not free); “free” = ₱0 outside any deal; pull-outs and TEST never count as sales; native orders fold into sales totals only at cutover (no double counting)."
+  },
+  {
+   "t": "h1",
+   "v": "<b>Fulfillment — queue to doorstep</b>"
+  },
+  {
+   "t": "step",
+   "v": "Fulfillment queue: every APPROVED pending order, oldest first, age-flagged. Held orders never appear — queue = cleared to ship.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Pick list (from the order): exact batch and bin per line, earliest expiry first (FEFO). Printable; doubles as packing slip.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Scan to pick: camera scan every unit against the order — wrong item red-stops, over-scan warns, progress bar per line, per-line “fill” fallback. All green → one tap writes the ledger AND fulfills the order; the specialist is pinged.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Confirm picked on the pick list does the same from the paper flow (offers to mark fulfilled in the same motion).",
+   "n": "4"
+  },
+  {
+   "t": "step",
+   "v": "Delivery receipt: branded, VAT 12% split (net = ÷1.12), clinic delivery notes, signature blocks — and a permanent BIR-friendly DR number from the company series, assigned automatically the first time the DR is printed (the order keeps it forever). Record courier + waybill; mark dispatched / delivered.",
+   "n": "5"
+  },
+  {
+   "t": "step",
+   "v": "Fulfilling or cancelling an order releases its ATP promise automatically.",
+   "n": "6"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Backorders — shortfalls with a life of their own</b>"
+  },
+  {
+   "t": "step",
+   "v": "When a manager overrides the available-to-promise limit at order entry, the shortfall is recorded as a backorder automatically (order, SKU, units short).",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Open backorders show at the top of the Fulfillment queue with their age.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Auto-release: the moment a PO receive covers the shortfall, the backorder releases itself — the warehouse and the order’s specialist are both pinged that the order can now ship.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Cancel a backorder manually if the underlying order was cancelled.",
+   "n": "4"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Scan & the platform stock ledger</b>"
+  },
+  {
+   "t": "p",
+   "v": "Logistics → Scan — camera or typed barcode, three modes:"
+  },
+  {
+   "t": "step",
+   "v": "Receive: books stock in with batch + expiry (also available against a PO — preferred).",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Pick: books stock out, FEFO batch-stamped.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Count: records a physical observation vs the current truth (“counted 47 vs 45 — variance +2 logged”).",
+   "n": "3"
+  },
+  {
+   "t": "p",
+   "v": "Everything lands in the append-only ledger (Recent movements panel shows the tail). In shadow mode the sheet remains the truth and the ledger builds evidence; after cutover the ledger IS the stock, and every view (dashboard, alerts, forecasts, ATP) reads it. Counts are observations — they never move stock by themselves; closing a cycle count writes the actual adjustments."
+  },
+  {
+   "t": "h1",
+   "v": "<b>Cycle counts — the evidence machine</b>"
+  },
+  {
+   "t": "p",
+   "v": "Two consecutive 100% counts are the agreed evidence for retiring the sheet. Logistics → Cycle counts:"
+  },
+  {
+   "t": "step",
+   "v": "Start a count: “Count everything” or a single product line.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "It’s a BLIND count: expected quantities stay hidden so nobody anchors. Type what you physically see; blank = skipped.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Close & grade: the session reports matched % and unit variance; every variance writes a ledger adjustment (ref CC-n) on the record.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Sessions list with match badges; the last two show on the Cutover page — both 100% lights “two clean counts ✓”.",
+   "n": "4"
+  },
+  {
+   "t": "callout",
+   "v": "CADENCE — Count a different line each week rather than everything monthly — steadier evidence, smaller sessions, faster path to two clean counts.",
+   "c": "#0E8A5F"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Quarantine & disposal — the compliance trail</b>"
+  },
+  {
+   "t": "p",
+   "v": "Logistics → Quarantine & disposal. Stock that can’t be sold sits here — out of sellable stock and out of ATP — until someone decides."
+  },
+  {
+   "t": "step",
+   "v": "Pull stock into quarantine: expiring, damaged, or QA-hold units — removed from the ledger immediately, with batch and reason on record.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Doubtful returned units land here too (chosen during returns receiving) — they never enter sellable stock unless released.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Release (after inspection): units go back into the ledger, with a note.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Dispose: closes the record with method/witness note, who, and when — the write-off trail for expired or damaged pharma product.",
+   "n": "4"
+  },
+  {
+   "t": "step",
+   "v": "Cards show units held, their value at list price, and 90-day disposals.",
+   "n": "5"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Short-dated stock — working the shelf-life clock</b>"
+  },
+  {
+   "t": "p",
+   "v": "Logistics → Short-dated stock. The expiry tracker tells you WHAT is running out of shelf life. This page is what we are DOING about it — every lot with units on hand expiring within six months, worst first, with the peso value at risk beside it."
+  },
+  {
+   "t": "step",
+   "v": "Each lot gets a plan: discount or promo it, give it as FOC to a loyal account, transfer it to a Remedy branch, quarantine it as unsellable, or accept the write-off. Choosing \"quarantine\" offers to pull the units out of sellable stock immediately.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "A plan carries an owner (who is actually doing it), a target date, and a note — which account, what discount.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Lots with no plan yet are flagged amber and totalled separately: that number is money nobody has decided about.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Done closes the lot with an outcome note, so the queue becomes a record of what was recovered and what was lost.",
+   "n": "4"
+  },
+  {
+   "t": "step",
+   "v": "Discounts and giveaways still go through the normal promotion and order flow — this is the worklist, not a separate discount channel.",
+   "n": "5"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Pull-out requests — stock for internal use</b>"
+  },
+  {
+   "t": "p",
+   "v": "Logistics → Pull-out requests. Anything leaving the warehouse that is not a sale — KOL engagements, brand campaigns, FOC promos, trade partnerships, launches and training — goes through here. It replaces the Google pull-out form, and unlike the form it actually holds the stock."
+  },
+  {
+   "t": "step",
+   "v": "File a request (anyone with a login): pick the products from the catalogue — you see on-hand and available-to-promise beside each one — then quantity and unit, the fund source (the QBO class that pays for it), the reason, the product line, the date needed, and what it is for.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Submitting reserves the units immediately. They drop out of available-to-promise, so nobody can sell the same box while your request is pending. If there is not enough available you are warned but can still submit — the warehouse sees the shortfall.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "The fund source approves. Only the person mapped to that class (or their named backup) can decide, and they are pinged the moment it lands. Approval notifies finance and the warehouse; a rejection comes back to you with the reason and frees the stock.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "If you are an approver, the page opens with a banner naming the classes you own and what is waiting on you. Your approval rights come from the fund-source list, not from your access level — several approvers hold view-only access everywhere else in HQ and still approve their class normally.",
+   "n": "4"
+  },
+  {
+   "t": "step",
+   "v": "The warehouse releases the goods — and that is the only step that moves stock: earliest-expiry-first, batch-stamped against the PL number, so a pulled lot is as traceable as a sold one.",
+   "n": "5"
+  },
+  {
+   "t": "step",
+   "v": "Mark booked: during the parallel run the specialist still records it in Shopify; tick it here with the reference so nothing is left half-done.",
+   "n": "6"
+  },
+  {
+   "t": "step",
+   "v": "Pull-outs are internal issues — they never count as sales, anywhere.",
+   "n": "7"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Fund-source spend — the class charge</b>"
+  },
+  {
+   "t": "p",
+   "v": "On the same page, finance and admin get the money view of pull-outs."
+  },
+  {
+   "t": "step",
+   "v": "Per class, per month: how many requests, how many units, the value at item-master cost (the basis QBO wants for a class charge — not list price), how many have been released and how many are still open.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Export for QBO gives one row per line item: pull-out number, date, status, class, reason, product line, who requested, who approved, SKU, quantity, unit cost, value, release date, booking reference and purpose.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Rejected and cancelled requests are excluded. Lines with no cost on the item master are flagged rather than quietly counted as zero — if that number is not zero, the item master needs costs before the figures can be trusted.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Released rows have physically left the warehouse; still-open ones are reserved but not yet handed over.",
+   "n": "4"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Finance forms</b>"
+  },
+  {
+   "t": "p",
+   "v": "Seven forms live under Finance forms: pull-out requests, voucher for approval, request to order/pay, proof of payment, request for replenishment, expense reimbursement, and request for cash advance. They replace the Google forms and behave the same way as each other."
+  },
+  {
+   "t": "step",
+   "v": "Anyone with a login can file one. Fill it in, submit, then attach the supporting documents to the row that appears in the register underneath — quotations, receipts, bank approvals, BIR forms.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Some sections appear only when they apply. Choosing “Pay” on a request to order/pay shows the supplier and bank fields; choosing “Order” shows the item rows instead. Only what you can see is submitted.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "It then moves through approval steps set for that form. The register shows which step each request is on and who it is waiting for. You are told when yours is approved or rejected, and rejection always comes with the reason.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Nobody approves their own request — if you are the approver for a class and you file against it yourself, it goes to someone else.",
+   "n": "4"
+  },
+  {
+   "t": "step",
+   "v": "You can cancel your own request while it is still pending, and nothing else about it.",
+   "n": "5"
+  },
+  {
+   "t": "step",
+   "v": "Each form has its own number — V- for vouchers, RO- for requests to order/pay, PP- proofs of payment, RP- replenishments, RE- reimbursements, CA- cash advances, PL- pull-outs.",
+   "n": "6"
+  },
+  {
+   "t": "p",
+   "v": "Who sees what: these carry bank details and personal claims, so the register is not open to everyone. You see your own requests, any waiting on your decision, and finance and admin see all of them. Attachments follow the same rule."
+  },
+  {
+   "t": "h1",
+   "v": "<b>Option lists and approval routes</b>"
+  },
+  {
+   "t": "step",
+   "v": "Option lists (finance and admin) hold the dropdowns behind the forms: event codes, cash-flow tags, product lines, payment modes, replenishment and reimbursement types, teams. Add a code when a programme starts. Retire rather than delete when one ends — historical requests keep reading correctly, the code just stops appearing on new forms. Renaming a code changes it on existing requests too, because they store the code itself.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Approval routes (admin) set who signs off which form, in order. A step can point at a named person, at anyone holding a role — which survives someone leaving — or at the request’s own fund source, so marketing spend goes to the marketing approver without needing a step each.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "A step can carry a minimum amount, so small claims skip it and only larger ones need the extra signature.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Pull-out requests are the exception: they route straight off the fund-source table, not this one.",
+   "n": "4"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Fund sources — who approves which class</b>"
+  },
+  {
+   "t": "step",
+   "v": "The eight QBO classes (Sales, Product Marketing, Digital Marketing, Supply Chain, Finance, People Ops, IT, Executive) each map to one approver and an optional backup.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "An approver can be anyone with an HQ login — including someone whose role is read-only everywhere else. Approving a pull-out is not the same as having edit rights.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "A class with no approver is flagged in red: its requests cannot be routed and nobody is notified.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "The super admin can decide any class as a fallback, so a pull-out is never permanently stuck.",
+   "n": "4"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Complaints log — quality reports with teeth</b>"
+  },
+  {
+   "t": "step",
+   "v": "Anyone in the field files in seconds: account, product, batch from the box, what happened. Supply chain and management are pinged immediately.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "The batch chip links straight into the recall trace — every other clinic that received the same lot, one tap away.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Statuses: open → investigating → closed. Closing requires a resolution note — the log is the compliance record and keeps everything, forever.",
+   "n": "3"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Warehouse KPIs — the scoreboard</b>"
+  },
+  {
+   "t": "step",
+   "v": "Order cycle time: order taken → marked fulfilled (stamped automatically by pick-confirm, scan-to-pick, and status controls) — median and average over 30 days, plus the share fulfilled within 48 hours.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Fill rate: orders that never hit a backorder — the honest measure of stock keeping its promises.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Open queue: pending count, oldest age, and units picked this week.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "The recent-fulfillments table shows each order’s cycle time color-coded (green ≤48h, amber ≤72h, red beyond).",
+   "n": "4"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Receiving & supplier scorecard — did we get what we ordered?</b>"
+  },
+  {
+   "t": "p",
+   "v": "Logistics → Receiving & supplier score. Every purchase order already records units ordered and units received; this page finally reads them."
+  },
+  {
+   "t": "step",
+   "v": "Fill rate: units received divided by units ordered, per supplier — graded green at 98%+, red below 75%.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "On time: deliveries that landed on or before the ETA.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Lead time: the real number (PO created → fully received) sitting next to the lead time the supplier quotes us. Where the real number runs 25%+ past quoted, the reorder plan is quietly under-buying and the supplier’s lead time is worth updating.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Receiving discrepancies: every line on a closed PO where received did not equal ordered, valued at PO cost. Short ships are claimable against the supplier; over-ships need a costing decision.",
+   "n": "4"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Purchase orders & receiving</b>"
+  },
+  {
+   "t": "step",
+   "v": "Logistics → Purchase orders: draft → ordered → partially received → received. Incoming units and next-ETA show as cards.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Receiving at the door: per line — quantity, batch, expiry → straight into the stock ledger with unit costs recorded.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "The AP block on each PO (terms, proforma ref, currency, FX total, amount paid, peso value) is yours to fill (finance).",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "The unit cost column shows for admin, finance and the warehouse team only — the same cost rule that applies everywhere else in HQ.",
+   "n": "4"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Transfer orders — branch shipments as documents</b>"
+  },
+  {
+   "t": "step",
+   "v": "New transfer: pick the branch, add the lines.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Dispatch: every line leaves the ledger as a FEFO batch-stamped movement (ref TR-n) — the same trail the recall trace reads. The batches used are stamped on the document.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Delivered closes it. In-transit units show on the view instead of living in chat threads.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Per-branch on-hand still isn’t tracked (by design) — the document records what left, when, and in which batches.",
+   "n": "4"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Suppliers, imports & multi-currency</b>"
+  },
+  {
+   "t": "step",
+   "v": "Supplier master (Logistics → Suppliers & imports): every supplier with currency, payment terms, lead time in days, and contacts. Lead times sharpen ordering judgment — the forecast assumes ~2 months when unset.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "On the water: every ordered/partial PO with an ETA, sorted soonest-first, with its customs status pill.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Import tracking per PO: ETD, ETA, customs status (in transit / clearing / cleared / delivered), and broker — edited right on the purchase order.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Multi-currency: the PO carries its currency, invoice total, amount paid, and the FX rate at payment — which converts foreign costs into real ₱ for the valuation page.",
+   "n": "4"
+  },
+  {
+   "t": "step",
+   "v": "QA hold at receiving: when booking a delivery in, choose SELLABLE (straight to the ledger) or QA HOLD (quarantined until inspection releases it — released units enter the ledger as receives).",
+   "n": "5"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Landed cost & valuation (costs page — admin + finance only)</b>"
+  },
+  {
+   "t": "step",
+   "v": "Unit cost per SKU = the latest PO receive cost (× the payment FX rate for foreign POs) + that PO’s landed cost (freight + customs + brokerage) spread across its received units; falls back to the item-master cost.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Real margins: each SKU’s margin vs its VAT-inclusive list price — red under 30%, amber under 50%.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Inventory at cost: what the stock is actually worth, in total and by product line, next to its value at list — the blended margin in one glance.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "This page never renders for other roles — it is THE costs page.",
+   "n": "4"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Recall trace & product registrations</b>"
+  },
+  {
+   "t": "step",
+   "v": "Batch recall trace (Logistics): type a SKU/batch → every clinic that received it with dates and quantities — OUT-sheet history plus ledger picks, so it survives the sheet’s retirement. Printable contact list in seconds.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Product registrations (Inventory): CPR/FDA type, number, expiry per SKU. Expired shows red (“EXPIRED Nd ago”), within 6 months amber countdown — both float to the top. Edit via the row link (rides item-master permissions).",
+   "n": "2"
+  },
+  {
+   "t": "h1",
+   "v": "<b>The inventory command center</b>"
+  },
+  {
+   "t": "step",
+   "v": "Dashboard: KPI cards, running-out-in-30-days, category split, out-of-stock commercial, expiring-in-3-months.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Action center: everything needing action today, prioritized — the daily to-do.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "All SKUs: sortable master list; tap for the product drawer (batches, 13-month trend, deals, forecast).",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Alerts: out of stock · low stock · negative stock · expiry tracker · reorder alerts — each with exact SKUs and quantities.",
+   "n": "4"
+  },
+  {
+   "t": "step",
+   "v": "Planning: stockout forecast (trend + seasonal velocity) · stock coverage · reorder plan · reorder point · demand variability (CV classes) · ABC analysis · write-off forecast.",
+   "n": "5"
+  },
+  {
+   "t": "step",
+   "v": "Batch view: every batch with expiry and bin, FEFO-ordered — the same data behind pick lists and recall.",
+   "n": "6"
+  },
+  {
+   "t": "step",
+   "v": "Data health: feed freshness, price≠Shopify and stock≠Shopify reconciliation — the system tells you when to distrust its own feed.",
+   "n": "7"
+  },
+  {
+   "t": "p",
+   "v": "Finance views: aged inventory · shrinkage tracker · cash in expiring stock — inventory as money. Logistics views: Remedy branch shipments log · branch expiry watch."
+  },
+  {
+   "t": "p",
+   "v": "Every view: plain-language description, “how is this calculated”, CSV export, full peso figures."
+  },
+  {
+   "t": "h1",
+   "v": "<b>The ten simulators</b>"
+  },
+  {
+   "t": "table",
+   "head": [
+    "Simulator",
+    "What it answers"
+   ],
+   "rows": [
+    [
+     "What-if",
+     "Change price/velocity/lead time on one SKU — see stockout and cash effects"
+    ],
+    [
+     "Promo rescue",
+     "Can a promo clear at-risk stock before it expires, and at what discount?"
+    ],
+    [
+     "Budget optimizer",
+     "Best allocation of a fixed buying budget across SKUs"
+    ],
+    [
+     "Service level",
+     "Safety stock needed for a chosen fill rate"
+    ],
+    [
+     "Campaign surge",
+     "What a campaign’s uplift does to stock coverage"
+    ],
+    [
+     "Monte Carlo stockout risk",
+     "Thousands of demand scenarios → probability of stockout per SKU"
+    ],
+    [
+     "12-month projection",
+     "Stock trajectory a year out under current velocity"
+    ],
+    [
+     "Cash-flow timeline",
+     "What the buying plan does to cash, month by month"
+    ],
+    [
+     "Bulk-buy trade-off",
+     "Volume discount vs holding/expiry risk"
+    ],
+    [
+     "Branch rebalancing",
+     "Which Remedy branch stock should move where"
+    ]
+   ],
+   "w": [
+    147.97,
+    345.26
+   ]
+  },
+  {
+   "t": "p",
+   "v": "Each is one click, live data, with its method explained under the result."
+  },
+  {
+   "t": "h1",
+   "v": "<b>Forecasting & the AI layer</b>"
+  },
+  {
+   "t": "step",
+   "v": "Stockout forecast: trend + seasonal velocity per SKU; campaign windows banner it so promos stop being surprises.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Forecast accuracy (MAPE): each month’s forecast is frozen automatically, then scored against actual movement — MAPE and bias per month, worst misses ranked. The forecast grades itself.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "AI planning review: one click walks every SKU, campaigns, and recent misses → an exception report with 5 prioritized actions and quantities.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Ask AI: plain-language questions over live inventory and sales, in-app or Slack (/stock), any hour.",
+   "n": "4"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Period close — what freezes when a month is signed off</b>"
+  },
+  {
+   "t": "p",
+   "v": "Once accounting has signed a month off, the super admin closes it on the Cutover switches page. From then on, everything dated on or before the cut-off is frozen: order amounts, order dates, order lines, credit memos, cheque maturities and that month’s targets."
+  },
+  {
+   "t": "step",
+   "v": "What still works inside a closed month: recording a payment (a July invoice paid in September is September cash), marking shipments dispatched or delivered, picking and fulfilling, and assigning a DR number. Those are operational, not revenue-changing.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "What is refused: changing an order’s amount, date or lines; cancelling, trashing or restoring it; back-dating an open order into the closed month; deleting a cheque; editing a closed month’s target. If a closed sale needs reversing, record a credit memo — which is the accounting-correct move anyway.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Why you cannot work around it: the rule lives in the database, not the screen. The app warns you first as a courtesy, but even a faulty page or a background job cannot rewrite a closed month.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Reopening is the same control and only the super admin has it — it warns exactly what is being unlocked.",
+   "n": "4"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Receivables: AR aging, payments, statements</b>"
+  },
+  {
+   "t": "step",
+   "v": "AR aging: every open balance bucketed current / 1–30 / 31–60 / 60+ past terms (order date + terms days). Oldest debts flag red. Terms are parsed from order notes (“PDC 30 days”) or set on the order.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Recording payments (order page, native orders): amount → paid/partial/pending recalculates; balances feed AR, credit checks, and the cash-flow forecast instantly.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Migrated Shopify orders sync payment status nightly from Shopify (totalOutstanding is truth there until cutover) — record those in Shopify.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Statements: printable per-account Statement of Account — every order, paid, balance, terms, plus the aging summary. One click from the account page.",
+   "n": "4"
+  },
+  {
+   "t": "callout",
+   "v": "THE LOOP — The balance you record is what order entry checks on that account’s NEXT order. Delayed bookkeeping = a blind credit gate.",
+   "c": "#B7791F"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Recording a payment — with its own date</b>"
+  },
+  {
+   "t": "step",
+   "v": "On any order page, record payment asks for the amount, the date received, and a method or reference (bank transfer, cheque number).",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "The date matters: it decides which month the cash belongs to, independently of when the invoice was raised.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Payments are append-only — there is no edit or delete. A wrong entry is corrected by recording an offsetting negative amount, so the trail always shows what really happened.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "The order’s paid/balance figures remain the running total, and AR aging reads them as before.",
+   "n": "4"
+  },
+  {
+   "t": "step",
+   "v": "Collections CSV on AR aging lists the individual dated payments for a period — what actually came in, by day. Payments recorded before this feature existed have no date and appear only in the order totals.",
+   "n": "5"
+  },
+  {
+   "t": "h1",
+   "v": "<b>PDC register</b>"
+  },
+  {
+   "t": "step",
+   "v": "Every post-dated cheque: account, order ref, bank, cheque no., amount, maturity date, status.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Statuses: on hand → deposited → cleared (or bounced). Due cheques highlight as maturity approaches.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Cards up top: deposit-this-week, arriving-in-30-days — the register feeds the cash-flow forecast automatically.",
+   "n": "3"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Cash-flow forecast</b>"
+  },
+  {
+   "t": "step",
+   "v": "8 weekly buckets of expected collections: AR lands in the week its terms mature; cheques land in the week they can be deposited.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Accounts with a cheque in hand count ONCE — via the cheque, not the invoice.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "The red card = overdue money with no cheque: that is the chase list. “Beyond 8 weeks” holds long terms and far maturities.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Bars show the relative size of each week at a glance.",
+   "n": "4"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Returns & credit memos</b>"
+  },
+  {
+   "t": "step",
+   "v": "Record the return against its order: lines, quantities, and restock vs write-off per line.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "It gets a permanent CM number and a printable credit memo with the VAT split.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Apply to order balance (admin) settles the memo against what the clinic owes.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Parallel-run banner: process the refund in Shopify too until cutover — this register becomes the only one after.",
+   "n": "4"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Credit limits & commissions</b>"
+  },
+  {
+   "t": "h2",
+   "v": "<b>Credit limits — you hold the gate</b>"
+  },
+  {
+   "t": "step",
+   "v": "Set the credit limit on any account page (finance + admin).",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "From then on: a specialist order that would push (open balance + new total) past the limit holds automatically for manager approval. You can watch decisions in the Approvals view.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "The nightly sweep also pings you (and the account owner) when any account crosses 60 days past terms.",
+   "n": "3"
+  },
+  {
+   "t": "h2",
+   "v": "<b>Commissions</b>"
+  },
+  {
+   "t": "step",
+   "v": "Tiered %-of-target rules — default: <80% → 0% · 80% → 1% · 100% → 2% · 120% → 3%. Edit as “min:pct” lines; changes apply immediately and are audited.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Monthly compute per specialist: booked vs their target → attainment → tier → commission.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Export CSV — payroll-ready.",
+   "n": "3"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Month-end valuation snapshots</b>"
+  },
+  {
+   "t": "p",
+   "v": "The valuation page recomputes from today’s costs and today’s stock — which means “inventory value at 31 July” quietly changes every time somebody edits a cost. Freezing fixes the number in place."
+  },
+  {
+   "t": "step",
+   "v": "Freeze on Landed cost & valuation stores that month’s value, units, SKU count, which stock truth was live, and the per-SKU detail.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "The snapshot history sits on the same page, so you can show accounting a permanent figure.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Do it once a month, after the count and before the sign-off. On the 1st the bell reminds you if last month is still unfrozen.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Re-freezing a month that already has a snapshot is a super-admin decision — the first figure is the one accounting saw.",
+   "n": "4"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Purchase approvals — the spend gate</b>"
+  },
+  {
+   "t": "step",
+   "v": "Sending a PO to a supplier commits money, so above the purchase threshold it holds instead of going out.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "The PO stays a draft and appears in Approvals as a purchase hold, with the supplier and the value; the admins are pinged.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Approved → the PO is marked ordered and can be received as normal. Rejected → the PO is cancelled with the reason on record.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "The threshold is set on the Approvals page and is a super-admin setting, like the big-order limit for sales.",
+   "n": "4"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Supplier bills / AP</b>"
+  },
+  {
+   "t": "step",
+   "v": "On every purchase order: terms · proforma ref · currency · FX total · amount paid · peso value — editable by finance.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "The open-payables card totals what’s owed across POs — the weekly Inventory AP table, generated.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Supplier bill PAYMENTS stay in the bank portals/QBO by design; HQ tracks the obligations.",
+   "n": "3"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Accounting export & the QBO handoff</b>"
+  },
+  {
+   "t": "p",
+   "v": "Any date range as CSV: totals, VAT 12% breakdown (prices VAT-inclusive; net = ÷1.12), payments, balances, terms. Pull-outs and TEST orders are excluded from sales everywhere but retained for logistics. “Vs accounting” reconciles HQ to the official Sales Report peso-for-peso, continuously."
+  },
+  {
+   "t": "h1",
+   "v": "<b>Item master (catalog)</b>"
+  },
+  {
+   "t": "step",
+   "v": "The full catalog in-app: prices, barcodes, deal definitions (buy+free=set price), and CPR/FDA registration fields.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Drift check: ⚠ flags any price that differs from Shopify right now — review before the pricing cutover.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Costs and margin % are visible to you (finance + admin only — hidden from every other role).",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Until the pricing switch flips, the master runs in shadow: Shopify remains pricing truth.",
+   "n": "4"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Campaigns & the promotions engine</b>"
+  },
+  {
+   "t": "h2",
+   "v": "<b>Campaign calendar</b>"
+  },
+  {
+   "t": "step",
+   "v": "Each campaign: name, window, expected uplift, SKUs. It is a demand signal: the stockout forecast banners it and the AI review weighs it.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "On start day the field team is pinged automatically.",
+   "n": "2"
+  },
+  {
+   "t": "h2",
+   "v": "<b>Promotions engine (you configure)</b>"
+  },
+  {
+   "t": "step",
+   "v": "Name (shows on order lines) · start/end window · eligible SKUs (comma list, or * for all).",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Mechanic: Buy N get M free (free units auto-added) or % off (unit price discounted).",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "While LIVE it applies automatically in order entry AND quotations, every line tagged with the promo name — measurable in Sales overview.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Turn off / delete anytime; past orders keep their tagged lines.",
+   "n": "4"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Team & access — managing accounts</b>"
+  },
+  {
+   "t": "step",
+   "v": "Create: name, email, starter password (8+ chars), role. For specialists set the tag — it must match the name their sales are tagged with; it is what locks their data to them. Send starter passwords privately.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Roles: Product specialist · Sales manager · Supply chain · Finance · Marketing · Viewer · IT (viewer + PS-account admin) · Admin. No personal names, no ambiguity.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Edit name/role/tag · password reset · disable/enable — disabling blocks sign-in immediately, keeps every record; re-enable anytime. You can’t disable yourself.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "The super admin account is untouchable (server-enforced, attempts logged), and permanent deletion is super-admin only — use disable.",
+   "n": "4"
+  },
+  {
+   "t": "step",
+   "v": "The IT role sees this page too, limited to creating/disabling specialist accounts — also server-enforced.",
+   "n": "5"
+  },
+  {
+   "t": "h1",
+   "v": "<b>The audit trail (Activity log)</b>"
+  },
+  {
+   "t": "p",
+   "v": "Append-only: orders, edits, payments, shipments, merges, decisions, cutover flags, user events — who, what, when. Nobody can edit history, including admins. It answers “what happened here?” before the question gets asked twice. Read access: admin and super admin only."
+  },
+  {
+   "t": "h1",
+   "v": "<b>Document numbering</b>"
+  },
+  {
+   "t": "p",
+   "v": "Document numbering and the Archive of deleted records are super-admin pages — you can see numbers change, but only the super admin sets them or restores a deleted record."
+  },
+  {
+   "t": "h1",
+   "v": "<b>What only the super admin has</b>"
+  },
+  {
+   "t": "p",
+   "v": "Cutover switches · opening-balance freeze · backup download · permanent user deletion · the approval threshold. Anything deciding “which system is the truth” routes to the super admin."
+  },
+  {
+   "t": "h1",
+   "v": "<b>When the bell pings you</b>"
+  },
+  {
+   "t": "p",
+   "v": "The bell pings only the person who ACTS — nobody is copied on someone else’s action items. The queues themselves are always open in-app for anyone with access."
+  },
+  {
+   "t": "table",
+   "head": [
+    "You get pinged when…",
+    "What to do",
+    "Where it takes you"
+   ],
+   "rows": [
+    [
+     "An order is HELD for approval",
+     "Decide in Approvals",
+     "Approvals"
+    ],
+    [
+     "An anomaly is flagged",
+     "Sanity-check with manager/specialist",
+     "Orders"
+    ],
+    [
+     "A new order is ready to pick",
+     "FYI — warehouse already pinged",
+     "Fulfillment queue"
+    ]
+   ],
+   "w": [
+    187.43,
+    167.7,
+    138.1
+   ]
+  },
+  {
+   "t": "gap",
+   "v": 17.0
+  },
+  {
+   "t": "p",
+   "v": "Something looks wrong? Check Data health first (feed freshness and reconciliation), then tell the super admin. The app ships improvements weekly — if a step in this manual moved, it moved somewhere better."
+  }
+ ],
+ "pages": 17
+}

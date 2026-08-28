@@ -506,7 +506,7 @@ async function loadVisits(force){
   try{
     if(SB){
       const since=new Date(Date.now()-120*864e5).toISOString().slice(0,10);
-      const {data}=await SB.from('visits').select('id,date,spec,account,type,outcome,notes,status,fu_done').gte('date',since).order('date',{ascending:false}).limit(2000);
+      const {data}=await SB.from('visits').select('id,date,spec,account,type,outcome,notes,status,fu_done,user_id').gte('date',since).order('date',{ascending:false}).limit(2000);
       VISITS=data||[];
     }else{
       const r=await fetch('/.netlify/functions/visits?months=4',{headers:await sbAuthHeaders()});const d=await r.json();VISITS=d.visits||[];
@@ -620,18 +620,40 @@ function lvChips(){
 }
 async function renderRecentVisits(){
   const box=$('lv-recent');if(!box)return;
+  // this runs from three places and awaits twice; without a token an older run
+  // can finish last and paint the list as it was before the visit you just saved
+  const run=++window._lvRun;
   const vs=await loadVisits();
+  if(run!==window._lvRun)return;
   const mine=(localStorage.getItem('hs_visit_spec')||'');
   const show=vs.filter(v=>!mine||v.spec===mine).slice(0,10);
-  if(!$('lv-recent'))return;
+  // attachments for the visits on screen, in one query rather than one per row
+  let att={};
+  try{
+    const ids=show.filter(v=>v.id!=null).map(v=>String(v.id));
+    if(ids.length&&SB){
+      const {data}=await SB.from('attachments').select('*').eq('rec_type','visit').in('rec_id',ids).order('id');
+      (data||[]).forEach(a=>{(att[String(a.rec_id)]=att[String(a.rec_id)]||[]).push(a);});
+    }
+  }catch(e){}
+  if(run!==window._lvRun||!$('lv-recent'))return;
+  /* Every signed-in person can READ every visit, so this list is not necessarily
+     yours. Only the person who logged it — or whoever runs the area — gets the
+     Attach and ✕ controls; the rest see the files read-only. */
+  const canEdit=v=>(v.user_id&&SBUSER&&v.user_id===SBUSER.id)||
+    (typeof roleIn==='function'&&roleIn('admin','manager','finance','supply_chain'));
   box.innerHTML=show.length?'<div class="panel" style="padding:14px"><div class="phd">Recent logged visits'+(mine?' — '+esc(mine):'')+'</div>'+
-    show.map(v=>'<div class="drow" style="align-items:flex-start"><span class="dlbl" style="max-width:280px"><b>'+esc(v.account)+'</b> · '+esc(v.date)+'<br><span style="color:var(--tx3)">'+esc(v.type)+' · '+esc(v.outcome)+(v.products?' · <b>endorsed:</b> '+esc(v.products):'')+(v.notes?' · '+esc(v.notes):'')+'</span></span><span class="dval">'+esc(v.spec)+'</span></div>').join('')+'</div>':'';
+    '<div class="mu" style="font-size:11px;margin:-4px 0 8px">Attach a photo of the shelf, a signed slip — anything worth keeping with the visit.</div>'+
+    show.map(v=>'<div class="drow" style="align-items:flex-start;flex-wrap:wrap"><span class="dlbl" style="max-width:280px"><b>'+esc(v.account)+'</b> · '+esc(v.date)+'<br><span style="color:var(--tx3)">'+esc(v.type)+' · '+esc(v.outcome)+(v.products?' · <b>endorsed:</b> '+esc(v.products):'')+(v.notes?' · '+esc(v.notes):'')+'</span>'+
+      (v.id&&typeof attBlock==='function'?'<div style="margin-top:5px">'+attBlock('visit',v.id,(att[String(v.id)]||[]),canEdit(v))+'</div>':'')+
+      '</span><span class="dval">'+esc(v.spec)+'</span></div>').join('')+'</div>':'';
 }
 async function submitVisit(){
   const g=id=>($(id)&&$(id).value||'').trim();
   const msg=$('lv-msg'),btn=$('lv-btn');
   const spec=g('lv-spec'),account=g('lv-acct');
   if(!spec||!account){if(msg){msg.style.color='var(--rd)';msg.textContent='Pick your name and the account.';}return;}
+  window._lastVisit=null;   // never let the previous save's hint point at this one
   if(btn){btn.disabled=true;btn.textContent='Saving…';}
   try{
     if(SB&&SBUSER){
@@ -650,11 +672,10 @@ async function submitVisit(){
     localStorage.setItem('hs_visit_spec',spec);
     if(msg){
       msg.style.color='var(--gr)';
+      // the attach control lives on the visit's own row below, so there is only
+      // ever one per record \u2014 two would fight over the same status element
       msg.innerHTML='Saved \u2014 '+esc(account)+' logged.'+
-        (window._lastVisit&&typeof attBlock==='function'
-          ?'<div style="margin-top:8px">'+attBlock('visit',window._lastVisit.id,[],true)+
-           '<div class="mu" style="font-size:11px;margin-top:4px">Add a photo of the shelf, a signed slip \u2014 anything worth keeping with this visit.</div></div>'
-          :'');
+        (window._lastVisit?' <span class="mu">Attach a photo or slip to it in the list below.</span>':'');
     }
     if($('lv-acct'))$('lv-acct').value='';if($('lv-notes'))$('lv-notes').value='';
     window._lvProds=[];lvChips();

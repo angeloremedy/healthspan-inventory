@@ -172,6 +172,7 @@ async function homeLive(){
 function navFilter(q){
   q=String(q||'').trim().toLowerCase();
   document.querySelectorAll('.nav .ni').forEach(el=>{
+    if(q&&el.closest('#fav-sec')){el.style.display='none';return;} // the pinned copy would double every hit
     el.style.display=q?(el.textContent.toLowerCase().includes(q)?'':'none'):'';
   });
   document.querySelectorAll('.nav .nlbl').forEach(el=>{el.style.display=q?'none':'';});
@@ -1259,6 +1260,8 @@ async function toggleNotifs(){
   try{localStorage.setItem('hs_notif_seen',new Date().toISOString());}catch(e){}
   nBadge();
 }
+
+const FAV_MAX=10;   // declared here: the startup favPaint() below reads it
 
 /* ── late INIT (js/10 loads last, so calls here see every module) ── */
 try{navApplyCollapse();}catch(e){} // the js/09 call runs before this file loads — THIS one is the real startup apply
@@ -2936,19 +2939,26 @@ async function attList(recType,recId){
     if(error)throw error;return data||[];}catch(e){return [];}
 }
 /* the markup for a record's attachments — call it wherever a record is drawn */
+/* A lossless id for the status line. Stripping non-alphanumerics collided —
+   "St. Luke's" and "StLukes" produced the same element id. */
+function attKey(recType,recId){
+  let h=5381,str=recType+':'+String(recId);
+  for(let i=0;i<str.length;i++)h=((h*33)^str.charCodeAt(i))>>>0;
+  return String(recType).replace(/[^a-z0-9]/gi,'')+h.toString(36);
+}
 function attBlock(recType,recId,files,canAdd){
   const key=recType+':'+recId;
   return '<div class="attblock" data-att="'+esc(key)+'">'+
     (files.length?files.map(f=>'<span class="attchip" title="'+esc(f.name)+(f.uploaded_name?' · '+esc(f.uploaded_name):'')+'">'+
-      '<a href="#" onclick="attOpen(\''+esc(f.file_id)+'\',\''+jsq(f.name)+'\');return false" style="color:var(--ac)">'+attIcon(f.mime)+' '+esc(f.name.length>28?f.name.slice(0,26)+'…':f.name)+'</a>'+
+      '<a href="#" onclick="attOpen(\''+jsq(f.file_id)+'\',\''+jsq(f.name)+'\');return false" style="color:var(--ac)">'+attIcon(f.mime)+' '+esc(f.name.length>28?f.name.slice(0,26)+'…':f.name)+'</a>'+
       '<span class="mu" style="font-size:10px"> '+attSize(f.size)+'</span>'+
-      (canAdd?' <a href="#" onclick="attRemove('+f.id+',\''+esc(f.file_id)+'\');return false" style="color:var(--rd);font-size:10px" title="Remove">✕</a>':'')+
+      (canAdd?' <a href="#" onclick="attRemove('+f.id+',\''+jsq(f.file_id)+'\');return false" style="color:var(--rd);font-size:10px" title="Remove">✕</a>':'')+
       '</span>').join(' '):'<span class="mu" style="font-size:11.5px">No files attached.</span>')+
-    (canAdd?' <label class="attadd">＋ Attach<input type="file" multiple style="display:none" onchange="attPick(this,\''+esc(recType)+'\',\''+String(recId).replace(/'/g,'')+'\')"></label>':'')+
-    '<span class="mu" id="att-msg-'+esc(key).replace(/[^a-z0-9]/gi,'')+'" style="font-size:11px;margin-left:6px"></span></div>';
+    (canAdd?' <label class="attadd">+ Attach<input type="file" multiple style="display:none" onchange="attPick(this,\''+jsq(recType)+'\',\''+jsq(recId)+'\')"></label>':'')+
+    '<span class="mu" id="att-msg-'+attKey(recType,recId)+'" style="font-size:11px;margin-left:6px"></span></div>';
 }
 function attMsg(recType,recId,txt,bad){
-  const el=document.getElementById('att-msg-'+(recType+':'+recId).replace(/[^a-z0-9]/gi,''));
+  const el=document.getElementById('att-msg-'+attKey(recType,recId));
   if(el){el.textContent=txt||'';el.style.color=bad?'var(--rd)':'var(--tx3)';}
 }
 async function attPick(input,recType,recId){
@@ -3015,10 +3025,14 @@ async function attOpen(fileId,name){
 async function attRemove(rowId,fileId){
   if(!confirm('Remove this attachment? It is deleted from Drive too.'))return;
   try{
-    const {error}=await SB.from('attachments').delete().eq('id',rowId);
-    if(error)throw new Error(error.message);
-    try{await fetch('/.netlify/functions/upload',{method:'POST',headers:await sbAuthHeaders({'Content-Type':'application/json'}),
-      body:JSON.stringify({action:'remove',id:fileId})});}catch(e){} // row is gone either way
+    /* The server owns this now. Deleting the row from the browser looked like it
+       worked even when RLS filtered it to nothing — PostgREST answers a 0-row
+       DELETE with success — and the Drive file was then destroyed anyway. The
+       function checks who owns the row, removes it, and only then removes the file. */
+    const r=await fetch('/.netlify/functions/upload',{method:'POST',headers:await sbAuthHeaders({'Content-Type':'application/json'}),
+      body:JSON.stringify({action:'remove',row:rowId,id:fileId})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok||d.error)throw new Error(d.error||('Could not remove it ('+r.status+')'));
     audit('attachment.remove',{file:fileId});
     if(typeof reRender==='function')reRender();
   }catch(e){alert('Could not remove it: '+(e.message||e));}
@@ -3306,7 +3320,7 @@ function finPaint(kind,rows,lines,att){
       '<div class="phd" style="margin-bottom:10px">New '+esc(S.title.toLowerCase())+'</div>'+
       '<div style="display:flex;gap:10px;flex-wrap:wrap">'+S.fields.filter(f=>finVisible(f,vals)).map(f=>finField(f,vals)).join('')+'</div>'+
       (S.lines&&finVisible(S.lines,vals)?finLinesTable(S.lines):'')+
-      '<div style="font-size:11px;color:var(--tx3);margin:6px 0 10px">'+(S.attach?'<b>Attach after submitting:</b> '+esc(S.attach)+' — the request appears in the register below with a ＋ Attach button.':'')+'</div>'+
+      '<div style="font-size:11px;color:var(--tx3);margin:6px 0 10px">'+(S.attach?'<b>Attach after submitting:</b> '+esc(S.attach)+' — the request appears in the register below with a + Attach button.':'')+'</div>'+
       '<button onclick="finSubmit()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer">Submit request</button>'+
     '</div>'+
     // ── the register ──
@@ -3594,13 +3608,12 @@ async function routeDrop(id){
 }
 
 /* ══════════════════ FAVOURITES ══════════════════
-   Up to eight pages you pick, pinned to the top of the sidebar AND the top of
+   Up to ten pages you pick, pinned to the top of the sidebar AND the top of
    the home page — one list, both places, so there is nothing to keep in sync.
    Stored per person per device (same as the bottom bar), because it is a
    personal shortcut rather than company data.
    The star in the top bar toggles the page you are on; "Choose favourites"
    in the mobile menu and on the home row opens the full picker. */
-const FAV_MAX=8;
 function favKey(){return 'hs_fav_'+((SBUSER&&SBUSER.id)||'anon');}
 function favGet(){
   try{const v=JSON.parse(localStorage.getItem(favKey())||'[]');
@@ -3651,6 +3664,12 @@ function favPaint(){
     btn.style.display=(currentView&&currentView!=='home')?'':'none';
   }
   favSidebar();
+  // the home row is the same list, so it repaints with the sidebar rather than
+  // waiting for the next full render of the page
+  try{
+    const row=document.getElementById('hm-fav');
+    if(row&&typeof window._favRow==='function')row.innerHTML=window._favRow();
+  }catch(e){}
 }
 /* the sidebar section, rebuilt from the same list */
 function favSidebar(){
@@ -3662,6 +3681,8 @@ function favSidebar(){
   sec=document.createElement('div');sec.id='fav-sec';
   const lbl=document.createElement('div');
   lbl.className='nlbl';lbl.textContent='Favourites';
+  lbl.setAttribute('onclick','navToggle(this)');      // collapses like every other section
+  lbl.title='Click to collapse/expand';
   sec.appendChild(lbl);
   list.forEach(v=>{
     const src=[...document.querySelectorAll('.nav .ni')].find(el=>!el.closest('#fav-sec')&&(el.getAttribute('onclick')||'').indexOf("showView('"+v+"'")>=0);
@@ -3671,9 +3692,13 @@ function favSidebar(){
     const svg=src&&src.querySelector('svg');
     if(svg)d.appendChild(svg.cloneNode(true));
     d.appendChild(document.createTextNode(favTitle(v)));
+    if(v===currentView)d.classList.add('active');   // the rebuild would drop it otherwise
     sec.appendChild(d);
   });
-  nav.insertBefore(sec,nav.firstChild);
+  // Home stays at the very top; favourites sit directly under it
+  const home=[...nav.children].find(el=>(el.getAttribute&&el.getAttribute('onclick')||'').indexOf("showView('home'")>=0);
+  nav.insertBefore(sec,home?home.nextSibling:nav.firstChild);
+  try{navApplyCollapse();}catch(e){}   // the section was just rebuilt — restore its saved state
 }
 /* the picker — same shape as the bottom-bar customiser, so it feels familiar */
 function favOpen(){

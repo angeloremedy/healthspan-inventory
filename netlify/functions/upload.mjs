@@ -172,14 +172,42 @@ export const handler = async (event) => {
       return out(200, { url: j.webViewLink, name: j.name });
     }
 
-    // ── remove a file from Drive (the app deletes the row separately) ──
+    // ── remove an attachment: the row AND the Drive file, in that order ──
+    // Deleting the row from the browser was not evidence of anything: RLS filters
+    // a DELETE it does not permit down to zero rows and PostgREST still answers
+    // success, so the file was destroyed for a person who had no right to remove
+    // it. The decision belongs here, where the service key can see who owns what.
     if (body.action === 'remove') {
       const id = String(body.id || '');
+      const row = String(body.row || '');
       if (!/^[A-Za-z0-9_-]{10,}$/.test(id)) return out(400, { error: 'Bad file id' });
+      if (!/^\d+$/.test(row)) return out(400, { error: 'Bad attachment id' });
+
+      const rest = (path, init) => fetch(SB_URL + '/rest/v1/' + path,
+        { ...(init || {}), headers: { apikey: SVC, Authorization: 'Bearer ' + SVC, 'Content-Type': 'application/json', ...((init || {}).headers || {}) } });
+
+      const q = await rest('attachments?select=id,file_id,uploaded_by&id=eq.' + row);
+      if (!q.ok) return out(502, { error: 'Could not look that attachment up' });
+      const rows = await q.json();
+      if (!Array.isArray(rows) || !rows.length) return out(404, { error: 'That attachment is already gone.' });
+      const att = rows[0];
+      if (att.file_id !== id) return out(400, { error: 'That file does not belong to that attachment' });
+
+      let allowed = att.uploaded_by === who.id;
+      if (!allowed) {
+        const p = await rest('profiles?select=role,is_super&id=eq.' + encodeURIComponent(who.id));
+        const pr = p.ok ? (await p.json())[0] : null;
+        allowed = !!pr && (pr.is_super === true || ['admin', 'finance', 'supply_chain'].includes(pr.role));
+      }
+      if (!allowed) return out(403, { error: 'You can only remove files you uploaded yourself.' });
+
+      const del = await rest('attachments?id=eq.' + row, { method: 'DELETE' });
+      if (!del.ok) return out(502, { error: 'Could not remove the attachment record' });
+
       const r = await fetch('https://www.googleapis.com/drive/v3/files/' + id + '?supportsAllDrives=true',
         { method: 'DELETE', headers: { Authorization: 'Bearer ' + tok } });
       // 404 means it is already gone, which is the outcome we wanted anyway
-      if (!r.ok && r.status !== 404) return out(502, { error: 'Drive would not delete it (' + r.status + ')' });
+      if (!r.ok && r.status !== 404) return out(502, { error: 'The record is removed, but Drive would not delete the file (' + r.status + ')' });
       return out(200, { ok: true });
     }
 

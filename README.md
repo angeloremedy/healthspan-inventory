@@ -363,12 +363,16 @@ Attachments → Test the connection.
 
 Star any page — the star sits next to the bell in the top bar — and it pins to
 the **top of the sidebar** and the **top of your home page**. One list, both
-places, up to eight. The star fills in when you're on a page you've favourited,
+places, up to ten. The star fills in when you're on a page you've favourited,
 so it doubles as "is this one of mine?".
 
 To pick several at once: **Favourites → edit** on the home page, or **★
 Favourites** in the phone menu. Both open the same chip picker as the bottom-bar
-customiser.
+customiser. Editing them repaints the sidebar and the home row at once — there is
+no refresh step.
+
+Home sits above Favourites in the sidebar, and the Favourites heading collapses
+and expands like every other section, remembering which way you left it.
 
 Favourites are yours and live on the device you set them on, the same as your
 custom bottom bar. They're a shortcut, not company data — nothing about them

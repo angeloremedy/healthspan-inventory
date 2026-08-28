@@ -195,6 +195,19 @@ function renderHome(){
   const curated=new Set();
   sections.forEach(sec=>sec[1].forEach(c=>{const m=c.match(/homeGo\('([a-z]+)'\)/);if(m)curated.add(m[1]);}));
   const SUBS={dashboard:'Stock health at a glance',action:'Prioritized to-dos',customers:'Unified customer profiles',health:'Feed & reconciliation checks',all:'Full product list',oos:'Out of stock now',low:'Running low',neg:'Negative stock',expiry:'Expiry tracker',value:'Inventory value by line',dealvalue:'Deal scenarios',movement:'Monthly in/out chart',reorder:'Reorder alerts',batches:'FEFO batches & bins',forecast:'Days to stockout',coverage:'Stock coverage',reorderplan:'Reorder plan',ropoint:'Reorder points',variability:'Demand variability',abc:'ABC analysis',writeoff:'Write-off forecast',whatif:'What-if simulator',simpromo:'Promo rescue',simbudget:'Budget optimizer',simservice:'Service level',simsurge:'Campaign surge',simmonte:'Monte Carlo risk',simproject:'12-month projection',simcash:'Cash-flow timeline',simbulk:'Bulk-buy trade-off',simbranch:'Branch rebalancing',salesoverview:'Units, value, deals split',salesfree:'True giveaways',salestarget:'Monthly attainment',salesspec:'Per-PS performance',salesdeals:'Deals vs à la carte',salesrecon:'Vs the accounting sheet',salesfield:'Reach vs universe',logvisit:'~10 seconds per visit',followups:'To-dos & planned visits',neworder:'Take an order in a minute',orders:'The all-time register',fulfillq:'Pick these, oldest first',ar:'Who owes what, 30/60/90',users:'Accounts, roles, passwords',audit:'Who did what, when',targets:'Monthly ₱ per specialist',fcastacc:'Forecast self-grading (MAPE)',campaigns:'Demand signals & windows',planreview:'AI monthly review',salespace:'Race + projected month-end',pdc:'Cheques to maturity',salesdue:'Accounts past their rhythm',catalog:'Prices, costs, deals, regs',returns:'CMs, restock or write-off',scan:'Receive · pick · count',cutover:'Independence switches',scorecards:'Quarterly reviews',scanpick:'Scan every unit',recall:'Any lot → every clinic',pipeline:'Staged funnel & opportunities',po:'Ordering & receiving',approvals:'Held orders, decided',commissions:'Tiers & payroll CSV',salesevents:'Campaigns, demos, visits',quotes:'Formal quotes & win rate',promos:'Mechanics that apply themselves',regs:'CPR/FDA with countdowns',cyclecount:'Blind counts — cutover evidence',cashflow:'Collections, week by week',quarantine:'Held stock & disposals',pullouts:'Request & approve internal stock',voucher:'Raise a payment voucher',orderpay:'Order something or get it paid',proofpay:'Close a paid voucher',replenish:'Top up a float',reimburse:'Claim money you spent',cashadvance:'Money up front for a project',codelists:'Event codes & cash-flow tags',routes:'Who approves which form',archive:'Deleted records, restorable',numbering:'How document numbers print',shortdated:'Expiring lots that need a plan',poscore:'Fill rate, lead time, short ships',whkpi:'Cycle time, fill rate',complaints:'Quality reports with batch',suppliers:'Lead times & on the water',valuation:'True margins, value at cost',transfers:'Branch shipments as documents',manual:'Your role\u2019s guide, in-app'};
+
+  /* the favourites row — the same list the sidebar pins. Named and exposed so
+     editing favourites repaints just this row, live, with no page re-render. */
+  const favRow=()=>{
+    if(typeof favGet!=='function')return '';
+    const favs=favGet().filter(v=>typeof viewAllowed!=='function'||viewAllowed(v));
+    const pick='<a href="#" onclick="favOpen();return false" style="color:var(--ac);font-size:11px;font-weight:600;margin-left:8px">'+(favs.length?'edit':'choose')+'</a>';
+    if(!favs.length)return '<div class="hm-lbl">Favourites'+pick+'</div>'+
+      '<div class="mu" style="font-size:12px;margin:-4px 0 14px">Star the pages you use most \u2014 they pin here and to the top of the sidebar.</div>';
+    return '<div class="hm-lbl">Favourites'+pick+'</div><div class="hm-grid">'+
+      favs.map(v=>card(go(v),favTitle(v),(SUBS&&SUBS[v])||'',HI.star||HI.check,1)).join('')+'</div>';
+  };
+  window._favRow=favRow;
   let autoSec='';
   try{
     let cur=null,cards=[],out=[];
@@ -244,15 +257,7 @@ function renderHome(){
   '<div style="font-size:12.5px;opacity:.85;margin-top:4px;position:relative">'+(ROLE==='admin'?'Everything Healthspan, in one place.':ROLE==='manager'?'Sales manager view — the whole team, all accounts.':ROLE==='supply_chain'?'Supply chain view — warehouse, POs, and inventory.':ROLE==='finance'?'Finance view — receivables, cheques, and exports.':ROLE==='marketing'?'Marketing view — campaigns, pipeline, and analytics.':ROLE==='viewer'?'Viewer — the weekly-meeting numbers, live.':(myTag?'Signed in as '+esc(myTag)+' — your orders and visits log under your name.':'Manager view — you see the whole team.'))+'</div></div>'+
   '<div id="hm-live" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:4px"></div>'+
   '<div id="hm-attn"></div>'+
-  (function(){ // favourites first — the same list that pins to the sidebar
-    if(typeof favGet!=='function')return '';
-    const favs=favGet().filter(v=>typeof viewAllowed!=='function'||viewAllowed(v));
-    const pick='<a href="#" onclick="favOpen();return false" style="color:var(--ac);font-size:11px;font-weight:600;margin-left:8px">'+(favs.length?'edit':'choose')+'</a>';
-    if(!favs.length)return '<div class="hm-lbl">Favourites'+pick+'</div>'+
-      '<div class="mu" style="font-size:12px;margin:-4px 0 14px">Star the pages you use most \u2014 they pin here and to the top of the sidebar.</div>';
-    return '<div class="hm-lbl">Favourites'+pick+'</div><div class="hm-grid">'+
-      favs.map(v=>card(go(v),favTitle(v),(SUBS&&SUBS[v])||'',HI.star||HI.check,1)).join('')+'</div>';
-  })()+
+  '<div id="hm-fav">'+favRow()+'</div>'+
   sections.map(s=>'<div class="hm-lbl">'+s[0]+'</div><div class="hm-grid">'+s[1].join('')+'</div>').join('')+
   autoSec;
   try{homeLive();}catch(e){}

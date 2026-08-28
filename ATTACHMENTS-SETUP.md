@@ -97,8 +97,21 @@ Then I build:
   file to the Shared Drive folder, returns the file id;
 - an `attachments` table in Supabase (record type, record id, file id, name,
   size, mime, uploaded by/at) with RLS matching the record it hangs off;
-- an attach/preview control on visits, accounts, pull-outs and the five
-  finance forms.
+- an attach/preview control on visits, accounts, orders, pull-outs, complaints
+  and the seven finance forms.
+
+## Who can remove a file
+
+Removing an attachment is decided in `upload.mjs`, not in the browser. This
+matters more than it sounds: a DELETE that RLS filters down to nothing still
+comes back from PostgREST as a success, so the old code reported "removed",
+left the row in place, and destroyed the Drive file anyway — for someone who had
+no right to remove it. The function now looks the row up with the service key,
+allows it only for whoever uploaded it (or an admin, finance, supply-chain or
+super-admin account), removes the row, and only then removes the file.
+
+Reading and attaching are deliberately wider: these are company records, and the
+pages that show them are already role-gated. What is narrow is destruction.
 
 ## Housekeeping
 

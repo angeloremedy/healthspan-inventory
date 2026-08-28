@@ -1,0 +1,314 @@
+{
+ "file": "HQ-Manual-8-Viewer.pdf",
+ "cover": {
+  "brand": "HEALTHSPAN HQ",
+  "role": "Viewer",
+  "kicker": "User Manual",
+  "audience": "For the support team (read-only)",
+  "foot": "hq.healthspan.ph · August 2026 · the app updates weekly — this manual describes what is live today"
+ },
+ "foot": "The weekly meeting’s numbers, live — read everything, change nothing.",
+ "blocks": [
+  {
+   "t": "h1",
+   "v": "<b>1 · Getting started</b>"
+  },
+  {
+   "t": "h2",
+   "v": "<b>Sign in</b>"
+  },
+  {
+   "t": "step",
+   "v": "Open hq.healthspan.ph in any browser (Safari, Chrome — phone, iPad, or computer).",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Enter your Healthspan email and password. Tick Remember me on your own device; leave it unticked on shared computers.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Forgot your password? Ask an admin — they can set a new one in seconds. You can change it anytime via the password link at the bottom of the sidebar.",
+   "n": "3"
+  },
+  {
+   "t": "h2",
+   "v": "<b>Install it as an app (do this once)</b>"
+  },
+  {
+   "t": "step",
+   "v": "On iPhone/iPad: open hq.healthspan.ph in Safari → tap Share → Add to Home Screen.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "On Android: open it in Chrome → menu ⋮ → Add to Home screen.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "It now opens full-screen like a real app, with the Healthspan icon.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Make the bottom bar yours: Menu → ☆ Customize bar — pick the pages you use most for one-tap access. Home and Menu are always there (specialists also keep Log visit and New order fixed, with 2 free slots; everyone else picks 4).",
+   "n": "4"
+  },
+  {
+   "t": "h2",
+   "v": "<b>Your favourites</b>"
+  },
+  {
+   "t": "step",
+   "v": "Star any page from the ☆ in the top bar. It pins to the top of the sidebar, directly under Home, and to the top of your home page — one list, both places, so there is nothing to keep in sync.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Prefer to set them all at once? <b>Choose favourites</b> — the edit link on the home row, or Menu → Choose favourites on a phone — opens the full picker. Up to <b>10</b>.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "The Favourites heading in the sidebar collapses and expands like every other section, and remembers which way you left it.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "They are yours, on this device, the same as the bottom bar — and only pages your role can open are ever offered.",
+   "n": "4"
+  },
+  {
+   "t": "h2",
+   "v": "<b>Sorting any table</b>"
+  },
+  {
+   "t": "p",
+   "v": "Click any column heading to sort A–Z; click it again for Z–A. It works on every table in HQ. Money, quantities, dates and expiry months sort by their real value, not alphabetically, and blank cells always go to the bottom. Section headings and TOTAL lines stay put. The sort lasts until the page redraws — it is a way to look at what is on screen, not a saved setting."
+  },
+  {
+   "t": "h2",
+   "v": "<b>When a page refreshes</b>"
+  },
+  {
+   "t": "p",
+   "v": "After you do something — add a line, submit a form, approve, release — the page updates in place. It does not blank out or jump back to the top; whatever you were looking at stays put while the new numbers land. You only see a \"Loading\" message when you open a page for the first time."
+  },
+  {
+   "t": "h2",
+   "v": "<b>Attaching files</b>"
+  },
+  {
+   "t": "p",
+   "v": "Where you see + Attach, you can add files straight from your phone or computer — photos, quotations, receipts, signed slips. They are stored in the Healthspan Google Drive, and opening one goes back through HQ, so your access here decides what you can see. Anything over about 4 MB opens in Drive instead. Remove a file with the ✕ beside it."
+  },
+  {
+   "t": "step",
+   "n": "1",
+   "v": "On a pull-out request: the register row underneath the form."
+  },
+  {
+   "t": "step",
+   "n": "2",
+   "v": "On any of the seven finance forms: the register row that appears once you submit — quotations, receipts, bank approvals, BIR forms."
+  },
+  {
+   "t": "step",
+   "n": "3",
+   "v": "A file can only be removed by whoever uploaded it (or by whoever runs that area). Removing it deletes it from Drive too, so the ✕ asks first."
+  },
+  {
+   "t": "h2",
+   "v": "<b>The bell</b>"
+  },
+  {
+   "t": "p",
+   "v": "The bell at the top pings you when the system needs you — a red badge shows unread items. Tap it to see what happened and jump straight to the right page. It checks for news every 90 seconds. What pings whom is listed at the end of this manual."
+  },
+  {
+   "t": "h2",
+   "v": "<b>Ask AI</b>"
+  },
+  {
+   "t": "p",
+   "v": "The Ask AI button answers plain-language questions over everything HQ knows — inventory, sales, receivables, cheques, approvals, backorders, quotes, pipeline — and its knowledge is automatically scoped to YOUR role: specialists get their own numbers, costs and margins only answer for finance and admin. Any hour, in the app or on Slack (/stock)."
+  },
+  {
+   "t": "h2",
+   "v": "<b>Your manual & view-only pages</b>"
+  },
+  {
+   "t": "p",
+   "v": "The manual link at the bottom of the sidebar (phone: Menu → My manual) opens this manual INSIDE the app — read it there, download it, or pop it full screen. And wherever a page is read-only for your role, a banner at the top says so and names who actually edits it; the same pages carry a small “VIEW” badge on your home screen."
+  },
+  {
+   "t": "callout",
+   "v": "TIP — Every number view has a plain-language description at the top and a “how is this calculated” section — read those before asking. Most views also export to CSV.",
+   "c": "#0E8A5F"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Your access: the circle read</b>"
+  },
+  {
+   "t": "p",
+   "v": "Everyone in the weekly meeting sees the meeting’s numbers in HQ, live, all week. Your account is strictly read-only."
+  },
+  {
+   "t": "table",
+   "head": [
+    "Reported in the meeting",
+    "Where it lives in HQ"
+   ],
+   "rows": [
+    [
+     "Top-line sales, brand vs target",
+     "Sales overview · Sales vs target"
+    ],
+    [
+     "Receivables & overdue invoices",
+     "AR aging"
+    ],
+    [
+     "Inventory value & movement",
+     "Inventory value · Monthly movement"
+    ],
+    [
+     "Demos & calendar of events",
+     "Events calendar"
+    ],
+    [
+     "Specialist performance",
+     "Leaderboard & pace"
+    ],
+    [
+     "Campaigns & promos",
+     "Campaign calendar · Promotions"
+    ],
+    [
+     "Pipeline",
+     "Pipeline"
+    ]
+   ],
+   "w": [
+    221.95,
+    271.28
+   ]
+  },
+  {
+   "t": "step",
+   "v": "Every view explains itself (description + “how is this calculated”) and most export CSV.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Ask AI answers plain-language questions — use it freely.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "Numbers look off? Check Data health first.",
+   "n": "3"
+  },
+  {
+   "t": "p",
+   "v": "Not yours (on purpose): order entry, edits, payments, scans, user management, costs & margins. Needing a write = a role conversation with the super admin."
+  },
+  {
+   "t": "h1",
+   "v": "<b>Pull-out requests — stock for internal use</b>"
+  },
+  {
+   "t": "p",
+   "v": "Logistics → Pull-out requests. Anything leaving the warehouse that is not a sale — KOL engagements, brand campaigns, FOC promos, trade partnerships, launches and training — goes through here. It replaces the Google pull-out form, and unlike the form it actually holds the stock."
+  },
+  {
+   "t": "step",
+   "v": "File a request (anyone with a login): pick the products from the catalogue — you see on-hand and available-to-promise beside each one — then quantity and unit, the fund source (the QBO class that pays for it), the reason, the product line, the date needed, and what it is for.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Submitting reserves the units immediately. They drop out of available-to-promise, so nobody can sell the same box while your request is pending. If there is not enough available you are warned but can still submit — the warehouse sees the shortfall.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "The fund source approves. Only the person mapped to that class (or their named backup) can decide, and they are pinged the moment it lands. Approval notifies finance and the warehouse; a rejection comes back to you with the reason and frees the stock.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "If you are an approver, the page opens with a banner naming the classes you own and what is waiting on you. Your approval rights come from the fund-source list, not from your access level — several approvers hold view-only access everywhere else in HQ and still approve their class normally.",
+   "n": "4"
+  },
+  {
+   "t": "step",
+   "v": "The warehouse releases the goods — and that is the only step that moves stock: earliest-expiry-first, batch-stamped against the PL number, so a pulled lot is as traceable as a sold one.",
+   "n": "5"
+  },
+  {
+   "t": "step",
+   "v": "Mark booked: during the parallel run the specialist still records it in Shopify; tick it here with the reference so nothing is left half-done.",
+   "n": "6"
+  },
+  {
+   "t": "step",
+   "v": "Pull-outs are internal issues — they never count as sales, anywhere.",
+   "n": "7"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Finance forms</b>"
+  },
+  {
+   "t": "p",
+   "v": "Seven forms live under Finance forms: pull-out requests, voucher for approval, request to order/pay, proof of payment, request for replenishment, expense reimbursement, and request for cash advance. They replace the Google forms and behave the same way as each other."
+  },
+  {
+   "t": "step",
+   "v": "Anyone with a login can file one. Fill it in, submit, then attach the supporting documents to the row that appears in the register underneath — quotations, receipts, bank approvals, BIR forms.",
+   "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "Some sections appear only when they apply. Choosing “Pay” on a request to order/pay shows the supplier and bank fields; choosing “Order” shows the item rows instead. Only what you can see is submitted.",
+   "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "It then moves through approval steps set for that form. The register shows which step each request is on and who it is waiting for. You are told when yours is approved or rejected, and rejection always comes with the reason.",
+   "n": "3"
+  },
+  {
+   "t": "step",
+   "v": "Nobody approves their own request — if you are the approver for a class and you file against it yourself, it goes to someone else.",
+   "n": "4"
+  },
+  {
+   "t": "step",
+   "v": "You can cancel your own request while it is still pending, and nothing else about it.",
+   "n": "5"
+  },
+  {
+   "t": "step",
+   "v": "Each form has its own number — V- for vouchers, RO- for requests to order/pay, PP- proofs of payment, RP- replenishments, RE- reimbursements, CA- cash advances, PL- pull-outs.",
+   "n": "6"
+  },
+  {
+   "t": "p",
+   "v": "Who sees what: these carry bank details and personal claims, so the register is not open to everyone. You see your own requests, any waiting on your decision, and finance and admin see all of them. Attachments follow the same rule."
+  },
+  {
+   "t": "gap",
+   "v": 17.0
+  },
+  {
+   "t": "p",
+   "v": "Something looks wrong? Check Data health first (feed freshness and reconciliation), then tell the super admin. The app ships improvements weekly — if a step in this manual moved, it moved somewhere better."
+  }
+ ],
+ "pages": 4
+}
