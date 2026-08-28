@@ -99,6 +99,16 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ Mobile once-and-for-all: sticky top bar (never scrolls away, no rubber-band gap) · customizable bottom bar (each user picks their 4 quick-access pages; Home + Menu fixed)
 - ✅ HD home-screen icons: white logo on brand blue (192/512/maskable/apple-touch)
 
+**Inventory pull-outs (Aug 28)**
+- ✅ Pull-out requests replace the Google form: catalogue picker with on-hand/ATP, fund source (QBO class), reason, product line, date needed, purpose
+- ✅ Requesting RESERVES the units (out of available-to-promise, so the same box can't be sold and pulled) — reservations now union pending orders + live pull-outs
+- ✅ Routing by fund source: 8 classes each map to an approver + optional backup, configurable by admin from any HQ login (approvers can hold read-only roles); super admin is the fallback decider
+- ✅ Approval pings finance (class charge) + warehouse (release); rejection returns the reason and frees the reservation
+- ✅ Release is the only step that moves stock: FEFO batch-stamped picks ref PL-n, so a pulled lot is as traceable as a sold one; "mark booked" closes the Shopify parallel-run loop
+- ✅ Approval rights are role-independent by rule: a viewer-level approver decides their class normally, and the page names what they own; enforced in viewAllowed, canDecidePullout and the RLS policy (which keys off fund_sources, not profiles.role)
+- ✅ Finance visibility: fund-source spend by class and month (requests, units, value at item-master cost, released vs open) + Export for QBO, one row per line with class, approver, cost and booking ref
+- ▢ Push pull-outs (and all orders) to QBO directly — today the Shopify↔QBO integration carries them; separate piece of work
+
 **Accounting integrity pack (Aug 28)**
 - ✅ Period close: super-admin closed-through date; order amounts/dates/lines, credit memos, cheque maturities and monthly targets freeze on or before it. Enforced by Postgres triggers, so neither a client bug nor a service-key job can restate a signed-off month; collections, shipping and DR numbers stay open
 - ✅ Backfill respects the close: may still import an unseen historical order, may not rewrite a closed one's amounts/dates/lines (sends payment + shipment fields only; reports the count)

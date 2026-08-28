@@ -1759,3 +1759,137 @@ INSERT historical orders into a closed period — it is importing facts, not
 changing them — but it may not rewrite an existing closed order's amounts,
 dates or lines. `backfill-background.mjs` sends payment/shipment fields only for
 those orders, and the trigger is the backstop if that logic ever regresses.
+
+---
+
+## Inventory pull-outs (2026-08-28)
+
+Replaces the Google form. A pull-out is stock leaving the warehouse for internal
+use — KOL engagements, campaigns, FOC promos, trade partnerships, launches and
+training — charged to a department's fund source (QBO class). Requesting
+**reserves** the units so nobody sells them; the warehouse **releases** them,
+which is when the stock ledger actually moves.
+
+```sql
+-- Fund sources (QBO classes) and who approves each one. Editable by admin, so
+-- an approver can be someone whose HQ role is otherwise read-only.
+create table if not exists public.fund_sources (
+  class text primary key,                 -- 'SALES', 'PRODUCT MARKETING', ...
+  sort int not null default 0,
+  approver_id uuid,                       -- profiles.id
+  approver_name text,
+  backup_id uuid,                         -- optional second decider
+  backup_name text,
+  active boolean not null default true,
+  updated_by uuid,
+  updated_at timestamptz not null default now()
+);
+insert into public.fund_sources (class, sort) values
+  ('SALES',1), ('PRODUCT MARKETING',2), ('DIGITAL MARKETING',3),
+  ('SUPPLY CHAIN MANAGEMENT',4), ('FINANCE',5), ('PEOPLE OPS',6),
+  ('IT',7), ('EXECUTIVE',8)
+on conflict (class) do nothing;
+
+alter table public.fund_sources enable row level security;
+drop policy if exists "fs read" on public.fund_sources;
+create policy "fs read" on public.fund_sources for select to authenticated using (true);
+drop policy if exists "fs write" on public.fund_sources;
+create policy "fs write" on public.fund_sources for insert to authenticated
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'));
+drop policy if exists "fs update" on public.fund_sources;
+create policy "fs update" on public.fund_sources for update to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'));
+
+-- The request itself. Numbered PL-1000+ for paper.
+create table if not exists public.pullouts (
+  id bigint generated always as identity primary key,
+  requester_id uuid,
+  requester_name text,
+  requester_email text,
+  date_requested date not null default current_date,
+  date_needed date,
+  product_line text,
+  reason text,                            -- one of the five reasons
+  fund_class text not null references public.fund_sources(class),
+  purpose text,                           -- free text: the event, the KOL, the account
+  status text not null default 'pending'
+    check (status in ('pending','approved','rejected','released','cancelled')),
+  approver_name text,
+  decided_at timestamptz,
+  decision_note text,
+  released_at timestamptz,
+  released_by text,
+  booked_ref text,                        -- Shopify order / native order once booked
+  created_at timestamptz not null default now()
+);
+create index if not exists pullouts_status on public.pullouts (status);
+create index if not exists pullouts_class on public.pullouts (fund_class);
+
+create table if not exists public.pullout_lines (
+  id bigint generated always as identity primary key,
+  pullout_id bigint not null references public.pullouts(id) on delete cascade,
+  sku text not null,
+  name text,
+  qty int not null check (qty > 0),
+  uom text,
+  released_qty int not null default 0,
+  batch text
+);
+create index if not exists pullout_lines_po on public.pullout_lines (pullout_id);
+
+alter table public.pullouts enable row level security;
+alter table public.pullout_lines enable row level security;
+
+-- Anyone signed in may request and may read (the fund-source approval is the control)
+drop policy if exists "pl read" on public.pullouts;
+create policy "pl read" on public.pullouts for select to authenticated using (true);
+drop policy if exists "pl write" on public.pullouts;
+create policy "pl write" on public.pullouts for insert to authenticated
+  with check (auth.uid() = requester_id);
+-- Deciding / releasing / cancelling: the mapped approver or backup for that class,
+-- the warehouse and finance (release + booking), admins, and the requester
+-- (their own request, while it is still pending — i.e. cancelling it).
+drop policy if exists "pl update" on public.pullouts;
+create policy "pl update" on public.pullouts for update to authenticated
+using (
+  exists (select 1 from public.fund_sources f where f.class = fund_class
+          and (f.approver_id = auth.uid() or f.backup_id = auth.uid()))
+  or exists (select 1 from public.profiles p where p.id = auth.uid()
+             and p.role in ('admin','supply_chain','finance','manager','sales'))
+  or (requester_id = auth.uid() and status = 'pending')
+)
+-- WITH CHECK is required: without it Postgres re-applies USING to the NEW row,
+-- so a requester cancelling their own pending request (status → 'cancelled')
+-- would fail its own policy.
+with check (
+  exists (select 1 from public.fund_sources f where f.class = fund_class
+          and (f.approver_id = auth.uid() or f.backup_id = auth.uid()))
+  or exists (select 1 from public.profiles p where p.id = auth.uid()
+             and p.role in ('admin','supply_chain','finance','manager','sales'))
+  or requester_id = auth.uid()
+);
+
+drop policy if exists "pll read" on public.pullout_lines;
+create policy "pll read" on public.pullout_lines for select to authenticated using (true);
+drop policy if exists "pll write" on public.pullout_lines;
+create policy "pll write" on public.pullout_lines for insert to authenticated
+  with check (exists (select 1 from public.pullouts p where p.id = pullout_id and p.requester_id = auth.uid()));
+drop policy if exists "pll update" on public.pullout_lines;
+create policy "pll update" on public.pullout_lines for update to authenticated using (
+  exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','supply_chain'))
+);
+drop policy if exists "pll delete" on public.pullout_lines;
+create policy "pll delete" on public.pullout_lines for delete to authenticated using (
+  exists (select 1 from public.pullouts p where p.id = pullout_id
+          and p.requester_id = auth.uid() and p.status = 'pending')
+);
+
+```
+
+The approver picker reads the roster through the existing `admin-users` function
+(service-role, already admin-verified) rather than querying `profiles` directly —
+`profiles` is own-row-only on select, so a direct query would have listed only
+the admin themselves. No extra RLS policy is needed.
+
+Set each class's approver in **Pull-out requests → fund sources** (admin only).
+Until a class has an approver, its requests sit unrouted and the page says so.

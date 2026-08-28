@@ -357,3 +357,42 @@ Inventory value is no longer only a live computation: `valuation_snapshots`
 (one row per month, RLS-limited to admin/finance like the valuation page itself)
 stores the frozen total, units, SKU count, stock basis, and per-SKU detail as
 JSONB. Re-freezing an existing month requires `is_super`.
+
+## 3.9 Pull-outs and the reservation pool
+
+`pullouts` + `pullout_lines` carry the request; `fund_sources` maps each QBO
+class to an approver (and optional backup) by `profiles.id`, so approval rights
+are independent of role — a People Ops or Digital Marketing approver may hold a
+read-only role everywhere else.
+
+The state machine is `pending → approved → released`, with `rejected` and
+`cancelled` as terminal exits. Stock behaviour hangs off it:
+
+- `loadReservations()` now unions two sources — pending native `order_lines`
+  **and** `pullout_lines` whose parent is `pending` or `approved`, net of
+  `released_qty`. So `reservedQty(sku)` (and therefore available-to-promise
+  everywhere: order entry, the short-dated queue, the pull-out form itself)
+  accounts for internal demand. A rejected or cancelled request leaves the pool
+  on the next refresh; a released one leaves it because `released_qty` cancels
+  the line out.
+- Only `plRelease` writes `stock_moves`, via `fefoAlloc` → `ledgerAdd` with
+  `kind:'pick'` and `ref:'PL-n'`, matching how order picks are stamped, so the
+  recall trace and the ledger sums treat a pull-out exactly like a shipment.
+
+**Approval is role-independent by design.** `viewAllowed('pullouts')` returns
+true for every role before any role branch is reached, `canDecidePullout` tests
+`fund_sources.approver_id/backup_id` against `auth.uid()` and never looks at
+`ROLE`, and the `pl update` policy's first branch keys off `fund_sources`. The
+two side-effects an approver triggers are also role-free: `audit_log`'s insert
+policy is `auth.uid() = user_id` and `notifications`' is `auth.uid() =
+created_by`. So a viewer-level approver can decide, audit and notify without a
+single role exception anywhere.
+
+RLS mirrors the UI rather than trusting it: insert requires
+`auth.uid() = requester_id`; update is limited to the class's approver/backup,
+admin/supply_chain/finance, or the requester while the row is still `pending`
+(that is the cancel path). Line deletion is the requester's own, pending only.
+
+Notifications follow the action-taker rule: the request pings the fund source
+(and backup) only; approval pings finance and supply chain; the decision and the
+release ping the requester.

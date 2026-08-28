@@ -1433,7 +1433,17 @@ async function loadReservations(force){
     const {data}=await SB.from('order_lines')
       .select('sku,qty,orders!inner(status,source,deleted_at)')
       .eq('orders.status','pending').eq('orders.source','native').is('orders.deleted_at',null);
-    const m={};for(const l of (data||[]))m[String(l.sku).toLowerCase()]=(m[String(l.sku).toLowerCase()]||0)+(l.qty||0);
+    const m={};const add=(sku,q)=>{const k=String(sku).toLowerCase();m[k]=(m[k]||0)+(q||0);};
+    for(const l of (data||[]))add(l.sku,l.qty);
+    // pull-out requests reserve too: units asked for (or approved but not yet
+    // released) are promised internally and must leave available-to-promise,
+    // otherwise the same box gets sold to a clinic AND handed to a KOL.
+    try{
+      const {data:pl}=await SB.from('pullout_lines')
+        .select('sku,qty,released_qty,pullouts!inner(status)')
+        .in('pullouts.status',['pending','approved']);
+      for(const l of (pl||[]))add(l.sku,Math.max(0,(l.qty||0)-(l.released_qty||0)));
+    }catch(e){} // pre-migration DB: orders-only reservations
     RESV=m;_resvTs=Date.now();
   }catch(e){RESV=RESV||{};}
   return RESV;
@@ -2124,6 +2134,8 @@ const VIEW_WRITERS={
   cyclecount:{roles:['supply_chain'],label:'the warehouse team'},
   quarantine:{roles:['supply_chain'],label:'the warehouse team (finance can add from returns)'},
   shortdated:{roles:['supply_chain','manager','marketing'],label:'the warehouse team, sales managers and marketing'},
+  pullouts:null, // everyone may request; approving/releasing is gated inside the page
+
   poscore:null, // report — read-only by nature
   transfers:{roles:['supply_chain','manager'],label:'the warehouse team'},
   fulfillq:{roles:['supply_chain','manager'],label:'the warehouse team and sales managers'},
@@ -2208,3 +2220,384 @@ function mbarReset(){
   mbarClose();buildMobileNav();
 }
 function mbarClose(){const ov=document.getElementById('mbar-ov');if(ov)ov.remove();}
+
+/* ══════════════════ INVENTORY PULL-OUTS ══════════════════
+   Replaces the Google form. A pull-out is stock leaving for internal use —
+   KOL engagements, campaigns, FOC promos, trade partnerships, launches and
+   training — charged to a department's fund source (the QBO class).
+
+   The flow, and what each step does to stock:
+     request   → units RESERVED (out of available-to-promise, nothing moves)
+     approve   → the fund source signs off; finance + the warehouse are pinged
+     release   → the warehouse hands the goods over; NOW the ledger moves
+                 (FEFO batch-stamped, ref PL-n) and the reservation ends
+     booked    → the PS records it in Shopify during the parallel run, and
+                 ticks it here so nothing is left half-done
+   Rejecting or cancelling frees the reservation immediately. */
+const PL_NO=id=>'PL-'+String(1000+Number(id));
+const PL_REASONS=['KOL & Speaker Engagements','Market Building & Brand Campaigns','FOC & Sales Promotion','Key Accounts & Trade Partnerships','Product Launches & Training Programs'];
+const PL_LINES_OPT=['Innoaesthetic','Termosalud','GTG','Skinpen','Biojuve','Mark Vu','Mesoestetic'];
+let FUNDS=null;
+async function loadFunds(force){
+  if(FUNDS&&!force)return FUNDS;
+  try{const {data,error}=await SB.from('fund_sources').select('*').order('sort');if(error)throw error;FUNDS=data||[];}
+  catch(e){FUNDS=[];}
+  return FUNDS;
+}
+function fundOf(cls){return (FUNDS||[]).find(f=>f.class===cls)||null;}
+// may I decide this one? the mapped approver, their backup, or the super admin
+function canDecidePullout(p){
+  const f=fundOf(p.fund_class);if(!f)return false;
+  const me=(SBUSER&&SBUSER.id)||'';
+  return (f.approver_id&&f.approver_id===me)||(f.backup_id&&f.backup_id===me)||(typeof isSuper==='function'&&isSuper());
+}
+async function renderPullouts(){
+  if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
+  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  await loadFunds(true);
+  try{await loadReservations();}catch(e){} // the Available column is meaningless without this
+  // the fund-source spend panel values lines at item-master cost; ITEMS is lazy,
+  // so prime it or finance would read a confident ₱0
+  if(roleIn('admin','finance')){try{await loadItems();}catch(e){}}
+  let rows=[],lines=[];
+  try{
+    const [a,b]=await Promise.all([
+      SB.from('pullouts').select('*').order('id',{ascending:false}).limit(300),
+      SB.from('pullout_lines').select('*').limit(3000)
+    ]);
+    if(a.error)throw a.error;if(b.error)throw b.error;
+    rows=a.data||[];lines=b.data||[];
+  }catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Needs the pull-out SQL (SUPABASE-SETUP.md): '+esc(e.message||e)+'</div>';return;}
+  const byPl={};lines.forEach(l=>(byPl[l.pullout_id]||(byPl[l.pullout_id]=[])).push(l));
+  window._PLROWS=rows;window._PLLINES=byPl; // the QBO export reads what is on screen
+  const canW=canWarehouse();
+  const me=(SBUSER&&SBUSER.id)||'';
+  const mine=rows.filter(r=>r.requester_id===me);
+  const toDecide=rows.filter(r=>r.status==='pending'&&canDecidePullout(r));
+  const toRelease=rows.filter(r=>r.status==='approved');
+  const unrouted=(FUNDS||[]).filter(f=>f.active&&!f.approver_id).length;
+  const pill=st=>st==='pending'?'<span class="pill pam" style="background:rgba(186,117,23,.15);color:var(--am)">waiting for approval</span>'
+    :st==='approved'?'<span class="pill pbl">approved · awaiting release</span>'
+    :st==='released'?'<span class="pill pgr">released</span>'
+    :st==='rejected'?'<span class="pill prd">rejected</span>':'<span class="pill" style="background:var(--sf2);color:var(--tx3)">cancelled</span>';
+  const inp='style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;font-size:12.5px"';
+  const skuOpts=(DATA||[]).map(p=>'<option value="'+esc(p.sku)+'">'+esc(p.name)+'</option>').join('');
+  const fundOpts=(FUNDS||[]).filter(f=>f.active).map(f=>'<option value="'+esc(f.class)+'">'+esc(f.class)+(f.approver_name?' — '+esc(f.approver_name):' — no approver set')+'</option>').join('');
+  window._plCart=window._plCart||[];
+  $('content').innerHTML=
+    '<div class="panel" style="padding:10px 14px;margin-bottom:12px;font-size:11.5px;color:var(--tx2)">'+
+      '<b style="color:var(--tx)">Parallel run.</b> The Google pull-out form still works while everyone moves across \u2014 but a request filed there is invisible here, so it will not reserve stock, route to the fund source, or reach the warehouse queue. File it here instead whenever you can.'+
+    '</div>'+
+    (function(){ // you may hold a read-only role everywhere else and still own this decision
+      const me=(SBUSER&&SBUSER.id)||'';
+      const mineClasses=(FUNDS||[]).filter(f=>f.approver_id===me||f.backup_id===me);
+      if(!mineClasses.length)return '';
+      const waiting=rows.filter(r=>r.status==='pending'&&mineClasses.some(f=>f.class===r.fund_class));
+      return '<div class="panel" style="padding:12px 14px;margin-bottom:12px;border-left:3px solid '+(waiting.length?'var(--am)':'var(--gr)')+'">'+
+        '<b style="font-size:13px">You approve '+mineClasses.map(f=>esc(f.class)+(f.backup_id===me&&f.approver_id!==me?' (backup)':'')).join(' · ')+'</b>'+
+        '<div style="font-size:12px;color:var(--tx2);margin-top:4px">'+
+        (waiting.length?'<b style="color:var(--am)">'+waiting.length+' request(s) are waiting on you</b> — '+waiting.map(r=>PL_NO(r.id)).join(', ')+'. Nothing leaves the warehouse until you decide.'
+                       :'Nothing waiting on you right now.')+
+        ' Your approval rights come from the fund-source list, not from your access level — you can decide these even though other pages are read-only for you.</div></div>';
+    })()+
+    (unrouted&&roleIn('admin')?'<div class="panel" style="padding:10px 14px;margin-bottom:12px;border-left:3px solid var(--am);font-size:12px"><b>'+unrouted+' fund source(s) have no approver yet</b> — requests against them cannot be routed. Set them in the fund-source table below.</div>':'')+
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met '+(toDecide.length?'am':'gr')+'"><div class="met-lbl">Waiting for YOUR approval</div><div class="met-val">'+toDecide.length+'</div><div class="met-sub">'+(toDecide.length?'they cannot move until you decide':'nothing on your desk')+'</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Approved, not yet released</div><div class="met-val">'+toRelease.length+'</div><div class="met-sub">units are reserved out of ATP</div><div class="met-bar"></div></div>'+
+    '<div class="met pu"><div class="met-lbl">My requests</div><div class="met-val">'+mine.length+'</div><div class="met-sub">'+mine.filter(r=>r.status==='pending').length+' still pending</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    // ── the request form (anyone signed in) ──
+    '<div class="panel" style="padding:14px 16px;margin-bottom:14px">'+
+      '<div class="phd" style="margin-bottom:10px">New pull-out request</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'+
+      '<input id="pl-sku" list="pl-skulist" placeholder="SKU or product" '+inp+' style="flex:1;min-width:170px;'+inp.slice(7,-1)+'"><datalist id="pl-skulist">'+skuOpts+'</datalist>'+
+      '<input id="pl-qty" type="number" min="1" placeholder="Qty" '+inp+' style="width:90px;'+inp.slice(7,-1)+'">'+
+      '<input id="pl-uom" placeholder="Unit (pc, box…)" '+inp+' style="width:130px;'+inp.slice(7,-1)+'">'+
+      '<button onclick="plAddLine()" style="background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:600;cursor:pointer">+ Add item</button>'+
+      '</div>'+
+      (window._plCart.length?'<div class="tscroll" style="margin-bottom:10px"><table><thead><tr><th>SKU</th><th>Product</th><th class="r">Qty</th><th>Unit</th><th class="r">On hand</th><th class="r">Available</th><th></th></tr></thead><tbody>'+
+        window._plCart.map((l,i)=>{
+          const p=(DATA||[]).find(x=>x.sku===l.sku);
+          const on=p?(stk(p)||0):0;const av=on-(typeof reservedQty==='function'?reservedQty(l.sku):0);
+          return '<tr><td class="mu">'+esc(l.sku)+'</td><td style="font-weight:600">'+esc(l.name)+'</td><td class="r">'+l.qty+'</td><td class="mu">'+esc(l.uom||'pc')+'</td>'+
+          '<td class="r mu">'+on+'</td><td class="r" style="font-weight:700;color:'+(av<l.qty?'var(--rd)':'var(--gr)')+'">'+av+'</td>'+
+          '<td><a href="#" onclick="plDropLine('+i+');return false" style="color:var(--rd);font-size:11.5px">remove</a></td></tr>';}).join('')+
+        '</tbody></table></div>':'<div class="mu" style="font-size:12px;margin-bottom:10px">No items yet — add at least one.</div>')+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+
+      '<select id="pl-fund" '+inp+' style="min-width:260px;'+inp.slice(7,-1)+'"><option value="">Fund source (class)…</option>'+fundOpts+'</select>'+
+      '<select id="pl-reason" '+inp+'><option value="">Reason…</option>'+PL_REASONS.map(r=>'<option>'+esc(r)+'</option>').join('')+'</select>'+
+      '<select id="pl-line" '+inp+'><option value="">Product line…</option>'+PL_LINES_OPT.map(r=>'<option>'+esc(r)+'</option>').join('')+'</select>'+
+      '<input id="pl-needed" type="date" title="Date needed" '+inp+'>'+
+      '<input id="pl-purpose" placeholder="What is it for? (event, KOL, account…)" '+inp+' style="flex:1;min-width:200px;'+inp.slice(7,-1)+'">'+
+      '<button onclick="plSubmit()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:12.5px;font-weight:700;cursor:pointer">Submit request</button>'+
+      '</div>'+
+      '<div style="font-size:11px;color:var(--tx3);margin-top:8px">Submitting reserves the units immediately — they drop out of available-to-promise so nobody sells them while your request is pending. The fund source you pick is notified; nothing leaves the warehouse until they approve and the warehouse releases it.</div>'+
+    '</div>'+
+    // ── the register ──
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>No.</th><th>Requested</th><th>Needed</th><th>By</th><th>Fund source</th><th>Reason</th><th>Items</th><th>Status</th><th></th></tr></thead><tbody>'+
+    (rows.length?rows.map(r=>{
+      const ls=byPl[r.id]||[];
+      const f=fundOf(r.fund_class);
+      const isMine=r.requester_id===me;
+      const acts=[];
+      if(r.status==='pending'&&canDecidePullout(r))acts.push('<a href="#" onclick="plDecide('+r.id+',\'approved\');return false" style="color:var(--gr);font-weight:700">approve ✓</a>','<a href="#" onclick="plDecide('+r.id+',\'rejected\');return false" style="color:var(--rd)">reject</a>');
+      if(r.status==='pending'&&isMine)acts.push('<a href="#" onclick="plCancel('+r.id+');return false" style="color:var(--tx3)">cancel</a>');
+      if(r.status==='approved'&&canW)acts.push('<a href="#" onclick="plRelease('+r.id+');return false" style="color:var(--ac);font-weight:700">release stock →</a>');
+      if(r.status==='released'&&!r.booked_ref&&(canW||roleIn('admin','sales','manager')))acts.push('<a href="#" onclick="plBooked('+r.id+');return false" style="color:var(--ac)">mark booked</a>');
+      return '<tr'+(isMine?' style="background:var(--sf2)"':'')+'><td style="font-weight:700">'+PL_NO(r.id)+'</td>'+
+      '<td class="mu" style="font-size:11px">'+esc(String(r.date_requested||'').slice(0,10))+'</td>'+
+      '<td class="mu" style="font-size:11px">'+esc(String(r.date_needed||'—').slice(0,10))+'</td>'+
+      '<td class="mu" style="font-size:11.5px;max-width:130px;overflow:hidden;text-overflow:ellipsis">'+esc(r.requester_name||r.requester_email||'—')+'</td>'+
+      '<td style="font-size:11.5px">'+esc(r.fund_class)+(f&&f.approver_name?'<div class="mu" style="font-size:10px">'+esc(f.approver_name)+'</div>':'<div style="font-size:10px;color:var(--rd)">no approver set</div>')+'</td>'+
+      '<td class="mu" style="font-size:11px;max-width:150px;overflow:hidden;text-overflow:ellipsis">'+esc(r.reason||'—')+(r.purpose?'<div style="font-size:10px">'+esc(r.purpose)+'</div>':'')+'</td>'+
+      '<td class="mu" style="font-size:11px;max-width:200px">'+(ls.length?ls.map(l=>esc(l.sku)+' ×'+l.qty+(l.released_qty?' <span style="color:var(--gr)">('+l.released_qty+' out)</span>':'')).join('<br>'):'—')+'</td>'+
+      '<td>'+pill(r.status)+(r.booked_ref?'<div class="mu" style="font-size:10px">booked '+esc(r.booked_ref)+'</div>':'')+(r.decision_note?'<div class="mu" style="font-size:10px">'+esc(r.decision_note)+'</div>':'')+'</td>'+
+      '<td style="white-space:nowrap;font-size:11.5px">'+acts.join(' · ')+'</td></tr>';
+    }).join(''):'<tr><td colspan="9" class="mu">No pull-out requests yet.</td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>Requesting reserves · the fund source approves · the warehouse releases (that is when stock actually moves, FEFO batch-stamped against '+esc(PL_NO(0).replace('1000','n'))+') · during the parallel run the specialist still books it in Shopify and ticks “mark booked” here. Pull-outs are internal issues — they never count as sales.</span></div></div>'+
+    // ── fund-source spend: what finance needs for the class charge ──
+    ((roleIn('admin','finance'))?(function(){
+      const ym=window._plYm||new Date().toISOString().slice(0,7);
+      const inRange=r=>String(r.date_requested||'').slice(0,7)===ym;
+      const yms=[];{const d=new Date();for(let i=0;i<13;i++){yms.push(d.toISOString().slice(0,7));d.setMonth(d.getMonth()-1);}}
+      const costOf=sku=>{const it=(ITEMS||{})[sku];return (it&&it.cost!=null)?it.cost:null;};
+      const agg={};let unknownCost=0;
+      for(const r of rows){
+        if(!inRange(r)||r.status==='rejected'||r.status==='cancelled')continue;
+        const a=(agg[r.fund_class]=agg[r.fund_class]||{n:0,units:0,value:0,released:0,pending:0});
+        a.n++;if(r.status==='released')a.released++;else a.pending++;
+        for(const l of (byPl[r.id]||[])){
+          a.units+=l.qty||0;
+          const c=costOf(l.sku);
+          if(c==null)unknownCost++;else a.value+=c*(l.qty||0);
+        }
+      }
+      const list=Object.entries(agg).sort((a,b)=>b[1].value-a[1].value);
+      const tot=list.reduce((x,[,a])=>({units:x.units+a.units,value:x.value+a.value,n:x.n+a.n}),{units:0,value:0,n:0});
+      return '<div class="panel" style="padding:14px 16px;margin-top:16px">'+
+        '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">'+
+        '<div class="phd" style="margin:0">Fund-source spend</div>'+
+        '<select onchange="window._plYm=this.value;renderPullouts()" style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:6px 9px;font-size:12px">'+
+          yms.map(m=>'<option'+(m===ym?' selected':'')+'>'+m+'</option>').join('')+'</select>'+
+        '<span style="flex:1"></span>'+
+        '<button onclick="plSpendCSV()" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:7px 13px;font-size:12px;font-weight:600;cursor:pointer">Export for QBO</button></div>'+
+        (list.length?'<div class="tscroll"><table><thead><tr><th>Class</th><th class="r">Requests</th><th class="r">Units</th><th class="r">At cost</th><th class="r">Released</th><th class="r">Still open</th></tr></thead><tbody>'+
+          list.map(([cls,a])=>'<tr><td style="font-weight:600">'+esc(cls)+'</td><td class="r">'+a.n+'</td><td class="r">'+a.units.toLocaleString()+'</td>'+
+            '<td class="r" style="font-weight:700">'+fmtPeso(a.value)+'</td><td class="r mu">'+a.released+'</td><td class="r" style="color:'+(a.pending?'var(--am)':'var(--tx3)')+'">'+(a.pending||'—')+'</td></tr>').join('')+
+          '<tr style="border-top:2px solid var(--bd)"><td style="font-weight:700">TOTAL</td><td class="r">'+tot.n+'</td><td class="r">'+tot.units.toLocaleString()+'</td><td class="r" style="font-weight:800">'+fmtPeso(tot.value)+'</td><td colspan="2"></td></tr>'+
+          '</tbody></table></div>':'<div class="mu" style="font-size:12px">Nothing in '+esc(ym)+'.</div>')+
+        '<div style="font-size:11px;color:var(--tx3);margin-top:8px">Rejected and cancelled requests are excluded. Valued at <b>item-master cost</b> \u2014 the basis QBO wants for a class charge, not list price'+
+        (unknownCost?' \u00b7 <span style="color:var(--am)">'+unknownCost+' line(s) have no cost on the item master, so they count as \u20b10</span>':'')+
+        '. Released rows have left the warehouse; still-open ones are reserved but not yet handed over.</div></div>';
+    })():'')+
+    // ── fund sources (admin) ──
+    (roleIn('admin')?'<div class="panel" style="padding:14px 16px;margin-top:16px"><div class="phd" style="margin-bottom:8px">Fund sources — who approves each class</div>'+
+      '<div class="tscroll"><table><thead><tr><th>Class (QBO)</th><th>Approver</th><th>Backup</th><th>Active</th><th></th></tr></thead><tbody>'+
+      (FUNDS||[]).map(f=>'<tr><td style="font-weight:600">'+esc(f.class)+'</td>'+
+        '<td>'+(f.approver_name?esc(f.approver_name):'<span style="color:var(--rd)">not set</span>')+'</td>'+
+        '<td class="mu">'+(f.backup_name?esc(f.backup_name):'—')+'</td>'+
+        '<td>'+(f.active?'<span class="pill pgr">yes</span>':'<span class="pill" style="background:var(--sf2);color:var(--tx3)">no</span>')+'</td>'+
+        '<td style="font-size:11.5px;white-space:nowrap"><a href="#" onclick="plSetApprover(\''+esc(f.class).replace(/'/g,'&#39;')+'\',false);return false" style="color:var(--ac)">set approver</a> · <a href="#" onclick="plSetApprover(\''+esc(f.class).replace(/'/g,'&#39;')+'\',true);return false" style="color:var(--ac)">backup</a> · <a href="#" onclick="plToggleFund(\''+esc(f.class).replace(/'/g,'&#39;')+'\','+(f.active?'false':'true')+');return false" style="color:var(--tx3)">'+(f.active?'deactivate':'activate')+'</a></td></tr>').join('')+
+      '</tbody></table></div><div style="font-size:11px;color:var(--tx3);margin-top:8px">An approver can be anyone with an HQ login — including someone whose role is otherwise read-only. The super admin can decide any class as a fallback.</div></div>':'');
+  plRestore();
+}
+function plSpendCSV(){
+  if(!roleIn('admin','finance'))return;
+  const ym=window._plYm||new Date().toISOString().slice(0,7);
+  const rows=window._PLROWS||[],byPl=window._PLLINES||{};
+  const costOf=sku=>{const it=(ITEMS||{})[sku];return (it&&it.cost!=null)?it.cost:null;};
+  const out=[];
+  for(const r of rows){
+    if(String(r.date_requested||'').slice(0,7)!==ym)continue;
+    if(r.status==='rejected'||r.status==='cancelled')continue;
+    for(const l of (byPl[r.id]||[])){
+      const c=costOf(l.sku);
+      out.push([PL_NO(r.id),r.date_requested||'',r.status,r.fund_class,r.reason||'',r.product_line||'',
+        r.requester_name||'',r.approver_name||'',l.sku,l.name||'',l.qty,l.uom||'',
+        c==null?'':c,c==null?'':c*(l.qty||0),r.released_at?String(r.released_at).slice(0,10):'',r.booked_ref||'',r.purpose||'']);
+    }
+  }
+  if(!out.length)return alert('Nothing to export for '+ym+'.');
+  const h=['Pull-out no.','Date requested','Status','Fund source (class)','Reason','Product line','Requested by','Approved by','SKU','Product','Qty','Unit','Unit cost','Value at cost','Released','Booked ref','Purpose'];
+  const csv=[h,...out].map(r=>r.map(v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='healthspan-pullouts-'+ym+'.csv';a.click();
+  audit('export.pullouts',{month:ym,lines:out.length});
+}
+function plKeep(){ // remember the half-filled form across a repaint
+  const g=id=>($(id)&&$(id).value)||'';
+  window._plForm={fund:g('pl-fund'),reason:g('pl-reason'),line:g('pl-line'),needed:g('pl-needed'),purpose:g('pl-purpose'),uom:g('pl-uom')};
+}
+function plRestore(){
+  const f=window._plForm;if(!f)return;
+  const set=(id,v)=>{if($(id)&&v)$(id).value=v;};
+  set('pl-fund',f.fund);set('pl-reason',f.reason);set('pl-line',f.line);set('pl-needed',f.needed);set('pl-purpose',f.purpose);set('pl-uom',f.uom);
+}
+function plAddLine(){
+  plKeep();
+  const raw=(($('pl-sku')||{}).value||'').trim();
+  const qty=parseInt((($('pl-qty')||{}).value||'0'),10);
+  if(!raw||!qty||qty<1)return alert('Pick a product and a quantity.');
+  const p=(DATA||[]).find(x=>x.sku.toLowerCase()===raw.toLowerCase())||(DATA||[]).find(x=>x.name.toLowerCase()===raw.toLowerCase())||(DATA||[]).find(x=>x.name.toLowerCase().startsWith(raw.toLowerCase()));
+  if(!p)return alert('Unknown product: '+raw);
+  const uom=(($('pl-uom')||{}).value||'').trim()||'pc';
+  window._plCart=window._plCart||[];
+  const ex=window._plCart.find(l=>l.sku===p.sku);
+  if(ex)ex.qty+=qty;else window._plCart.push({sku:p.sku,name:p.name,qty,uom});
+  ['pl-sku','pl-qty'].forEach(id=>{if($(id))$(id).value='';});
+  renderPullouts();
+}
+function plDropLine(i){plKeep();window._plCart.splice(i,1);renderPullouts();}
+async function plSubmit(){
+  const cart=window._plCart||[];
+  if(!cart.length)return alert('Add at least one item.');
+  const cls=(($('pl-fund')||{}).value||'');
+  const reason=(($('pl-reason')||{}).value||'');
+  const line=(($('pl-line')||{}).value||'');
+  const needed=(($('pl-needed')||{}).value||'');
+  const purpose=(($('pl-purpose')||{}).value||'').trim();
+  if(!cls)return alert('Pick the fund source — that decides who approves it.');
+  if(!reason)return alert('Pick a reason for the pull-out.');
+  const f=fundOf(cls);
+  if(f&&!f.approver_id&&!confirm(cls+' has no approver set yet, so nobody will be notified. Submit anyway and ask an admin to set one?'))return;
+  // honest warning, not a block: internal issues can legitimately go negative-ish
+  const short=cart.filter(l=>{const p=(DATA||[]).find(x=>x.sku===l.sku);const on=p?(stk(p)||0):0;return on-(typeof reservedQty==='function'?reservedQty(l.sku):0)<l.qty;});
+  if(short.length&&!confirm('Not enough available to promise for: '+short.map(l=>l.sku).join(', ')+'.\n\nSubmit anyway? The warehouse will see the shortfall when they release.'))return;
+  try{
+    const {data,error}=await SB.from('pullouts').insert({
+      requester_id:SBUSER.id,requester_name:(SBPROFILE&&SBPROFILE.name)||'',requester_email:(SBUSER&&SBUSER.email)||'',
+      date_needed:needed||null,product_line:line||null,reason,fund_class:cls,purpose:purpose||null,status:'pending'
+    }).select().single();
+    if(error)throw error;
+    const {error:eL}=await SB.from('pullout_lines').insert(cart.map(l=>({pullout_id:data.id,sku:l.sku,name:l.name,qty:l.qty,uom:l.uom})));
+    if(eL){ // don't leave a lineless request sitting in everyone's queue
+      try{await SB.from('pullouts').update({status:'cancelled',decision_note:'auto-cancelled: the items failed to save'}).eq('id',data.id);}catch(e2){}
+      throw new Error('The items could not be saved, so the request was cancelled: '+(eL.message||eL));
+    }
+    audit('pullout.request',{no:PL_NO(data.id),fund:cls,reason,items:cart.length,units:cart.reduce((a,l)=>a+l.qty,0)});
+    // notify ONLY the people who must act: the fund source (and their backup)
+    try{
+      const body=(SBPROFILE&&SBPROFILE.name?SBPROFILE.name:'Someone')+' requested '+cart.reduce((a,l)=>a+l.qty,0)+' unit(s) — '+reason+(needed?' · needed '+needed:'');
+      if(f&&f.approver_id)notify({user_id:f.approver_id},'approval','Pull-out needs your approval: '+PL_NO(data.id),body,'#/v/pullouts');
+      if(f&&f.backup_id)notify({user_id:f.backup_id},'approval','Pull-out needs approval (backup): '+PL_NO(data.id),body,'#/v/pullouts');
+    }catch(e){}
+    window._plCart=[];window._plForm=null; // clean slate after a successful submit
+    await loadReservations(true); // the new reservation applies immediately
+    renderPullouts();
+    alert(PL_NO(data.id)+' submitted.'+(f&&f.approver_name?' '+f.approver_name+' has been notified.':''));
+  }catch(e){alert('Could not submit: '+(e.message||e));}
+}
+async function plDecide(id,decision){
+  const {data:r}=await SB.from('pullouts').select('*').eq('id',id).maybeSingle();
+  if(!r||r.status!=='pending')return renderPullouts();
+  if(!canDecidePullout(r))return alert('Only the fund source for '+r.fund_class+' can decide this one.');
+  const note=(prompt(decision==='approved'
+    ?'Approve '+PL_NO(id)+' — note for the record (optional):'
+    :'Reject '+PL_NO(id)+' — why? (this goes back to the requester)','')||'').trim();
+  if(decision==='rejected'&&!note&&!confirm('Reject with no reason given?'))return;
+  try{
+    const {error}=await SB.from('pullouts').update({status:decision,approver_name:(SBPROFILE&&SBPROFILE.name)||'',decided_at:new Date().toISOString(),decision_note:note||null}).eq('id',id);
+    if(error)throw error;
+    audit('pullout.'+decision,{no:PL_NO(id),fund:r.fund_class,note});
+    try{
+      if(decision==='approved'){
+        // the two people who now have to act: finance (the charge) and the warehouse (the goods)
+        const body=r.fund_class+' · '+(r.reason||'')+' · requested by '+(r.requester_name||'')+(r.date_needed?' · needed '+r.date_needed:'');
+        notify({roles:['finance']},'approval','Pull-out approved: '+PL_NO(id),body+' — for the class charge','#/v/pullouts');
+        notify({roles:['supply_chain']},'order','Pull-out to release: '+PL_NO(id),body+' — release the stock when ready','#/v/pullouts');
+      }
+      if(r.requester_id)notify({user_id:r.requester_id},'decision','Pull-out '+(decision==='approved'?'APPROVED':'REJECTED')+': '+PL_NO(id),
+        decision==='approved'?'The warehouse will release it'+(r.date_needed?' before '+r.date_needed:'')+'.':(note||'No reason given.'),'#/v/pullouts');
+    }catch(e){}
+    if(decision==='rejected')await loadReservations(true); // reservation freed
+    renderPullouts();
+  }catch(e){alert('Could not save the decision: '+(e.message||e));}
+}
+async function plCancel(id){
+  if(!confirm('Cancel '+PL_NO(id)+'? The reserved units are released back to available stock.'))return;
+  try{
+    const {error}=await SB.from('pullouts').update({status:'cancelled'}).eq('id',id);
+    if(error)throw error;
+    audit('pullout.cancel',{no:PL_NO(id)});
+    await loadReservations(true);renderPullouts();
+  }catch(e){alert('Could not cancel: '+(e.message||e));}
+}
+async function plRelease(id){
+  if(!canWarehouse())return alert('Releasing stock is the warehouse team and admin.');
+  const {data:r}=await SB.from('pullouts').select('*').eq('id',id).maybeSingle();
+  if(!r||r.status!=='approved')return renderPullouts();
+  const {data:ls}=await SB.from('pullout_lines').select('*').eq('pullout_id',id);
+  if(!ls||!ls.length)return alert('No lines on this request.');
+  if(!confirm('Release '+PL_NO(id)+' — '+ls.reduce((a,l)=>a+(l.qty-(l.released_qty||0)),0)+' unit(s)?\n\nThis writes the stock ledger now (earliest expiry first) and ends the reservation.'))return;
+  try{
+    // ORDER MATTERS: build every movement, write the ledger, THEN stamp the lines
+    // and the header. Stamping first meant a failed ledger write left lines marked
+    // released with no stock movement — and the retry saw nothing left to release
+    // and quietly marked the whole thing done.
+    const moves=[],stamps=[];
+    for(const l of ls){
+      const left=(l.qty||0)-(l.released_qty||0);
+      if(left<=0)continue;
+      // fefoAlloc returns [{batch,take}] — earliest expiry first, same as an order pick
+      const picks=(typeof fefoAlloc==='function')?fefoAlloc(l.sku,left):[{batch:null,take:left}];
+      for(const pk of picks)moves.push({sku:l.sku,qty:-Math.abs(pk.take),kind:'pick',ref:PL_NO(id),batch:pk.batch||null,note:'pull-out · '+(r.fund_class||'')});
+      stamps.push({id:l.id,qty:l.qty,batch:picks.map(x=>x.batch).filter(Boolean).join(', ')||null});
+    }
+    if(!moves.length)return alert('Every line on '+PL_NO(id)+' is already released — nothing left to hand over.');
+    if(typeof ledgerAdd==='function')await ledgerAdd(moves); // throws → nothing below runs, retry stays clean
+    for(const st of stamps)await SB.from('pullout_lines').update({released_qty:st.qty,batch:st.batch}).eq('id',st.id);
+    const {error}=await SB.from('pullouts').update({status:'released',released_at:new Date().toISOString(),released_by:(SBPROFILE&&SBPROFILE.name)||''}).eq('id',id);
+    if(error)throw error;
+    audit('pullout.release',{no:PL_NO(id),units:moves.reduce((a,m)=>a+Math.abs(m.qty),0),fund:r.fund_class});
+    try{
+      if(r.requester_id)notify({user_id:r.requester_id},'order','Pull-out released: '+PL_NO(id),'The stock is out of the warehouse — collect or confirm delivery.','#/v/pullouts');
+      notify({roles:['finance']},'auto','Pull-out released: '+PL_NO(id),r.fund_class+' — book it against the class; the specialist still records it in Shopify during the parallel run','#/v/pullouts');
+    }catch(e){}
+    await loadReservations(true);renderPullouts();
+  }catch(e){alert('Could not release: '+(e.message||e));}
+}
+async function plBooked(id){
+  const ref=(prompt('Reference it was booked under (Shopify order no. / HS number):','')||'').trim();
+  if(!ref)return;
+  try{
+    const {error}=await SB.from('pullouts').update({booked_ref:ref}).eq('id',id);
+    if(error)throw error;
+    audit('pullout.booked',{no:PL_NO(id),ref});renderPullouts();
+  }catch(e){alert('Could not save: '+(e.message||e));}
+}
+async function plSetApprover(cls,isBackup){
+  if(!roleIn('admin'))return alert('Admins set fund-source approvers.');
+  let users=[];
+  try{ // adminUsers goes via the server function — plain profiles reads are own-row only
+    const out=(typeof adminUsers==='function')?await adminUsers('list'):null;
+    let arr=(out&&(out.users||out.list))||out||[];
+    if(!Array.isArray(arr))arr=[];
+    users=arr.filter(u=>u&&u.id).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
+  }catch(e){}
+  if(!users.length){try{const {data}=await SB.from('profiles').select('id,name,role').order('name');users=data||[];}catch(e){}}
+  if(!users.length)return alert('Could not load the user list. Open Team & access once, then try again.');
+  const list=users.map((u,i)=>(i+1)+') '+(u.name||'(no name)')+' — '+String(u.role||'').replace('_',' ')).join('\n');
+  const pick=prompt((isBackup?'BACKUP approver':'Approver')+' for '+cls+':\n\n'+list+'\n\nEnter a number (blank = clear):','');
+  if(pick===null)return;
+  const t=pick.trim();
+  const u=t?users[parseInt(t,10)-1]:null;
+  if(t&&!u)return alert('No user at that number — nothing changed.');
+  try{
+    const patch=isBackup?{backup_id:u?u.id:null,backup_name:u?u.name:null}:{approver_id:u?u.id:null,approver_name:u?u.name:null};
+    patch.updated_by=(SBUSER&&SBUSER.id)||null;patch.updated_at=new Date().toISOString();
+    const {error}=await SB.from('fund_sources').update(patch).eq('class',cls);
+    if(error)throw error;
+    audit('fundsource.set',{class:cls,who:u?u.name:'(cleared)',backup:!!isBackup});
+    await loadFunds(true);renderPullouts();
+  }catch(e){alert('Could not save: '+(e.message||e));}
+}
+async function plToggleFund(cls,active){
+  if(!roleIn('admin'))return;
+  try{
+    const {error}=await SB.from('fund_sources').update({active:!!active,updated_at:new Date().toISOString()}).eq('class',cls);
+    if(error)throw error;
+    audit('fundsource.'+(active?'activate':'deactivate'),{class:cls});
+    await loadFunds(true);renderPullouts();
+  }catch(e){alert('Could not save: '+(e.message||e));}
+}

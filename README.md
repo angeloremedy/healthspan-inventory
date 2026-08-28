@@ -275,7 +275,63 @@ the validity date has passed) — sales dies in the follow-up gap. And a
 **birthday or clinic anniversary** three days out pings the account owner,
 once a year, using the dates the CRM already stores.
 
-## 9.9 Accounting integrity: closing a period, and what freezes
+## 9.9 Inventory pull-outs — the form, with teeth
+
+Stock leaves the warehouse for internal reasons all the time: KOL engagements,
+brand campaigns, FOC promos, trade partnerships, launches and training. That
+used to run on a Google form — request, email the fund source, hope, then tell
+Alex and Verna, then book it in Shopify. Nothing reserved the stock, so the same
+units could be promised to a clinic and to a KOL on the same afternoon, and
+nobody could see the queue.
+
+**Pull-out requests** (Logistics) is that process, in the app. Anyone signed in
+can file one, because the fund-source approval is the real control:
+
+1. **Request** — pick products from the catalogue (with on-hand and
+   available-to-promise beside each one), quantity and unit, the fund source
+   (QBO class), the reason, product line, date needed and what it's for.
+   Submitting **reserves** the units immediately: they drop out of
+   available-to-promise, so no specialist can sell them while the request is
+   pending. If there isn't enough available, it warns and lets you proceed —
+   the warehouse sees the shortfall at release.
+2. **Approve** — only the person mapped to that fund source (or their named
+   backup, or the super admin as a fallback) can decide. They're pinged the
+   moment the request lands. Approving notifies finance (the class charge) and
+   the warehouse (the goods); rejecting sends the reason back to the requester
+   and frees the reservation.
+3. **Release** — the warehouse hands the goods over, and *that* is when stock
+   actually moves: FEFO batch-stamped movements against the PL number, so a
+   pulled-out lot is as traceable as a sold one. The reservation ends there.
+4. **Booked** — during the parallel run the specialist still records it in
+   Shopify; ticking "mark booked" with the reference closes the loop so nothing
+   sits half-done.
+
+Fund sources are configurable (admin): each of the eight QBO classes maps to an
+approver plus an optional backup, chosen from any HQ login.
+
+**Approval rights come from the fund-source list, not from a role.** Several
+approvers — Digital Marketing, People Ops — hold viewer access, which is
+read-only everywhere else in HQ. They can still approve their class, and the page
+tells them so: an approver sees a banner naming the classes they own and what is
+waiting on them. This is stated as a rule in `viewAllowed` and enforced by an RLS
+policy that keys off `fund_sources`, not `profiles.role`, so no future permission
+change can quietly revoke it. A class with no approver is flagged loudly, since
+its requests can't be routed.
+
+**Finance sees the money side.** Admin and finance get a **fund-source spend**
+panel: per class, per month — requests, units, value at item-master cost (the
+basis QBO wants for a class charge, not list price), how many have been released
+and how many are still open. **Export for QBO** gives one row per line item with
+the class, reason, requester, approver, unit cost, value, release date and
+booking reference. Rejected and cancelled requests are excluded; lines with no
+cost on the item master are called out rather than silently counted as zero.
+
+Pull-outs are internal issues and never count as sales, consistent with the
+long-standing pull-out convention. The QBO side stays as it is for now: the
+Shopify↔QBO integration carries it, and pushing *all* orders to QBO directly is
+a separate piece of work.
+
+## 9.10 Accounting integrity: closing a period, and what freezes
 
 Until now any month could be edited forever. A July order's amount could change
 in September, after accounting had signed July off — and nothing said no. The
@@ -338,7 +394,7 @@ draft and lands in Approvals as a "purchase" hold, pinging admin. Approving mark
 it ordered; rejecting cancels it. Both thresholds are super-admin settings on the
 Approvals page.
 
-## 9.9 Your manual, in-app
+## 9.11 Your manual, in-app
 
 Sidebar → **manual** (mobile: Menu → My manual) opens the user manual for YOUR
 role right inside the app — read it there, download it, or pop it full screen.
