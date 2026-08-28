@@ -87,6 +87,7 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ Payment-status sync from Shopify (totalOutstanding is truth; paid-with-balance → partial)
 - ✅ Customer statements: printable per-account Statement of Account with aging summary
 - ✅ Accounting export: date-range CSV of the register (totals, payments, balances, terms)
+- ✅ Dated payments ledger (Aug 28): every payment an append-only row with date/method/reference — cash finally has a period
 
 **Cadence + clarity (Aug 28)**
 - ✅ Tiered activity cadences (A/B/C = 30/45/60d) · ✅ AI next-best-action (Monday top-3 calls per specialist)
@@ -97,6 +98,22 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ Sidebar unified: navSync drives every role (sales now get the same collapsible categories instead of a flat CSS-filtered list)
 - ✅ Mobile once-and-for-all: sticky top bar (never scrolls away, no rubber-band gap) · customizable bottom bar (each user picks their 4 quick-access pages; Home + Menu fixed)
 - ✅ HD home-screen icons: white logo on brand blue (192/512/maskable/apple-touch)
+
+**Accounting integrity pack (Aug 28)**
+- ✅ Period close: super-admin closed-through date; order amounts/dates/lines, credit memos, cheque maturities and monthly targets freeze on or before it. Enforced by Postgres triggers, so neither a client bug nor a service-key job can restate a signed-off month; collections, shipping and DR numbers stay open
+- ✅ Backfill respects the close: may still import an unseen historical order, may not rewrite a closed one's amounts/dates/lines (sends payment + shipment fields only; reports the count)
+- ✅ Dated payments: append-only `payments` rows with date/method/reference — "collections in August" is now answerable; orders.paid/balance stay the rollup
+- ✅ Month-end valuation snapshots: freeze the month's value/units/per-SKU detail permanently (finance+admin; re-freeze is super admin) + nightly nudge on the 1st
+- ✅ Credit memos net: date + specialist + "already refunded in Shopify" flag; Commissions compute on net (booked − that month's CMs), so a return can drop a tier
+- ✅ PO approvals: purchase orders over the purchase threshold hold as drafts and land in Approvals as a purchase hold (admin decides); threshold is a super-admin setting
+
+**Working the gaps pack (Aug 28)**
+- ✅ Short-dated stock queue (Logistics): every lot expiring within 6 months, worst first, with ₱ at risk — each gets a plan (discount / FOC / transfer / quarantine / accept), an owner, a target date; unplanned value totalled separately; closing records the outcome
+- ✅ Receiving & supplier scorecard: fill rate, on-time vs ETA, real lead time vs quoted, plus every closed-PO line where received ≠ ordered valued at cost (admin/finance/supply chain — it shows cost)
+- ✅ Quote chase rule: a quote at 'sent' for 7+ days pings the specialist who raised it (flags an expired validity date), once per quote
+- ✅ Birthday / clinic anniversary rule: owner pinged 3 days ahead, once per year, from the CRM dates already captured
+- ✅ Cost-boundary fix found while auditing: the PO unit-cost column was visible to sales managers — now gated to admin/finance/warehouse like every other cost surface
+- ✅ Desktop sidebar hideable (hamburger, remembered per device) · mobile bars render only after sign-in · iOS 26 bottom-gap bug un-triggered
 
 **Procure-to-pay + platform polish (Aug 28)**
 - ✅ Supplier master · import shipment tracking (ETD/ETA/customs) · multi-currency payment FX · landed cost & valuation (true margins, admin+finance) · QA hold on receipt
@@ -122,7 +139,7 @@ platform feeds it via the accounting export; it does not replace it.
 
 **Automation layer (Aug 28)**
 - ✅ Nightly full backup: every table → dated JSON in Netlify Blobs (14 kept), super-admin download on the Cutover page — the free-tier safety net until Supabase Pro
-- ✅ Five workflow automation rules (nightly sweep → bell + follow-up tasks, deduped via auto_log)
+- ✅ Nine workflow automation rules (nightly sweep → bell + follow-up tasks, deduped via auto_log) — incl. quote chase and birthday/anniversary as of Aug 28
 - ✅ Anomaly alerts at order submit (3× usual size, deep discounts) → managers
 - ✅ Cash-flow forecast: weekly expected collections from AR terms + PDC maturities
 
@@ -182,6 +199,16 @@ platform feeds it via the accounting export; it does not replace it.
 - ▢ **Consignment inventory** — stock parked at a clinic, billed on use, counted separately
 - ▢ **Rebates / volume tiers** — per-account discount tiers with automatic application
 
+### Accounting integrity (scoped 2026-08-28 — next pack)
+- ✅ **Period close / month-end lock** — shipped (closed_through date; Postgres triggers over orders, order_lines, payments, returns, pdcs, spec_targets; super-admin bypass; collections/shipping stay open; backfill sends reduced payloads for closed periods)
+- ✅ **Monthly valuation snapshot** — shipped (Freeze on Landed cost & valuation: total, units, SKU count, stock basis and per-SKU JSONB detail; history table; nightly nudge on the 1st)
+- ✅ **Returns netting** — shipped (audit found CMs netted NOWHERE: not sales, not pace, not commissions, and AR only via a manual admin action). Fixed where it pays: returns carry date + specialist + shopify_refunded, and Commissions compute on net. Sales/pace views stay gross by design — Shopify already nets refunds at source during the parallel run — and now say so
+- ✅ **PO approvals** — shipped (over-threshold POs stay drafts, land in Approvals as a purchase hold, ping admin; approve → ordered, reject → cancelled)
+
+### Devices & after-sales (scoped 2026-08-28)
+- ▢ **Serial-number tracking** — serialized machines (which clinic has which unit), warranty end dates, service/repair history per serial
+- ▢ **Demo / loaner unit tracking** — machines in the field for demos: neither sold nor in the warehouse, currently invisible
+
 ### Compliance (pharma)
 - ✅ **Batch recall trace** — shipped (OUT-sheet history + ledger picks; survives sheet retirement)
 - ✅ **Product registration tracking** — shipped (CPR/FDA number + expiry per SKU on the item master; expired/expiring-soon float to the top with red/amber flags)
@@ -204,6 +231,8 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ **Activity cadences** — shipped (dormancy alerts tiered by A/B/C: 30/45/60 days; owner pinged inside the window, monthly dedup)
 - ▢ **Attachments** — photos, signed DRs, licenses on visits/accounts. DESIGN DECIDED (2026-08-28): Google Drive via a service-account Netlify function (file IDs stored in Supabase), not Supabase Storage
 - 🔨 **Account tiers & segmentation** — tier field (A/B/C) shipped on accounts; tier-based service levels/cadences still open
+- ✅ **Quote chase** — shipped (a quote left at 'sent' for 7+ days pings the specialist who raised it; flags a lapsed validity date)
+- ✅ **Birthday / clinic anniversary pings** — shipped (owner pinged 3 days ahead, once per year, from the dates already on the account)
 - ✅ **Weekly digest** — shipped (Monday bell digest per specialist: booked, orders, visits, open follow-ups; plus a team digest for managers/admin — no email/Slack dependency)
 - ✅ **Multiple contacts per account** — shipped (account pages)
 - ✅ **Reorder-due alerts** — shipped (Reorder due; routes to the account owner)
@@ -245,6 +274,8 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ **Expiry quarantine & disposal log** — shipped (pull expiring/damaged/QA stock out of sellable + ATP; release or dispose with notes, who, when)
 - ✅ **Stock reservations / ATP** — shipped (pending native orders ARE the reservation; order entry shows on-hand / promised / available-to-promise, blocks specialists from overselling, manager override with confirm; releases automatically on fulfill/cancel)
 - ✅ **Backorder management** — shipped (ATP overrides recorded as backorders; panel on the fulfillment queue; auto-release + pings when a PO receive covers the shortfall)
+- ✅ **Short-dated stock queue** — shipped (lots inside 6 months with ₱ at risk; plan + owner + target date per lot; unplanned value called out; closing records the outcome)
+- ✅ **Receiving discrepancies & supplier scorecard** — shipped (fill rate, on-time vs ETA, real vs quoted lead time; closed-PO lines where received ≠ ordered, valued at cost)
 - ▢ **Wave picking** — batch several orders into one FEFO warehouse pass
 - ✅ **QA hold on receipt** — shipped (receiving offers sellable vs QA hold; held units release into the ledger as receives)
 - ▢ **Courier tracking auto-pull** — LBC/Lalamove status APIs update dispatched/delivered automatically

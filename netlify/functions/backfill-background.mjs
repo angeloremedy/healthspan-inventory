@@ -72,6 +72,31 @@ export const handler = async (event) => {
   try {
     if (!SB_URL || !SB_KEY) throw new Error('Set SUPABASE_URL and SUPABASE_SERVICE_KEY in Netlify env');
     const token = await getAccessToken();
+    // PERIOD CLOSE: orders already inside a closed accounting period keep their
+    // amounts, dates and lines. We still sync collections and shipping for them
+    // (a July invoice paid in September is real), and we may still import an
+    // order we have never seen — but we never restate a signed-off month.
+    let closedThrough = '';
+    try {
+      const r = await fetch(SB_URL + '/rest/v1/app_settings?key=eq.closed_through&select=value',
+        { headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY } });
+      if (r.ok) { const j = await r.json(); const v = (j[0] && j[0].value) || ''; if (/^\d{4}-\d{2}-\d{2}$/.test(v)) closedThrough = v; }
+    } catch (e) {}
+    let known = new Set(), knownTruncated = false; // ext_refs that already exist, so we can tell import from restate
+    if (closedThrough) {
+      try {
+        for (let off = 0; off < 20000; off += 1000) {
+          const r = await fetch(SB_URL + '/rest/v1/orders?select=ext_ref&source=eq.shopify&date=lte.' + closedThrough + '&order=ext_ref&limit=1000&offset=' + off,
+            { headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY } });
+          if (!r.ok) break;
+          const j = await r.json();
+          j.forEach(x => { if (x.ext_ref) known.add(x.ext_ref); });
+          if (j.length < 1000) break;
+          if (off >= 19000) knownTruncated = true; // more closed orders than we paged
+        }
+      } catch (e) {}
+    }
+    let nFrozen = 0;
     let cursor = null, pages = 0, nOrders = 0, nLines = 0;
     const accounts = {}; // name -> {phone,address}
     for (let page = 0; page < 600; page++) {
@@ -79,7 +104,7 @@ export const handler = async (event) => {
         'query($c:String){orders(first:60,after:$c,query:"status:any",sortKey:CREATED_AT){pageInfo{hasNextPage endCursor}edges{node{name createdAt cancelledAt tags note displayFulfillmentStatus displayFinancialStatus totalReceivedSet{shopMoney{amount}}totalOutstandingSet{shopMoney{amount}}fulfillments(first:3){createdAt deliveredAt displayStatus trackingInfo(first:3){company number}}customer{displayName phone defaultAddress{address1 city phone}}lineItems(first:60){edges{node{title sku quantity currentQuantity discountedTotalSet{shopMoney{amount}}}}}}}}}',
         { c: cursor });
       const os = d.orders; pages++;
-      const orderRows = [], shipRows = [], lineRows = [], delIds = [];
+      const orderRows = [], shipRows = [], frozenRows = [], frozenShipRows = [], lineRows = [], delIds = [];
       for (const e of os.edges) {
         const o = e.node;
         const tag = (o.tags && o.tags.length ? String(o.tags[0]).trim() : '');
@@ -130,13 +155,24 @@ export const handler = async (event) => {
           delivered_at: fu.deliveredAt ? fu.deliveredAt.slice(0, 10)
             : (fu.displayStatus === 'DELIVERED' && fu.createdAt ? fu.createdAt.slice(0, 10) : null)
         } : null;
-        const row = { id, source: 'shopify', ext_ref: o.name, date: o.createdAt.slice(0, 10), account: cust, spec: tag || '', status, total, user_id: null,
-          pay_status, paid, balance, terms_days, order_note: note };
+        const odate = o.createdAt.slice(0, 10);
+        // when the known-set was truncated, fail SAFE: treat every closed-period
+        // order as frozen rather than attempt a restatement the trigger will reject
+        const frozen = !!closedThrough && odate <= closedThrough && (knownTruncated || known.has(o.name));
+        const row = frozen
+          // closed period: collections + shipping only. No date/total/status/lines.
+          ? { id, source: 'shopify', ext_ref: o.name, pay_status, paid, balance }
+          : { id, source: 'shopify', ext_ref: o.name, date: odate, account: cust, spec: tag || '', status, total, user_id: null,
+              pay_status, paid, balance, terms_days, order_note: note };
+        if (frozen) nFrozen++;
         // only overwrite shipment fields when Shopify actually has a fulfillment —
-        // otherwise manual courier/waybill entries in the app survive re-runs
-        if (ship) { Object.assign(row, ship); shipRows.push(row); } else orderRows.push(row);
-        delIds.push(id);
-        for (const l of lis) {
+        // otherwise manual courier/waybill entries in the app survive re-runs.
+        // Frozen rows go in their own arrays: a bulk PostgREST upsert requires
+        // every row in the batch to carry the SAME keys, and frozen rows carry fewer.
+        if (ship) { Object.assign(row, ship); (frozen ? frozenShipRows : shipRows).push(row); }
+        else (frozen ? frozenRows : orderRows).push(row);
+        if (!frozen) delIds.push(id); // frozen orders keep the lines they were signed off with
+        for (const l of (frozen ? [] : lis)) {
           const isDealPart = l.sku.length >= 4 && lis.some(o2 => o2.sku !== l.sku && o2.sku.length > l.sku.length && o2.sku.includes(l.sku));
           lineRows.push({ order_id: id, sku: l.sku, name: l.title, qty: l.qty, price: l.qty ? Math.round(l.amt / l.qty) : 0, amount: l.amt, is_free: l.amt <= 0 && !isDealPart, deal: null });
         }
@@ -149,13 +185,15 @@ export const handler = async (event) => {
           };
         }
       }
-      if (orderRows.length || shipRows.length) {
-        // two batches: PostgREST bulk rows must share the same keys
+      if (orderRows.length || shipRows.length || frozenRows.length || frozenShipRows.length) {
+        // one batch per key shape: PostgREST bulk rows must share the same keys
         if (orderRows.length) await sb('orders?on_conflict=ext_ref', 'POST', orderRows, 'resolution=merge-duplicates,return=minimal');
         if (shipRows.length) await sb('orders?on_conflict=ext_ref', 'POST', shipRows, 'resolution=merge-duplicates,return=minimal');
-        await sb('order_lines?order_id=in.(' + delIds.map(x => '"' + x + '"').join(',') + ')', 'DELETE'); // idempotent lines
+        if (frozenRows.length) await sb('orders?on_conflict=ext_ref', 'POST', frozenRows, 'resolution=merge-duplicates,return=minimal');
+        if (frozenShipRows.length) await sb('orders?on_conflict=ext_ref', 'POST', frozenShipRows, 'resolution=merge-duplicates,return=minimal');
+        if (delIds.length) await sb('order_lines?order_id=in.(' + delIds.map(x => '"' + x + '"').join(',') + ')', 'DELETE'); // idempotent lines
         for (let i = 0; i < lineRows.length; i += 400) await sb('order_lines', 'POST', lineRows.slice(i, i + 400));
-        nOrders += orderRows.length + shipRows.length; nLines += lineRows.length;
+        nOrders += orderRows.length + shipRows.length + frozenRows.length + frozenShipRows.length; nLines += lineRows.length;
       }
       if (pages % 5 === 0) await setStatus({ state: 'running', pages, orders: nOrders });
       if (!os.pageInfo.hasNextPage) break;
@@ -166,7 +204,9 @@ export const handler = async (event) => {
     const acctRows = Object.values(accounts);
     for (let i = 0; i < acctRows.length; i += 300)
       await sb('accounts?on_conflict=name', 'POST', acctRows.slice(i, i + 300), 'resolution=ignore-duplicates,return=minimal');
-    await setStatus({ state: 'done', pages, orders: nOrders, lines: nLines, customers: acctRows.length, secs: Math.round((Date.now() - t0) / 1000) });
+    await setStatus({ state: 'done', pages, orders: nOrders, lines: nLines, customers: acctRows.length,
+      frozen: nFrozen, closed_through: closedThrough || null, // orders synced for collections only
+      secs: Math.round((Date.now() - t0) / 1000) });
   } catch (err) {
     await setStatus({ state: 'error', error: String(err.message || err) });
   }

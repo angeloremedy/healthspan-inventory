@@ -209,11 +209,15 @@ through the function so the files are never publicly reachable).
 backfill (order/payment/shipment sync), the sales-cache rebuild,
 **backup-background** (full JSON export of every table → Netlify Blobs
 "backups" store, 14 dated snapshots kept; `backup.mjs` serves the latest to a
-verified super-admin session), and **automations-background** (the five
+verified super-admin session), and **automations-background** (ten
 workflow rules — follow-up after fulfillment, welcome call on first order,
 collection at 60d past terms, dormant-account alert, campaign-start ping,
-Monday weekly digests —
-writing notifications and planned visits, deduped via `auto_log`).
+Monday weekly digests, Monday next-best-action, quote chase at 7 days, and
+birthday/anniversary three days ahead, and a month-end
+valuation-freeze nudge on the 1st —
+writing notifications and planned visits, deduped via `auto_log`). Dedup keys
+are per-entity: `quotechase` fires once per quote id; `occasion` uses
+`field:account@year` so a greeting reminder recurs annually but never twice.
 
 ### 3.6 One permission truth for views
 `viewAllowed(v)` (js/02) is the single rule set: `showView` redirects with it,
@@ -318,3 +322,38 @@ from `profiles` at sign-in and drive everything (`ROLE`, `SBPROFILE`).
   they release automatically when an order fulfills or cancels.
 - Supabase free tier until cutover → Pro (backups, PITR, no pause).
 - Legacy Supabase JWT keys to disable after verifying the new keys.
+
+## 3.8 Period close — enforcement lives in Postgres
+
+`app_settings.closed_through` ('YYYY-MM-DD', super-admin-write like every other
+setting) is the accounting cut-off. Enforcement is a set of `before insert or
+update or delete` triggers, so it holds against the app, against a future client
+bug, and against service-key writes:
+
+| Table | Period field | Frozen when closed |
+|---|---|---|
+| `orders` | `date` | amount, date, account, spec, terms; cancellation/restore/delete; and back-dating an open order in. Payments, shipping, fulfilment and DR numbers stay open |
+| `order_lines` | parent `orders.date` | all writes |
+| `payments` | `date` | inserts (append-only table, so that is all of them) |
+| `returns` | `date` | inserts, deletes, and edits to amount/date/spec/action (the applied-to-AR flag stays open) |
+| `pdcs` | `maturity` | inserts, deletes, and edits to amount/maturity (status changes stay open) |
+| `spec_targets` | `month` | inserts, updates, deletes |
+| `order_overrides` | parent `orders.date` via `ext_ref` | cancel/trash of a migrated Shopify order |
+
+`period_closed(date)` reads the setting; `caller_is_super()` bypasses;
+`caller_is_service()` is exempt **only** for `orders` INSERT, so the nightly
+backfill can still import historical orders it has never seen while remaining
+unable to restate ones it has. `backfill-background.mjs` cooperates by sending a
+reduced payload (pay_status/paid/balance + shipment fields) for known orders
+inside a closed period and skipping their line delete/reinsert entirely; it
+reports the count as `frozen` in the job status.
+
+Client-side, `closedThrough()`, `periodClosed(d)` and `blockIfClosed(d,what)`
+in js/03 let views refuse early with a readable message. They are a courtesy,
+not the control — `FLAGS` fails open if the settings fetch errors, which is
+precisely why the guarantee is in the database.
+
+Inventory value is no longer only a live computation: `valuation_snapshots`
+(one row per month, RLS-limited to admin/finance like the valuation page itself)
+stores the frozen total, units, SKU count, stock basis, and per-SKU detail as
+JSONB. Re-freezing an existing month requires `is_super`.

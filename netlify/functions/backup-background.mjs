@@ -11,11 +11,16 @@ const SVC = process.env.SUPABASE_SERVICE_KEY || '';
 const TABLES = {
   profiles: 'id', accounts: 'name', account_links: 'from_key', account_contacts: 'id',
   visits: 'id', orders: 'id', order_lines: 'id', order_overrides: 'ref',
-  audit_log: 'id', spec_targets: 'id', spec_roster: 'id', app_settings: 'key',
+  audit_log: 'id', spec_targets: 'month', spec_roster: 'spec', app_settings: 'key',
   campaigns: 'id', pdcs: 'id', returns: 'id', items: 'sku',
   pos: 'id', po_lines: 'id', opportunities: 'id', stock_moves: 'id',
   approvals: 'id', comm_rules: 'id', quotes: 'id', quote_lines: 'id',
-  promos: 'id', count_sessions: 'id', count_lines: 'id', forecast_snapshots: 'id'
+  promos: 'id', count_sessions: 'id', count_lines: 'id', forecast_snapshots: 'id',
+  // tables added after the first backup pass — without these the dated cash
+  // detail and the permanent month-end figures would be the only data not backed up
+  payments: 'id', valuation_snapshots: 'id', shortdated: 'id',
+  backorders: 'id', quarantine: 'id', complaints: 'id', suppliers: 'id',
+  transfers: 'id', transfer_lines: 'id', notifications: 'id', doc_series: 'kind'
 };
 
 async function dump(table, orderCol) {

@@ -1202,7 +1202,7 @@ alter table public.auto_log enable row level security;
 The nightly job (2am Manila) now also runs: **backup-background** (full JSON
 export of every table → Netlify Blobs, 14 kept; download from the Cutover page
 or /.netlify/functions/backup — super admin session required) and
-**automations-background** (the five workflow rules → bell pings + planned
+**automations-background** (the nine workflow rules → bell pings + planned
 visits, deduped via auto_log). No new env vars — both use JOB_KEY +
 SUPABASE_SERVICE_KEY already in Netlify.
 
@@ -1397,3 +1397,365 @@ Tiered cadences and next-best-action ride existing tables (accounts.tier +
 auto_log). The in-app manual viewer, view-only banners, homepage rework, and
 HD icons need no SQL. New icon files: icon-192/512, icon-512-maskable,
 apple-touch-icon (white logo on brand blue).
+
+---
+
+## Working the gaps pack (2026-08-28)
+
+Quote chase and birthday/anniversary pings are automation rules only — they run
+on the existing `quotes`, `accounts` and `auto_log` tables and need no SQL. The
+supplier scorecard reads `pos` / `po_lines` / `suppliers` as they already are.
+Only the short-dated queue adds a table.
+
+```sql
+-- Short-dated stock queue: one row per lot we've decided something about.
+-- The lot list itself comes from live batch data; this table holds the PLAN.
+create table if not exists public.shortdated (
+  id bigint generated always as identity primary key,
+  sku text not null,
+  batch text not null default '',   -- '' not null, so the unique key always bites
+  name text,
+  expiry text,
+  qty int,
+  plan text not null check (plan in ('discount','foc','transfer','quarantine','accept')),
+  owner_tag text,
+  target_date date,
+  notes text,
+  status text not null default 'open' check (status in ('open','done')),
+  outcome text,
+  created_by uuid,
+  created_name text,
+  created_at timestamptz not null default now(),
+  closed_at timestamptz,
+  closed_by text
+);
+-- one plan per lot — this is the upsert target used by sdPlan (on_conflict sku,batch)
+alter table public.shortdated drop constraint if exists shortdated_lot;
+alter table public.shortdated add constraint shortdated_lot unique (sku, batch);
+
+alter table public.shortdated enable row level security;
+create policy "sd read" on public.shortdated for select to authenticated using (true);
+create policy "sd write" on public.shortdated for insert to authenticated
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid()
+              and p.role in ('admin','supply_chain','manager','marketing')));
+create policy "sd update" on public.shortdated for update to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid()
+         and p.role in ('admin','supply_chain','manager','marketing')));
+```
+
+Note: `batch` is `not null default ''` on purpose. If it were nullable, Postgres
+would treat every batchless lot as distinct under the unique constraint and the
+upsert would keep inserting duplicate plans for the same product.
+
+---
+
+## Accounting integrity pack (2026-08-28)
+
+Four things: a real period close enforced in the database, dated payments,
+month-end valuation snapshots, and PO approvals. Plus columns so credit memos
+can finally be attributed and dated.
+
+```sql
+-- ─────────────────────────────────────────────────────────────────────────
+-- 1) PERIOD CLOSE — enforced by triggers, not by the UI.
+--    The date itself is app_settings.closed_through ('YYYY-MM-DD'), which is
+--    already super-admin-only to write and readable by everyone.
+-- ─────────────────────────────────────────────────────────────────────────
+create or replace function public.period_closed(d date) returns boolean
+language sql stable as $$
+  select coalesce((select nullif(value,'')::date from public.app_settings where key = 'closed_through'),
+                  '1900-01-01'::date) >= coalesce(d, '1900-01-01'::date);
+$$;
+
+-- super admin bypasses everything; service_role is identified separately
+create or replace function public.caller_is_super() returns boolean
+language sql stable as $$
+  select coalesce((select p.is_super from public.profiles p where p.id = auth.uid()), false);
+$$;
+create or replace function public.caller_is_service() returns boolean
+language sql stable as $$
+  select coalesce(nullif(current_setting('request.jwt.claim.role', true), ''),
+                  (current_setting('request.jwt.claims', true)::json ->> 'role'),
+                  '') = 'service_role';
+$$;
+
+-- ORDERS: a closed order's revenue facts are frozen, but collections and
+-- shipping may still move (a July invoice paid in September is September cash).
+create or replace function public.guard_orders_period() returns trigger
+language plpgsql as $$
+begin
+  if public.caller_is_super() then return coalesce(NEW, OLD); end if;
+
+  if TG_OP = 'INSERT' then
+    -- the nightly Shopify backfill legitimately imports historical orders
+    if public.caller_is_service() then return NEW; end if;
+    if public.period_closed(NEW.date) then
+      raise exception 'Period closed through the accounting cut-off — an order cannot be dated %. Ask the super admin to reopen the period.', NEW.date;
+    end if;
+    return NEW;
+  end if;
+
+  if TG_OP = 'DELETE' then
+    if public.period_closed(OLD.date) then
+      raise exception 'Period closed — order dated % cannot be deleted.', OLD.date;
+    end if;
+    return OLD;
+  end if;
+
+  -- moving an OPEN order back into a closed month is also a restatement
+  if public.period_closed(NEW.date) and not public.period_closed(OLD.date) then
+    raise exception 'Period closed — an order cannot be back-dated to %, inside a signed-off month.', NEW.date;
+  end if;
+
+  if public.period_closed(OLD.date) then
+    -- fulfilment and reopening are operational and stay open; cancelling or
+    -- deleting removes booked revenue from a signed-off month, so they do not.
+    if (NEW.status is distinct from OLD.status
+        and (NEW.status = 'cancelled' or OLD.status = 'cancelled'))
+    or NEW.deleted_at is distinct from OLD.deleted_at then
+      raise exception 'Period closed — order dated % cannot be cancelled, restored or deleted. Record a credit memo instead.', OLD.date;
+    end if;
+    if NEW.date        is distinct from OLD.date
+    or NEW.total       is distinct from OLD.total
+    or NEW.account     is distinct from OLD.account
+    or NEW.spec        is distinct from OLD.spec
+    or NEW.terms_days  is distinct from OLD.terms_days then
+      raise exception 'Period closed — order dated % is frozen. Payments, shipping, fulfilment and DR numbers still work; amounts, dates and ownership do not.', OLD.date;
+    end if;
+  end if;
+  return NEW;
+end $$;
+
+drop trigger if exists trg_orders_period on public.orders;
+create trigger trg_orders_period before insert or update or delete on public.orders
+  for each row execute function public.guard_orders_period();
+
+-- ORDER LINES: inherit the parent order's period. No service_role exemption —
+-- if the backfill ever tries to rewrite a closed order's lines we want it to
+-- fail loudly in the job log rather than quietly restate a signed-off month.
+create or replace function public.guard_order_lines_period() returns trigger
+language plpgsql as $$
+declare d date;
+begin
+  if public.caller_is_super() then return coalesce(NEW, OLD); end if;
+  select o.date into d from public.orders o where o.id = coalesce(NEW.order_id, OLD.order_id);
+  if d is not null and public.period_closed(d) then
+    raise exception 'Period closed — the lines of an order dated % are frozen.', d;
+  end if;
+  return coalesce(NEW, OLD);
+end $$;
+
+drop trigger if exists trg_order_lines_period on public.order_lines;
+create trigger trg_order_lines_period before insert or update or delete on public.order_lines
+  for each row execute function public.guard_order_lines_period();
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- 2) DATED PAYMENTS — cash needs its own period. Until now a payment was just
+--    an increment to orders.paid with no date at all, so "collections in
+--    August" was unanswerable. orders.paid/balance stay the rollup (the
+--    Shopify sync still owns them); this is the dated detail, append-only.
+-- ─────────────────────────────────────────────────────────────────────────
+create table if not exists public.payments (
+  id bigint generated always as identity primary key,
+  order_id uuid not null references public.orders(id) on delete cascade,   -- orders.id is uuid
+  order_label text,
+  account text,
+  amount bigint not null check (amount <> 0),
+  date date not null default current_date,
+  method text,
+  ref text,
+  note text,
+  created_by uuid,
+  created_name text,
+  created_at timestamptz not null default now()
+);
+create index if not exists payments_date on public.payments (date);
+create index if not exists payments_order on public.payments (order_id);
+
+alter table public.payments enable row level security;
+drop policy if exists "pay read" on public.payments;
+create policy "pay read" on public.payments for select to authenticated using (true);
+drop policy if exists "pay write" on public.payments;
+create policy "pay write" on public.payments for insert to authenticated
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid()
+              and (p.role in ('admin','finance'))));
+-- no update/delete policy: payments are append-only, like the stock ledger.
+-- A wrong payment is corrected with an offsetting negative row.
+
+create or replace function public.guard_payments_period() returns trigger
+language plpgsql as $$
+begin
+  if public.caller_is_super() then return NEW; end if;
+  if public.period_closed(NEW.date) then
+    raise exception 'Period closed — a payment cannot be dated %.', NEW.date;
+  end if;
+  return NEW;
+end $$;
+drop trigger if exists trg_payments_period on public.payments;
+create trigger trg_payments_period before insert on public.payments
+  for each row execute function public.guard_payments_period();
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- 3) CREDIT MEMOS get a date and an owner, so they can be netted by period
+--    and attributed to a specialist. shopify_refunded marks CMs that were
+--    ALSO refunded in Shopify during the parallel run — those are already
+--    netted upstream and must not be deducted twice.
+-- ─────────────────────────────────────────────────────────────────────────
+alter table public.returns add column if not exists date date not null default current_date;
+alter table public.returns add column if not exists spec text;
+alter table public.returns add column if not exists shopify_refunded boolean not null default false;
+create index if not exists returns_date on public.returns (date);
+
+create or replace function public.guard_returns_period() returns trigger
+language plpgsql as $$
+begin
+  if public.caller_is_super() then return coalesce(NEW, OLD); end if;
+  if TG_OP = 'DELETE' then
+    if public.period_closed(OLD.date) then
+      raise exception 'Period closed — a credit memo dated % cannot be deleted.', OLD.date;
+    end if;
+    return OLD;
+  end if;
+  if TG_OP = 'UPDATE' then
+    -- marking a CM applied to an order balance is a collections act, allowed;
+    -- changing its money, date or attribution is not
+    if NEW.amount is distinct from OLD.amount
+    or NEW.date   is distinct from OLD.date
+    or NEW.spec   is distinct from OLD.spec
+    or NEW.action is distinct from OLD.action then
+      if public.period_closed(OLD.date) then
+        raise exception 'Period closed — credit memo dated % is frozen.', OLD.date;
+      end if;
+    end if;
+    return NEW;
+  end if;
+  if public.period_closed(coalesce(NEW.date, current_date)) then
+    raise exception 'Period closed — a credit memo cannot be dated %.', NEW.date;
+  end if;
+  return NEW;
+end $$;
+drop trigger if exists trg_returns_period on public.returns;
+create trigger trg_returns_period before insert or update or delete on public.returns
+  for each row execute function public.guard_returns_period();
+
+-- PDCs: a cheque maturing inside a closed period is part of that period.
+create or replace function public.guard_pdcs_period() returns trigger
+language plpgsql as $$
+begin
+  if public.caller_is_super() then return coalesce(NEW, OLD); end if;
+  if TG_OP = 'DELETE' and public.period_closed(OLD.maturity) then
+    raise exception 'Period closed — a cheque maturing % cannot be deleted.', OLD.maturity;
+  end if;
+  if TG_OP = 'INSERT' and public.period_closed(NEW.maturity) then
+    raise exception 'Period closed — a cheque cannot be entered with maturity %.', NEW.maturity;
+  end if;
+  -- status changes (deposited/cleared/bounced) are collections and stay open;
+  -- the amount and maturity of a cheque inside a closed period do not
+  if TG_OP = 'UPDATE' and public.period_closed(OLD.maturity)
+     and (NEW.amount is distinct from OLD.amount or NEW.maturity is distinct from OLD.maturity) then
+    raise exception 'Period closed — cheque maturing % is frozen (status may still change).', OLD.maturity;
+  end if;
+  return coalesce(NEW, OLD);
+end $$;
+drop trigger if exists trg_pdcs_period on public.pdcs;
+create trigger trg_pdcs_period before insert or update or delete on public.pdcs
+  for each row execute function public.guard_pdcs_period();
+
+-- ORDER OVERRIDES: status/trash for MIGRATED Shopify orders lives here, keyed by
+-- the Shopify order number. Without this trigger a closed-period Shopify order
+-- could still be cancelled or trashed — the same restatement by another door.
+create or replace function public.guard_overrides_period() returns trigger
+language plpgsql as $$
+declare d date;
+begin
+  if public.caller_is_super() then return coalesce(NEW, OLD); end if;
+  select o.date into d from public.orders o
+   where o.ext_ref = coalesce(NEW.ref, OLD.ref) limit 1;
+  if d is not null and public.period_closed(d) then
+    if TG_OP = 'DELETE'
+    or coalesce(NEW.status,'') = 'cancelled'
+    or NEW.deleted_at is not null then
+      raise exception 'Period closed — order dated % cannot be cancelled or trashed. Record a credit memo instead.', d;
+    end if;
+  end if;
+  return coalesce(NEW, OLD);
+end $$;
+drop trigger if exists trg_overrides_period on public.order_overrides;
+create trigger trg_overrides_period before insert or update or delete on public.order_overrides
+  for each row execute function public.guard_overrides_period();
+
+-- Targets for a closed month drive historical attainment and commission.
+create or replace function public.guard_targets_period() returns trigger
+language plpgsql as $$
+declare d date;
+begin
+  if public.caller_is_super() then return coalesce(NEW, OLD); end if;
+  d := (coalesce(NEW.month, OLD.month) || '-01')::date;
+  if public.period_closed(d) then
+    raise exception 'Period closed — the target for % is frozen.', coalesce(NEW.month, OLD.month);
+  end if;
+  return coalesce(NEW, OLD);
+end $$;
+drop trigger if exists trg_targets_period on public.spec_targets;
+create trigger trg_targets_period before insert or update or delete on public.spec_targets
+  for each row execute function public.guard_targets_period();
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- 4) MONTH-END VALUATION SNAPSHOTS — inventory value is currently recomputed
+--    from today's costs and today's stock, so "value at 31 July" changes every
+--    time a cost is edited. Freezing it makes the number permanent.
+-- ─────────────────────────────────────────────────────────────────────────
+create table if not exists public.valuation_snapshots (
+  id bigint generated always as identity primary key,
+  month text not null unique,          -- 'YYYY-MM'
+  taken_at timestamptz not null default now(),
+  taken_by text,
+  basis text,                          -- 'ledger' | 'sheet' — which stock truth was live
+  total_value bigint not null default 0,
+  total_units bigint not null default 0,
+  sku_count int not null default 0,
+  lines jsonb                          -- per-SKU [{sku,name,units,cost,value}]
+);
+alter table public.valuation_snapshots enable row level security;
+-- it is a costs artefact: same audience as the valuation page
+drop policy if exists "vsnap read" on public.valuation_snapshots;
+create policy "vsnap read" on public.valuation_snapshots for select to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid()
+         and (p.role in ('admin','finance'))));
+drop policy if exists "vsnap write" on public.valuation_snapshots;
+create policy "vsnap write" on public.valuation_snapshots for insert to authenticated
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid()
+              and (p.role in ('admin','finance'))));
+-- re-freezing a month is a super-admin act (the unique index blocks a second insert)
+drop policy if exists "vsnap update" on public.valuation_snapshots;
+create policy "vsnap update" on public.valuation_snapshots for update to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_super));
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- 5) PO APPROVALS — sales orders have a spending gate; purchasing had none.
+--    Threshold lives in app_settings.po_approval_threshold.
+-- ─────────────────────────────────────────────────────────────────────────
+alter table public.pos add column if not exists approved boolean not null default false;
+alter table public.pos add column if not exists awaiting_approval boolean not null default false;
+alter table public.approvals drop constraint if exists approvals_kind_check;
+alter table public.approvals add constraint approvals_kind_check
+  check (kind in ('credit','threshold','po'));
+alter table public.approvals add column if not exists po_id bigint references public.pos(id);
+
+-- IMPORTANT one-off: every existing credit memo was stamped with today's date by
+-- the DEFAULT above. Put them back on the day they were recorded, or this month's
+-- commissions will be netted against the entire CM history.
+update public.returns set date = created_at::date where date = current_date;
+```
+
+Set the cut-off from the Cutover page (super admin): **Period close → set
+closed-through date**. Everything dated on or before it freezes. Reopening is
+the same control — set an earlier date, or blank to disable. Every attempt to
+write into a closed period raises a database error with the reason, so a
+client-side bug cannot quietly restate a signed-off month.
+
+One deliberate asymmetry: the nightly Shopify backfill (service key) may still
+INSERT historical orders into a closed period — it is importing facts, not
+changing them — but it may not rewrite an existing closed order's amounts,
+dates or lines. `backfill-background.mjs` sends payment/shipment fields only for
+those orders, and the trigger is the backstop if that logic ever regresses.

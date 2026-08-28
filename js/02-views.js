@@ -3,13 +3,15 @@
    mobile menu hide with it — they can never drift apart again. ── */
 const SALES_VIEWS=['home','logvisit','followups','account','neworder','orders','order','spec','pickslip','pipeline','quotes','salesevents','complaints','manual'];
 const CIRCLE_BLOCK_COMMON=['neworder','logvisit','targets','scorecards'];
-const CIRCLE_BLOCK={finance:['scan','scanpick','fulfillq','recall','cyclecount','transfers'],marketing:['scan','scanpick','po','fulfillq','pdc','returns','commissions','cyclecount','quarantine','suppliers','transfers','approvals'],viewer:['scan','scanpick','po','fulfillq','pdc','returns','recall','commissions','cyclecount','quarantine','suppliers','transfers','approvals'],supply_chain:['pdc','commissions','approvals']};
+const CIRCLE_BLOCK={finance:['scan','scanpick','fulfillq','recall','cyclecount','transfers'],marketing:['scan','scanpick','po','fulfillq','pdc','returns','commissions','cyclecount','quarantine','suppliers','transfers','approvals','poscore'],viewer:['scan','scanpick','po','fulfillq','pdc','returns','recall','commissions','cyclecount','quarantine','suppliers','transfers','approvals','poscore'],supply_chain:['pdc','commissions','approvals']};
 function viewAllowed(v){
   if(typeof ROLE==='undefined'||!ROLE)return true;
   if(v==='cutover')return typeof isSuper==='function'&&isSuper();
   if(v==='users')return ROLE==='admin'||(typeof canUserAdmin==='function'&&canUserAdmin());
   if(v==='audit')return ROLE==='admin';                    // admin + super only (2026-08-28)
   if(v==='valuation')return ROLE==='admin'||ROLE==='finance'; // THE costs page
+  // supplier scorecard shows PO costs — same cost rule as valuation, plus the warehouse who receives
+  if(v==='poscore')return ['admin','finance','supply_chain'].includes(ROLE);
   if(ROLE==='sales')return String(v).startsWith('sales')||SALES_VIEWS.includes(v);
   if(['supply_chain','finance','marketing','viewer'].includes(ROLE))
     return !(CIRCLE_BLOCK_COMMON.includes(v)||(CIRCLE_BLOCK[ROLE]||[]).includes(v));
@@ -32,7 +34,7 @@ function showView(v,el){
            simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator',
            simmonte:'Monte Carlo stockout risk',simproject:'12-month projection',simcash:'Cash-flow timeline',simbulk:'Bulk-buy trade-off',simbranch:'Remedy branch rebalancing',
            aged:'Aged inventory',shrinkage:'Shrinkage tracker',cashexpiry:'Cash in expiring stock',branchtransfer:'Remedy branch shipments',branchexpiry:'Remedy branch expiry watch',
-           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt',targets:'Set targets',fcastacc:'Forecast accuracy',campaigns:'Campaign calendar',planreview:'AI planning review',salespace:'Leaderboard & pace',pdc:'PDC register',salesdue:'Reorder due',catalog:'Item master',returns:'Returns & credit memos',scan:'Scan — receive / pick / count',cutover:'Cutover switches',creditmemo:'Credit memo',scorecards:'Review scorecards',scanpick:'Scan to pick',recall:'Batch recall trace',pipeline:'Pipeline',po:'Purchase orders',approvals:'Approvals',commissions:'Commissions',salesevents:'Events calendar',quotes:'Quotations',promos:'Promotions',regs:'Product registrations',cyclecount:'Cycle counts',cashflow:'Cash-flow forecast',quarantine:'Quarantine & disposal',whkpi:'Warehouse KPIs',complaints:'Complaints log',suppliers:'Suppliers & imports',valuation:'Landed cost & valuation',transfers:'Transfer orders',manual:'Your manual'};
+           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt',targets:'Set targets',fcastacc:'Forecast accuracy',campaigns:'Campaign calendar',planreview:'AI planning review',salespace:'Leaderboard & pace',pdc:'PDC register',salesdue:'Reorder due',catalog:'Item master',returns:'Returns & credit memos',scan:'Scan — receive / pick / count',cutover:'Cutover switches',creditmemo:'Credit memo',scorecards:'Review scorecards',scanpick:'Scan to pick',recall:'Batch recall trace',pipeline:'Pipeline',po:'Purchase orders',approvals:'Approvals',commissions:'Commissions',salesevents:'Events calendar',quotes:'Quotations',promos:'Promotions',regs:'Product registrations',cyclecount:'Cycle counts',cashflow:'Cash-flow forecast',quarantine:'Quarantine & disposal',shortdated:'Short-dated stock',poscore:'Receiving & supplier scorecard',whkpi:'Warehouse KPIs',complaints:'Complaints log',suppliers:'Suppliers & imports',valuation:'Landed cost & valuation',transfers:'Transfer orders',manual:'Your manual'};
   $('ptitle').textContent=T[v]||v;
   if(v==='dashboard') renderDashboard();
   else if(v==='action') renderActionCenter();
@@ -105,6 +107,8 @@ function showView(v,el){
   else if(v==='cyclecount') renderCycleCounts();
   else if(v==='cashflow') renderCashflow();
   else if(v==='quarantine') renderQuarantine();
+  else if(v==='shortdated') renderShortDated();
+  else if(v==='poscore') renderPoScore();
   else if(v==='whkpi') renderWhKpi();
   else if(v==='complaints') renderComplaints();
   else if(v==='suppliers') renderSuppliers();
@@ -824,6 +828,12 @@ async function submitOrder(){
   const account=($('no-acct')&&$('no-acct').value||'').trim();
   const spec=($('no-spec')&&$('no-spec').value||'').trim();
   if(!account||!spec||!CART.length){if(msg){msg.style.color='var(--rd)';msg.textContent='Need an account, a specialist, and at least one item.';}return;}
+  // period close: refuse before we write, and refuse to move an order INTO a closed month
+  const _od=($('no-date')&&$('no-date').value)||'';
+  if(typeof periodClosed==='function'){
+    if(_od&&periodClosed(_od)){if(msg){msg.style.color='var(--rd)';msg.textContent='The books are closed through '+closedThrough()+' — pick a later order date.';}return;}
+    if(window._EDITORD&&periodClosed(window._EDITORD.date)){if(msg){msg.style.color='var(--rd)';msg.textContent='This order is dated '+String(window._EDITORD.date).slice(0,10)+', inside a closed period — its amounts and lines are frozen.';}return;}
+  }
   if(btn){btn.disabled=true;btn.textContent='Submitting…';}
   try{
     const total=CART.reduce((a,l)=>a+l.amount,0);
@@ -1125,6 +1135,11 @@ async function orderAct(src,ref,action){
   if(!roleIn('admin','supply_chain'))return;
   const labels={fulfilled:'Mark this order fulfilled?',pending:'Reopen this order (back to pending)?',cancelled:'Cancel this order?',trash:'Move this order to the trash?'};
   if(!confirm(labels[action]||'Proceed?'))return;
+  // period close: fulfilment is operational and stays open; cancelling or trashing changes booked revenue
+  if(typeof periodClosed==='function'&&(action==='cancelled'||action==='trash'||action==='pending')){
+    const _o=(NORDERS||[]).find(x=>String(x.id)===String(ref)||String(x.ext_ref||'')===String(ref));
+    if(_o&&periodClosed(_o.date)){alert('The books are closed through '+closedThrough()+'. '+(action==='pending'?'Reopening':'Cancelling or trashing')+' an order dated '+String(_o.date).slice(0,10)+' would change a signed-off month — record a credit memo instead.');return;}
+  }
   try{
     if(src==='native'){
       const patch=action==='trash'?{deleted_at:new Date().toISOString()}:{status:action};
@@ -1145,6 +1160,10 @@ async function orderAct(src,ref,action){
 }
 async function orderRestore(src,ref){
   if(!SB||ROLE!=='admin')return;
+  if(typeof periodClosed==='function'){
+    const _o=(NORDERS||[]).find(x=>String(x.id)===String(ref)||String(x.ext_ref||'')===String(ref));
+    if(_o&&periodClosed(_o.date))return alert('The books are closed through '+closedThrough()+' — an order dated '+String(_o.date).slice(0,10)+' cannot be restored from the trash.');
+  }
   try{
     if(src==='native'){const {error}=await SB.from('orders').update({deleted_at:null}).eq('id',ref);if(error)throw new Error(error.message);}
     else{const {error}=await SB.from('order_overrides').update({deleted_at:null}).eq('ref',ref);if(error)throw new Error(error.message);}
@@ -1158,7 +1177,15 @@ async function emptyOrderTrash(){
   if(!confirm('Really sure? Native orders and their lines are erased forever.'))return;
   try{
     const os=await loadNativeOrders();
-    const delIds=os.filter(o=>o.deleted_at).map(o=>o.id);
+    let delIds=os.filter(o=>o.deleted_at).map(o=>o.id);
+    // period close: trashed orders inside a closed month cannot be erased (the DB refuses too)
+    if(typeof periodClosed==='function'){
+      const frozen=os.filter(o=>o.deleted_at&&periodClosed(o.date));
+      if(frozen.length){
+        delIds=delIds.filter(id=>!frozen.some(f=>f.id===id));
+        alert(frozen.length+' trashed order(s) are dated inside the closed period (through '+closedThrough()+') and will be kept. The rest will be purged.');
+      }
+    }
     if(delIds.length){const {error}=await SB.from('orders').delete().in('id',delIds);if(error)throw new Error(error.message);}
     audit('trash.empty',{purged:delIds.length});
     NORDERS=null;OVR=null;window._ordTrash=false;renderOrders();

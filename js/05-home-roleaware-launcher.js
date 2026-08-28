@@ -102,6 +102,7 @@ function renderHome(){
         card(go('fulfillq'),'Fulfillment queue','Pick these, oldest first (+ backorders)',HI.truck,1),
         card(go('scan'),'Scan','Receive · pick · count',HI.grid,1),
         card(go('cyclecount'),'Cycle counts','Blind counts — cutover evidence',HI.check),
+        card(go('shortdated'),'Short-dated stock','Expiring lots that need a plan',HI.scale,1),
         card(go('po'),'Purchase orders','Ordering & receiving',HI.truck)]],
       ['Warehouse',[
         card(go('quarantine'),'Quarantine','Held stock, release or dispose',HI.scale),
@@ -189,7 +190,7 @@ function renderHome(){
   sections=sections.slice(0,1); // keep only the curated action section
   const curated=new Set();
   sections.forEach(sec=>sec[1].forEach(c=>{const m=c.match(/homeGo\('([a-z]+)'\)/);if(m)curated.add(m[1]);}));
-  const SUBS={dashboard:'Stock health at a glance',action:'Prioritized to-dos',customers:'Unified customer profiles',health:'Feed & reconciliation checks',all:'Full product list',oos:'Out of stock now',low:'Running low',neg:'Negative stock',expiry:'Expiry tracker',value:'Inventory value by line',dealvalue:'Deal scenarios',movement:'Monthly in/out chart',reorder:'Reorder alerts',batches:'FEFO batches & bins',forecast:'Days to stockout',coverage:'Stock coverage',reorderplan:'Reorder plan',ropoint:'Reorder points',variability:'Demand variability',abc:'ABC analysis',writeoff:'Write-off forecast',whatif:'What-if simulator',simpromo:'Promo rescue',simbudget:'Budget optimizer',simservice:'Service level',simsurge:'Campaign surge',simmonte:'Monte Carlo risk',simproject:'12-month projection',simcash:'Cash-flow timeline',simbulk:'Bulk-buy trade-off',simbranch:'Branch rebalancing',salesoverview:'Units, value, deals split',salesfree:'True giveaways',salestarget:'Monthly attainment',salesspec:'Per-PS performance',salesdeals:'Deals vs à la carte',salesrecon:'Vs the accounting sheet',salesfield:'Reach vs universe',logvisit:'~10 seconds per visit',followups:'To-dos & planned visits',neworder:'Take an order in a minute',orders:'The all-time register',fulfillq:'Pick these, oldest first',ar:'Who owes what, 30/60/90',users:'Accounts, roles, passwords',audit:'Who did what, when',targets:'Monthly ₱ per specialist',fcastacc:'Forecast self-grading (MAPE)',campaigns:'Demand signals & windows',planreview:'AI monthly review',salespace:'Race + projected month-end',pdc:'Cheques to maturity',salesdue:'Accounts past their rhythm',catalog:'Prices, costs, deals, regs',returns:'CMs, restock or write-off',scan:'Receive · pick · count',cutover:'Independence switches',scorecards:'Quarterly reviews',scanpick:'Scan every unit',recall:'Any lot → every clinic',pipeline:'Staged funnel & opportunities',po:'Ordering & receiving',approvals:'Held orders, decided',commissions:'Tiers & payroll CSV',salesevents:'Campaigns, demos, visits',quotes:'Formal quotes & win rate',promos:'Mechanics that apply themselves',regs:'CPR/FDA with countdowns',cyclecount:'Blind counts — cutover evidence',cashflow:'Collections, week by week',quarantine:'Held stock & disposals',whkpi:'Cycle time, fill rate',complaints:'Quality reports with batch',suppliers:'Lead times & on the water',valuation:'True margins, value at cost',transfers:'Branch shipments as documents',manual:'Your role\u2019s guide, in-app'};
+  const SUBS={dashboard:'Stock health at a glance',action:'Prioritized to-dos',customers:'Unified customer profiles',health:'Feed & reconciliation checks',all:'Full product list',oos:'Out of stock now',low:'Running low',neg:'Negative stock',expiry:'Expiry tracker',value:'Inventory value by line',dealvalue:'Deal scenarios',movement:'Monthly in/out chart',reorder:'Reorder alerts',batches:'FEFO batches & bins',forecast:'Days to stockout',coverage:'Stock coverage',reorderplan:'Reorder plan',ropoint:'Reorder points',variability:'Demand variability',abc:'ABC analysis',writeoff:'Write-off forecast',whatif:'What-if simulator',simpromo:'Promo rescue',simbudget:'Budget optimizer',simservice:'Service level',simsurge:'Campaign surge',simmonte:'Monte Carlo risk',simproject:'12-month projection',simcash:'Cash-flow timeline',simbulk:'Bulk-buy trade-off',simbranch:'Branch rebalancing',salesoverview:'Units, value, deals split',salesfree:'True giveaways',salestarget:'Monthly attainment',salesspec:'Per-PS performance',salesdeals:'Deals vs à la carte',salesrecon:'Vs the accounting sheet',salesfield:'Reach vs universe',logvisit:'~10 seconds per visit',followups:'To-dos & planned visits',neworder:'Take an order in a minute',orders:'The all-time register',fulfillq:'Pick these, oldest first',ar:'Who owes what, 30/60/90',users:'Accounts, roles, passwords',audit:'Who did what, when',targets:'Monthly ₱ per specialist',fcastacc:'Forecast self-grading (MAPE)',campaigns:'Demand signals & windows',planreview:'AI monthly review',salespace:'Race + projected month-end',pdc:'Cheques to maturity',salesdue:'Accounts past their rhythm',catalog:'Prices, costs, deals, regs',returns:'CMs, restock or write-off',scan:'Receive · pick · count',cutover:'Independence switches',scorecards:'Quarterly reviews',scanpick:'Scan every unit',recall:'Any lot → every clinic',pipeline:'Staged funnel & opportunities',po:'Ordering & receiving',approvals:'Held orders, decided',commissions:'Tiers & payroll CSV',salesevents:'Campaigns, demos, visits',quotes:'Formal quotes & win rate',promos:'Mechanics that apply themselves',regs:'CPR/FDA with countdowns',cyclecount:'Blind counts — cutover evidence',cashflow:'Collections, week by week',quarantine:'Held stock & disposals',shortdated:'Expiring lots that need a plan',poscore:'Fill rate, lead time, short ships',whkpi:'Cycle time, fill rate',complaints:'Quality reports with batch',suppliers:'Lead times & on the water',valuation:'True margins, value at cost',transfers:'Branch shipments as documents',manual:'Your role\u2019s guide, in-app'};
   let autoSec='';
   try{
     let cur=null,cards=[],out=[];
@@ -365,7 +366,8 @@ async function renderAR(){
       return '<div class="panel" style="padding:10px 14px;margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:12px">Accounting export</b>'+
       '<input type="date" id="ax-from" value="'+from+'" '+di+'> <span style="font-size:12px;color:var(--tx3)">to</span> <input type="date" id="ax-to" value="'+to+'" '+di+'>'+
       '<button onclick="acctExportCSV()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer">Download CSV</button>'+
-      '<span style="font-size:11px;color:var(--tx3)">every order in the period with totals, payments, balances & terms — for the accounting sign-off</span></div>';})():'')+
+      '<button onclick="collectionsCSV()" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer">Collections CSV</button>'+
+      '<span style="font-size:11px;color:var(--tx3)">the register with totals, payments, balances &amp; terms for the accounting sign-off · <b>Collections</b> lists the individual dated payments received in the period \u2014 what actually came in, by day</span></div>';})():'')+
     (rows.length?'<div class="tcard"><div class="tscroll"><table><thead><tr><th>Account</th><th style="text-align:right">Outstanding</th><th style="text-align:right">Current</th><th style="text-align:right">31–60d</th><th style="text-align:right">61–90d</th><th style="text-align:right">90d+</th><th style="text-align:right">Open</th><th style="text-align:right">Oldest</th></tr></thead><tbody>'+
     rows.slice(0,150).map(r=>'<tr onclick="showAccountPage(\''+esc(r.name).replace(/'/g,'&#39;')+'\')" style="cursor:pointer"><td style="font-weight:600;max-width:240px;overflow:hidden;text-overflow:ellipsis">'+esc(r.name)+'</td>'+
       '<td class="r" style="font-weight:700">'+fmtPeso(r.total)+'</td>'+
@@ -381,13 +383,44 @@ async function recordPayment(id){
   const amt=parseFloat(prompt('Amount received (balance '+fmtPeso(o.balance||0)+'):','')||'');
   if(!amt||amt<=0)return;
   if(o.source==='shopify'&&!confirm('This is a migrated Shopify order — the payment sync will overwrite this next backfill run. Record here anyway? (Better: mark it paid in Shopify.)'))return;
+  // cash needs its own date: a July invoice paid today is TODAY's collection
+  const today=new Date().toISOString().slice(0,10);
+  const pdate=(prompt('Date received (YYYY-MM-DD):',today)||'').trim();
+  if(!pdate)return;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(pdate))return alert('Use the form 2026-08-28 — nothing recorded.');
+  if(typeof blockIfClosed==='function'&&blockIfClosed(pdate,'Payment not recorded'))return;
+  const method=(prompt('Method / reference (bank transfer, cheque no., etc. — optional):','')||'').trim();
   try{
     const paid=(o.paid||0)+amt;const balance=Math.max(0,(o.total||0)-paid);
+    // the dated detail row first — if the period guard rejects it, the rollup is untouched
+    const {error:ep}=await SB.from('payments').insert({order_id:o.id,order_label:ordLabel(o),account:o.account,amount:Math.round(amt),date:pdate,method:method||null,created_by:(SBUSER&&SBUSER.id)||null,created_name:(SBPROFILE&&SBPROFILE.name)||''});
+    if(ep)throw new Error(ep.message);
     const {error}=await SB.from('orders').update({paid,balance,pay_status:balance<=0?'paid':'partial'}).eq('id',id);
     if(error)throw new Error(error.message);
-    audit('payment.record',{order:ordLabel(o),account:o.account,amount:amt,newBalance:balance});
+    audit('payment.record',{order:ordLabel(o),account:o.account,amount:amt,date:pdate,method:method||'',newBalance:balance});
     NORDERS=null;renderOrderPage();
   }catch(e){alert('Could not record: '+e.message);}
+}
+async function collectionsCSV(){
+  if(!canManage())return;
+  const from=($('ax-from')&&$('ax-from').value)||'',to=($('ax-to')&&$('ax-to').value)||'';
+  if(!from||!to)return alert('Pick both dates.');
+  try{
+    const {data,error}=await SB.from('payments').select('date,order_label,account,amount,method,ref,created_name')
+      .gte('date',from).lte('date',to).order('date',{ascending:true}).limit(5000);
+    if(error)throw error;
+    const rows=data||[];
+    if(!rows.length)return alert('No dated payments in that period.\n\nPayments recorded before this feature shipped have no date — those live only in the order totals and the Activity log.');
+    const h=['Date received','Order','Account','Amount','Method / reference','Recorded by'];
+    const body=rows.map(r=>[r.date,r.order_label||'',r.account||'',r.amount,[r.method,r.ref].filter(Boolean).join(' '),r.created_name||'']
+      .map(v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"').join(','));
+    const total=rows.reduce((a,r)=>a+(r.amount||0),0);
+    body.push(['"TOTAL"','""','""','"'+total+'"','""','""'].join(','));
+    const blob=new Blob([[h.map(x=>'"'+x+'"').join(','),...body].join('\n')],{type:'text/csv'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download='healthspan-collections-'+from+'-to-'+to+'.csv';a.click();
+    audit('export.collections',{from,to,rows:rows.length,total});
+  }catch(e){alert('Could not export: '+(e.message||e)+'\n\n(Run the accounting-integrity SQL if the payments table is missing.)');}
 }
 function noAcctChanged(){
   const el=$('no-credit');if(!el)return;

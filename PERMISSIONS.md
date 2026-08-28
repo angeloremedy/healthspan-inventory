@@ -101,6 +101,17 @@ therefore a floor — implementation grants the full circle read to all three.
 | Communication log (Call/Viber on accounts) | ✅ | ✅ | ✅ own | ✖ | ✖ | ✖ |
 | Backorders (cancel; auto-created on override) | ✅ | ✅ | ✖ | ✅ | 👁 | ✖ |
 | Quarantine & disposal | ✅ | 👁 | ✖ | ✅ | ✅ add (returns) / 👁 | ✖ |
+| Short-dated stock (set plan / close lot) | ✅ | ✅ | ✖ | ✅ | 👁 | ✅ |
+| Receiving & supplier score (shows PO cost) | ✅ | ✖ | ✖ | ✅ | ✅ | ✖ |
+| PO unit-cost column (on Purchase orders) | ✅ | ✖ | ✖ | ✅ | ✅ | ✖ |
+| Period close (set closed-through date) | super admin only | ✖ | ✖ | ✖ | ✖ | ✖ |
+| Record a payment (dated, append-only) | ✅ | ✖ | ✖ | ✖ | ✅ | ✖ |
+| Collections CSV (dated payments in a period) | ✅ | ✅ | ✖ | ✖ | ✅ | ✖ |
+| Freeze month-end valuation | ✅ | ✖ | ✖ | ✖ | ✅ | ✖ |
+| Re-freeze a month already snapshotted | super admin only | ✖ | ✖ | ✖ | ✖ | ✖ |
+| Purchase threshold (set) | super admin only | ✖ | ✖ | ✖ | ✖ | ✖ |
+| PO approval decision | ✅ | ✖ | ✖ | ✖ | ✖ | ✖ |
+| Credit memo: date + specialist + Shopify-refunded flag | ✅ | ✖ | ✖ | ✖ | ✅ | ✖ |
 | Warehouse KPIs | ✅ | 👁 | ✖ | ✅ | 👁 | 👁 |
 | Complaints log | ✅ manage | ✅ manage | ✅ file | ✅ manage | 👁 | 👁 |
 | My manual download | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (all roles incl. viewer/IT) |

@@ -290,6 +290,31 @@ async function loadFlags(force){
   return FLAGS;
 }
 const flagOn=k=>FLAGS[k]==='on';
+/* ── PERIOD CLOSE ──────────────────────────────────────────────────────────
+   The database enforces this with triggers (see SUPABASE-SETUP.md); these
+   helpers exist so the UI can say "no" politely BEFORE a write fails, and can
+   grey out what is frozen. Never rely on them alone — FLAGS fails open if the
+   settings fetch errors, which is exactly why the real guard is in Postgres. */
+function closedThrough(){const v=(FLAGS&&FLAGS.closed_through)||'';return /^\d{4}-\d{2}-\d{2}$/.test(v)?v:'';}
+function periodClosed(d){const c=closedThrough();if(!c||!d)return false;return String(d).slice(0,10)<=c;}
+function closedMsg(d){return 'The books are closed through '+closedThrough()+', so records dated '+String(d||'').slice(0,10)+' are frozen. Payments and shipping still work; amounts and dates need the super admin to reopen the period.';}
+function blockIfClosed(d,what){ // returns true when the caller should stop
+  if(!periodClosed(d))return false;
+  alert((what?what+' — ':'')+closedMsg(d));
+  return true;
+}
+async function setClosedThrough(){
+  if(!isSuper())return alert('Closing an accounting period is a super-admin decision.');
+  const cur=closedThrough();
+  const v=prompt('Close the books through which date? (YYYY-MM-DD)\n\nEverything dated on or before it freezes: order amounts, dates, credit memos, cheques and targets. Payments and shipping stay open.\n\nBlank = no period close.',cur||new Date(Date.now()-864e5).toISOString().slice(0,10));
+  if(v===null)return;
+  const t=v.trim();
+  if(t&&!/^\d{4}-\d{2}-\d{2}$/.test(t))return alert('Use the form 2026-07-31 — nothing changed.');
+  if(t&&cur&&t<cur&&!confirm('That REOPENS the period from '+t+' onward (it was closed through '+cur+').\n\nReopening lets amounts in an already-signed-off month change again. Continue?'))return;
+  await setFlagRaw('closed_through',t);
+  audit('period.close',{closed_through:t||'(none)'});
+  try{renderCutover();}catch(e){}
+}
 async function setFlag(k,v,label){
   if(!isSuper())return alert('Super admin only — cutover switches are reserved to Angelo.');
   if(!confirm((v==='on'?'TURN ON: ':'TURN OFF: ')+label+'\n\nThis changes which system the app treats as the truth. Proceed?'))return;
@@ -360,6 +385,16 @@ async function renderCutover(){
     sw('ledger_is_truth','Stock truth: platform ledger (replaces Verna’s sheet)',
       'OFF: the scan/pick ledger records shadow movements for comparison only; the sheet remains stock truth. ON: the ledger is authoritative (WMS Stage 2 endgame — flip LAST).',
       moves+' shadow movements recorded so far · requires receiving + pick confirmation + two matching cycle counts, and Verna’s sign-off')+
+    (function(){ // PERIOD CLOSE — the accounting cut-off
+      const c=closedThrough();
+      return '<div class="panel" style="padding:14px 16px;margin-bottom:12px;border-left:3px solid '+(c?'var(--gr)':'var(--bd)')+'">'+
+      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><b style="font-size:13.5px">Period close — the accounting cut-off</b>'+
+      (c?'<span class="pill pgr">closed through '+esc(c)+'</span>':'<span class="pill" style="background:var(--am-bg);color:var(--am)">open — any month can still be edited</span>')+
+      '<span style="flex:1"></span>'+
+      '<button onclick="setClosedThrough()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer">'+(c?'Change the date':'Close a period')+'</button></div>'+
+      '<div style="font-size:12px;color:var(--tx2);margin-top:6px">Once a month is signed off with accounting, close it here. Everything dated on or before the cut-off freezes: order amounts, order dates, order lines, credit memos, cheque maturities and monthly targets. <b>Collections and shipping stay open</b> — a July invoice paid in September is September cash. Enforced by database triggers, so a bug in the app cannot quietly restate a closed month; only the super admin can reopen.</div>'+
+      '<div style="font-size:11.5px;margin-top:6px;color:var(--tx3)"><b>Note:</b> the nightly Shopify backfill may still import historical orders it has never seen, but it cannot rewrite the amounts, dates or lines of an order already inside a closed period.</div></div>';
+    })()+
     '<div class="panel" style="padding:14px 16px;margin-bottom:12px;border-left:3px solid '+(epoch?'var(--gr)':'var(--bd)')+'">'+
       '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><b style="font-size:13.5px">Cutover evidence — Verna\'s sheet</b><span style="flex:1"></span>'+
       '<button onclick="cutoverFreeze()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer">'+(epoch?'Re-freeze opening balances':'Freeze opening balances')+'</button></div>'+
@@ -547,25 +582,31 @@ async function renderReturns(){
     '<input id="rt-amt" type="number" placeholder="CM amount ₱" '+inp+' style="width:120px;'+inp.slice(7,-1)+'">'+
     '<select id="rt-act" '+inp+'><option value="restock">Back to stock (sellable)</option><option value="writeoff">Write off (damaged/expired)</option></select>'+
     '<input id="rt-why" placeholder="Reason" '+inp+' style="width:140px;'+inp.slice(7,-1)+'">'+
+    '<input id="rt-date" type="date" value="'+new Date().toISOString().slice(0,10)+'" title="Which month this credit memo belongs to" '+inp+' style="width:150px;'+inp.slice(7,-1)+'">'+
+    '<input id="rt-spec" list="rt-specs" placeholder="Specialist (nets their month)" '+inp+' style="width:170px;'+inp.slice(7,-1)+'"><datalist id="rt-specs">'+(typeof specNames==='function'?specNames():[]).map(x=>'<option value="'+esc(x)+'">').join('')+'</datalist>'+
+    '<label style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--tx3)" title="During the parallel run a return refunded in Shopify is ALREADY out of booked sales — tick this so it is not deducted twice"><input type="checkbox" id="rt-shop"> already refunded in Shopify</label>'+
     '<button onclick="returnAdd()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer">Record</button></div></div>'+
-    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>CM no.</th><th>Date</th><th>Account</th><th>Items</th><th style="text-align:right">Amount</th><th>Disposition</th><th>Reason</th><th></th></tr></thead><tbody>'+
-    (rows.length?rows.map(r=>'<tr><td style="font-weight:700">CM-'+String(1000+r.id)+'</td><td class="mu" style="font-size:11px">'+esc(String(r.created_at||'').slice(0,10))+'</td>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>CM no.</th><th>Date</th><th>Account</th><th>Specialist</th><th>Items</th><th style="text-align:right">Amount</th><th>Disposition</th><th>Reason</th><th></th></tr></thead><tbody>'+
+    (rows.length?rows.map(r=>'<tr><td style="font-weight:700">CM-'+String(1000+r.id)+'</td><td class="mu" style="font-size:11px">'+esc(String(r.date||r.created_at||'').slice(0,10))+(r.date&&String(r.date).slice(0,10)!==String(r.created_at||'').slice(0,10)?'<div style="font-size:9.5px">entered '+esc(String(r.created_at||'').slice(0,10))+'</div>':'')+'</td>'+
       '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis"><a href="#" onclick="showAccountPage(\''+esc(r.account).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac)">'+esc(r.account)+'</a></td>'+
+      '<td class="mu" style="font-size:11.5px">'+(r.spec?esc(r.spec):'<span title="Nobody\u2019s commission is reduced by this CM">—</span>')+(r.shopify_refunded?'<div style="font-size:9.5px">refunded in Shopify</div>':'')+'</td>'+
       '<td class="mu" style="font-size:11.5px;max-width:200px;overflow:hidden;text-overflow:ellipsis">'+esc(r.items||'—')+(r.order_ref?' · '+esc(r.order_ref):'')+'</td>'+
       '<td class="r" style="font-weight:700">'+fmtPeso(r.amount||0)+'</td>'+
       '<td>'+(r.action==='restock'?'<span class="pill pgr">restocked</span>':'<span class="pill prd">written off</span>')+(r.applied?' <span class="pill pbl">applied to AR</span>':'')+'</td>'+
       '<td class="mu" style="font-size:11.5px">'+esc(r.reason||'')+'</td>'+
       '<td style="white-space:nowrap"><a href="#" onclick="printCM('+r.id+');return false" style="color:var(--ac);font-size:11px">🖨 CM</a>'+
       (!r.applied&&r.order_ref&&ROLE==='admin'?' · <a href="#" onclick="applyCM('+r.id+');return false" style="color:var(--gr);font-size:11px">apply to order balance</a>':'')+'</td></tr>').join(''):
-      '<tr><td colspan="8"><div class="empty">No returns recorded yet.</div></td></tr>')+
+      '<tr><td colspan="9"><div class="empty">No returns recorded yet.</div></td></tr>')+
     '</tbody></table></div><div class="tfooter"><span>CM numbers are permanent · "apply to order balance" (admin) reduces the linked native order’s balance by the CM amount · restocked items re-enter the shadow ledger; write-offs are logged for the disposal trail</span></div></div>';
 }
 async function returnAdd(){
   if(!canManage())return;
   const g=id=>($(id)&&$(id).value||'').trim();
   if(!g('rt-acct')||!g('rt-amt'))return alert('Need at least the account and the CM amount.');
+  const cmDate=g('rt-date')||new Date().toISOString().slice(0,10);
+  if(typeof blockIfClosed==='function'&&blockIfClosed(cmDate,'Credit memo not recorded'))return;
   try{
-    const {data,error}=await SB.from('returns').insert({account:g('rt-acct'),order_ref:g('rt-ref')||null,items:g('rt-items')||null,amount:Math.round(parseFloat(g('rt-amt'))),action:($('rt-act')||{}).value||'restock',reason:g('rt-why')||null,created_by:(SBUSER&&SBUSER.id)||null}).select().single();
+    const {data,error}=await SB.from('returns').insert({account:g('rt-acct'),order_ref:g('rt-ref')||null,items:g('rt-items')||null,amount:Math.round(parseFloat(g('rt-amt'))),action:($('rt-act')||{}).value||'restock',reason:g('rt-why')||null,date:cmDate,spec:g('rt-spec')||null,shopify_refunded:!!($('rt-shop')&&$('rt-shop').checked),created_by:(SBUSER&&SBUSER.id)||null}).select().single();
     if(error)throw error;
     audit('return.record',{cm:'CM-'+String(1000+data.id),account:g('rt-acct'),amount:g('rt-amt'),action:($('rt-act')||{}).value});
     if((($('rt-act')||{}).value)==='restock'){
@@ -591,9 +632,12 @@ async function applyCM(id){
     if(!o)return alert('Order "'+ref+'" not found in the register.');
     if(!confirm('Apply CM-'+String(1000+id)+' ('+fmtPeso(r.amount)+') against '+ordLabel(o)+'?\nBalance '+fmtPeso(o.balance||0)+' → '+fmtPeso(Math.max(0,(o.balance||0)-r.amount))))return;
     const balance=Math.max(0,(o.balance||0)-r.amount);
+    // mark the CM applied FIRST: if that write is refused (closed period), the
+    // balance must not move — otherwise the CM stays appliable and double-reduces
+    const {error:eFlag}=await SB.from('returns').update({applied:true}).eq('id',id);
+    if(eFlag)throw new Error('Could not mark the credit memo applied, so the balance was left alone: '+(eFlag.message||eFlag));
     const {error}=await SB.from('orders').update({balance,pay_status:balance<=0?'paid':o.pay_status==='pending'?'partial':o.pay_status}).eq('id',o.id);
-    if(error)throw error;
-    await SB.from('returns').update({applied:true}).eq('id',id);
+    if(error){await SB.from('returns').update({applied:false}).eq('id',id);throw error;}
     audit('return.apply',{cm:'CM-'+String(1000+id),order:ordLabel(o),amount:r.amount,newBalance:balance});
     NORDERS=null;renderReturns();
   }catch(e){alert('Could not apply: '+(e.message||e));}
@@ -1137,9 +1181,11 @@ async function renderPDC(){
     '</tbody></table></div><div class="tfooter"><span>Highlighted rows are at/past maturity and not yet cleared · deposit → cleared marks the cash real (record the payment on the order too) · bounced cheques stay visible until replaced</span></div></div>';
 }
 async function pdcAdd(){
+  // friendly refusal before the trigger raises
   if(!canManage()||!SB)return;
   const g=id=>($(id)&&$(id).value||'').trim();
   if(!g('pd-acct')||!g('pd-amt')||!g('pd-mat'))return alert('Need at least the account, amount, and maturity date.');
+  if(typeof blockIfClosed==='function'&&blockIfClosed(g('pd-mat'),'Cheque not recorded'))return;
   try{
     const {error}=await SB.from('pdcs').insert({account:g('pd-acct'),bank:g('pd-bank')||null,cheque_no:g('pd-no')||null,amount:Math.round(parseFloat(g('pd-amt'))),maturity:g('pd-mat'),order_ref:g('pd-ref')||null,status:'on_hand',created_by:(SBUSER&&SBUSER.id)||null});
     if(error)throw error;

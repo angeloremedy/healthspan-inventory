@@ -436,6 +436,8 @@ async function renderPOs(){
     const r2=await SB.from('po_lines').select('*');lines=r2.data||[];
   }catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Could not load — run the purchase-orders SQL from SUPABASE-SETUP.md first.</div>';return;}
   const byPo={};lines.forEach(l=>(byPo[l.po_id]||(byPo[l.po_id]=[])).push(l));
+  // costs follow the same rule as everywhere else: never sales managers (2026-08-28)
+  const SHOWCOST=roleIn('admin','finance','supply_chain');
   const suppliers=[...new Set([...(DATA||[]).map(p=>p.supplier).filter(Boolean),...pos.map(p=>p.supplier)])].sort();
   const skuOpts=(DATA||[]).map(p=>'<option value="'+esc(p.sku)+'">'+esc(p.name)+'</option>').join('');
   const inp='style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;font-size:12.5px"';
@@ -460,17 +462,17 @@ async function renderPOs(){
       const opened=openId===p.id;
       return '<div class="panel" style="padding:12px 16px;margin-bottom:10px">'+
       '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;cursor:pointer" onclick="window._poOpen='+(opened?'null':p.id)+';renderPOs()">'+
-      '<b style="font-size:14px">'+PO_NO(p.id)+'</b> '+pill(p.status)+'<span class="mu" style="font-size:12px">'+esc(p.supplier)+(p.eta?' · ETA '+esc(p.eta):'')+'</span>'+
+      '<b style="font-size:14px">'+PO_NO(p.id)+'</b> '+pill(p.status)+(p.awaiting_approval?' <span class="pill pam" style="background:rgba(186,117,23,.15);color:var(--am)">waiting for approval</span>':'')+(p.approved&&p.status!=='draft'?' <span class="pill pgr">approved</span>':'')+'<span class="mu" style="font-size:12px">'+esc(p.supplier)+(p.eta?' · ETA '+esc(p.eta):'')+'</span>'+
       '<span style="flex:1"></span><span class="mu" style="font-size:12px">'+done+' / '+tot+' units received</span><span style="color:var(--ac);font-size:12px">'+(opened?'▲':'▼')+'</span></div>'+
       (opened?'<div style="margin-top:10px">'+
-        (ls.length?'<div class="tscroll"><table><thead><tr><th>SKU</th><th>Product</th><th style="text-align:right">Ordered</th><th style="text-align:right">Received</th><th style="text-align:right">Unit cost</th><th></th></tr></thead><tbody>'+
-        ls.map(l=>'<tr><td>'+esc(l.sku)+'</td><td style="max-width:220px;overflow:hidden;text-overflow:ellipsis">'+esc(l.name||'')+'</td><td class="r">'+l.qty+'</td><td class="r" style="font-weight:700;color:'+((l.received||0)>=l.qty?'var(--gr)':'var(--tx)')+'">'+(l.received||0)+'</td><td class="r mu">'+(l.unit_cost?fmtPeso(l.unit_cost):'—')+'</td>'+
+        (ls.length?'<div class="tscroll"><table><thead><tr><th>SKU</th><th>Product</th><th style="text-align:right">Ordered</th><th style="text-align:right">Received</th>'+(SHOWCOST?'<th style="text-align:right">Unit cost</th>':'')+'<th></th></tr></thead><tbody>'+
+        ls.map(l=>'<tr><td>'+esc(l.sku)+'</td><td style="max-width:220px;overflow:hidden;text-overflow:ellipsis">'+esc(l.name||'')+'</td><td class="r">'+l.qty+'</td><td class="r" style="font-weight:700;color:'+((l.received||0)>=l.qty?'var(--gr)':'var(--tx)')+'">'+(l.received||0)+'</td>'+(SHOWCOST?'<td class="r mu">'+(l.unit_cost?fmtPeso(l.unit_cost):'—')+'</td>':'')+
         '<td>'+((p.status==='ordered'||p.status==='partial')&&(l.received||0)<l.qty?'<a href="#" onclick="poReceive('+p.id+','+l.id+',\''+esc(l.sku)+'\','+l.qty+','+(l.received||0)+');return false" style="color:var(--gr);font-size:11.5px;font-weight:700">receive…</a>':'')+'</td></tr>').join('')+'</tbody></table></div>':'<div class="mu" style="font-size:12px">No lines yet.</div>')+
         apBlock(p)+
         '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">'+
         (p.status==='draft'?'<input id="pl-sku-'+p.id+'" list="pl-skus" placeholder="SKU" '+inp+' style="width:150px;'+inp.slice(7,-1)+'"><datalist id="pl-skus">'+skuOpts+'</datalist>'+
           '<input id="pl-qty-'+p.id+'" type="number" placeholder="Qty" '+inp+' style="width:90px;'+inp.slice(7,-1)+'">'+
-          '<input id="pl-cost-'+p.id+'" type="number" placeholder="Unit cost ₱ (opt.)" '+inp+' style="width:150px;'+inp.slice(7,-1)+'">'+
+          (SHOWCOST?'<input id="pl-cost-'+p.id+'" type="number" placeholder="Unit cost ₱ (opt.)" '+inp+' style="width:150px;'+inp.slice(7,-1)+'">':'')+
           '<button onclick="poAddLine('+p.id+')" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer">+ Line</button>'+
           (ls.length?'<button onclick="poStatus('+p.id+',\'ordered\')" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer">Mark ordered →</button>':'')
         :'')+
@@ -506,11 +508,43 @@ async function poStatus(poId,st){
   if(!canWarehouse())return;
   if(st==='cancelled'&&!confirm('Cancel this PO?'))return;
   try{
+    // SPEND GATE: sending a PO to the supplier commits money. Over the
+    // threshold it holds for sign-off first — the mirror of the sales-order gate.
+    if(st==='ordered'){
+      const thr=parseFloat(((FLAGS&&FLAGS.po_approval_threshold)||'').toString().replace(/,/g,''))||0;
+      const {data:po,error:poErr}=await SB.from('pos').select('id,supplier,approved,awaiting_approval').eq('id',poId).maybeSingle();
+      if(thr>0&&(poErr||!po))return alert('Cannot check the purchase limit right now'+(poErr?' ('+(poErr.message||poErr)+')':'')+'. The PO was NOT marked ordered — run the accounting-integrity SQL if this persists.');
+      const {data:ls}=await SB.from('po_lines').select('qty,unit_cost').eq('po_id',poId);
+      const value=(ls||[]).reduce((a,l)=>a+((l.unit_cost||0)*(l.qty||0)),0);
+      const noCost=(ls||[]).some(l=>l.unit_cost==null); // an uncosted PO can hide any amount
+      if(thr>0&&noCost&&!po.approved){
+        return alert(PO_NO(poId)+' has line(s) with no unit cost, so its value cannot be checked against the '+fmtPeso(thr)+' purchase limit.\n\nEnter the unit costs first — an uncosted PO cannot be sent for approval or marked ordered.');
+      }
+      if(thr>0&&value>thr&&!po.approved){
+        if(po.awaiting_approval)return alert(PO_NO(poId)+' is already waiting for approval ('+fmtPeso(value)+' is over the '+fmtPeso(thr)+' limit).');
+        if(!confirm(PO_NO(poId)+' is '+fmtPeso(value)+', over the '+fmtPeso(thr)+' purchase limit.\n\nSubmit it for approval? It stays a draft until an admin signs off.'))return;
+        await SB.from('pos').update({awaiting_approval:true,updated_at:new Date().toISOString()}).eq('id',poId);
+        await SB.from('approvals').insert({kind:'po',po_id:poId,order_label:PO_NO(poId),account:(po&&po.supplier)||'',amount:Math.round(value),
+          reason:'Purchase order '+fmtPeso(value)+' exceeds the '+fmtPeso(thr)+' approval limit',
+          requested_by:(SBUSER&&SBUSER.id)||null,requested_name:(SBPROFILE&&SBPROFILE.name)||''});
+        audit('po.submit',{po:PO_NO(poId),value});
+        try{notify({roles:['admin']},'approval','PO needs approval: '+PO_NO(poId),((po&&po.supplier)||'')+' \u00b7 '+fmtPeso(value)+' \u2014 over the purchase limit','#/v/approvals');}catch(e){}
+        alert('Submitted for approval. The PO stays a draft until it is signed off.');
+        renderPOs();return;
+      }
+    }
     const {error}=await SB.from('pos').update({status:st,updated_at:new Date().toISOString()}).eq('id',poId);
     if(error)throw error;
     audit('po.'+st,{po:PO_NO(poId)});
     renderPOs();
   }catch(e){alert(e.message||e);}
+}
+async function setPoThreshold(){
+  if(!isSuper())return alert('Spend limits are a super-admin setting.');
+  const v=prompt('Hold purchase orders above this amount for approval (₱, blank = off):',(FLAGS&&FLAGS.po_approval_threshold)||'');
+  if(v===null)return;
+  await setFlagRaw('po_approval_threshold',v.trim().replace(/,/g,''));
+  renderApprovals();
 }
 async function poReceive(poId,lineId,sku,qty,got){
   if(!canWarehouse())return alert('Receiving is admin + supply chain.');
@@ -581,9 +615,9 @@ async function renderApprovals(){
     '</div>'+
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>When</th><th>Type</th><th>Account</th><th>Order</th><th style="text-align:right">Amount</th><th>Why held</th><th>By</th><th>Status</th><th></th></tr></thead><tbody>'+
     (rows.length?rows.map(r=>'<tr><td class="mu" style="font-size:11px">'+esc(String(r.created_at||'').slice(0,16).replace('T',' '))+'</td>'+
-      '<td>'+(r.kind==='credit'?'<span class="pill prd">credit hold</span>':'<span class="pill pbl">big order</span>')+'</td>'+
+      '<td>'+(r.kind==='credit'?'<span class="pill prd">credit hold</span>':r.kind==='po'?'<span class="pill pam" style="background:rgba(186,117,23,.15);color:var(--am)">purchase</span>':'<span class="pill pbl">big order</span>')+'</td>'+
       '<td style="max-width:170px;overflow:hidden;text-overflow:ellipsis"><a href="#" onclick="showAccountPage(\''+esc(r.account).replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac)">'+esc(r.account)+'</a></td>'+
-      '<td><a href="#" onclick="showOrderPage(\''+esc(r.order_id||'').replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac)">'+esc(r.order_label||'—')+'</a></td>'+
+      '<td>'+(r.kind==='po'?'<a href="#" onclick="showView(\'po\');return false" style="color:var(--ac)">'+esc(r.order_label||'—')+'</a>':'<a href="#" onclick="showOrderPage(\''+esc(r.order_id||'').replace(/'/g,'&#39;')+'\');return false" style="color:var(--ac)">'+esc(r.order_label||'—')+'</a>')+'</td>'+
       '<td class="r" style="font-weight:700">'+fmtPeso(r.amount||0)+'</td>'+
       '<td class="mu" style="font-size:11.5px;max-width:220px;overflow:hidden;text-overflow:ellipsis">'+esc(r.reason||'')+'</td>'+
       '<td class="mu" style="font-size:11.5px">'+esc(r.requested_name||'')+'</td>'+
@@ -591,7 +625,8 @@ async function renderApprovals(){
       '<td style="white-space:nowrap">'+(r.status==='pending'&&canManage()?'<a href="#" onclick="approvalAct('+r.id+',\'approved\');return false" style="color:var(--gr);font-weight:700;font-size:11.5px">approve ✓</a> · <a href="#" onclick="approvalAct('+r.id+',\'rejected\');return false" style="color:var(--rd);font-size:11.5px">reject ✗</a>':'')+'</td></tr>').join(''):
     '<tr><td colspan="9"><div class="empty">Nothing waiting — orders that trip a credit limit or the big-order threshold land here.</div></td></tr>')+
     '</tbody></table></div><div class="tfooter"><span>Approve = the order is released to the fulfillment queue · reject = the order is cancelled with the reason on record · thresholds: credit limit per account (set by finance on account pages) and the big-order threshold below</span></div></div>'+
-    (ROLE==='admin'?'<div class="panel" style="padding:10px 14px;margin-top:12px;font-size:12px"><b>Big-order threshold:</b> orders above ₱<span id="ap-thr">'+((window.FLAGS&&FLAGS.approval_threshold)?Number(FLAGS.approval_threshold).toLocaleString():'—')+'</span> from specialists need sign-off · <a href="#" onclick="setApprovalThreshold();return false" style="color:var(--ac)">change</a> (blank = off)</div>':'');
+    (ROLE==='admin'?'<div class="panel" style="padding:10px 14px;margin-top:12px;font-size:12px"><b>Big-order threshold:</b> orders above ₱<span id="ap-thr">'+((window.FLAGS&&FLAGS.approval_threshold)?Number(FLAGS.approval_threshold).toLocaleString():'—')+'</span> from specialists need sign-off · <a href="#" onclick="setApprovalThreshold();return false" style="color:var(--ac)">change</a> (blank = off)'+
+      '<br><b>Purchase threshold:</b> purchase orders above ₱<span id="ap-pothr">'+((window.FLAGS&&FLAGS.po_approval_threshold)?Number(FLAGS.po_approval_threshold).toLocaleString():'—')+'</span> hold as drafts until signed off · <a href="#" onclick="setPoThreshold();return false" style="color:var(--ac)">change</a> (blank = off)</div>':'');
 }
 async function setApprovalThreshold(){
   if(!isSuper())return alert('Cutover-level setting — super admin only.');
@@ -616,7 +651,14 @@ async function approvalAct(id,decision){
     if(!r||r.status!=='pending')return;
     const {error}=await SB.from('approvals').update({status:decision,decided_by:(SBPROFILE&&SBPROFILE.name)||'',decided_at:new Date().toISOString()}).eq('id',id);
     if(error)throw error;
-    if(r.order_id){
+    if(r.kind==='po'&&r.po_id){ // purchase order spend gate — admin only (managers have no write on pos)
+      if(!roleIn('admin'))return alert('Purchase approvals are an admin decision.');
+      const patch=decision==='approved'
+        ?{approved:true,awaiting_approval:false,status:'ordered',updated_at:new Date().toISOString()}
+        :{awaiting_approval:false,status:'cancelled',updated_at:new Date().toISOString()};
+      const {error:ePo}=await SB.from('pos').update(patch).eq('id',r.po_id);
+      if(ePo)throw new Error('The PO could not be updated: '+(ePo.message||ePo));
+    }else if(r.order_id){
       if(decision==='approved')await SB.from('orders').update({approved:true}).eq('id',r.order_id);
       else await SB.from('orders').update({status:'cancelled',approved:true}).eq('id',r.order_id);
     }
@@ -650,14 +692,39 @@ async function renderCommissions(){
     if(!S[k])S[k]={name:cn,v:0};
     if(m)S[k].v+=m.v||0;
   }
+  // CREDIT MEMOS for the month, netted against the specialist who booked the sale.
+  // CMs already refunded in Shopify are excluded — the sales cache has removed
+  // those units at source, so deducting again would double-count the reversal.
+  const CM={};let cmUnattributed=0,cmError='';
+  {
+    const nextYm=(function(){const [y,m]=ym.split('-').map(Number);const d=new Date(Date.UTC(y,m,1));return d.toISOString().slice(0,7);})();
+    const {data:cms,error:cmErr}=await SB.from('returns').select('amount,spec,date,shopify_refunded')
+      .gte('date',ym+'-01').lt('date',nextYm+'-01'); // month-length safe: no '-31'
+    if(cmErr)cmError=cmErr.message||String(cmErr); // pre-migration DB: say so, don't show a silent zero
+    for(const r of (cms||[])){
+      if(r.shopify_refunded)continue;
+      const amt=Math.round(r.amount||0);
+      const k=specCanon(r.spec||'').toLowerCase();
+      if(!k){cmUnattributed+=amt;continue;}
+      CM[k]=(CM[k]||0)+amt;
+    }
+  }
   const tgtOf=k=>{const x=(TARGETS||[]).find(x=>x.month===ym&&x.scope==='SPECIALIST'&&specCanon(x.name||'').toLowerCase()===k);return x?x.value:null;};
   const rateFor=att=>{let r=0;for(const t of rules.slice().sort((a,b)=>a.min-b.min))if(att>=t.min)r=t.pct;return r;};
   const rows=Object.keys(S).map(k=>{
     const e=S[k],T=tgtOf(k);
-    const att=T?e.v/T*100:null;
+    const cm=CM[k]||0;
+    const net=Math.max(0,e.v-cm);           // commissionable = booked less returns
+    const att=T?net/T*100:null;             // attainment on NET, so a return can drop a tier
     const pct=att!=null?rateFor(att):0;
-    return {name:e.name,booked:e.v,T,att,pct,comm:Math.round(e.v*pct/100)};
-  }).filter(r=>r.booked>0||r.T).sort((a,b)=>b.comm-a.comm);
+    return {name:e.name,booked:e.v,cm,net,T,att,pct,comm:Math.round(net*pct/100)};
+  }).filter(r=>r.booked>0||r.T||r.cm).sort((a,b)=>b.comm-a.comm);
+  // a specialist with credit memos but no bookings this month has no row in S —
+  // surface them rather than losing the reversal entirely
+  for(const k in CM){
+    if(rows.some(r=>specCanon(r.name).toLowerCase()===k))continue;
+    rows.push({name:k,booked:0,cm:CM[k],net:0,T:tgtOf(k),att:0,pct:0,comm:0});
+  }
   window._COMMROWS=rows;
   $('content').innerHTML=
     '<div class="panel" style="padding:12px 16px;margin-bottom:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><b style="font-size:13px">Month</b>'+
@@ -668,14 +735,18 @@ async function renderCommissions(){
     '<button onclick="commExport()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:12.5px;font-weight:600;cursor:pointer">Export for payroll</button></div>'+
     '<div class="metrics" style="margin-bottom:12px">'+
     '<div class="met gr"><div class="met-lbl">Total commissions</div><div class="met-val" style="font-size:15px">'+fmtPeso(rows.reduce((a,r)=>a+r.comm,0))+'</div><div class="met-sub">'+ym+'</div><div class="met-bar"></div></div>'+
-    '<div class="met bl"><div class="met-lbl">Team booked</div><div class="met-val" style="font-size:15px">'+fmtPeso(rows.reduce((a,r)=>a+r.booked,0))+'</div><div class="met-sub">commissionable sales</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Team booked</div><div class="met-val" style="font-size:15px">'+fmtPeso(rows.reduce((a,r)=>a+r.booked,0))+'</div><div class="met-sub">gross, before credit memos</div><div class="met-bar"></div></div>'+
+    (cmError?'<div class="met am"><div class="met-lbl">Credit memos</div><div class="met-val" style="font-size:13px">not loaded</div><div class="met-sub">'+esc(cmError.slice(0,60))+' — figures below are GROSS</div><div class="met-bar"></div></div>':'')+
+    '<div class="met rd"><div class="met-lbl">Credit memos netted</div><div class="met-val" style="font-size:15px">'+fmtPeso(rows.reduce((a,r)=>a+r.cm,0))+'</div><div class="met-sub">'+(cmUnattributed?fmtPeso(cmUnattributed)+' more had no specialist':'all attributed')+'</div><div class="met-bar"></div></div>'+
     '<div class="met pu"><div class="met-lbl">Earning</div><div class="met-val">'+rows.filter(r=>r.comm>0).length+' / '+rows.length+'</div><div class="met-sub">specialists above tier 1</div><div class="met-bar"></div></div>'+
     '</div>'+
-    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Specialist</th><th style="text-align:right">Booked</th><th style="text-align:right">Target</th><th style="text-align:right">Attainment</th><th style="text-align:right">Rate</th><th style="text-align:right">Commission</th></tr></thead><tbody>'+
-    rows.map(r=>'<tr><td style="font-weight:600">'+esc(r.name)+'</td><td class="r">'+fmtPeso(r.booked)+'</td><td class="r mu">'+(r.T!=null?fmtPeso(r.T):'—')+'</td>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Specialist</th><th style="text-align:right">Booked</th><th style="text-align:right">Credit memos</th><th style="text-align:right">Net</th><th style="text-align:right">Target</th><th style="text-align:right">Attainment</th><th style="text-align:right">Rate</th><th style="text-align:right">Commission</th></tr></thead><tbody>'+
+    rows.map(r=>'<tr><td style="font-weight:600">'+esc(r.name)+'</td><td class="r mu">'+fmtPeso(r.booked)+'</td>'+
+      '<td class="r" style="color:'+(r.cm?'var(--rd)':'var(--tx3)')+'">'+(r.cm?'−'+fmtPeso(r.cm):'—')+'</td>'+
+      '<td class="r" style="font-weight:700">'+fmtPeso(r.net)+'</td><td class="r mu">'+(r.T!=null?fmtPeso(r.T):'—')+'</td>'+
       '<td class="r" style="font-weight:600;color:'+(r.att==null?'var(--tx3)':r.att>=100?'var(--gr)':r.att>=80?'var(--am)':'var(--rd)')+'">'+(r.att!=null?r.att.toFixed(0)+'%':'no target')+'</td>'+
       '<td class="r">'+r.pct+'%</td><td class="r" style="font-weight:800;color:var(--ac)">'+fmtPeso(r.comm)+'</td></tr>').join('')+
-    '</tbody></table></div><div class="tfooter"><span>Commission = booked × the rate of the highest tier reached · based on booked sales (switch to collected later if policy changes) · export is the payroll input — payroll itself stays outside HQ · rate changes are audited</span></div></div>';
+    '</tbody></table></div><div class="tfooter"><span>Commission = <b>net</b> × the rate of the highest tier reached, where net = booked less the month\u2019s credit memos attributed to that specialist \u2014 so a return can also drop someone a tier. Credit memos ticked \u201calready refunded in Shopify\u201d are skipped, because the sales cache has already removed those units at source. CMs recorded without a specialist are shown on the card above but cannot be deducted from anyone \u2014 name the specialist when recording them. Based on booked (not collected) sales \u00b7 export is the payroll input — payroll itself stays outside HQ · rate changes are audited</span></div></div>';
 }
 async function editCommRules(){
   if(!roleIn('admin','finance'))return;
@@ -694,8 +765,8 @@ async function editCommRules(){
 }
 function commExport(){
   const rows=window._COMMROWS||[];if(!rows.length)return;
-  const h=['Specialist','Month','Booked','Target','Attainment %','Rate %','Commission'];
-  const body=rows.map(r=>[r.name,window._commYm,r.booked,r.T||'',r.att!=null?r.att.toFixed(1):'',r.pct,r.comm].map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','));
+  const h=['Specialist','Month','Booked (gross)','Credit memos','Net commissionable','Target','Attainment %','Rate %','Commission'];
+  const body=rows.map(r=>[r.name,window._commYm,r.booked,r.cm||0,r.net,r.T||'',r.att!=null?r.att.toFixed(1):'',r.pct,r.comm].map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','));
   const a=document.createElement('a');
   a.href='data:text/csv;charset=utf-8,﻿'+encodeURIComponent([h.join(','),...body].join('\n'));
   a.download='healthspan_commissions_'+window._commYm+'.csv';a.click();
@@ -1190,6 +1261,156 @@ async function toggleNotifs(){
 /* ── late INIT (js/10 loads last, so calls here see every module) ── */
 try{navApplyCollapse();}catch(e){} // the js/09 call runs before this file loads — THIS one is the real startup apply
 
+/* ══ SHORT-DATED STOCK QUEUE ══
+   Expiry watch says WHAT is short-dated; this says WHAT WE'RE DOING ABOUT IT.
+   Every batch inside the window gets a plan (discount / FOC / transfer /
+   quarantine / accept the loss) with an owner and a target date, so expiring
+   money is worked, not just watched. Plans live in `shortdated` (sku+batch). */
+const SD_WINDOW=183; // months≈6 — the point where a plan still has time to work
+const SD_PLANS={discount:'Discount / promo',foc:'FOC to a loyal account',transfer:'Transfer to Remedy',quarantine:'Quarantine (unsellable)',accept:'Accept the write-off'};
+function sdRisk(d){return d<=60?'rd':d<=92?'am':'bl';} // expired lots are <=60 too — same red
+async function renderShortDated(){
+  if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
+  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  let plans=[];
+  try{const {data,error}=await SB.from('shortdated').select('*').limit(1000);if(error)throw error;plans=data||[];}
+  catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Needs the shortdated SQL (SUPABASE-SETUP.md): '+esc(e.message||e)+'</div>';return;}
+  const key=(s,b)=>String(s||'').toLowerCase()+'|'+String(b||'').toLowerCase();
+  const pmap={};for(const p of plans)pmap[key(p.sku,p.batch)]=p;
+  // every batch with stock inside the window, worst first
+  const lots=(BATCHES||[]).filter(b=>{const d=expDaysLeft(b.expiry);return b.soh>0&&d!==null&&d<=SD_WINDOW;})
+    .map(b=>{const d=expDaysLeft(b.expiry);const p=DATA.find(x=>x.sku===b.skuCode);
+      return{sku:b.skuCode,name:b.name,batch:b.batch||'',expiry:b.expiry,days:d,qty:b.soh,
+             value:(p&&p.price>0?p.price*b.soh:0),plan:pmap[key(b.skuCode,b.batch)]||null};})
+    .sort((a,b)=>a.days-b.days);
+  const unplanned=lots.filter(l=>!l.plan);
+  const atRisk=lots.reduce((a,l)=>a+l.value,0);
+  const unpV=unplanned.reduce((a,l)=>a+l.value,0);
+  const done=plans.filter(p=>p.status==='done').length;
+  const canW=canWarehouse()||roleIn('manager','marketing'); // whoever can actually action it
+  const pill=l=>{
+    if(l.plan&&l.plan.status==='done')return '<span class="pill pgr">'+esc(SD_PLANS[l.plan.plan]||l.plan.plan)+' · done</span>';
+    if(l.plan)return '<span class="pill pbl">'+esc(SD_PLANS[l.plan.plan]||l.plan.plan)+(l.plan.owner_tag?' · '+esc(l.plan.owner_tag):'')+(l.plan.target_date?' by '+esc(l.plan.target_date):'')+'</span>';
+    return '<span class="pill pam" style="background:rgba(186,117,23,.15);color:var(--am)">no plan yet</span>';
+  };
+  $('content').innerHTML=(typeof roBanner==='function'?roBanner('shortdated'):'')+
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met am"><div class="met-lbl">Short-dated value</div><div class="met-val" style="font-size:15px">'+fmtPeso(atRisk)+'</div><div class="met-sub">'+lots.length+' lots inside 6 months</div><div class="met-bar"></div></div>'+
+    '<div class="met rd"><div class="met-lbl">No plan yet</div><div class="met-val" style="font-size:15px">'+fmtPeso(unpV)+'</div><div class="met-sub">'+unplanned.length+' lots nobody has decided on</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Worked &amp; closed</div><div class="met-val">'+done+'</div><div class="met-sub">lots resolved through this queue</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Product</th><th>Batch</th><th>Expiry</th><th class="r">Days</th><th class="r">Units</th><th class="r">Value</th><th>Plan</th>'+(canW?'<th></th>':'')+'</tr></thead><tbody>'+
+    (lots.length?lots.map(l=>'<tr><td style="font-weight:600">'+esc(l.name||l.sku)+'</td><td class="mu">'+esc(l.batch||'—')+'</td><td class="mu">'+esc(l.expiry||'—')+'</td>'+
+      '<td class="r"><span class="pill p'+sdRisk(l.days)+'">'+(l.days<0?'expired':l.days+'d')+'</span></td><td class="r">'+l.qty+'</td><td class="r">'+(l.value?fmtPeso(l.value):'—')+'</td>'+
+      '<td>'+pill(l)+(l.plan&&l.plan.notes?'<div class="mu" style="font-size:10.5px;margin-top:2px">'+esc(l.plan.notes)+'</div>':'')+'</td>'+
+      (canW?'<td style="white-space:nowrap;font-size:11.5px">'+
+        (l.plan&&l.plan.status==='done'?'':'<a href="#" onclick="sdPlan(\''+esc(l.sku)+'\',\''+esc(l.batch)+'\');return false" style="color:var(--ac)">'+(l.plan?'change':'set plan')+'</a>'+
+          (l.plan?' · <a href="#" onclick="sdClose('+l.plan.id+');return false" style="color:var(--gr)">done</a>':''))+'</td>':'')+
+      '</tr>').join(''):'<tr><td colspan="'+(canW?8:7)+'" class="mu">Nothing expiring within 6 months — clean.</td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>Every lot inside 6 months, earliest first · a plan names what we do and who does it · closing a lot records the outcome. Discounts and FOC still go through the normal promo/order flow — this is the worklist, not a separate discount channel.</span></div></div>';
+}
+async function sdPlan(sku,batch){
+  const lot=(BATCHES||[]).find(b=>b.skuCode===sku&&String(b.batch||'')===String(batch||''));
+  const opts=Object.keys(SD_PLANS).map((k,i)=>(i+1)+') '+SD_PLANS[k]).join('\n');
+  const pick=prompt('Plan for '+(lot?lot.name:sku)+(batch?' · batch '+batch:'')+':\n\n'+opts+'\n\nEnter 1-5:','1');
+  const keys=Object.keys(SD_PLANS);const plan=keys[parseInt(pick,10)-1];
+  if(!plan)return;
+  const own=(prompt('Who owns this action? (specialist tag or name — blank = the warehouse team)','')||'').trim();
+  const target=(prompt('Target date to have it done (YYYY-MM-DD):',new Date(Date.now()+14*864e5).toISOString().slice(0,10))||'').trim();
+  if(target&&!/^\d{4}-\d{2}-\d{2}$/.test(target))return alert('Target date must look like 2026-09-15 — nothing saved.');
+  const notes=(prompt('Note (e.g. which account, what discount):','')||'').trim();
+  try{
+    const row={sku,batch:batch||'',name:lot?lot.name:null,expiry:lot?lot.expiry:null,qty:lot?lot.soh:null, // '' not null — keeps the unique key honest
+      plan,owner_tag:own||null,target_date:target||null,notes:notes||null,status:'open',
+      created_by:SBUSER.id,created_name:(SBPROFILE&&SBPROFILE.name)||''};
+    const {error}=await SB.from('shortdated').upsert(row,{onConflict:'sku,batch'});
+    if(error)throw error;
+    audit('shortdated.plan',{sku,batch:batch||'',plan,owner:own||''});
+    if(plan==='quarantine'&&canWarehouse()&&lot&&confirm('Pull these '+lot.soh+' units into quarantine now?'))
+      await quarAdd(sku,lot.name,lot.soh,batch,'expiry','SD',true);
+    renderShortDated();
+  }catch(e){alert('Could not save the plan: '+(e.message||e));}
+}
+async function sdClose(id){
+  const note=(prompt('What actually happened? (outcome for the record)','')||'').trim();
+  try{
+    const {error}=await SB.from('shortdated').update({status:'done',outcome:note||null,closed_at:new Date().toISOString(),closed_by:(SBPROFILE&&SBPROFILE.name)||''}).eq('id',id);
+    if(error)throw error;
+    audit('shortdated.close',{id,note});
+    renderShortDated();
+  }catch(e){alert('Could not close it: '+(e.message||e));}
+}
+
+/* ══ RECEIVING DISCREPANCIES & SUPPLIER SCORECARD ══
+   po_lines already carries ordered vs received; nobody was reading it. Short
+   ships, over ships, and lead-time accuracy per supplier — the numbers that
+   make the reorder plan's assumptions honest. */
+async function renderPoScore(){
+  if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
+  if(!roleIn('admin','finance','supply_chain')){$('content').innerHTML='<div class="empty" style="margin-top:40px">Finance, admin and the warehouse team only — this page shows purchase costs.</div>';return;}
+  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  let pos=[],lines=[],sups=[];
+  try{
+    const [a,b,c]=await Promise.all([
+      SB.from('pos').select('id,supplier,status,eta,etd,created_at,updated_at').order('id',{ascending:false}).limit(400),
+      SB.from('po_lines').select('po_id,sku,name,qty,received,unit_cost').order('id',{ascending:false}).limit(4000),
+      SB.from('suppliers').select('name,lead_time_days').limit(200)
+    ]);
+    if(a.error)throw a.error;if(b.error)throw b.error;if(c.error)throw c.error; // a silent po_lines failure would read as "no discrepancies"
+    pos=a.data||[];lines=b.data||[];sups=c.data||[];
+  }catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Could not load POs: '+esc(e.message||e)+'</div>';return;}
+  const poById={};for(const p of pos)poById[p.id]=p;
+  const linesBy={};for(const l of lines)(linesBy[l.po_id]=linesBy[l.po_id]||[]).push(l);
+  const lead={};for(const s of sups)lead[s.name]=s.lead_time_days;
+  // discrepancies on POs that are done being received
+  const closed=new Set(pos.filter(p=>p.status==='received'||p.status==='partial').map(p=>p.id));
+  const disc=lines.filter(l=>closed.has(l.po_id)&&(l.received||0)!==l.qty)
+    .map(l=>{const p=poById[l.po_id];const gap=(l.received||0)-l.qty;
+      return{po:l.po_id,supplier:p?p.supplier:'—',sku:l.sku,name:l.name,qty:l.qty,got:l.received||0,gap,
+             value:Math.abs(gap)*(l.unit_cost||0),eta:p?p.eta:null,status:p?p.status:''};})
+    .sort((a,b)=>b.value-a.value);
+  // supplier grades
+  const g={};
+  for(const p of pos){
+    if(p.status==='draft'||p.status==='cancelled')continue;
+    const s=(g[p.supplier]=g[p.supplier]||{pos:0,lines:0,short:0,over:0,units:0,got:0,late:0,onTimeCount:0,leadSum:0,leadN:0});
+    s.pos++;
+    for(const l of (linesBy[p.id]||[])){
+      s.lines++;s.units+=l.qty;s.got+=(l.received||0);
+      if((l.received||0)<l.qty)s.short++;else if((l.received||0)>l.qty)s.over++;
+    }
+    if(p.status==='received'&&p.eta&&p.updated_at){
+      const act=p.updated_at.slice(0,10);
+      if(act>p.eta)s.late++;else s.onTimeCount++;
+      const ordered=(p.created_at||'').slice(0,10);
+      if(ordered){const d=Math.round((new Date(act)-new Date(ordered))/864e5);if(d>=0&&d<400){s.leadSum+=d;s.leadN++;}}
+    }
+  }
+  const rows=Object.entries(g).map(([name,s])=>{
+    const fill=s.units?Math.round(s.got/s.units*100):null;
+    const onTime=(s.late+s.onTimeCount)?Math.round(s.onTimeCount/(s.late+s.onTimeCount)*100):null;
+    const actual=s.leadN?Math.round(s.leadSum/s.leadN):null;
+    return{name,...s,fill,onTime,actual,quoted:lead[name]!=null?lead[name]:null};
+  }).sort((a,b)=>(a.fill==null?101:a.fill)-(b.fill==null?101:b.fill));
+  const grade=v=>v==null?'<span class="mu">—</span>':'<span class="pill p'+(v>=98?'gr':v>=90?'bl':v>=75?'am':'rd')+'">'+v+'%</span>';
+  const shortV=disc.filter(d=>d.gap<0).reduce((a,d)=>a+d.value,0);
+  $('content').innerHTML=(typeof roBanner==='function'?roBanner('poscore'):'')+
+    '<div class="metrics" style="margin-bottom:14px">'+
+    '<div class="met rd"><div class="met-lbl">Short-shipped value</div><div class="met-val" style="font-size:15px">'+fmtPeso(shortV)+'</div><div class="met-sub">at PO cost — worth claiming</div><div class="met-bar"></div></div>'+
+    '<div class="met am"><div class="met-lbl">Lines off</div><div class="met-val">'+disc.length+'</div><div class="met-sub">received ≠ ordered on closed POs</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">Suppliers graded</div><div class="met-val">'+rows.length+'</div><div class="met-sub">fill rate · on-time · real lead time</div><div class="met-bar"></div></div>'+
+    '</div>'+
+    '<div class="tcard" style="margin-bottom:16px"><div class="phd" style="padding:12px 14px 0;margin-bottom:8px">Supplier scorecard</div><div class="tscroll"><table><thead><tr><th>Supplier</th><th class="r">POs</th><th class="r">Fill rate</th><th class="r">On time</th><th class="r">Lead time — quoted</th><th class="r">actual</th><th class="r">Short lines</th></tr></thead><tbody>'+
+    (rows.length?rows.map(r=>'<tr><td style="font-weight:600">'+esc(r.name)+'</td><td class="r">'+r.pos+'</td><td class="r">'+grade(r.fill)+'</td><td class="r">'+grade(r.onTime)+'</td>'+
+      '<td class="r mu">'+(r.quoted!=null?r.quoted+'d':'—')+'</td><td class="r">'+(r.actual!=null?'<span class="pill p'+(r.quoted!=null&&r.actual>r.quoted*1.25?'am':'bl')+'">'+r.actual+'d</span>':'<span class="mu">—</span>')+'</td>'+
+      '<td class="r">'+(r.short||'—')+(r.over?' <span class="mu">(+'+r.over+' over)</span>':'')+'</td></tr>').join(''):'<tr><td colspan="7" class="mu">No received POs yet.</td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>Fill rate = units received ÷ units ordered · on-time = received on or before the ETA · actual lead time ≈ PO created → last update on a received PO (close enough to grade a supplier, not an audited date). Where actual runs 25%+ past quoted, the reorder plan is under-buying — worth updating the supplier’s lead time.</span></div></div>'+
+    '<div class="tcard"><div class="phd" style="padding:12px 14px 0;margin-bottom:8px">Receiving discrepancies</div><div class="tscroll"><table><thead><tr><th>PO</th><th>Supplier</th><th>Product</th><th class="r">Ordered</th><th class="r">Received</th><th class="r">Gap</th><th class="r">Value</th></tr></thead><tbody>'+
+    (disc.length?disc.map(d=>'<tr><td class="mu">PO-'+d.po+'</td><td>'+esc(d.supplier)+'</td><td style="font-weight:600">'+esc(d.name||d.sku)+'</td><td class="r">'+d.qty+'</td><td class="r">'+d.got+'</td>'+
+      '<td class="r"><span class="pill p'+(d.gap<0?'rd':'am')+'">'+(d.gap>0?'+':'')+d.gap+'</span></td><td class="r">'+(d.value?fmtPeso(d.value):'—')+'</td></tr>').join(''):'<tr><td colspan="7" class="mu">Every closed PO received exactly what was ordered.</td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>Only POs marked received or partial appear here — open POs are still arriving. Short lines are claimable against the supplier; over-ships need a costing decision.</span></div></div>';
+}
+
 /* ── desktop sidebar hide/show (hamburger in the topbar) ── */
 function sbToggle(){
   const hide=!document.body.classList.contains('sbhidden');
@@ -1679,6 +1900,11 @@ async function renderValuation(){
   rows.sort((a,b)=>(b.value||0)-(a.value||0));
   const totV=rows.reduce((a,r)=>a+(r.value||0),0);
   const totRetail=rows.reduce((a,r)=>a+r.price*r.stock,0);
+  window._VALROWS=rows; window._VALTOT=totV;  // the freeze action snapshots exactly what is on screen
+  let snaps=[];
+  try{const {data}=await SB.from('valuation_snapshots').select('month,taken_at,taken_by,basis,total_value,total_units,sku_count').order('month',{ascending:false}).limit(13);snaps=data||[];}catch(e){}
+  const lastMonth=(function(){const d=new Date();d.setDate(0);return d.toISOString().slice(0,7);})();
+  const haveLast=snaps.some(x=>x.month===lastMonth);
   const byLine={};rows.forEach(r=>{byLine[r.line||'—']=(byLine[r.line||'—']||0)+(r.value||0);});
   const lowM=rows.filter(r=>r.margin!=null&&r.margin<30).length;
   $('content').innerHTML=
@@ -1687,6 +1913,17 @@ async function renderValuation(){
     '<div class="met gr"><div class="met-lbl">Same stock at list</div><div class="met-val" style="font-size:16px">'+fmtPeso(totRetail)+'</div><div class="met-sub">'+(totRetail?('blended margin '+Math.round((1-totV/totRetail)*100)+'%'):'—')+'</div><div class="met-bar"></div></div>'+
     '<div class="met '+(lowM?'am':'gr')+'"><div class="met-lbl">Margin < 30%</div><div class="met-val">'+lowM+'</div><div class="met-sub">SKUs to reprice or renegotiate</div><div class="met-bar"></div></div>'+
     '</div>'+
+    '<div class="panel" style="padding:14px 16px;margin-bottom:14px;border-left:3px solid '+(haveLast?'var(--gr)':'var(--am)')+'">'+
+      '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:13px">Month-end snapshots</b>'+
+      (haveLast?'<span class="pill pgr">'+esc(lastMonth)+' frozen</span>':'<span class="pill pam" style="background:rgba(186,117,23,.15);color:var(--am)">'+esc(lastMonth)+' not frozen yet</span>')+
+      '<span style="flex:1"></span>'+
+      '<button onclick="valFreeze(\''+lastMonth+'\')" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer">Freeze '+esc(lastMonth)+'</button></div>'+
+      '<div style="font-size:12px;color:var(--tx2);margin-top:6px">The figures above are recomputed live from today\u2019s costs and today\u2019s stock \u2014 so \u201cinventory value at 31 July\u201d changes every time someone edits a cost. Freezing writes the month\u2019s value, units and per-SKU detail to a permanent record that later edits cannot touch. Do it once a month, after the count and before the accounting sign-off.</div>'+
+      (snaps.length?'<div class="tscroll" style="margin-top:10px"><table><thead><tr><th>Month</th><th class="r">At cost</th><th class="r">Units</th><th class="r">SKUs</th><th>Basis</th><th>Frozen</th></tr></thead><tbody>'+
+        snaps.map(x=>'<tr><td style="font-weight:600">'+esc(x.month)+'</td><td class="r" style="font-weight:600">'+fmtPeso(x.total_value)+'</td><td class="r">'+(x.total_units||0).toLocaleString()+'</td><td class="r mu">'+(x.sku_count||0)+'</td>'+
+          '<td class="mu" style="font-size:11px">'+esc(x.basis||'—')+'</td><td class="mu" style="font-size:11px">'+esc(String(x.taken_at||'').slice(0,10))+(x.taken_by?' \u00b7 '+esc(x.taken_by):'')+'</td></tr>').join('')+
+        '</tbody></table></div>':'<div class="mu" style="font-size:11.5px;margin-top:8px">No snapshots yet.</div>')+
+      '</div>'+
     '<div class="panel" style="padding:14px 16px;margin-bottom:14px"><div class="phd">Value at cost by line</div>'+
     Object.entries(byLine).sort((a,b)=>b[1]-a[1]).map(([l,v])=>'<div class="drow"><span class="dlbl">'+esc(l)+'</span><span class="dval">'+fmtPeso(v)+'</span></div>').join('')+'</div>'+
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Product</th><th class="r">Unit cost ₱</th><th class="r">+ landed</th><th class="r">List</th><th class="r">Margin</th><th class="r">Stock</th><th class="r">Value at cost</th><th>Source</th></tr></thead><tbody>'+
@@ -1694,6 +1931,34 @@ async function renderValuation(){
       '<td class="r">'+fmtPeso(r.price)+'</td><td class="r" style="font-weight:700;color:'+(r.margin==null?'var(--tx3)':r.margin<30?'var(--rd)':r.margin<50?'var(--am)':'var(--gr)')+'">'+(r.margin==null?'—':Math.round(r.margin)+'%')+'</td>'+
       '<td class="r">'+r.stock.toLocaleString()+'</td><td class="r" style="font-weight:600">'+fmtPeso(Math.round(r.value))+'</td><td class="mu" style="font-size:10.5px">'+esc(r.src||'')+'</td></tr>').join('')+
     '</tbody></table></div><div class="tfooter"><span>Unit cost = latest PO receive cost (× FX payment rate for foreign POs) + that PO\'s landed cost spread across its received units · falls back to the item-master cost · margins vs VAT-inclusive list price · admin + finance only</span></div></div>';
+}
+
+async function valFreeze(month){
+  if(!roleIn('admin','finance'))return alert('Finance and admin only.');
+  const rows=window._VALROWS||[];
+  if(!rows.length)return alert('Nothing costed to snapshot yet.');
+  const basis=(typeof flagOn==='function'&&flagOn('ledger_is_truth'))?'ledger':'sheet';
+  const units=Math.round(rows.reduce((a,r)=>a+(r.stock||0),0)); // bigint column
+  const total=Math.round(window._VALTOT||0);
+  // honesty check: this snapshots stock and costs AS THEY ARE NOW, labelled as that month
+  const monthEnd=(function(){const [y,m]=month.split('-').map(Number);return new Date(Date.UTC(y,m,0));})();
+  const daysLate=Math.round((Date.now()-monthEnd.getTime())/864e5);
+  if(!confirm('Freeze '+month+' at '+fmtPeso(total)+' across '+rows.length+' costed SKUs ('+units.toLocaleString()+' units, stock basis: '+basis+')?\n\nThis becomes the permanent month-end figure. Later cost edits will not change it.'+
+     (daysLate>5?'\n\nNOTE: it is '+daysLate+' days past the end of '+month+'. This records TODAY\u2019s stock and costs under that month\u2019s label — the further past month end, the less true that is.':'')))return;
+  const lines=rows.map(r=>({sku:r.sku,name:r.name,units:r.stock,cost:Math.round(r.cost||0),value:Math.round(r.value||0)}));
+  try{
+    const {error}=await SB.from('valuation_snapshots').insert({month,basis,total_value:total,total_units:units,sku_count:rows.length,lines,taken_by:(SBPROFILE&&SBPROFILE.name)||''});
+    if(error){
+      if(String(error.message||'').match(/duplicate|unique/i)){
+        if(!(typeof isSuper==='function'&&isSuper()))return alert(month+' is already frozen. Re-freezing a month is a super-admin decision.');
+        if(!confirm(month+' is already frozen. RE-FREEZE it with today\u2019s numbers? The previous figure is overwritten.'))return;
+        const {error:e2}=await SB.from('valuation_snapshots').update({basis,total_value:total,total_units:units,sku_count:rows.length,lines,taken_at:new Date().toISOString(),taken_by:(SBPROFILE&&SBPROFILE.name)||''}).eq('month',month);
+        if(e2)throw e2;
+        audit('valuation.refreeze',{month,total});
+      }else throw error;
+    }else audit('valuation.freeze',{month,total,units,basis});
+    renderValuation();
+  }catch(e){alert('Could not freeze: '+(e.message||e)+'\n\n(Run the accounting-integrity SQL from SUPABASE-SETUP.md.)');}
 }
 
 /* ── MOBILE SUGGESTION SHIM: iOS Safari barely renders <datalist>, especially as a PWA.
@@ -1858,6 +2123,8 @@ const VIEW_WRITERS={
   scan:{roles:['supply_chain'],label:'the warehouse team'},
   cyclecount:{roles:['supply_chain'],label:'the warehouse team'},
   quarantine:{roles:['supply_chain'],label:'the warehouse team (finance can add from returns)'},
+  shortdated:{roles:['supply_chain','manager','marketing'],label:'the warehouse team, sales managers and marketing'},
+  poscore:null, // report — read-only by nature
   transfers:{roles:['supply_chain','manager'],label:'the warehouse team'},
   fulfillq:{roles:['supply_chain','manager'],label:'the warehouse team and sales managers'},
   whkpi:null, valuation:null, // reports — read-only for everyone by nature

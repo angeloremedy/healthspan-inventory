@@ -1,10 +1,15 @@
 // WORKFLOW AUTOMATION RULES — the nightly sweep (triggered from nightly.mjs).
-// Five rules, each deduped via auto_log (unique rule+entity, insert-ignore):
+// Ten rules, each deduped via auto_log (unique rule+entity, insert-ignore):
 //  1. fulfilled order (~14d ago)      → follow-up task + ping for the owner
 //  2. first-ever order (last 2 days)  → welcome-call task + ping for the owner
 //  3. balance >60d past terms         → collection ping to finance + owner (monthly per account)
 //  4. account gone dormant (60–90d)   → owner alert (monthly per account)
 //  5. campaign/promo starts today     → ping sales + marketing
+//  6. Monday digest                   → per specialist + a team digest for managers
+//  7. Monday next-best-action         → each specialist's 3 best calls
+//  8. quote 'sent' 7+ days            → chase ping for the quote's specialist (once per quote)
+//  9. birthday / clinic anniversary   → owner ping 3 days ahead (once per year)
+// 10. the 1st of the month           → freeze-the-valuation nudge to finance + admin
 // Tasks land in Follow-ups & plans (visits status='planned'); pings hit the bell.
 const SB_URL = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SVC = process.env.SUPABASE_SERVICE_KEY || '';
@@ -43,7 +48,7 @@ export const handler = async (event) => {
   }
   const today = iso(manila());
   const ym = today.slice(0, 7);
-  const fired = { followup: 0, welcome: 0, collection: 0, dormant: 0, campaign: 0 };
+  const fired = { followup: 0, welcome: 0, collection: 0, dormant: 0, campaign: 0, digest: 0, nba: 0, quotechase: 0, occasion: 0, closenudge: 0 };
   const errors = [];
 
   // shared lookups
@@ -227,6 +232,59 @@ export const handler = async (event) => {
       }
     }
   } catch (e) { errors.push('nba: ' + e.message); }
+
+  // 8 · quote sitting at 'sent' for 7+ days → chase it (owner only, once per quote)
+  try {
+    const qs = await q("quotes?select=id,num,account,spec,total,date,expiry&status=eq.sent&date=lte." + daysAgo(7) + "&date=gte." + daysAgo(120));
+    for (const t of qs) {
+      if (!(await fresh('quotechase', t.id))) continue;
+      // the quote's own specialist if we know them, else whoever owns the account
+      const uid = tag2uid[String(t.spec || '').toLowerCase()] || ownerUid(t.account);
+      if (!uid) continue;
+      const age = Math.floor((manila().getTime() - new Date(t.date).getTime()) / 864e5);
+      const dead = t.expiry && t.expiry < today;
+      await notif({ user_id: uid }, 'auto', 'Quote waiting: ' + t.account,
+        'QT-' + String(1000 + Number(t.num)).slice(-4) + ' · ₱' + Math.round(t.total || 0).toLocaleString() + ' · sent ' + age + ' days ago' +
+        (dead ? ' — the validity date has passed, requote or close it' : ' — chase it or mark it lost'), '#/v/quotes');
+      fired.quotechase = (fired.quotechase || 0) + 1;
+    }
+  } catch (e) { errors.push('quotechase: ' + e.message); }
+
+  // 9 · birthday / clinic anniversary — ping the owner 3 days ahead (month-day match, any year)
+  try {
+    const md = d => String(d || '').slice(5, 10); // MM-DD
+    const soon = iso(new Date(manila().getTime() + 3 * 864e5));
+    const dates = await q('accounts?select=name,owner_tag,birthday,anniversary&owner_tag=not.is.null&or=(birthday.not.is.null,anniversary.not.is.null)');
+    for (const a of dates) {
+      const uid = tag2uid[String(a.owner_tag || '').toLowerCase()];
+      if (!uid) continue;
+      for (const [field, label] of [['birthday', 'Birthday'], ['anniversary', 'Clinic anniversary']]) {
+        if (!a[field] || md(a[field]) !== md(soon)) continue;
+        if (!(await fresh('occasion', field + ':' + a.name + '@' + today.slice(0, 4))) ) continue; // once per year
+        await notif({ user_id: uid }, 'auto', label + ' in 3 days: ' + a.name,
+          md(soon).replace('-', '/') + ' — a greeting or a small gesture lands well; worth planning a visit around it', '#/v/customers');
+        fired.occasion = (fired.occasion || 0) + 1;
+      }
+    }
+  } catch (e) { errors.push('occasion: ' + e.message); }
+
+  // 10 · month-end close nudge: on the 1st, remind finance + admin to freeze the
+  //      month's inventory valuation and close the books once accounting signs off
+  try {
+    if (manila().getUTCDate() === 1) {
+      const d = manila(); d.setUTCDate(0);                 // last day of last month
+      const lastYm = iso(d).slice(0, 7);
+      const snaps = await q('valuation_snapshots?select=month&month=eq.' + lastYm);
+      if (!snaps.length && await fresh('closenudge', lastYm)) {
+        for (const role of ['finance', 'admin']) {
+          await notif({ role }, 'auto', 'Month-end: freeze ' + lastYm,
+            lastYm + ' has no valuation snapshot yet. Freeze it on Landed cost & valuation before costs move, then close the period on the Cutover page once accounting signs off.',
+            '#/v/valuation');
+        }
+        fired.closenudge = (fired.closenudge || 0) + 1;
+      }
+    }
+  } catch (e) { errors.push('closenudge: ' + e.message); }
 
   console.log('automations', today, JSON.stringify(fired), errors.length ? 'errors: ' + JSON.stringify(errors) : 'clean');
   return { statusCode: 200, body: JSON.stringify({ ok: true, fired, errors }) };

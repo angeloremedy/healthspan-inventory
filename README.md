@@ -243,7 +243,102 @@ QA-hold stock waits (out of ATP) for release or a documented disposal.
 queue age. And the **Complaints log** takes quality reports from the field
 with the batch on record — one tap into the recall trace.
 
-## 9.8 Your manual, in-app
+## 9.8 Working the gaps: short-dated stock and supplier truth
+
+The expiry tracker says what is running out of shelf life; **Short-dated
+stock** (Logistics) says what we are doing about it. Every lot with units on
+hand expiring within six months appears worst-first with the peso value at
+risk. Each lot takes a plan — discount, FOC to a loyal account, transfer to a
+Remedy branch, quarantine, or accept the write-off — with an owner, a target
+date, and a note. Lots with no plan are flagged and totalled separately: that
+figure is money nobody has decided about. Closing a lot records the outcome,
+so the page doubles as the record of what was recovered. Choosing the
+quarantine plan offers to pull the units out of sellable stock immediately.
+
+**Receiving & supplier score** finally reads the ordered-vs-received columns
+that purchase orders have always carried. Each supplier is graded on fill rate
+(units received ÷ ordered), on-time delivery against the ETA, and real lead
+time (PO created → fully received) shown beside the lead time they quote us —
+where the real number runs 25%+ past quoted, the reorder plan is quietly
+under-buying. Below the scorecard, every line on a closed PO where received ≠
+ordered, valued at PO cost: short ships are claimable, over-ships need a
+costing decision. Because it exposes cost, the page follows the valuation
+rule — admin, finance, and supply chain only. Auditing that boundary turned up
+an older leak and closed it: the unit-cost column on Purchase orders was
+visible to sales managers, which contradicts the rule that managers never see
+costs or margins. That column (and the cost input on draft lines) is now gated
+the same way.
+
+Two more nightly rules join the sweep. A **quote left at "sent" for seven
+days** pings the specialist who raised it (once per quote, and it says so when
+the validity date has passed) — sales dies in the follow-up gap. And a
+**birthday or clinic anniversary** three days out pings the account owner,
+once a year, using the dates the CRM already stores.
+
+## 9.9 Accounting integrity: closing a period, and what freezes
+
+Until now any month could be edited forever. A July order's amount could change
+in September, after accounting had signed July off — and nothing said no. The
+**period close** on the Cutover page fixes that: the super admin sets a
+closed-through date, and everything dated on or before it freezes — order
+amounts, order dates, order lines, credit memos, cheque maturities, and monthly
+targets. Reopening is the same control, and it warns you what you're doing.
+
+The important part is *where* it is enforced. Database triggers do the work, not
+the app, so a bug in a view — or the nightly job running with a service key —
+cannot quietly restate a signed-off month. Every blocked write raises a Postgres
+error naming the date and the reason. The UI checks the same date first purely so
+it can say no politely instead of showing a database error.
+
+Three things deliberately stay open inside a closed period, because they are
+operational rather than revenue-changing: **collections** (a July invoice paid in
+September is September cash), **shipping marks**, and **DR number assignment**.
+Fulfilment and reopening also stay open — picking a closed-period order that
+was already booked is operational. What is refused is **cancelling, trashing or
+restoring** a closed order, because that removes booked revenue from a signed-off
+month; record a credit memo instead, which is the accounting-correct move anyway.
+Back-dating an open order *into* a closed month is refused too.
+
+One asymmetry worth knowing: the nightly Shopify backfill may still *import* a
+historical order it has never seen, because that is recording a fact rather than
+changing one. What it may not do is rewrite the amounts, dates or lines of an
+order already inside a closed period — for those it sends payment and shipping
+fields only, and the trigger is the backstop if that logic ever regresses. The
+job status reports how many orders were treated this way.
+
+**Payments now have their own date.** Recording a payment used to just increment
+`orders.paid` with no date anywhere, which made "collections in August"
+unanswerable. Each payment is now an append-only row with a date, method and
+reference; `orders.paid`/`balance` stay as the rollup the Shopify sync owns. A
+wrong payment is corrected with an offsetting negative row, never an edit. AR
+aging has a **Collections CSV** beside the accounting export: the individual
+dated payments received in a period — what actually came in, by day. (Payments
+recorded before this shipped have no date; they survive only in the order totals
+and the Activity log.)
+
+**Month-end valuation snapshots.** Inventory value was recomputed live from
+today's costs and today's stock, so "value at 31 July" moved every time someone
+edited a cost. Landed cost & valuation now has a **Freeze** button that writes
+the month's value, units and per-SKU detail permanently; the page shows the
+snapshot history. On the 1st of each month the nightly sweep pings finance and
+admin if last month isn't frozen yet.
+
+**Credit memos finally net.** They carry a date and a specialist now, and
+Commissions computes on **net** — booked less that month's credit memos for that
+specialist — so a return can also drop someone a tier. Previously a specialist
+who booked ₱500k and had ₱200k credit-memoed was paid on the full ₱500k. CMs
+ticked "already refunded in Shopify" are skipped, because during the parallel run
+the sales cache has already removed those units at source and deducting again
+would double-count the reversal. CMs recorded without a specialist show on their
+own card but can't be attributed to anyone — name the specialist when recording.
+
+**Purchase orders have a spend gate.** Sales orders always held above a
+threshold; purchasing had none. A PO over the purchase threshold now stays a
+draft and lands in Approvals as a "purchase" hold, pinging admin. Approving marks
+it ordered; rejecting cancels it. Both thresholds are super-admin settings on the
+Approvals page.
+
+## 9.9 Your manual, in-app
 
 Sidebar → **manual** (mobile: Menu → My manual) opens the user manual for YOUR
 role right inside the app — read it there, download it, or pop it full screen.
