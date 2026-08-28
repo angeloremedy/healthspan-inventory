@@ -111,6 +111,12 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ Product specialists removed from the fund-source approver picker
 - ✅ New **Finance forms** sidebar section (pull-out requests today; the five finance forms as they land)
 
+**Device fixes (Aug 28)**
+- ✅ Sync bar no longer breaks the layout: it was a static block ABOVE the 100dvh shell, so showing it pushed everything down — black gap under the top bar on phones, bottom of the page unreachable, and on iPad it collided with the fixed Ask AI drawer. Now lives inside the scrolling main column
+- ✅ iPad: desktop layout reserves the status-bar inset (`.topbar`/`.sb`), and the standalone probe now falls back to 24px on tablets as well as 47px on notched phones — iOS reports 0 on both while still drawing over the app
+- ✅ iPad: login overlay and mobile menu pinned to the dynamic viewport (`100dvh`) with `body{position:relative}`, so the app no longer peeks below the sign-in card
+- ✅ Android icon: manifest gains an `id`, a 192 maskable, and cache-busted icon URLs. NOTE: Android bakes the icon into the WebAPK at install time, so an already-installed app needs removing and re-adding
+
 **Usability (Aug 28)**
 - ✅ Silent re-render: the "Loading…" blank-out now only happens on real navigation. All 28 views refresh in place after an action and keep the scroll position (MutationObserver-timed, not a guess); the pull-out cart repaints from cache with no DB round-trip
 - ✅ App-wide table sorting: click any column header for A–Z, again for Z–A, on all 87 tables — one delegated listener, type-aware (money, units, MM/YYYY expiry, ISO dates, %), blanks last, section/TOTAL rows pinned, existing row handlers preserved; All SKUs keeps its own dataset-level sort
@@ -259,7 +265,7 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ **Account ownership** — shipped (account pages + Accounts list inline assign); territories still open
 - ✅ **Lead pipeline** — shipped (Pipeline view: stages from behavior + audited moves, lost reasons)
 - ✅ **Activity cadences** — shipped (dormancy alerts tiered by A/B/C: 30/45/60 days; owner pinged inside the window, monthly dedup)
-- ▢ **Attachments** — photos, signed DRs, licenses on visits/accounts. DESIGN DECIDED (2026-08-28): Google Drive via a service-account Netlify function (file IDs stored in Supabase), not Supabase Storage
+- ✅ **Attachments** — shipped (2026-08-28): Google Drive Shared Drive via a service-account function; file ids in Supabase, reads streamed back through HQ so the app's permissions decide access. Live on pull-outs and all six finance forms; still to add on visits and account profiles
 - 🔨 **Account tiers & segmentation** — tier field (A/B/C) shipped on accounts; tier-based service levels/cadences still open
 - ✅ **Quote chase** — shipped (a quote left at 'sent' for 7+ days pings the specialist who raised it; flags a lapsed validity date)
 - ✅ **Birthday / clinic anniversary pings** — shipped (owner pinged 3 days ahead, once per year, from the dates already on the account)
