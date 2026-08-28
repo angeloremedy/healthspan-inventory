@@ -410,6 +410,43 @@ function expLabel(days){
   if(days<=92) return Math.round(days/30.4)+'mo left';
   return Math.round(days/30.4)+'mo left';
 }
+/* ── SILENT RE-RENDER ───────────────────────────────────────────────────────
+   Almost every view starts by blanking #content to "Loading…" and re-querying.
+   That is right when you NAVIGATE to a page — you have nothing to look at yet.
+   It is wrong when the page redraws after something you just did (adding a
+   line, submitting a complaint, approving, releasing): the screen goes empty
+   for a moment, and worse, the scroll position is thrown back to the top.
+
+   loadingHint() shows the placeholder only for a real navigation. showView()
+   arms it; anything else redrawing the same view refreshes in place, keeping
+   what is on screen until the new markup is ready — and keeping the scroll
+   where the user left it. */
+function loadingHint(){
+  const c=$('content');if(!c)return;
+  if(window._navPaint){window._navPaint=false;c.innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';return;}
+  if(!c.firstChild)c.innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>'; // nothing there yet
+  keepScroll(); // silent refresh: hold the reader's place
+}
+function keepScroll(){ // remember .main's scroll, restore it WHEN the repaint lands
+  try{
+    const m=document.querySelector('.main'),c=$('content');
+    if(!m||!c)return;
+    const y=m.scrollTop;if(!y)return;
+    if(window._keepObs){window._keepObs.disconnect();window._keepObs=null;}
+    if(window._keepT)clearTimeout(window._keepT);
+    // the repaint happens after an await, so a timer would fire too early or too
+    // late. Watch #content instead and restore the moment its children change.
+    const done=()=>{
+      if(window._keepObs){window._keepObs.disconnect();window._keepObs=null;}
+      if(window._keepT){clearTimeout(window._keepT);window._keepT=null;}
+      const el=document.querySelector('.main');
+      if(el&&el.scrollHeight>y)el.scrollTop=y; // don't scroll past a now-shorter page
+    };
+    window._keepObs=new MutationObserver(()=>requestAnimationFrame(done));
+    window._keepObs.observe(c,{childList:true});
+    window._keepT=setTimeout(done,4000); // the fetch failed or nothing changed — give up cleanly
+  }catch(e){}
+}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function isReorderAlert(p){
   const t=REORDER[p.sku];

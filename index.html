@@ -198,6 +198,9 @@ table{width:100%;border-collapse:collapse;font-size:12px}
 thead th{padding:8px 11px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--tx3);background:var(--sf2);border-bottom:1px solid var(--bd);white-space:nowrap;cursor:pointer;user-select:none}
 thead th:hover{color:var(--tx)}
 thead th.sorted{color:var(--ac)}
+.thsort{font-size:9px;opacity:.9;letter-spacing:0}
+thead th:hover{color:var(--ac)}
+@media(hover:none){thead th:hover{color:var(--tx3)}} /* no phantom hover state on touch */
 tbody tr{border-bottom:1px solid var(--bd);transition:background .08s;cursor:pointer}
 tbody tr:last-child{border-bottom:none}
 tbody tr:hover{background:var(--sf2)}

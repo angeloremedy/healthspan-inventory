@@ -275,7 +275,45 @@ the validity date has passed) — sales dies in the follow-up gap. And a
 **birthday or clinic anniversary** three days out pings the account owner,
 once a year, using the dates the CRM already stores.
 
-## 9.9 Inventory pull-outs — the form, with teeth
+## 9.9 Pages refresh in place, not from scratch
+
+Every view used to start by wiping the screen to "Loading…" and re-querying the
+database. That's right when you *navigate* somewhere — there's nothing to look at
+yet. It was wrong every other time: adding a line to a pull-out, filing a
+complaint, approving something, releasing stock all made the whole page blank for
+a moment and then reappear scrolled back to the top.
+
+Now the placeholder only shows for a real navigation. Anything that redraws the
+page you're already on keeps the current content on screen until the new markup
+is ready, and puts your scroll position back where it was. That's 28 views —
+every form in the app, not just the two you spotted.
+
+The pull-out cart goes further: adding or removing an item you just typed doesn't
+touch the database at all. It repaints from what's already loaded, so the line
+appears instantly.
+
+## 9.10 Sorting any table
+
+Click any column header to sort A–Z; click it again for Z–A. The header you
+sorted by turns blue with a ▲ or ▼. It works on every table in HQ — the
+register, AR aging, batches, quotes, POs, pull-outs, all of them — without each
+page needing its own sort.
+
+It understands what it's looking at rather than sorting text blindly: money
+(₱1,200 before ₱45,000, not after), counts with units (3u, 12u, 105u), dates in
+either the ISO or the MM/YYYY expiry format, and percentages. Blanks and dashes
+always sort to the bottom, whichever direction you pick, so an empty cell never
+buries the rows you care about.
+
+Two things it deliberately doesn't touch. Section headings, TOTAL lines and
+"nothing here yet" rows stay where the page put them, and the data sorts around
+them. And All SKUs keeps its own sorting, which is smarter — it sorts the whole
+dataset rather than the page you're looking at.
+
+A sort lasts until the page redraws (a filter, a refresh, an action you take).
+That's intentional: it's a way to look at what's on screen, not a saved setting.
+
+## 9.11 Inventory pull-outs — the form, with teeth
 
 Stock leaves the warehouse for internal reasons all the time: KOL engagements,
 brand campaigns, FOC promos, trade partnerships, launches and training. That
@@ -306,8 +344,10 @@ can file one, because the fund-source approval is the real control:
    Shopify; ticking "mark booked" with the reference closes the loop so nothing
    sits half-done.
 
-Fund sources are configurable (admin): each of the eight QBO classes maps to an
-approver plus an optional backup, chosen from any HQ login.
+Fund sources are configurable (admin): each of the eight QBO classes has an
+**approver dropdown** (and one for an optional backup) listing every HQ login —
+pick a name and it saves immediately. A class with no approver shows a red
+outline.
 
 **Approval rights come from the fund-source list, not from a role.** Several
 approvers — Digital Marketing, People Ops — hold viewer access, which is
@@ -331,7 +371,7 @@ long-standing pull-out convention. The QBO side stays as it is for now: the
 Shopify↔QBO integration carries it, and pushing *all* orders to QBO directly is
 a separate piece of work.
 
-## 9.10 Accounting integrity: closing a period, and what freezes
+## 9.12 Accounting integrity: closing a period, and what freezes
 
 Until now any month could be edited forever. A July order's amount could change
 in September, after accounting had signed July off — and nothing said no. The
@@ -394,7 +434,7 @@ draft and lands in Approvals as a "purchase" hold, pinging admin. Approving mark
 it ordered; rejecting cancels it. Both thresholds are super-admin settings on the
 Approvals page.
 
-## 9.11 Your manual, in-app
+## 9.13 Your manual, in-app
 
 Sidebar → **manual** (mobile: Menu → My manual) opens the user manual for YOUR
 role right inside the app — read it there, download it, or pop it full screen.

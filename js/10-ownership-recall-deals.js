@@ -429,7 +429,7 @@ async function oppSet(id,stage){
 const PO_NO=id=>'PO-'+String(1000+id);
 async function renderPOs(){
   if(!roleIn('admin','manager','supply_chain','finance')){$('content').innerHTML='<div class="empty" style="margin-top:40px">Warehouse, finance, and management only.</div>';return;}
-  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  loadingHint();
   let pos=[],lines=[];
   try{
     const r1=await SB.from('pos').select('*').order('id',{ascending:false}).limit(100);pos=r1.data||[];
@@ -602,7 +602,7 @@ async function setCreditLimit(name){
 }
 async function renderApprovals(){
   if(!canManage()&&ROLE!=='finance'){$('content').innerHTML='<div class="empty" style="margin-top:40px">Managers decide approvals; finance may watch.</div>';return;}
-  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  loadingHint();
   let rows=[];
   try{const {data}=await SB.from('approvals').select('*').order('id',{ascending:false}).limit(200);rows=data||[];}
   catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Could not load — run the finance-suite SQL from SUPABASE-SETUP.md first.</div>';return;}
@@ -895,7 +895,7 @@ function qtMine(q){
 }
 async function renderQuotes(){
   if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
-  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  loadingHint();
   await loadQuotes(true);try{loadPromos();}catch(e){}
   const rows=QUOTES.filter(qtMine);
   const open=rows.filter(q=>['draft','sent'].includes(q.status));
@@ -1096,7 +1096,7 @@ function promoFor(sku){ // first live promo covering this SKU (today inside wind
 }
 async function renderPromos(){
   if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
-  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  loadingHint();
   await loadPromos(true);
   const canW=roleIn('admin','marketing');
   const today=new Date().toISOString().slice(0,10);
@@ -1154,7 +1154,7 @@ async function promoDel(id){
 /* ══════════ PRODUCT REGISTRATION TRACKING — CPR/FDA per SKU ══════════ */
 async function renderRegs(){
   if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
-  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  loadingHint();
   let items=[];
   try{const {data,error}=await SB.from('items').select('sku,name,reg_type,reg_no,reg_expiry').order('sku');if(error)throw error;items=data||[];}
   catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Needs the item master + registration SQL (SUPABASE-SETUP.md): '+esc(e.message||e)+'</div>';return;}
@@ -1271,7 +1271,7 @@ const SD_PLANS={discount:'Discount / promo',foc:'FOC to a loyal account',transfe
 function sdRisk(d){return d<=60?'rd':d<=92?'am':'bl';} // expired lots are <=60 too — same red
 async function renderShortDated(){
   if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
-  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  loadingHint();
   let plans=[];
   try{const {data,error}=await SB.from('shortdated').select('*').limit(1000);if(error)throw error;plans=data||[];}
   catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Needs the shortdated SQL (SUPABASE-SETUP.md): '+esc(e.message||e)+'</div>';return;}
@@ -1348,7 +1348,7 @@ async function sdClose(id){
 async function renderPoScore(){
   if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
   if(!roleIn('admin','finance','supply_chain')){$('content').innerHTML='<div class="empty" style="margin-top:40px">Finance, admin and the warehouse team only — this page shows purchase costs.</div>';return;}
-  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  loadingHint();
   let pos=[],lines=[],sups=[];
   try{
     const [a,b,c]=await Promise.all([
@@ -1456,7 +1456,7 @@ async function renderCycleCounts(){
   if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
   const canW=canWarehouse();
   if(CCS){renderCCSheet();return;}
-  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  loadingHint();
   let sessions=[];
   try{const {data}=await SB.from('count_sessions').select('*').order('id',{ascending:false}).limit(20);sessions=data||[];}catch(e){}
   const last=sessions[0];
@@ -1528,7 +1528,7 @@ async function ccClose(){
 /* ══════════ CASH-FLOW FORECAST — collections per week from AR terms + PDC maturities ══════════ */
 async function renderCashflow(){
   if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
-  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  loadingHint();
   await loadNativeOrders();
   let pdcs=[];try{const {data}=await SB.from('pdcs').select('account,amount,maturity,status').in('status',['on_hand','deposited']);pdcs=data||[];}catch(e){}
   const today=new Date();today.setHours(0,0,0,0);
@@ -1632,7 +1632,7 @@ async function quarAdd(sku,name,qty,batch,reason,ref,pullFromStock){
 }
 async function renderQuarantine(){
   if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
-  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  loadingHint();
   let rows=[];
   try{const {data,error}=await SB.from('quarantine').select('*').order('id',{ascending:false}).limit(300);if(error)throw error;rows=data||[];}
   catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Needs the quarantine SQL (SUPABASE-SETUP.md): '+esc(e.message||e)+'</div>';return;}
@@ -1689,7 +1689,7 @@ async function quarDecide(id,status){
 /* ── WAREHOUSE KPIs: measurable the moment the ledger is authoritative ── */
 async function renderWhKpi(){
   if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
-  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  loadingHint();
   const since30=new Date(Date.now()-30*864e5).toISOString();
   let ful=[],pend=[],boN=0,boAll=0,picks7=0;
   try{
@@ -1727,7 +1727,7 @@ async function renderWhKpi(){
 /* ── COMPLAINTS LOG: quality reports with batch reference, feeding the recall trace ── */
 async function renderComplaints(){
   if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
-  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  loadingHint();
   let rows=[];
   try{const {data,error}=await SB.from('complaints').select('*').order('id',{ascending:false}).limit(200);if(error)throw error;rows=data||[];}
   catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Needs the complaints SQL (SUPABASE-SETUP.md): '+esc(e.message||e)+'</div>';return;}
@@ -1823,7 +1823,7 @@ function manualTab(){
 /* ══════════ SUPPLIER MASTER + INCOMING SHIPMENTS + VALUATION ══════════ */
 async function renderSuppliers(){
   if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
-  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  loadingHint();
   let sup=[],pos=[];
   try{const {data,error}=await SB.from('suppliers').select('*').order('name');if(error)throw error;sup=data||[];}
   catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Needs the procure-to-pay SQL (SUPABASE-SETUP.md): '+esc(e.message||e)+'</div>';return;}
@@ -2034,7 +2034,7 @@ const TR_NO=id=>'TR-'+String(1000+Number(id));
 let TCART=[];
 async function renderTransfers(){
   if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
-  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  loadingHint();
   let rows=[];
   try{const {data,error}=await SB.from('transfers').select('*,transfer_lines(*)').order('id',{ascending:false}).limit(100);if(error)throw error;rows=data||[];}
   catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Needs the transfer-orders SQL (SUPABASE-SETUP.md): '+esc(e.message||e)+'</div>';return;}
@@ -2251,14 +2251,28 @@ function canDecidePullout(p){
   const me=(SBUSER&&SBUSER.id)||'';
   return (f.approver_id&&f.approver_id===me)||(f.backup_id&&f.backup_id===me)||(typeof isSuper==='function'&&isSuper());
 }
-async function renderPullouts(){
+async function renderPullouts(cheap){
   if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
-  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  // cheap = the only thing that changed is the local cart (you added or removed a
+  // line you just typed). Repaint from what we already have — no placeholder, no
+  // round-trip, no waiting to see the item you entered.
+  if(cheap&&window._PLROWS&&window._PLLINES){
+    return plPaint(window._PLROWS,window._PLLINES);
+  }
+  loadingHint();
   await loadFunds(true);
   try{await loadReservations();}catch(e){} // the Available column is meaningless without this
   // the fund-source spend panel values lines at item-master cost; ITEMS is lazy,
   // so prime it or finance would read a confident ₱0
   if(roleIn('admin','finance')){try{await loadItems();}catch(e){}}
+  if(roleIn('admin')&&!window._PLUSERS){ // roster for the approver dropdowns
+    try{
+      const out=(typeof adminUsers==='function')?await adminUsers('list'):null;
+      let arr=(out&&(out.users||out.list))||out||[];
+      if(!Array.isArray(arr))arr=[];
+      window._PLUSERS=arr.filter(u=>u&&u.id).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
+    }catch(e){window._PLUSERS=[];}
+  }
   let rows=[],lines=[];
   try{
     const [a,b]=await Promise.all([
@@ -2270,6 +2284,9 @@ async function renderPullouts(){
   }catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Needs the pull-out SQL (SUPABASE-SETUP.md): '+esc(e.message||e)+'</div>';return;}
   const byPl={};lines.forEach(l=>(byPl[l.pullout_id]||(byPl[l.pullout_id]=[])).push(l));
   window._PLROWS=rows;window._PLLINES=byPl; // the QBO export reads what is on screen
+  plPaint(rows,byPl);
+}
+function plPaint(rows,byPl){
   const canW=canWarehouse();
   const me=(SBUSER&&SBUSER.id)||'';
   const mine=rows.filter(r=>r.requester_id===me);
@@ -2392,13 +2409,25 @@ async function renderPullouts(){
     })():'')+
     // ── fund sources (admin) ──
     (roleIn('admin')?'<div class="panel" style="padding:14px 16px;margin-top:16px"><div class="phd" style="margin-bottom:8px">Fund sources — who approves each class</div>'+
-      '<div class="tscroll"><table><thead><tr><th>Class (QBO)</th><th>Approver</th><th>Backup</th><th>Active</th><th></th></tr></thead><tbody>'+
-      (FUNDS||[]).map(f=>'<tr><td style="font-weight:600">'+esc(f.class)+'</td>'+
-        '<td>'+(f.approver_name?esc(f.approver_name):'<span style="color:var(--rd)">not set</span>')+'</td>'+
-        '<td class="mu">'+(f.backup_name?esc(f.backup_name):'—')+'</td>'+
-        '<td>'+(f.active?'<span class="pill pgr">yes</span>':'<span class="pill" style="background:var(--sf2);color:var(--tx3)">no</span>')+'</td>'+
-        '<td style="font-size:11.5px;white-space:nowrap"><a href="#" onclick="plSetApprover(\''+esc(f.class).replace(/'/g,'&#39;')+'\',false);return false" style="color:var(--ac)">set approver</a> · <a href="#" onclick="plSetApprover(\''+esc(f.class).replace(/'/g,'&#39;')+'\',true);return false" style="color:var(--ac)">backup</a> · <a href="#" onclick="plToggleFund(\''+esc(f.class).replace(/'/g,'&#39;')+'\','+(f.active?'false':'true')+');return false" style="color:var(--tx3)">'+(f.active?'deactivate':'activate')+'</a></td></tr>').join('')+
-      '</tbody></table></div><div style="font-size:11px;color:var(--tx3);margin-top:8px">An approver can be anyone with an HQ login — including someone whose role is otherwise read-only. The super admin can decide any class as a fallback.</div></div>':'');
+      '<div class="tscroll"><table><thead><tr><th>Class (QBO)</th><th>Approver</th><th>Backup (optional)</th><th>Active</th><th></th></tr></thead><tbody>'+
+      (function(){
+        const us=window._PLUSERS||[];
+        const sel=(f,isB)=>{
+          const cur=isB?(f.backup_id||''):(f.approver_id||'');
+          const cls=esc(f.class).replace(/'/g,'&#39;');
+          return '<select onchange="plSetApprover(\''+cls+'\','+(isB?'true':'false')+',this.value)" '+
+            'style="background:var(--bg);color:var(--tx);border:1px solid '+((!isB&&!cur)?'var(--rd)':'var(--bd)')+';border-radius:8px;padding:6px 8px;font-size:12px;max-width:210px">'+
+            '<option value="">'+(isB?'— no backup —':'— not set —')+'</option>'+
+            us.map(u=>'<option value="'+esc(u.id)+'"'+(u.id===cur?' selected':'')+'>'+esc(u.name||u.email||'(no name)')+' · '+esc(String(u.role||'').replace('_',' '))+'</option>').join('')+
+            '</select>';
+        };
+        return (FUNDS||[]).map(f=>'<tr><td style="font-weight:600">'+esc(f.class)+'</td>'+
+          '<td>'+(us.length?sel(f,false):(f.approver_name?esc(f.approver_name):'<span style="color:var(--rd)">not set</span>'))+'</td>'+
+          '<td>'+(us.length?sel(f,true):(f.backup_name?esc(f.backup_name):'—'))+'</td>'+
+          '<td>'+(f.active?'<span class="pill pgr">yes</span>':'<span class="pill" style="background:var(--sf2);color:var(--tx3)">no</span>')+'</td>'+
+          '<td style="font-size:11.5px;white-space:nowrap"><a href="#" onclick="plToggleFund(\''+esc(f.class).replace(/'/g,'&#39;')+'\','+(f.active?'false':'true')+');return false" style="color:var(--tx3)">'+(f.active?'deactivate':'activate')+'</a></td></tr>').join('');
+      })()+
+      '</tbody></table></div><div style="font-size:11px;color:var(--tx3);margin-top:8px">Pick from the dropdown — changes save immediately. An approver can be anyone with an HQ login, including someone whose role is read-only everywhere else; approval rights come from this table, not from their access level. The super admin can decide any class as a fallback.</div></div>':'');
   plRestore();
 }
 function plSpendCSV(){
@@ -2446,9 +2475,9 @@ function plAddLine(){
   const ex=window._plCart.find(l=>l.sku===p.sku);
   if(ex)ex.qty+=qty;else window._plCart.push({sku:p.sku,name:p.name,qty,uom});
   ['pl-sku','pl-qty'].forEach(id=>{if($(id))$(id).value='';});
-  renderPullouts();
+  renderPullouts(true); // local change only — repaint, don't reload
 }
-function plDropLine(i){plKeep();window._plCart.splice(i,1);renderPullouts();}
+function plDropLine(i){plKeep();window._plCart.splice(i,1);renderPullouts(true);}
 async function plSubmit(){
   const cart=window._plCart||[];
   if(!cart.length)return alert('Add at least one item.');
@@ -2566,31 +2595,18 @@ async function plBooked(id){
     audit('pullout.booked',{no:PL_NO(id),ref});renderPullouts();
   }catch(e){alert('Could not save: '+(e.message||e));}
 }
-async function plSetApprover(cls,isBackup){
+async function plSetApprover(cls,isBackup,userId){
   if(!roleIn('admin'))return alert('Admins set fund-source approvers.');
-  let users=[];
-  try{ // adminUsers goes via the server function — plain profiles reads are own-row only
-    const out=(typeof adminUsers==='function')?await adminUsers('list'):null;
-    let arr=(out&&(out.users||out.list))||out||[];
-    if(!Array.isArray(arr))arr=[];
-    users=arr.filter(u=>u&&u.id).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
-  }catch(e){}
-  if(!users.length){try{const {data}=await SB.from('profiles').select('id,name,role').order('name');users=data||[];}catch(e){}}
-  if(!users.length)return alert('Could not load the user list. Open Team & access once, then try again.');
-  const list=users.map((u,i)=>(i+1)+') '+(u.name||'(no name)')+' — '+String(u.role||'').replace('_',' ')).join('\n');
-  const pick=prompt((isBackup?'BACKUP approver':'Approver')+' for '+cls+':\n\n'+list+'\n\nEnter a number (blank = clear):','');
-  if(pick===null)return;
-  const t=pick.trim();
-  const u=t?users[parseInt(t,10)-1]:null;
-  if(t&&!u)return alert('No user at that number — nothing changed.');
+  const u=(window._PLUSERS||[]).find(x=>x.id===userId)||null;
   try{
-    const patch=isBackup?{backup_id:u?u.id:null,backup_name:u?u.name:null}:{approver_id:u?u.id:null,approver_name:u?u.name:null};
+    const patch=isBackup?{backup_id:u?u.id:null,backup_name:u?(u.name||u.email||''):null}
+                        :{approver_id:u?u.id:null,approver_name:u?(u.name||u.email||''):null};
     patch.updated_by=(SBUSER&&SBUSER.id)||null;patch.updated_at=new Date().toISOString();
     const {error}=await SB.from('fund_sources').update(patch).eq('class',cls);
     if(error)throw error;
-    audit('fundsource.set',{class:cls,who:u?u.name:'(cleared)',backup:!!isBackup});
+    audit('fundsource.set',{class:cls,who:u?(u.name||u.email):'(cleared)',backup:!!isBackup});
     await loadFunds(true);renderPullouts();
-  }catch(e){alert('Could not save: '+(e.message||e));}
+  }catch(e){alert('Could not save: '+(e.message||e));await loadFunds(true);renderPullouts();}
 }
 async function plToggleFund(cls,active){
   if(!roleIn('admin'))return;
@@ -2601,3 +2617,97 @@ async function plToggleFund(cls,active){
     await loadFunds(true);renderPullouts();
   }catch(e){alert('Could not save: '+(e.message||e));}
 }
+
+/* ══════════════════ APP-WIDE TABLE SORTING ══════════════════
+   Every table in HQ is built as an innerHTML string by its own render
+   function, so wiring sort state into 87 of them would be 87 chances to get
+   it wrong. Instead this sorts the RENDERED DOM: click any column header,
+   the rows reorder in place; click again to reverse.
+
+   What it deliberately leaves alone:
+   · headers that already have their own onclick (All SKUs has real,
+     data-level sorting that survives paging — that one wins)
+   · rows that are not data: section headings, TOTAL lines and empty-state
+     rows all use a colspan, so they stay exactly where the render put them
+     and the data rows sort around them
+   · anything marked data-nosort
+
+   Because it re-appends the existing <tr> nodes rather than rebuilding them,
+   every onclick, drawer link and inline handler inside a row keeps working.
+   A re-render (filter, refresh, action) resets to the render's own order,
+   which is the honest behaviour: this is a way to look at what is on screen,
+   not a saved preference. */
+(function(){
+  const NUM=/^-?[\d,.]+$/;
+  function keyOf(td){
+    const raw=(td?td.textContent:'').replace(/\s+/g,' ').trim();
+    if(!raw||raw==='—'||raw==='–'||raw==='-')return {empty:true,n:0,s:''};
+    // money, percentages, counts, and short unit suffixes: 45d · 12u · 98% · ₱1,234
+    let t=raw.replace(/[₱, ]/g,'').replace(/[−–—]/g,'-');
+    const m=t.match(/^(-?[\d.]+)\s*(?:%|[a-z]{1,3})?$/i);
+    if(m&&NUM.test(m[1].replace(/\./g,'.'))){
+      const n=parseFloat(m[1]);
+      if(!isNaN(n))return {n,s:raw.toLowerCase()};
+    }
+    // ISO dates sort correctly as text; MM/YYYY expiry does not
+    const exp=raw.match(/^(\d{1,2})[\/\-](\d{4})$/);
+    if(exp)return {n:(+exp[2])*100+(+exp[1]),s:raw.toLowerCase()};
+    const iso=raw.match(/^\d{4}-\d{2}-\d{2}/);
+    if(iso)return {n:new Date(raw.slice(0,10)).getTime()||0,s:raw.toLowerCase()};
+    return {n:null,s:raw.toLowerCase()};
+  }
+  function sortTable(table,idx,dir){
+    const body=table.tBodies&&table.tBodies[0];if(!body)return;
+    const head=table.tHead&&table.tHead.rows[table.tHead.rows.length-1];if(!head)return;
+    const width=head.cells.length;
+    const rows=Array.prototype.slice.call(body.rows);
+    // data rows only: full width, no colspan (that is how this app draws
+    // section headings, totals and "nothing here yet" rows)
+    const pos=[],data=[];
+    rows.forEach((r,i)=>{
+      if(r.cells.length!==width)return;
+      for(let c=0;c<r.cells.length;c++)if(r.cells[c].colSpan>1)return;
+      if(r.hasAttribute('data-nosort'))return;
+      pos.push(i);data.push(r);
+    });
+    if(data.length<2)return;
+    const keys=new Map();
+    data.forEach(r=>keys.set(r,keyOf(r.cells[idx])));
+    data.sort((a,b)=>{
+      const ka=keys.get(a),kb=keys.get(b);
+      if(ka.empty!==kb.empty)return ka.empty?1:-1;      // blanks last, both ways
+      let v;
+      if(ka.n!==null&&kb.n!==null)v=ka.n-kb.n;
+      else v=ka.s.localeCompare(kb.s,undefined,{numeric:true,sensitivity:'base'});
+      return v*dir;
+    });
+    // put the sorted rows back into the slots the data rows occupied, so
+    // headings and totals keep their place
+    const out=rows.slice();
+    pos.forEach((p,k)=>{out[p]=data[k];});
+    const frag=document.createDocumentFragment();
+    out.forEach(r=>frag.appendChild(r));
+    body.appendChild(frag);
+  }
+  document.addEventListener('click',function(e){
+    const th=e.target&&e.target.closest?e.target.closest('th'):null;
+    if(!th)return;
+    if(th.hasAttribute('onclick')||th.hasAttribute('data-nosort'))return; // its own sort wins
+    const table=th.closest('table');if(!table||!table.tHead)return;
+    const head=table.tHead.rows[table.tHead.rows.length-1];
+    if(th.parentNode!==head)return;
+    for(let c=0;c<head.cells.length;c++)if(head.cells[c].colSpan>1)return; // merged header: skip
+    const idx=th.cellIndex;
+    const dir=(table._sortIdx===idx&&table._sortDir===1)?-1:1;
+    sortTable(table,idx,dir);
+    table._sortIdx=idx;table._sortDir=dir;
+    Array.prototype.forEach.call(head.cells,c=>{
+      c.classList.remove('sorted');
+      const old=c.querySelector('.thsort');if(old)old.remove();
+    });
+    th.classList.add('sorted');
+    const arrow=document.createElement('span');
+    arrow.className='thsort';arrow.textContent=dir===1?' ▲':' ▼';
+    th.appendChild(arrow);
+  },true);
+})();

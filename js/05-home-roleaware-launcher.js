@@ -349,7 +349,7 @@ function arRows(){
   return Object.values(acc).sort((a,b)=>b.total-a.total);
 }
 async function renderAR(){
-  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  loadingHint();
   await loadNativeOrders(true);
   const rows=arRows();
   const T2={total:0,cur:0,d30:0,d60:0,d90:0};
@@ -559,7 +559,7 @@ async function renderSpecPage(){
 
 /* ── FULFILLMENT QUEUE (Verna's worklist) ── */
 async function renderFulfillQ(){
-  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  loadingHint();
   await loadNativeOrders(true);
   const today=new Date().toISOString().slice(0,10);
   const held=(NORDERS||[]).filter(o=>o.status==='pending'&&!o.deleted_at&&o.approved===false).length;

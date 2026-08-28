@@ -396,3 +396,54 @@ admin/supply_chain/finance, or the requester while the row is still `pending`
 Notifications follow the action-taker rule: the request pings the fund source
 (and backup) only; approval pings finance and supply chain; the decision and the
 release ping the requester.
+
+## 3.10 Table sorting — one delegated listener, not 87 implementations
+
+Every table in HQ is an innerHTML string produced by its own render function.
+Threading sort state through all of them would mean 87 chances to get it wrong,
+so sorting operates on the rendered DOM instead: a single capture-phase click
+listener (end of js/10) resolves `closest('th')`, sorts the `<tbody>`, and
+re-appends the existing `<tr>` nodes — which is why inline row handlers,
+drawer links and action links keep working after a sort.
+
+Rules it applies:
+
+- a `<th>` carrying its own `onclick` is left alone, so All SKUs' real
+  data-level sort (which sorts the dataset, not the page) still wins;
+- rows whose cell count differs from the header, or that contain a `colSpan`,
+  are treated as non-data — section headings, TOTAL rows and empty states hold
+  their original index while the data rows sort into the slots between them;
+- a header row containing a merged cell disables sorting for that table;
+- `data-nosort` on a `th` or `tr` opts out explicitly.
+
+Key extraction is type-aware: currency and thousands separators are stripped,
+a trailing unit or `%` is tolerated (`45d`, `12u`, `98%`), `MM/YYYY` expiry
+strings become sortable integers, ISO dates become timestamps, everything else
+falls back to a numeric-aware locale compare. Empty cells and em-dashes sort
+last in both directions.
+
+State lives on the DOM node (`table._sortIdx/_sortDir`), so it resets on
+re-render by design.
+
+## 3.11 Silent re-render
+
+28 render functions opened with the same line: blank `#content` to a "Loading…"
+placeholder, fetch, repaint. Fine on navigation, jarring on every action-driven
+redraw — the page flashed empty and lost its scroll position.
+
+`loadingHint()` (js/01) replaces that line everywhere. It paints the placeholder
+only when `window._navPaint` is set, which `showView()` does exactly once per
+genuine view change (and never when re-entering the view already on screen). Any
+other caller — an action re-rendering its own view, the js/01 refresh router —
+leaves the existing markup up until the new innerHTML lands.
+
+`keepScroll()` handles position. A timer can't work here: the repaint happens
+after an `await` of unknown length. It captures `.main`'s scrollTop, attaches a
+`MutationObserver` to `#content`, and restores on the next animation frame after
+the children actually change, guarding against a now-shorter page and clearing
+itself after a 4s fallback. `showView` disconnects it so a new page starts at
+the top.
+
+`renderPullouts(cheap)` shows the other half of the pattern: when only local
+state changed (the request cart), it re-paints from `window._PLROWS/_PLLINES`
+via `plPaint()` instead of re-querying — no placeholder, no round-trip.

@@ -640,7 +640,7 @@ async function fuMark(id,field){
 }
 async function renderFollowups(){
   if(!SB){$('content').innerHTML='<div class="empty" style="margin-top:40px">Follow-ups need the account sign-in (Supabase) — available once you log in with your Healthspan account.</div>';return;}
-  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  loadingHint();
   await loadVisits(true);
   const myTag=(SBPROFILE&&SBPROFILE.specialist_tag)||'';
   const mine=v=>!myTag||specCanon(v.spec).toLowerCase()===specCanon(myTag).toLowerCase();

@@ -28,6 +28,10 @@ function showView(v,el){
     else{v='home';el=document.querySelector('.ni[onclick*="\'home\'"]');}
   }
   if(typeof pushRoute==='function')pushRoute('#/v/'+v); // browser back/forward works across views
+  // a genuine navigation: the placeholder is welcome here, and only here.
+  // Action-triggered redraws of the same view refresh in place (see loadingHint).
+  window._navPaint=(currentView!==v)||!( $('content')&&$('content').firstChild );
+  if(window._navPaint&&window._keepObs){window._keepObs.disconnect();window._keepObs=null;} // new page starts at the top
   currentView=v;
   try{if(window._animReady&&window._lastAnimView!==v){window._lastAnimView=v;const _c=$('content');_c.style.animation='none';void _c.offsetHeight;_c.style.animation='viewin .18s ease';}}catch(e){}fLine='';fSearch='';fTab='all';fBin='';fSup='';
   document.querySelectorAll('.ni').forEach(x=>x.classList.remove('active'));
@@ -916,7 +920,7 @@ async function submitOrder(){
 async function renderOrders(){
   // SERVER-SIDE register: once the history is migrated, each page is its own query
   // (range + search + count) — no more shipping the whole register to the browser.
-  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  loadingHint();
   if(window._MIGRATED===undefined&&SB){
     try{const {count}=await SB.from('orders').select('id',{count:'exact',head:true}).eq('source','shopify');window._MIGRATED=(count||0)>0;}catch(e){}
   }
@@ -991,7 +995,7 @@ async function renderOrdersServer(){
     '<div class="empty" style="margin-top:30px">'+(q?'Nothing matches “'+esc(q)+'”.':trash?'Trash is empty.':'No orders yet.')+'</div>');
 }
 async function renderOrdersLocal(){
-  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  loadingHint();
   const [os]=await Promise.all([loadNativeOrders(true),loadOverrides(true)]);
   const myTag=(SBPROFILE&&SBPROFILE.specialist_tag)||'';
   const mine=o=>!myTag||specCanon(o.spec).toLowerCase()===specCanon(myTag).toLowerCase();
@@ -1052,7 +1056,7 @@ function showOrderPage(ref){
 }
 async function renderOrderPage(){
   const ref=CUR_ORDER;if(!ref){showView(ORDER_BACK);return;}
-  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  loadingHint();
   let o=null,src='native';
   if(SB&&/^[0-9a-f-]{30,40}$/i.test(ref)){try{const {data}=await SB.from('orders').select('*,order_lines(*)').eq('id',ref).maybeSingle();o=data;}catch(e){}}
   if(!o&&SB&&/HG-/i.test(ref)){ // migrated Shopify order opened by its number

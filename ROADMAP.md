@@ -99,6 +99,10 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ Mobile once-and-for-all: sticky top bar (never scrolls away, no rubber-band gap) · customizable bottom bar (each user picks their 4 quick-access pages; Home + Menu fixed)
 - ✅ HD home-screen icons: white logo on brand blue (192/512/maskable/apple-touch)
 
+**Usability (Aug 28)**
+- ✅ Silent re-render: the "Loading…" blank-out now only happens on real navigation. All 28 views refresh in place after an action and keep the scroll position (MutationObserver-timed, not a guess); the pull-out cart repaints from cache with no DB round-trip
+- ✅ App-wide table sorting: click any column header for A–Z, again for Z–A, on all 87 tables — one delegated listener, type-aware (money, units, MM/YYYY expiry, ISO dates, %), blanks last, section/TOTAL rows pinned, existing row handlers preserved; All SKUs keeps its own dataset-level sort
+
 **Inventory pull-outs (Aug 28)**
 - ✅ Pull-out requests replace the Google form: catalogue picker with on-hand/ATP, fund source (QBO class), reason, product line, date needed, purpose
 - ✅ Requesting RESERVES the units (out of available-to-promise, so the same box can't be sold and pulled) — reservations now union pending orders + live pull-outs

@@ -7,7 +7,7 @@ function audit(action,detail){
 }
 async function renderAudit(){
   if(ROLE!=='admin'){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admin and super admin only.</div>';return;}
-  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  loadingHint();
   let rows=[];
   try{const {data}=await SB.from('audit_log').select('at,who,action,detail').order('at',{ascending:false}).limit(400);rows=data||[];}
   catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Could not load — has the audit_log table been created? (SUPABASE-SETUP.md)</div>';return;}
@@ -49,7 +49,7 @@ async function maybeSnapshotForecast(){
 }
 async function renderFcastAcc(){
   if(!canManage()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only.</div>';return;}
-  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  loadingHint();
   maybeSnapshotForecast();
   let rows=[];
   try{const {data}=await SB.from('forecast_snapshots').select('month,sku,name,forecast_units,actual_units').order('month',{ascending:false}).limit(5000);rows=data||[];}
@@ -102,7 +102,7 @@ async function loadCampaigns(force){
 }
 async function renderCampaigns(){
   if(!canManage()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only.</div>';return;}
-  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  loadingHint();
   await loadCampaigns(true);
   const today=new Date().toISOString().slice(0,10);
   const inp='style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;font-size:12.5px"';
@@ -352,7 +352,7 @@ async function downloadBackup(){
 }
 async function renderCutover(){
   if(!isSuper()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Super admin only.</div>';return;}
-  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  loadingHint();
   await loadFlags(true);await loadItems();
   let moves=0,rets=0,cc=[];
   try{const {count}=await SB.from('stock_moves').select('id',{count:'exact',head:true});moves=count||0;}catch(e){}
@@ -429,7 +429,7 @@ function applyCatalog(){ // when independent, the item master overrides prices e
 }
 async function renderCatalog(){
   if(!circleRole()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only.</div>';return;}
-  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  loadingHint();
   await loadFlags();await loadItems(true);
   const items=Object.values(ITEMS).sort((a,b)=>String(a.sku).localeCompare(String(b.sku)));
   const on=flagOn('use_catalog_pricing');
@@ -566,7 +566,7 @@ function renderSalesDue(){
 // ── RETURNS & CREDIT MEMOS (shadow: also process in Shopify while parallel)
 async function renderReturns(){
   if(!canManage()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only.</div>';return;}
-  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  loadingHint();
   await loadFlags();
   let rows=[];
   try{const {data}=await SB.from('returns').select('*').order('id',{ascending:false}).limit(300);rows=data||[];}
@@ -1135,7 +1135,7 @@ async function acDelContact(id,key,name){
 const PDC_ST={on_hand:'on hand',deposited:'deposited',cleared:'cleared',bounced:'bounced'};
 async function renderPDC(){
   if(!canManage()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only.</div>';return;}
-  $('content').innerHTML='<div class="empty" style="margin-top:40px">Loading…</div>';
+  loadingHint();
   let rows=[];
   try{const {data}=await SB.from('pdcs').select('*').order('maturity');rows=data||[];}
   catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Could not load — has the pdcs table been created? (SUPABASE-SETUP.md)</div>';return;}
