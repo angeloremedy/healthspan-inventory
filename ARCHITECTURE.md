@@ -313,6 +313,28 @@ from `profiles` at sign-in and drive everything (`ROLE`, `SBPROFILE`).
 - Peso figures are full numbers everywhere (no ₱145K abbreviations).
 - Specialist tag aliases: `SPEC_ALIAS = {kristine: 'Tin'}` merges spellings.
 - 2026 targets imported from the Revised Corporate Target workbook (245 rows).
+- Internal vs external: `shopify-build-background.mjs` stamps every order as
+  internal (Remedy branches, Healthspan staff/academy) or not, by customer name
+  OR specialist tag, and writes a parallel set of per-SKU and per-specialist
+  buckets (`imonthly`, `idaily`) plus `recent[].x`. The client subtracts them
+  through `netPeriod()`/`netMonthly()` in `js/01`; nothing reads `sumPeriod()`
+  directly any more. `SEXT` (default true = external only) is the one setting;
+  passing `force` to those helpers ignores it, which is how targets and
+  commissions stay external-only whatever the toggle says.
+  `INT_CUST` is anchored (`^`). An unanchored `/vertis|gh mall/` — which is what
+  `refresh.mjs`'s `BMAP` does to the warehouse sheet's destination column, where
+  those words mean the branch — also matches a third-party clinic located in that
+  mall. Since targets and commissions exclude internal unconditionally, that would
+  quietly remove revenue from someone's attainment and pay with nothing on screen
+  to explain it. So the two feeds deliberately do NOT share a keyword list, and
+  the Accounts list reconciles them: an account is internal if the sheet's
+  `isRemedy` or the Shopify build's per-order verdict says so.
+- `customers[].int` means "every order for this account was internal", and
+  `customers[].iv` / `.iv90` carry the internal slice of the booked total. The
+  Accounts list subtracts the slice and drops only wholly-internal accounts
+  (`acctExternal()` in `js/04`), so its Booked total equals Sales overview's.
+  An earlier version wrote `int` once at record creation — first order wins — so a
+  single mis-tagged order hid a real clinic and its entire revenue.
 - "Vs accounting" reconciles to the Sales Report sheet's **Sales Booked
   excluding Remedy** (verified: 102.4M − 9.9M Remedy = 92.46M).
 - Native orders stay **out of sales totals** during the parallel run with

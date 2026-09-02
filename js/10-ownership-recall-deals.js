@@ -121,17 +121,24 @@ async function homeLive(){
   const chips=[];
   // MTD booked (mine for specialists, team otherwise)
   if(SHOPIFY&&SHOPIFY.recent){
-    let mtd=0;
+    /* Two figures on purpose: the chip follows the toolbar toggle so home agrees
+       with the sales views, but the % of target is always external, because a
+       target is. Letting a quota percentage move with a view preference was the
+       bug here. */
+    let mtd=0,mtdExt=0;
     for(const o of SHOPIFY.recent){
       if((o.dt||'').slice(0,7)!==ym||/pull\s*-?\s*out/i.test(o.c||''))continue;
       const t=specCanon(o.t||'');
-      if(INTERNAL_TAG.test(t))continue;
+      const int=ordInternal(o);
       if(myTag&&t.toLowerCase()!==specCanon(myTag).toLowerCase())continue;
-      mtd+=(o.ls||[]).reduce((a,l)=>a+(l[2]||0),0);
+      const v=(o.ls||[]).reduce((a,l)=>a+(l[2]||0),0);
+      if(!int)mtdExt+=v;
+      if(!(SEXT&&hasIntSplit()&&int))mtd+=v;
     }
     let tgt=null;
     if(myTag){const x=(TARGETS||[]).find(x=>x.month===ym&&x.scope==='SPECIALIST'&&specCanon(x.name||'').toLowerCase()===specCanon(myTag).toLowerCase());if(x)tgt=x.value;}
-    chips.push(chip(fmtPeso(mtd),(myTag?'my':'team')+' booked this month',tgt?Math.round(mtd/tgt*100)+'% of target':'', 'var(--ac)',myTag?'salespace':'salesoverview'));
+    chips.push(chip(fmtPeso(mtd),(myTag?'my':'team')+' booked this month'+((SEXT&&hasIntSplit())?'':' (incl. Remedy)'),
+      tgt?Math.round(mtdExt/tgt*100)+'% of target':'', 'var(--ac)',myTag?'salespace':'salesoverview'));
   }
   // open follow-ups (mine for specialists)
   if(VISITS){
@@ -285,12 +292,14 @@ function buildMobileMenu(q){
   // account row at the bottom: who am I + password + sign out (unreachable otherwise on phones)
   const who=(SBPROFILE&&SBPROFILE.name)||(SBUSER&&SBUSER.email)||'';
   html+='<div style="padding:18px;border-top:2px solid var(--bd);margin-top:8px;font-size:13px;color:var(--tx2)">'+esc(who)+' · '+(ROLE==='sales'?'Sales':ROLE==='manager'?'Sales manager':'Admin')+
-    '<div style="display:flex;gap:10px;margin-top:10px">'+
-    '<button onclick="closeMobileMenu();openChangePassword()" style="flex:1;background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px">Change password</button>'+
-    '<button onclick="closeMobileMenu();downloadManual()" style="flex:1;background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px">📖 My manual</button>'+
-    '<button onclick="favOpen()" style="flex:1;background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px">★ Favourites</button>'+
-    '<button onclick="mbarOpen()" style="flex:1;background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px">☆ Customize bar</button>'+
-    '<button onclick="roleLogout()" style="flex:1;background:var(--rd-bg);color:var(--rd);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px;font-weight:600">Sign out</button></div>'+
+    /* a 2-column grid, not a single flex row: five buttons whose labels don't fit
+       forced the whole menu to scroll sideways on phones */
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">'+
+    '<button onclick="closeMobileMenu();openChangePassword()" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px">Change password</button>'+
+    '<button onclick="closeMobileMenu();downloadManual()" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px">📖 My manual</button>'+
+    '<button onclick="favOpen()" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px">★ Favourites</button>'+
+    '<button onclick="mbarOpen()" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px">☆ Customize bar</button>'+
+    '<button onclick="roleLogout()" style="grid-column:1 / -1;background:var(--rd-bg);color:var(--rd);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px;font-weight:600">Sign out</button></div>'+
     '<div style="display:flex;gap:8px;margin-top:10px;align-items:center;font-size:12px;color:var(--tx3)">Theme:'+
     '<button onclick="applyMode(\'light\')" style="background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:7px 12px">☀️</button>'+
     '<button onclick="applyMode(\'dark\')" style="background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:7px 12px">🌙</button>'+
@@ -691,7 +700,10 @@ async function renderCommissions(){
   const S={};
   for(const raw in (SHOPIFY.specialists||{})){
     const cn=specCanon(raw);if(!cn||INTERNAL_TAG.test(cn))continue;
-    const k=cn.toLowerCase();const m=(SHOPIFY.specialists[raw].monthly||{})[ym];
+    const k=cn.toLowerCase();
+    /* Commission is paid on external sales only, always — never on Remedy or
+       Healthspan-internal orders, and deliberately not tied to the sales toggle. */
+    const m=netMonthly(SHOPIFY.specialists[raw],'',true)[ym];
     if(!S[k])S[k]={name:cn,v:0};
     if(m)S[k].v+=m.v||0;
   }
@@ -749,7 +761,7 @@ async function renderCommissions(){
       '<td class="r" style="font-weight:700">'+fmtPeso(r.net)+'</td><td class="r mu">'+(r.T!=null?fmtPeso(r.T):'—')+'</td>'+
       '<td class="r" style="font-weight:600;color:'+(r.att==null?'var(--tx3)':r.att>=100?'var(--gr)':r.att>=80?'var(--am)':'var(--rd)')+'">'+(r.att!=null?r.att.toFixed(0)+'%':'no target')+'</td>'+
       '<td class="r">'+r.pct+'%</td><td class="r" style="font-weight:800;color:var(--ac)">'+fmtPeso(r.comm)+'</td></tr>').join('')+
-    '</tbody></table></div><div class="tfooter"><span>Commission = <b>net</b> × the rate of the highest tier reached, where net = booked less the month\u2019s credit memos attributed to that specialist \u2014 so a return can also drop someone a tier. Credit memos ticked \u201calready refunded in Shopify\u201d are skipped, because the sales cache has already removed those units at source. CMs recorded without a specialist are shown on the card above but cannot be deducted from anyone \u2014 name the specialist when recording them. Based on booked (not collected) sales \u00b7 export is the payroll input — payroll itself stays outside HQ · rate changes are audited</span></div></div>';
+    '</tbody></table></div><div class="tfooter"><span>Booked here is <b>external sales only</b> — Remedy and Healthspan-internal orders never earn commission, and that is fixed, not a setting. Commission = <b>net</b> × the rate of the highest tier reached, where net = booked less the month\u2019s credit memos attributed to that specialist \u2014 so a return can also drop someone a tier. Credit memos ticked \u201calready refunded in Shopify\u201d are skipped, because the sales cache has already removed those units at source. CMs recorded without a specialist are shown on the card above but cannot be deducted from anyone \u2014 name the specialist when recording them. Based on booked (not collected) sales \u00b7 export is the payroll input — payroll itself stays outside HQ · rate changes are audited</span></div></div>';
 }
 async function editCommRules(){
   if(!roleIn('admin','finance'))return;

@@ -105,6 +105,8 @@ therefore a floor — implementation grants the full circle read to all three.
 | Receiving & supplier score (shows PO cost) | ✅ | ✖ | ✖ | ✅ | ✅ | ✖ |
 | PO unit-cost column (on Purchase orders) | ✅ | ✖ | ✖ | ✅ | ✅ | ✖ |
 | Favourites (own shortcuts, up to 10) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (every role) |
+| With/without Remedy toggle | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ — a per-person view setting, not a permission; it changes nothing about what you may open |
+| Targets & commissions population | external only | external only | external only | external only | external only | fixed, not a setting — the toggle does not reach these pages |
 | Remove an attachment | own uploads | own uploads | ✅ | ✅ | ✅ | enforced server-side in upload.mjs, not by the browser |
 | Account documents (view / add) | ✅ | ✅ | ✅ | ✅ | ✅ | 👁 |
 | Visit photos (on your own visit) | ✅ | ✅ | ✅ | ✅ | ✅ | ✖ | everyone may open a visit's files; only its owner attaches |

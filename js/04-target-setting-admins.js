@@ -265,9 +265,16 @@ function buildAcctIdx(){
     if(/pull\s*-?\s*out/i.test(n))continue;
     const e=get(n);if(!e)continue;
     const s=SHOPIFY.customers[n];
-    if(!e.shop)e.shop={o:0,u:0,v:0,u90:0,v90:0,l:''};
+    if(!e.shop)e.shop={o:0,u:0,v:0,u90:0,v90:0,l:'',iv:0,iv90:0,io:0,int:false};
     e.shop.o+=s.o||0;e.shop.u+=s.u||0;e.shop.v+=s.v||0;e.shop.u90+=s.u90||0;e.shop.v90+=s.v90||0;
     if((s.l||'')>e.shop.l)e.shop.l=s.l;
+    /* The Shopify build's per-order view of this account. isRemedy comes from the
+       warehouse sheet, which collapses the branches into one row called "Remedy"
+       and never sees "Remedy BGC" or "Healthspan Academy" — so the two disagree.
+       iv/iv90 are the internal SLICE of the booked figure: an account with one
+       mis-tagged order should lose that order from the total, not vanish. */
+    e.shop.iv+=s.iv||0;e.shop.iv90+=s.iv90||0;e.shop.io+=s.io||0;
+    if(s.int)e.shop.int=true;   // every order internal → the account itself is
     if(!e.sheet)e.name=acctDedup(n);
   }
   for(const v of (VISITS||[])){const e=get(v.account);if(!e)continue;e.visitN++;if(v.date>e.lastVisit)e.lastVisit=v.date;}
@@ -297,7 +304,7 @@ function buildAcctIdx(){
       if(!P)P=ACCTBYNORM[pk]={name:pName,names:new Set([pName]),sheet:null,shop:null,visitN:0,lastVisit:'',isRemedy:e.isRemedy,children:null,parentKey:null,virtual:true};
       (P.children=P.children||[]).push(k);
       e.parentKey=pk;
-      P.isRemedy=P.isRemedy||e.isRemedy;
+      P.isRemedy=P.isRemedy||e.isRemedy;   // the internal slice rolls up via acctAgg
     }
   }
   // curated parent/child links from the database (set in-app by admins & managers)
@@ -311,7 +318,7 @@ function buildAcctIdx(){
     if(!P)P=ACCTBYNORM[pk]={name:l.to_name,names:new Set([l.to_name]),sheet:null,shop:null,visitN:0,lastVisit:'',isRemedy:C.isRemedy,children:null,parentKey:null,virtual:true};
     (P.children=P.children||[]).push(ck);
     C.parentKey=pk;
-    P.isRemedy=P.isRemedy||C.isRemedy;
+    P.isRemedy=P.isRemedy||C.isRemedy;   // the internal slice rolls up via acctAgg
   }
   return ACCTBYNORM;
 }
@@ -359,13 +366,46 @@ async function unlinkAccount(fromKey,goName){
 // Aggregate an entity + its branches (for the parent's cards and list row)
 function acctAgg(e){
   const list=[e,...((e.children||[]).map(k=>ACCTBYNORM[k]).filter(Boolean))];
-  const out={shipped:0,booked:0,v90:0,orders:0,visitN:0,last:'',names:new Set()};
+  const out={shipped:0,booked:0,v90:0,orders:0,visitN:0,last:'',names:new Set(),
+    ibooked:0,iv90:0,allInt:true,anyShop:false};   // ibooked = the internal slice of booked
   for(const x of list){
     if(x.sheet){out.shipped+=x.sheet.value||0;if((x.sheet.lastOrder||'')>out.last)out.last=x.sheet.lastOrder||'';}
-    if(x.shop){out.booked+=x.shop.v||0;out.v90+=x.shop.v90||0;out.orders+=x.shop.o||0;if((x.shop.l||'')>out.last)out.last=x.shop.l;}
+    if(x.shop){out.booked+=x.shop.v||0;out.v90+=x.shop.v90||0;out.orders+=x.shop.o||0;if((x.shop.l||'')>out.last)out.last=x.shop.l;
+      out.ibooked+=x.shop.iv||0;out.iv90+=x.shop.iv90||0;out.anyShop=true;
+      if(!x.shop.int)out.allInt=false;}
+    if(x.isRemedy&&!x.shop)out.anyShop=out.anyShop; // sheet-only Remedy row: allInt stays true
     out.visitN+=x.visitN;if(x.lastVisit>out.last)out.last=x.lastVisit;
     for(const n of x.names)out.names.add(n);
   }
+  return out;
+}
+/* The external view of an account list.
+
+   Hiding whole accounts was wrong: `int` used to mean "the first order Shopify
+   happened to return was internal", so one mis-tagged order at a real clinic
+   removed that clinic and its entire booked figure, while the sales views
+   subtracted only that one order. The two pages then disagreed in either
+   direction depending on Shopify's paging.
+
+   So: drop only the accounts whose every order was internal (and the warehouse
+   sheet's grouped Remedy row), and for everyone else subtract the internal slice
+   of their booked total. Sum of booked here == Sales overview external. */
+function acctExternal(rows,on){
+  if(!on){const out=rows.slice();out._hidden=0;return out;}
+  let hidden=0;
+  const out=[];
+  for(const r of rows){
+    const sheetRemedy=!!(r.e&&r.e.isRemedy);
+    if(sheetRemedy||r.allInt){hidden++;continue;}
+    const ib=r.ibooked||0,i90=r.iv90||0;
+    if(!ib&&!i90){out.push(r);continue;}
+    out.push(Object.assign({},r,{
+      booked:Math.max(0,(r.booked||0)-ib),
+      v90:Math.max(0,(r.v90||0)-i90),
+      total:Math.max(0,(r.shipped||0)+Math.max(0,(r.booked||0)-ib)),
+      partialInt:ib}));
+  }
+  out._hidden=hidden;
   return out;
 }
 function acctList(){
@@ -375,7 +415,8 @@ function acctList(){
     const hasSheet=e.sheet||(e.children||[]).some(k=>ACCTBYNORM[k]&&ACCTBYNORM[k].sheet);
     const hasShop=e.shop||(e.children||[]).some(k=>ACCTBYNORM[k]&&ACCTBYNORM[k].shop);
     const src=hasSheet&&hasShop?'both':hasSheet?'sheet':hasShop?'shopify':'prospect';
-    return {e,name:e.name,shipped:a.shipped,booked:a.booked,v90:a.v90,last:a.last,src,total:a.shipped+a.booked,branches:(e.children||[]).length};
+    return {e,name:e.name,shipped:a.shipped,booked:a.booked,v90:a.v90,last:a.last,src,total:a.shipped+a.booked,
+      ibooked:a.ibooked,iv90:a.iv90,allInt:a.anyShop?a.allInt:false,branches:(e.children||[]).length};
   }).sort((a,b)=>b.total-a.total);
 }
 

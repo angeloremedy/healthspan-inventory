@@ -26,6 +26,16 @@ let ACCT = null;                  // accounting's official Sales Booked (from th
 let SPERIOD = 'mtd';              // shared period for the Sales views
 let SLINE = null;                 // line filter for Sales views (null = auto-default to Meso)
 let SFROM = '', STO = '';         // custom date range (YYYY-MM-DD) when SPERIOD === 'custom'
+/* Remedy is a sister company and a customer, and Healthspan also sells to its own
+   employees and academy. Accounting's Sales Booked excludes both, so the sales
+   views do too by default — SEXT true means "external only". Per person per
+   device, like the period and line filters. Targets and commissions ignore this
+   setting entirely: they always exclude internal. */
+let SEXT = (()=>{try{const v=localStorage.getItem('hs_sext');return v===null?true:v==='1';}catch(e){return true;}})();
+function setSext(on){SEXT=!!on;try{localStorage.setItem('hs_sext',SEXT?'1':'0');}catch(e){}}
+/* Older cached Shopify builds have no internal buckets. Until the nightly rebuild
+   has run there is nothing to subtract, so the toggle says so instead of lying. */
+function hasIntSplit(){return !!(SHOPIFY&&SHOPIFY.internalSplit);}
 
 /* Endpoints are locked behind the Supabase session — every data fetch carries it */
 async function sbAuthHeaders(extra){
@@ -49,7 +59,7 @@ async function loadShopify(){
     SHOPIFY_ERR=(d&&d.status&&d.status.state==='error')?d.status.error:null;
     if(d&&d.variants){
       SHOPIFY=d;mergeShopify();refreshSidebar();rerenderCurrent();
-      if(d.v!==8)setTimeout(loadShopify,45000); // old format still cached: merge triggered a rebuild — keep polling until the new blob lands
+      if(!(d.v>=9))setTimeout(loadShopify,45000); // old format still cached: merge triggered a rebuild — keep polling until the new blob lands
     }
     else if(d&&d.building){
       setTimeout(loadShopify,15000);
@@ -60,7 +70,10 @@ async function loadShopify(){
 function mergeShopify(){
   if(!SHOPIFY||!SHOPIFY.variants||!DATA.length)return;
   const isNew=SHOPIFY.v>=2;
-  if(SHOPIFY.v!==8){try{sbAuthHeaders().then(h=>fetch('/api/shopify?refresh=1',{headers:h}));}catch(e){}} // old cache format — trigger a rebuild
+  // >= rather than !==: an exact test against the current version turns every
+  // future version bump into a permanent rebuild loop — load, ask for a rebuild,
+  // poll in 45s, ask again — a 13-month order crawl every 45 seconds, per tab.
+  if(!(SHOPIFY.v>=9)){try{sbAuthHeaders().then(h=>fetch('/api/shopify?refresh=1',{headers:h}));}catch(e){}} // old cache format — trigger a rebuild
   const sheetSkus=new Set(DATA.map(p=>p.sku));
   const bases=[...sheetSkus].sort((a,b)=>b.length-a.length); // longest-prefix wins
   // Unit rules (validated on real orders): physical units are itemized as base-SKU
@@ -88,7 +101,8 @@ function mergeShopify(){
       if(!has)continue;
       base=v.sku;isPseudo=true;
     }
-    const S=SALESIDX[base]||(SALESIDX[base]={main:null,bundles:[],monthly:{},daily:{},bmonthly:{},bdaily:{}});
+    const S=SALESIDX[base]||(SALESIDX[base]={main:null,bundles:[],monthly:{},daily:{},bmonthly:{},bdaily:{},
+      imonthly:{},idaily:{},ibmonthly:{},ibdaily:{}});
     if(isPseudo){S.pseudo=true;S.name=(v.productTitle||v.sku);S.line='SHOPIFY ONLY';}
     if(isBundle)S.bundles.push(v);else S.main=v;
     // base lines → monthly/daily (units + revenue); bundle lines → bmonthly/bdaily (deal revenue only)
@@ -96,6 +110,9 @@ function mergeShopify(){
       if(!isBundle){d.u+=gU(c);d.f+=gF(c);d.d+=gD(c);d.dv+=gDV(c);}d.v+=gV(c);}};
     addAgg(isBundle?S.bmonthly:S.monthly,v.monthly);
     addAgg(isBundle?S.bdaily:S.daily,v.daily);
+    // the internal-only mirror of the same numbers, routed the same way
+    addAgg(isBundle?S.ibmonthly:S.imonthly,v.imonthly);
+    addAgg(isBundle?S.ibdaily:S.idaily,v.idaily);
   }
   // Order-level drill-down index: base SKU → orders that touched it
   ORDIDX={};
@@ -114,7 +131,7 @@ function mergeShopify(){
       p.a+=a||0;
     }
     for(const base in per){
-      (ORDIDX[base]||(ORDIDX[base]=[])).push({n:o.n,dt:o.dt,t:o.t||'',c:o.c||'',q:per[base].q,a:per[base].a});
+      (ORDIDX[base]||(ORDIDX[base]=[])).push({n:o.n,dt:o.dt,t:o.t||'',c:o.c||'',q:per[base].q,a:per[base].a,x:o.x?1:0});
     }
   }
   for(const k in ORDIDX)ORDIDX[k].sort((a,b)=>b.dt<a.dt?-1:b.dt>a.dt?1:0);
@@ -146,6 +163,36 @@ function sumPeriod(S,mode){
   else {for(const m in (S.monthly||{}))add((S.monthly||{})[m]);} // all (13 months)
   return out;
 }
+/* The sales views read through these two, never sumPeriod directly, so one
+   setting governs every figure on the page.
+   kind: '' = base lines (units + à-la-carte revenue), 'b' = deal/bundle lines. */
+function netPeriod(S,mode,kind,force){
+  const m=kind==='b'?'bmonthly':'monthly', d=kind==='b'?'bdaily':'daily';
+  const im=kind==='b'?'ibmonthly':'imonthly', id=kind==='b'?'ibdaily':'idaily';
+  const all=sumPeriod({monthly:S[m]||{},daily:S[d]||{}},mode);
+  if(!(force||SEXT)||!hasIntSplit())return all;   // force: targets & commissions never include internal
+  const i=sumPeriod({monthly:S[im]||{},daily:S[id]||{}},mode);
+  return {u:Math.max(0,all.u-i.u),f:Math.max(0,all.f-i.f),v:all.v-i.v,
+          d:Math.max(0,all.d-i.d),dv:all.dv-i.dv};
+}
+/* A month-keyed map net of internal, for the 13-month trend charts. */
+function netMonthly(S,kind,force){
+  const m=kind==='b'?'bmonthly':'monthly', im=kind==='b'?'ibmonthly':'imonthly';
+  const src=S[m]||{};
+  // a DEEP copy: a shallow one still handed out the live month records, and the
+  // widest exposure was force+old-cache — straight into commissions and scorecards
+  if(!(force||SEXT)||!hasIntSplit()){
+    const c={};for(const ym in src)c[ym]=Object.assign({},src[ym]);return c;
+  }
+  const i=S[im]||{},out={};
+  for(const ym in src){const c=src[ym],x=i[ym]||{};
+    out[ym]={u:Math.max(0,(c.u||0)-(x.u||0)),f:Math.max(0,(c.f||0)-(x.f||0)),
+             v:(c.v||0)-(x.v||0),d:Math.max(0,(c.d||0)-(x.d||0)),dv:(c.dv||0)-(x.dv||0)};}
+  return out;
+}
+/* One label, used everywhere a figure is shown, so the reader always knows which
+   population they are looking at. */
+function sextLbl(){return (SEXT&&hasIntSplit())?'external only':'incl. Remedy & internal';}
 function rerenderCurrent(){
   const k={l:fLine,c:fCat,s:fSearch,t:fTab,b:fBin,su:fSup};
   showView(currentView,null);
@@ -240,13 +287,13 @@ const DESC={
   cashexpiry:'The peso value tied up in stock that’s expiring soon, bucketed by urgency.',
   branchtransfer:'A log of product Healthspan has shipped to <b>Remedy’s</b> clinic branches — BGC, Vertis North, Greenhills — from 2025 onward. Remedy is a sister company and a customer.',
   branchexpiry:'For each <b>Remedy</b> branch, the stock Healthspan shipped there sorted by expiry — so each clinic can see what to use up first.',
-  salesoverview:'Booked sales from Shopify (the specialists’ booking POS): units sold and revenue per product over an adjustable period, split into <b>via deals</b> (deals count as a whole — +1s are deal units, not freebies), <b>à la carte</b>, and <b>free</b> (true giveaways). The Stock now column puts sales against inventory at a glance.',
+  salesoverview:'Use <b>External only / Incl. Remedy</b> in the toolbar to switch the whole page between third-party sales and everything. External is the default, matching accounting. Booked sales from Shopify (the specialists’ booking POS): units sold and revenue per product over an adjustable period, split into <b>via deals</b> (deals count as a whole — +1s are deal units, not freebies), <b>à la carte</b>, and <b>free</b> (true giveaways). The Stock now column puts sales against inventory at a glance.',
   salesdeals:'Do the bundles outsell single-unit pricing? Per product: units and revenue moved through deals versus à la carte, the effective per-unit price inside a deal (revenue ÷ all units including the +1), and the effective discount versus the à-la-carte price.',
   logvisit:'For the product specialists, from the iPad: log every doctor/clinic visit in ~10 seconds — even when there’s no order. Pick your name once and it’s remembered. Logged visits count toward Field coverage and build Healthspan’s own visit history (the start of our own CRM).',
   ar:'Who owes what, and for how long: every unpaid balance bucketed into current / 31–60 / 61–90 / 90+ days, per account. Ages count from the order date plus any terms noted on the order (e.g. “PDC 30 days” — parsed from Shopify notes automatically). Payment statuses come from Shopify (accounting marks paid there); re-running the backfill syncs them. Record payments on HS-orders from their order page.',
   spec:'One specialist’s whole world: this month vs target, the calendar of planned and logged visits plus orders (tap any day), monthly sales chart with the target line, top products, open follow-ups and recent activity. Specialists land here on sign-in; managers and admins reach it from the Specialists view.',
   approvals:'The sign-off queue: specialist orders that trip a credit limit or the big-order threshold are held here — approve to release them to fulfillment, reject to cancel with the reason on record. Credit limits are set by finance on account pages; the threshold is a super-admin setting on this page.',
-  commissions:'Finance computes incentives here instead of by hand: per specialist, booked vs target, the rate tier reached, and the commission — any month, exportable as the payroll input. Rate tiers are editable (finance/admin) and every change is audited.',
+  commissions:'Finance computes incentives here instead of by hand — on external sales only, never on Remedy or Healthspan-internal orders: per specialist, booked vs target, the rate tier reached, and the commission — any month, exportable as the payroll input. Rate tiers are editable (finance/admin) and every change is audited.',
   quotes:'Formal quotations for clinics: build a quote with the same pricing as an order, print it, mark it sent/accepted/lost, and convert an accepted quote to an order in one tap. Win rate is tracked from outcomes.',promos:'Promotions as configuration instead of free-typed deal lines: define a mechanic (buy-N-get-M free, or % off), a validity window, and the eligible SKUs — order entry applies it automatically while the promo is live.',transfers:'Remedy branch shipments as proper documents: draft the lines, dispatch (each line leaves the ledger as a FEFO batch-stamped movement, ref TR-n), mark delivered. In-transit units are visible instead of living in chat threads.',suppliers:'The supplier master: currencies, payment terms, lead times, contacts \u2014 plus every PO on the water with its ETD, ETA, and customs status in one list.',valuation:'True inventory value: the latest PO cost per SKU (converted at the payment FX rate for foreign POs) plus that shipment\u2019s landed cost spread across its units \u2014 giving real margins per product and inventory value at cost. Admin and finance only.',quarantine:'The compliance trail for stock that can\u2019t be sold: expiring, damaged, QA-hold, and doubtful returned units sit here, out of sellable stock and ATP, until someone inspects them \u2014 release puts them back in the ledger, dispose closes the record with who and when.',archive:'Every record the super admin has deleted. Deleting archives rather than destroys: the row and its lines are kept here as data, hidden from the app. Restore re-creates the record (with a new id \u2014 links from other records are not rebuilt). Purge removes the archived copy for good, though last night\u2019s backup still holds it. Deleting requires typing the record\u2019s number, purging asks again, and every step is in the Activity log.',numbering:'One place for how every document number is printed \u2014 sales orders, quotations, credit memos, pull-outs, purchase orders, transfers and complaints. You set the prefix, the zero-padding and the number each series appears to start at; the underlying record position is untouched, so numbers can never collide. Delivery receipt numbers are the exception: those are stamped permanently at first print and live on the Cutover page.',voucher:'Voucher for approval \u2014 one of the finance forms. Anyone signed in can file one; it then moves through the approval steps set for that form (Admin \u2192 Approval routes), and every decision is recorded with who and when. Attach the supporting documents to the row after submitting.',orderpay:'Request to order / pay \u2014 one of the finance forms. Anyone signed in can file one; it then moves through the approval steps set for that form (Admin \u2192 Approval routes), and every decision is recorded with who and when. Attach the supporting documents to the row after submitting.',proofpay:'Proof of payment \u2014 one of the finance forms. Anyone signed in can file one; it then moves through the approval steps set for that form (Admin \u2192 Approval routes), and every decision is recorded with who and when. Attach the supporting documents to the row after submitting.',replenish:'Request for replenishment \u2014 one of the finance forms. Anyone signed in can file one; it then moves through the approval steps set for that form (Admin \u2192 Approval routes), and every decision is recorded with who and when. Attach the supporting documents to the row after submitting.',reimburse:'Expense reimbursement \u2014 one of the finance forms. Anyone signed in can file one; it then moves through the approval steps set for that form (Admin \u2192 Approval routes), and every decision is recorded with who and when. Attach the supporting documents to the row after submitting.',cashadvance:'Request for cash advance \u2014 one of the finance forms. Anyone signed in can file one; it then moves through the approval steps set for that form (Admin \u2192 Approval routes), and every decision is recorded with who and when. Attach the supporting documents to the row after submitting.',codelists:'The dropdown options behind the finance forms \u2014 event codes, cash-flow tags, product lines, payment modes and the rest. Finance and admin add new codes as programmes start and retire old ones rather than deleting them, so historical requests keep reading correctly.',routes:'Who signs off which finance form, in order. A step can point at a named person, at whoever holds a role, or at the request\u2019s own fund source; a step with a minimum amount only applies at or above that figure, so small claims skip it.',pullouts:'Inventory pull-outs \u2014 stock leaving the warehouse for internal use (KOL engagements, campaigns, FOC promos, trade partnerships, launches and training) charged to a department\u2019s fund source. Anyone can file a request; the fund source named on it approves. Requesting RESERVES the units so nobody sells them, approval pings finance and the warehouse, and the warehouse\u2019s release is when stock actually moves \u2014 FEFO batch-stamped against the PL number. Pull-outs are internal issues and never count as sales. This replaces the Google pull-out form.',shortdated:'The worklist for stock that is running out of shelf life: every batch with units on hand expiring within six months, worst first, with the peso value at risk. Each lot gets a plan — discount it, give it as FOC to a loyal account, transfer it to a Remedy branch, quarantine it, or accept the write-off — an owner, and a target date, so expiring money is worked instead of watched. Closing a lot records what actually happened.',poscore:'What suppliers actually delivered versus what we ordered. The scorecard grades each supplier on fill rate (units received \u00f7 units ordered), on-time delivery against the ETA, and real lead time (PO created \u2192 fully received) next to the lead time they quote us. Below it, every line on a closed PO where received did not equal ordered — short ships are claimable, over ships need a costing decision. Where actual lead time runs well past quoted, the reorder plan is quietly under-buying.',whkpi:'The warehouse scoreboard: order cycle time (taken \u2192 fulfilled), share fulfilled within 48 hours, fill rate (orders that never hit a backorder), the open queue, and units picked this week.',complaints:'Product quality reports with the batch on record \u2014 one tap into the recall trace shows every other clinic that received the same lot. Closing a complaint requires a resolution note; the log is the compliance record.',cashflow:'Expected collections, week by week: receivables land in the week their payment terms mature, post-dated cheques in the week they can be deposited. Overdue money gets its own bucket. The forward view of cash that AR aging (which looks backward) can\u2019t give.',cyclecount:'Cycle counts: pick a scope, count physically (blind — expected quantities are hidden), and the session grades itself against the stock truth. Two matching counts in a row are the evidence that lets the ledger replace the sheet. After cutover, closing a count writes the corrections straight into the ledger.',regs:'CPR/FDA product registrations per SKU with expiry dates — expired and expiring-soon registrations float to the top so renewals never slip.',salesevents:'One calendar for the room: campaigns, demos, trainings, and planned visits in a single month grid — Mench’s weekly Calendar of Events, live. Specialists see their own visits; everyone sees campaigns.',
   pipeline:'The funnel, staged: lead → contacted → qualified → active. Stages start from real behavior and every manual move is audited. Add opportunities (big deals) with estimated value and expected close month — cards show weighted pipeline value and win rate. Specialists see their own; managers see everyone.',
   po:'Purchase orders and receiving. Draft the PO, add lines, mark it ordered; when stock arrives, receive per line — batch and expiry captured at the door, written straight into the stock ledger. Statuses roll to partially received / received automatically. Unit costs feed margin reporting.',
@@ -271,7 +318,7 @@ const DESC={
   salesfield:'Veeva-style field activity per specialist, built from bookings: how many accounts each specialist reached in the period vs their own account universe (≈6 months), orders per active day, samples given, and — most useful — the <b>accounts not reached</b> list, sorted by value, as a ready follow-up sheet. A booking counts as contact; visits without an order would need a call log (phase 2).',
   salesrecon:'Peso-for-peso check against the official <b>2026 Healthspan Sales Report</b> (accounting’s Google Sheet, read live at every sync). Accounting’s Sales Booked excludes Remedy, so the dashboard applies the same rule: external = all booked orders minus Remedy/Healthspan-internal tags. The Δ column shows exactly how far apart the two systems are each month and why.',
   salesfree:'Items given away at ₱0 <b>outside any deal</b> — samples, marketing, goodwill — kept separate from sales. Deal +1s are not here; they count as deal units. Shows what the giveaways would be worth at list price and how the rate compares with remaining inventory.',
-  salestarget:'Actual booked sales versus the monthly targets set in the sheet’s <b>Targets</b> tab — total, per line, and per product. If the tab doesn’t exist yet, this view shows exactly how to set it up.',
+  salestarget:'<b>External sales only</b> — Remedy and Healthspan-internal orders never count toward a target. Actual booked sales versus the monthly targets set in the sheet’s <b>Targets</b> tab — total, per line, and per product. If the tab doesn’t exist yet, this view shows exactly how to set it up.',
   salesspec:'Each product specialist’s booked sales — revenue and units — over an adjustable period, and against their monthly target if one is set. Specialists are read from the order’s first tag in Shopify (e.g. Rhas, Frank, Ruth, Charmaine).'
 };
 /* "How is this calculated" methodology, shown as a collapsible panel on planning/forecast tabs. */

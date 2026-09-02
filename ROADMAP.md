@@ -111,6 +111,20 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ Product specialists removed from the fund-source approver picker
 - ✅ New **Finance forms** sidebar section (pull-out requests today; the five finance forms as they land)
 
+**Mobile polish (Sep 2)**
+- ✅ Bottom bar: the green highlight follows the page you are on. Each tab used to manage its own class, so tapping Home left the previous tab lit; one `mbarPaint()` now decides it on every navigation
+- ✅ Mobile menu: the five account buttons are a two-column grid (Sign out full-width) instead of one flex row wider than the screen, and the menu clips horizontal overflow outright
+
+**With / without Remedy across the sales views (Aug 29)**
+- ✅ One toggle in the sales toolbar — **External only** (default) or **Incl. Remedy** — driving all eight Shopify sales views, the home booked chip and the Accounts list, so those pages can never disagree. Remembered per person per device
+- ✅ Default is external only, matching accounting's Sales Booked, so every sales figure now agrees with the Sales Report instead of running ahead of it. Expect the headline numbers to drop the day this ships — that is the point
+- ✅ Targets and commissions exclude Remedy and Healthspan-internal **always**, no toggle: attainment is measured and commission is paid on external sales only, stated on both pages
+- ✅ Internal is now decided per order (customer name OR specialist tag) rather than by tag alone, so a Remedy sale booked under a specialist's tag counts as internal. That was part of the residual gap in Vs accounting
+- 🔧 Needs a Shopify rebuild before the split has data; until then the toolbar says so instead of showing a dead control
+- ✅ On Accounts, External only subtracts each account's internal orders instead of hiding the account; only wholly-internal accounts drop out, so one mis-tagged order cannot remove a real clinic and all its revenue
+- 🔒 Caught in review before shipping: the cache version gate still said 8 while the build now writes 9, which would have triggered a full 13-month Shopify rebuild every 45 seconds, per open tab
+- 🧪 `tools/test/sales-internal-split.test.js` — 42 assertions against the real rendered views, mutation-checked: reverting any fix in this batch makes it fail
+
 **Sidebar, visit files, manual toolkit (Aug 29)**
 - ✅ Sidebar: Home sits above Favourites; the Favourites heading collapses like every other section and remembers it; the search no longer lists a favourited page twice
 - ✅ Editing favourites repaints the home row live instead of waiting for a refresh; the limit is now 10

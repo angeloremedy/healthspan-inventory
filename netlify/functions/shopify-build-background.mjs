@@ -67,7 +67,30 @@ export const handler = async (event) => {
 
     // ── 1. Products & variants: price, inventory, bundle set-size from "N+M" titles
     const variants = {}; // sku -> record
-    const mkVariant = (sku) => ({ sku, productTitle: '', status: '', price: 0, inv: null, setSize: null, monthly: {}, daily: {} });
+    const mkVariant = (sku) => ({ sku, productTitle: '', status: '', price: 0, inv: null, setSize: null,
+      monthly: {}, daily: {}, imonthly: {}, idaily: {} });
+
+    /* ── internal vs external ────────────────────────────────────────────────
+       Remedy is a sister company and a customer; Healthspan also sells to its
+       own employees and academy. Accounting's Sales Booked excludes both, and
+       so do the sales views by default. An order is internal if either the
+       customer name or the specialist tag says so — the tag is how accounting
+       recognises it, the customer name catches orders that were never tagged.
+       BMAP keywords mirror netlify/functions/refresh.mjs so the two feeds agree. */
+    const INT_TAG = /^(remedy|reemdy|healthspan)/i;
+    /* Anchored on purpose. An unanchored /vertis|gh mall/ also matches a genuine
+       third-party clinic located in Ayala Vertis North or GH Mall, and because
+       targets and commissions exclude internal unconditionally, that would quietly
+       take revenue out of someone's attainment and pay with nothing on screen to
+       explain it. Only names that BEGIN with a Remedy/Healthspan marker, or the
+       named branch owners, count. */
+    const INT_CUST = /^(remedy|reemdy|healthspan)\b|^(remedy|reemdy)\s+(vertis|gh\s+mall|bgc)\b|^(april\s+geraldez|angela\s+dacones)\b/i;
+    const isInternal = (custName, tags) => {
+      const t = Array.isArray(tags) ? tags : [tags];
+      // every tag, not just the first: an order tagged ['Rhas','Remedy'] is internal
+      return t.some(x => INT_TAG.test(String(x || '').trim())) ||
+             INT_CUST.test(String(custName || '').trim());
+    };
     let cursor = null;
     for (let page = 0; page < 40; page++) {
       const d = await gql(token,
@@ -127,6 +150,7 @@ export const handler = async (event) => {
         // sheet) but are excluded from everything Shopify-fed (all Sales views + AI demand).
         if (/pull\s*-?\s*out/i.test(custName)) continue;
         const spec = rawTag || null;
+        const internal = isInternal(custName, o.tags || []);
         let oUnits = 0, oValue = 0;
         // Two-pass per order: a base-SKU line belongs to a DEAL when the same order
         // also carries a deal/bundle line whose SKU CONTAINS it (e.g. TD040 +
@@ -162,13 +186,29 @@ export const handler = async (event) => {
           };
           bump(rec.monthly, ym);
           if (useDaily) bump(rec.daily, day);
+          // the same figures again, internal orders only, so the client can show
+          // all sales or external sales without a second pass over Shopify
+          if (internal) {
+            if (!rec.imonthly) rec.imonthly = {};
+            if (!rec.idaily) rec.idaily = {};
+            bump(rec.imonthly, ym);
+            if (useDaily) bump(rec.idaily, day);
+          }
           oUnits += li.qty; oValue += li.amt;
         }
         if (custName && lis.length) {
-          const cc = customers[custName] || (customers[custName] = { o: 0, u: 0, v: 0, u90: 0, v90: 0, l: '' });
+          const cc = customers[custName] || (customers[custName] = { o: 0, u: 0, v: 0, u90: 0, v90: 0, l: '',
+            io: 0, iu: 0, iv: 0, iu90: 0, iv90: 0, int: true });
           cc.o++; cc.u += oUnits; cc.v += Math.round(oValue);
           if (day >= d90) { cc.u90 += oUnits; cc.v90 += Math.round(oValue); }
           if (day > cc.l) cc.l = day;
+          // the internal slice of this account, order by order
+          if (internal) {
+            cc.io++; cc.iu += oUnits; cc.iv += Math.round(oValue);
+            if (day >= d90) { cc.iu90 += oUnits; cc.iv90 += Math.round(oValue); }
+          } else {
+            cc.int = false;   // int means EVERY order was internal, not the first one
+          }
         }
         if (day >= recentFrom && lis.length && recent.length < 2500) {
           recent.push({
@@ -176,14 +216,21 @@ export const handler = async (event) => {
             dt: day,
             t: spec,                                                     // specialist (first tag)
             c: custName,                                                 // customer
+            x: internal ? 1 : 0,                                         // internal (Remedy / Healthspan) order
             ls: lis.map(l => [l.sku, l.qty, Math.round(l.amt)])          // [sku, qty, amount]
           });
         }
         if (spec) {
-          const sp = specialists[spec] || (specialists[spec] = { monthly: {}, daily: {}, skus: {} });
+          const sp = specialists[spec] || (specialists[spec] = { monthly: {}, daily: {}, skus: {}, imonthly: {}, idaily: {} });
           const bumpS = (obj, key) => { const s = obj[key] || (obj[key] = { u: 0, v: 0 }); s.u += oUnits; s.v += oValue; };
           bumpS(sp.monthly, ym);
           if (useDaily) bumpS(sp.daily, day);
+          if (internal) {
+            if (!sp.imonthly) sp.imonthly = {};
+            if (!sp.idaily) sp.idaily = {};
+            bumpS(sp.imonthly, ym);
+            if (useDaily) bumpS(sp.idaily, day);
+          }
           if (!sp.skus) sp.skus = {};
           for (const li of lis) { // per-specialist product breakdown (13-month totals)
             const s = sp.skus[li.sku] || (sp.skus[li.sku] = { u: 0, v: 0 });
@@ -197,7 +244,8 @@ export const handler = async (event) => {
     }
 
     await store.setJSON('data', {
-      v: 8, // aggregate format version (v8: per-customer booked totals for sheet reconciliation)
+      v: 9, // aggregate format version (v9: internal/external split — imonthly, idaily, recent[].x)
+      internalSplit: true, // the client shows the with/without-Remedy toggle only when this is present
       variants: Object.values(variants),
       specialists,
       customers,

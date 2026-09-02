@@ -48,6 +48,7 @@ function showView(v,el){
            salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt',targets:'Set targets',fcastacc:'Forecast accuracy',campaigns:'Campaign calendar',planreview:'AI planning review',salespace:'Leaderboard & pace',pdc:'PDC register',salesdue:'Reorder due',catalog:'Item master',returns:'Returns & credit memos',scan:'Scan — receive / pick / count',cutover:'Cutover switches',creditmemo:'Credit memo',scorecards:'Review scorecards',scanpick:'Scan to pick',recall:'Batch recall trace',pipeline:'Pipeline',po:'Purchase orders',approvals:'Approvals',commissions:'Commissions',salesevents:'Events calendar',quotes:'Quotations',promos:'Promotions',regs:'Product registrations',cyclecount:'Cycle counts',cashflow:'Cash-flow forecast',quarantine:'Quarantine & disposal',pullouts:'Pull-out requests',archive:'Archive — deleted records',numbering:'Document numbering',codelists:'Option lists',routes:'Approval routes',voucher:'Voucher for approval',orderpay:'Request to order / pay',proofpay:'Proof of payment',replenish:'Request for replenishment',reimburse:'Expense reimbursement',cashadvance:'Request for cash advance',shortdated:'Short-dated stock',poscore:'Receiving & supplier scorecard',whkpi:'Warehouse KPIs',complaints:'Complaints log',suppliers:'Suppliers & imports',valuation:'Landed cost & valuation',transfers:'Transfer orders',manual:'Your manual'};
   $('ptitle').textContent=T[v]||v;
   try{if(typeof favPaint==='function')favPaint();}catch(e){} // star reflects this page
+  try{if(typeof mbarPaint==='function')mbarPaint();}catch(e){} // bottom bar follows too
   if(v==='dashboard') renderDashboard();
   else if(v==='action') renderActionCenter();
   else if(v==='customers') renderCustomers();
@@ -158,7 +159,10 @@ function fmtPeso(v){return '₱'+Math.round(v||0).toLocaleString('en-PH');} // e
 /* Sales drill-down drawer: which orders, customers and specialists moved this product */
 function openSalesDrawer(sku){
   const S=(SALESIDX||{})[sku];
-  const ords=((ORDIDX||{})[sku]||[]).slice(0,40);
+  const hideInt=SEXT&&hasIntSplit();
+  const all=((ORDIDX||{})[sku]||[]);
+  const ords=(hideInt?all.filter(o=>!o.x):all).slice(0,40);
+  const intN=hideInt?all.filter(o=>o.x).length:0;
   const name=S?(S.name||sku):sku;
   const inSheet=DATA.some(p=>p.sku===sku);
   const rows=ords.length?ords.map(o=>
@@ -171,7 +175,8 @@ function openSalesDrawer(sku){
     '<div class="dsku">'+esc(sku)+'</div>'+
     '<div class="dname">'+esc(name)+'</div>'+
     '<div class="dstk" style="color:var(--gr)">'+fmtPeso(tot.a)+'</div>'+
-    '<div class="dsub">'+tot.q.toLocaleString()+' units across '+ords.length+' recent orders (≈6 months)</div>'+
+    '<div class="dsub">'+tot.q.toLocaleString()+' units across '+ords.length+' recent orders (≈6 months)'+
+      (intN?' · '+intN+' internal order'+(intN===1?'':'s')+' hidden':'')+'</div>'+
     (inSheet?'<div style="margin:10px 0"><a href="#" onclick="openDrawer(\''+esc(sku)+'\');return false" style="color:var(--ac);font-size:12px">Open inventory detail →</a></div>':'')+
     '<div class="dsec"><div class="dsectitle">Orders — number · customer · specialist</div>'+rows+'</div>'+
     '<div style="font-size:10.5px;color:var(--tx3);margin-top:10px">From Shopify orders · amounts are what was booked on this product’s lines in each order (deal revenue included) · blank customer means the order has no customer attached in Shopify</div>';
@@ -184,8 +189,8 @@ function salesLineCur(){if(SLINE!==null)return SLINE;const ls=salesLines();const
 function salesRows(){
   const line=salesLineCur();const out=[];
   for(const sku in SALESIDX){const S=SALESIDX[sku];if(line&&S.line!==line)continue;
-    const t=sumPeriod(S,SPERIOD);                                          // base lines: units + à-la-carte revenue
-    const tb=sumPeriod({monthly:S.bmonthly||{},daily:S.bdaily||{}},SPERIOD); // deal/bundle lines: deal revenue
+    const t=netPeriod(S,SPERIOD,'');    // base lines: units + à-la-carte revenue
+    const tb=netPeriod(S,SPERIOD,'b');  // deal/bundle lines: deal revenue
     const v=t.v+tb.v;
     if(t.u<=0&&v<=0&&t.f<=0)continue;
     out.push({sku,name:S.name||sku,line:S.line||'',
@@ -217,6 +222,15 @@ function salesToolbar(fn){
     '<select onchange="SLINE=this.value;'+fn+'()" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:6px 10px;font-size:12px">'+
     '<option value=""'+(cur===''?' selected':'')+'>All product lines</option>'+
     lines.map(l=>'<option value="'+esc(l)+'"'+(cur===l?' selected':'')+'>'+esc(l)+'</option>').join('')+'</select>'+
+    /* With / without Remedy. Default is external only, matching accounting's
+       Sales Booked, so the headline figure is third-party performance. Until the
+       rebuilt Shopify cache lands there is nothing to subtract, so say so rather
+       than show a control that quietly does nothing. */
+    (hasIntSplit()
+      ? '<div class="tabs" style="margin:0" title="Remedy is a sister company and a customer; Healthspan also sells to its own staff and academy. Accounting excludes both.">'+
+        '<div class="tab'+(SEXT?' active':'')+'" onclick="setSext(true);'+fn+'()">External only</div>'+
+        '<div class="tab'+(SEXT?'':' active')+'" onclick="setSext(false);'+fn+'()">Incl. Remedy</div></div>'
+      : '<span style="font-size:11px;color:var(--am)">Incl. Remedy &amp; internal — the sales cache is rebuilding with the split now (2–4 min); this page fills in by itself</span>')+
     (syn?'<span style="font-size:11px;color:var(--tx3)">Shopify synced '+syn+'</span>':'')+'</div>';}
 function attBar(pct){
   const c=pct>=100?'var(--gr)':pct>=70?'var(--bl)':pct>=40?'var(--am)':'var(--rd)';
@@ -230,11 +244,11 @@ function renderSalesOverview(){
   const line=salesLineCur();
   let td={u:0,v:0};
   for(const sku in SALESIDX){const S=SALESIDX[sku];if(line&&S.line!==line)continue;
-    const t=sumPeriod(S,'today');const tb=sumPeriod({monthly:S.bmonthly||{},daily:S.bdaily||{}},'today');td.u+=t.u;td.v+=t.v+tb.v;}
+    const t=netPeriod(S,'today','');const tb=netPeriod(S,'today','b');td.u+=t.u;td.v+=t.v+tb.v;}
   $('content').innerHTML=
     salesToolbar('renderSalesOverview')+
     '<div class="metrics" style="margin-bottom:14px">'+
-    '<div class="met gr"><div class="met-lbl">Revenue ('+spLbl()+')</div><div class="met-val" style="font-size:15px">'+fmtPeso(tot.v)+'</div><div class="met-sub">booked on Shopify</div><div class="met-bar"></div></div>'+
+    '<div class="met gr"><div class="met-lbl">Revenue ('+spLbl()+')</div><div class="met-val" style="font-size:15px">'+fmtPeso(tot.v)+'</div><div class="met-sub">booked on Shopify · '+sextLbl()+'</div><div class="met-bar"></div></div>'+
     '<div class="met bl"><div class="met-lbl">Units sold</div><div class="met-val">'+tot.u.toLocaleString()+'</div><div class="met-sub">'+tot.d.toLocaleString()+' via deals · '+Math.max(0,tot.u-tot.d-tot.f).toLocaleString()+' à la carte · '+tot.f.toLocaleString()+' free</div><div class="met-bar"></div></div>'+
     '<div class="met pu"><div class="met-lbl">Via deals</div><div class="met-val">'+(tot.u>0?(tot.d/tot.u*100).toFixed(0)+'%':'—')+'</div><div class="met-sub">'+tot.d.toLocaleString()+' units in deal orders</div><div class="met-bar"></div></div>'+
     '<div class="met am"><div class="met-lbl">Today</div><div class="met-val">'+td.u.toLocaleString()+' u</div><div class="met-sub">'+fmtPeso(td.v)+' booked today</div><div class="met-bar"></div></div>'+
@@ -250,13 +264,14 @@ function renderSalesOverview(){
       '<td class="r" style="font-weight:600">'+r.u.toLocaleString()+'</td><td class="r">'+(r.d?r.d.toLocaleString():'—')+'</td><td class="r">'+(r.au?r.au.toLocaleString():'—')+'</td><td class="r" style="color:var(--pu)">'+(r.f?r.f.toLocaleString():'—')+'</td>'+
       '<td class="r" style="font-weight:600">'+fmtPeso(r.v)+'</td><td class="r'+(s!=null&&s<r.u?'" style="color:var(--am)':'')+'">'+(s!=null?s.toLocaleString():'—')+'</td><td class="r mu">'+(tot.v>0?(r.v/tot.v*100).toFixed(1)+'%':'—')+'</td></tr>';}).join(''):
       '<tr><td colspan="10"><div class="empty">No booked sales for this period'+(line?' in '+esc(line):'')+'</div></td></tr>')+
-    '</tbody></table></div><div class="tfooter"><span>Booked sales from Shopify (specialists’ POS) · via deals = units in orders with a deal line (deals counted as a whole, +1s included) · free = ₱0 giveaways outside any deal · SHOPIFY ONLY line = package SKUs not in the master sheet (units are sets) · includes internal orders (Remedy branches, employees) · TEST orders and marketing/executive pull-outs excluded (pull-outs remain in the finance & logistics views) · accounting’s Sales Booked may exclude internal orders and book by invoice date, so small differences vs accounting are expected</span></div></div>';
+    '</tbody></table></div><div class="tfooter"><span>Booked sales from Shopify (specialists’ POS) · via deals = units in orders with a deal line (deals counted as a whole, +1s included) · free = ₱0 giveaways outside any deal · SHOPIFY ONLY line = package SKUs not in the master sheet (units are sets) · '+(SEXT&&hasIntSplit()?'EXTERNAL ONLY — Remedy branches and Healthspan staff/academy orders excluded, matching accounting':'INCLUDES internal orders (Remedy branches, staff, academy)')+' · TEST orders and marketing/executive pull-outs excluded (pull-outs remain in the finance & logistics views) · accounting’s Sales Booked may exclude internal orders and book by invoice date, so small differences vs accounting are expected</span></div></div>';
   // ── charts: 13-month revenue trend + top products sold vs current stock
   const ymNow=new Date().toISOString().slice(0,7);
   const revM={};
   for(const sku in SALESIDX){const S=SALESIDX[sku];if(line&&S.line!==line)continue;
-    for(const m in S.monthly)revM[m]=(revM[m]||0)+(S.monthly[m].v||0);
-    for(const m in (S.bmonthly||{}))revM[m]=(revM[m]||0)+(S.bmonthly[m].v||0);}
+    const nm=netMonthly(S,''),nb=netMonthly(S,'b');
+    for(const m in nm)revM[m]=(revM[m]||0)+(nm[m].v||0);
+    for(const m in nb)revM[m]=(revM[m]||0)+(nb[m].v||0);}
   const yms=Object.keys(revM).sort();
   try{
     if(window._soRev)window._soRev.destroy();
@@ -337,7 +352,10 @@ function tgActualProduct(ym,key){
   let S=SALESIDX[key]||SALESIDX[kk];
   if(!S){for(const sku in SALESIDX){const n=(SALESIDX[sku].name||'').toUpperCase();if(n===kk){S=SALESIDX[sku];break;}}}
   if(!S){for(const sku in SALESIDX){const n=(SALESIDX[sku].name||'').toUpperCase();if(kk.length>=4&&n.includes(kk)){S=SALESIDX[sku];break;}}}
-  if(!S)return null;const c=(S.monthly||{})[ym],b=(S.bmonthly||{})[ym];
+  if(!S)return null;
+  // forced: a target is set on external sales, so PRODUCT attainment excludes
+  // internal like every other scope in this table
+  const c=netMonthly(S,'',true)[ym],b=netMonthly(S,'b',true)[ym];
   return {u:c?c.u:0,v:(c?c.v:0)+(b?b.v:0),name:S.name};}
 function renderSalesTarget(){
   if(!salesGuard())return;
@@ -359,12 +377,16 @@ function renderSalesTarget(){
   const rowsT=TARGETS.filter(t=>t.month===ym);
   // actuals for the month (base units + revenue, plus deal revenue from bundle lines)
   let actTotal={u:0,v:0};const actLine={};
-  for(const sku in SALESIDX){const S=SALESIDX[sku];const c=(S.monthly||{})[ym],b=(S.bmonthly||{})[ym];if(!c&&!b)continue;
+  /* Targets are set on external sales, so attainment always excludes Remedy and
+     Healthspan-internal orders — deliberately not tied to the toolbar toggle. */
+  for(const sku in SALESIDX){const S=SALESIDX[sku];
+    const c=netMonthly(S,'',true)[ym],b=netMonthly(S,'b',true)[ym];if(!c&&!b)continue;
     const u=c?c.u:0,v=(c?c.v:0)+(b?b.v:0);
     actTotal.u+=u;actTotal.v+=v;
     const L=S.line||'(no line)';const a=actLine[L]||(actLine[L]={u:0,v:0});a.u+=u;a.v+=v;}
   const specs=specMerged();
-  const specActual=name=>{const key=Object.keys(specs).find(k=>k.toLowerCase()===name.trim().toLowerCase());const c=key?(specs[key].monthly||{})[ym]:null;return {u:c?c.u:0,v:c?c.v:0};};
+  const specActual=name=>{const key=Object.keys(specs).find(k=>k.toLowerCase()===name.trim().toLowerCase());
+    const c=key?netMonthly(specs[key],'',true)[ym]:null;return {u:c?c.u:0,v:c?c.v:0};};
   const isCur=ym===ymNow;
   const dayFrac=isCur?(new Date().getDate()/new Date(new Date().getFullYear(),new Date().getMonth()+1,0).getDate()):1;
   const mkRow=t=>{
@@ -379,7 +401,8 @@ function renderSalesTarget(){
   let html=
     '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px">'+
     '<div class="tabs" style="margin:0">'+months.slice(0,8).map(m=>'<div class="tab'+(m===ym?' active':'')+'" onclick="window._tgMonth=\''+m+'\';renderSalesTarget()">'+m+'</div>').join('')+'</div>'+
-    (isCur?'<span style="font-size:11px;color:var(--tx3)">month is '+(dayFrac*100).toFixed(0)+'% elapsed — on pace means roughly '+(dayFrac*100).toFixed(0)+'% attainment</span>':'')+'</div>';
+    (isCur?'<span style="font-size:11px;color:var(--tx3)">month is '+(dayFrac*100).toFixed(0)+'% elapsed — on pace means roughly '+(dayFrac*100).toFixed(0)+'% attainment</span>':'')+
+    '<span style="font-size:11px;color:var(--tx3)">external sales only — Remedy and Healthspan-internal orders never count toward a target</span>'+'</div>';
   for(const[scope,title] of groups){
     const rs=rowsT.filter(t=>t.scope===scope).map(mkRow).sort((a,b)=>b.pct-a.pct);
     if(!rs.length)continue;
@@ -404,9 +427,10 @@ function specMerged(){
   for(const n in specs){
     const canon=specCanon(n);
     const k=canon.toLowerCase();
-    const M=merged[k]||(merged[k]={name:canon,monthly:{},daily:{},skus:{}});
+    const M=merged[k]||(merged[k]={name:canon,monthly:{},daily:{},skus:{},imonthly:{},idaily:{}});
     if(SPEC_ALIAS[n.trim().toLowerCase()])M.name=canon; // alias resolved: prefer the canonical name
-    for(const src of ['monthly','daily'])for(const m in (specs[n][src]||{})){
+    for(const src of ['monthly','daily','imonthly','idaily'])for(const m in (specs[n][src]||{})){
+      if(!M[src])M[src]={};
       const c=specs[n][src][m];const d=M[src][m]||(M[src][m]={u:0,v:0});d.u+=c.u||0;d.v+=c.v||0;}
     for(const sku in (specs[n].skus||{})){
       const c=specs[n].skus[sku];const d=M.skus[sku]||(M.skus[sku]={u:0,v:0});d.u+=c.u||0;d.v+=c.v||0;}
@@ -416,11 +440,14 @@ function specMerged(){
 /* Specialist detail drawer — trend, target, and what they sold */
 function openSpecDrawer(name){
   const specs=specMerged();const sp=specs[name];if(!sp)return;
-  const t=sumPeriod(sp,SPERIOD);
+  const hideInt=SEXT&&hasIntSplit();
+  const t=netPeriod(sp,SPERIOD,'');
   const ymNow=new Date().toISOString().slice(0,7);
-  const mc=(sp.monthly||{})[ymNow]||{u:0,v:0};
+  const mcTg=netMonthly(sp,'',true)[ymNow]||{u:0,v:0};   // vs target: always external
+  const nmSp=netMonthly(sp,'');                          // the trend follows the toggle
+  const mc=nmSp[ymNow]||{u:0,v:0};
   const tg=(TARGETS||[]).find(x=>x.month===ymNow&&x.scope==='SPECIALIST'&&(x.name||'').trim().toLowerCase()===name.toLowerCase());
-  const yms=Object.keys(sp.monthly||{}).sort().slice(-6).reverse();
+  const yms=Object.keys(nmSp).sort().slice(-6).reverse();
   // Resolve their sold SKUs to sheet products (bundle lines → revenue only, base lines → units)
   const sheetSkus=new Set(DATA.map(p=>p.sku));
   const bases=[...sheetSkus].sort((a,b)=>b.length-a.length);
@@ -438,11 +465,14 @@ function openSpecDrawer(name){
   const top=Object.keys(agg).map(k=>({sku:k,name:nameOf[k]||k,u:agg[k].u,v:agg[k].v}))
     .sort((a,b)=>(b.v-a.v)||(b.u-a.u)).slice(0,12);
   const topHTML=top.length?
-    '<div class="dsec"><div class="dsectitle">What they sell (12 months, top products)</div>'+
+    '<div class="dsec"><div class="dsectitle">What they sell (12 months, top products)'+
+      // sp.skus has no internal mirror in the cache, so this one cannot be netted
+      (hideInt?' <span class="mu" style="font-weight:400">— incl. Remedy &amp; internal</span>':'')+'</div>'+
     top.map(x=>'<div class="drow"'+(nameOf[x.sku]?' onclick="openDrawer(\''+esc(x.sku)+'\')" style="cursor:pointer"':'')+'><span class="dlbl" style="max-width:180px;overflow:hidden;text-overflow:ellipsis">'+esc(x.name)+'</span><span class="dval">'+x.u.toLocaleString()+' u'+(x.v>0?' · '+fmtPeso(x.v):'')+'</span></div>').join('')+'</div>':
     '<div class="dsec"><div class="dsectitle">What they sell</div><div style="font-size:11.5px;color:var(--tx3)">Product breakdown appears after the next sales-cache rebuild (automatic — check back in a few minutes).</div></div>';
   // Their recent orders (order # · date · customer), from the ~6-month drill-down window
-  const myOrders=(SHOPIFY.recent||[]).filter(o=>specCanon(o.t).toLowerCase()===name.toLowerCase())
+  // the header above is net, so this list must be too
+  const myOrders=(SHOPIFY.recent||[]).filter(o=>specCanon(o.t).toLowerCase()===name.toLowerCase()&&!(hideInt&&ordInternal(o)))
     .map(o=>({n:o.n,dt:o.dt,c:o.c||'',q:(o.ls||[]).reduce((x,l)=>x+(l[1]||0),0),a:(o.ls||[]).reduce((x,l)=>x+(l[2]||0),0)}))
     .sort((a,b)=>a.dt<b.dt?1:a.dt>b.dt?-1:0);
   const ordHTML=myOrders.length?
@@ -452,11 +482,12 @@ function openSpecDrawer(name){
     '<div class="dsec"><div class="dsectitle">Recent orders</div><div style="font-size:11.5px;color:var(--tx3)">No orders in the drill-down window (last ~6 months).</div></div>';
   const trendHTML=yms.length?
     '<div class="dsec"><div class="dsectitle">Monthly trend</div>'+
-    yms.map(m=>{const c=sp.monthly[m];return '<div class="drow"><span class="dlbl">'+m+(m===ymNow?' <span class="mu">(partial)</span>':'')+'</span><span class="dval">'+c.u.toLocaleString()+' u · '+fmtPeso(c.v)+'</span></div>';}).join('')+'</div>':'';
+    yms.map(m=>{const c=nmSp[m];return '<div class="drow"><span class="dlbl">'+m+(m===ymNow?' <span class="mu">(partial)</span>':'')+'</span><span class="dval">'+c.u.toLocaleString()+' u · '+fmtPeso(c.v)+'</span></div>';}).join('')+'</div>':'';
   const tgHTML=tg?
     '<div class="dsec"><div class="dsectitle">Target — '+ymNow+'</div>'+
-    (tg.value>0?'<div class="drow"><span class="dlbl">Revenue</span><span class="dval">'+fmtPeso(mc.v)+' / '+fmtPeso(tg.value)+'</span></div><div style="margin:6px 0">'+attBar(mc.v/tg.value*100)+'</div>':'')+
-    (tg.units>0?'<div class="drow"><span class="dlbl">Units</span><span class="dval">'+mc.u.toLocaleString()+' / '+tg.units.toLocaleString()+'</span></div><div style="margin:6px 0">'+attBar(mc.u/tg.units*100)+'</div>':'')+'</div>':'';
+    (tg.value>0?'<div class="drow"><span class="dlbl">Revenue</span><span class="dval">'+fmtPeso(mcTg.v)+' / '+fmtPeso(tg.value)+'</span></div><div style="margin:6px 0">'+attBar(mcTg.v/tg.value*100)+'</div>':'')+
+    (tg.units>0?'<div class="drow"><span class="dlbl">Units</span><span class="dval">'+mcTg.u.toLocaleString()+' / '+tg.units.toLocaleString()+'</span></div><div style="margin:6px 0">'+attBar(mcTg.u/tg.units*100)+'</div>':'')+
+    '<div style="font-size:10px;color:var(--tx3);margin-top:4px">external sales only — a target never counts Remedy or internal orders</div></div>':'';
   $('dbody').innerHTML=
     '<div class="dsku">PRODUCT SPECIALIST</div>'+
     '<div class="dname">'+esc(name)+'</div>'+
@@ -476,9 +507,9 @@ function renderSalesSpec(){
   const names=Object.keys(specs);
   if(!names.length){$('content').innerHTML=salesToolbar('renderSalesSpec')+'<div class="empty" style="margin-top:30px">No specialist tags found on Shopify orders yet. Specialists are read from each order’s first tag (e.g. Rhas, Frank, Ruth, Charmaine) — make sure orders are tagged at the POS.</div>';return;}
   const ymNow=new Date().toISOString().slice(0,7);
-  const rows=names.map(n=>{const t=sumPeriod(specs[n],SPERIOD);
+  const rows=names.map(n=>{const t=netPeriod(specs[n],SPERIOD,'');
     const tg=(TARGETS||[]).find(x=>x.month===ymNow&&x.scope==='SPECIALIST'&&(x.name||'').toLowerCase()===n.toLowerCase());
-    const mc=(specs[n].monthly||{})[ymNow]||{u:0,v:0};
+    const mc=netMonthly(specs[n],'',true)[ymNow]||{u:0,v:0};   // vs target: always external
     return {n,u:t.u,v:t.v,tg,mtdV:mc.v,mtdU:mc.u};}).filter(r=>r.u>0||r.v>0||r.tg).sort((a,b)=>b.v-a.v);
   const totV=rows.reduce((a,r)=>a+r.v,0),totU=rows.reduce((a,r)=>a+r.u,0);
   const anyTg=rows.some(r=>r.tg);

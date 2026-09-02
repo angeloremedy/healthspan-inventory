@@ -211,7 +211,11 @@ async function renderScorecards(){
     const cn=specCanon(raw);if(!cn||INTERNAL_TAG.test(cn))continue;
     const k=cn.toLowerCase();
     const e=S[k]||(S[k]={name:cn,monthly:{}});
-    const m=SHOPIFY.specialists[raw].monthly||{};
+    /* Forced external, like commissions. Skipping tags that START with
+       remedy/healthspan is not enough: a Remedy sale booked under a real
+       specialist's tag counted in full, so a printed review disagreed with the
+       commission run for the same quarter. */
+    const m=netMonthly(SHOPIFY.specialists[raw],'',true);
     for(const ym in m){const t=e.monthly[ym]||(e.monthly[ym]={u:0,v:0});t.u+=m[ym].u||0;t.v+=m[ym].v||0;}
   }
   const sumQ=(e,months,f)=>months.reduce((a,ym)=>a+(((e.monthly[ym]||{})[f])||0),0);
@@ -521,7 +525,7 @@ function renderSalesDue(){
     const k=custNorm(c);if(!k)continue;
     const e=byC[k]||(byC[k]={name:c,dates:new Set(),spec:{},val:0});
     e.dates.add(o.dt);e.val+=(o.ls||[]).reduce((a,l)=>a+(l[2]||0),0);
-    const t=specCanon(o.t||'');if(t&&!INTERNAL_TAG.test(t))e.spec[t]=(e.spec[t]||0)+1;
+    const t=specCanon(o.t||'');if(t&&!ordInternal(o))e.spec[t]=(e.spec[t]||0)+1;
   }
   for(const o of (NORDERS||[])){ // native orders count toward the rhythm too
     if(o.deleted_at||o.status==='cancelled')continue;
@@ -1106,7 +1110,7 @@ function renderSalesPace(){
   const S={},disp={};
   for(const o of recent){
     const raw=specCanon(o.t||'');
-    if(!raw||INTERNAL_TAG.test(raw)||/pull\s*-?\s*out/i.test(o.c||''))continue;
+    if(!raw||ordInternal(o)||/pull\s*-?\s*out/i.test(o.c||''))continue;   // the race is external sales
     if((o.dt||'').slice(0,7)!==ym)continue;
     const t=raw.toLowerCase();if(!disp[t])disp[t]=raw;
     S[t]=(S[t]||0)+(o.ls||[]).reduce((a,l)=>a+(l[2]||0),0);

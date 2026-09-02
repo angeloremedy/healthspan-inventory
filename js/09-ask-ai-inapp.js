@@ -22,7 +22,10 @@ function askCatalog(){
     '\n\nWRITE-OFF RISK — projected to expire unsold (sku|name|batch|expiry|units_at_risk|writeoff_value_php):\n'+wo+
     '\n\nMONTHLY UNITS OUT (month=units): '+mo;
   const shopSales=DATA.filter(p=>p.shopifySales).map(p=>p.sku+'|'+p.name+'|'+Object.keys(p.shopifySales).sort().map(m=>m+'='+p.shopifySales[m]).join(',')).join('\n');
-  if(shopSales)out+='\n\nSHOPIFY UNIT DEMAND — physical units booked at the store incl. free +1 deal units (sku|name|month=units,...):\n'+shopSales;
+  // Deliberately gross: internal units still leave the warehouse, so demand and
+  // reorder maths want them. Say so, because the sales VIEWS default to external
+  // and the AI would otherwise quote a figure no screen shows.
+  if(shopSales)out+='\n\nSHOPIFY UNIT DEMAND — physical units booked at the store incl. free +1 deal units, and INCLUDING internal orders to Remedy branches and Healthspan staff/academy (the Sales views default to EXTERNAL ONLY, so these unit figures are higher than what those pages show — say which basis you are quoting) (sku|name|month=units,...):\n'+shopSales;
   const shopDeals=DATA.filter(p=>p.deals&&p.deals.length).map(p=>p.deals.map(d=>[p.sku,d.title,d.setSize,d.price].join('|')).join('\n')).join('\n');
   if(shopDeals)out+='\n\nLIVE DEALS ON SHOPIFY (sku|deal_title|physical_units_per_set|set_price_php):\n'+shopDeals;
   return out;
@@ -158,10 +161,20 @@ function buildMobileNav(){
     let t='';el.childNodes.forEach(n=>{if(n.nodeType===3)t+=n.textContent;});
     return (t.trim().split(/\s|&/)[0])||v;
   };
-  let html='<div class="mni'+(currentView==='home'?' active':'')+'" onclick="showView(\'home\',null)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Home</div>';
-  html+=slots.map(v=>'<div class="mni'+(currentView===v?' active':'')+'" onclick="showView(\''+v+'\',null);document.querySelectorAll(\'.mni\').forEach(x=>x.classList.remove(\'active\'));this.classList.add(\'active\')">'+mIcon(v)+mLabel(v)+'</div>').join('');
+  /* No tab touches its own highlight. Each item names its view (data-mv) and
+     mbarPaint() sets the one matching currentView — the old inline class juggling
+     only ran on the slot you tapped, so tapping Home left the previous tab green. */
+  let html='<div class="mni" data-mv="home" onclick="showView(\'home\',null)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Home</div>';
+  html+=slots.map(v=>'<div class="mni" data-mv="'+v+'" onclick="showView(\''+v+'\',null)">'+mIcon(v)+mLabel(v)+'</div>').join('');
   html+='<div class="mni" onclick="openMobileMenu()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>Menu</div>';
   bar.innerHTML=html;
+  mbarPaint();
+}
+/* the ONE place the bottom bar's highlight is decided */
+function mbarPaint(){
+  document.querySelectorAll('.mobile-nav-inner .mni').forEach(el=>{
+    el.classList.toggle('active',el.dataset.mv===currentView);
+  });
 }
 
 /* ── SUPABASE AUTH (Phase A) ──

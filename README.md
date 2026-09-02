@@ -407,6 +407,45 @@ The pull-out cart goes further: adding or removing an item you just typed doesn'
 touch the database at all. It repaints from what's already loaded, so the line
 appears instantly.
 
+## 9.16 With or without Remedy
+
+Remedy is a sister company and one of Healthspan's customers, and Healthspan also
+sells to its own staff and academy. Accounting's Sales Booked excludes both, so
+the sales views now do too — **external only is the default**, and the figures
+line up with the Sales Report instead of running ahead of it.
+
+Every Shopify-fed sales view carries one control in its toolbar:
+
+| | What you see |
+|---|---|
+| **External only** *(default)* | Third-party sales. Matches accounting. |
+| **Incl. Remedy** | Everything, including Remedy branches and Healthspan staff/academy. |
+
+It is one setting, remembered per person per device, and it drives all eight
+sales views, the home page's booked chip and the Accounts list, so those pages can
+never disagree with each other. Every figure is labelled with which population it
+is showing, so a number is never ambiguous.
+
+On the Accounts list, External only **subtracts** each account's internal orders
+rather than hiding the account. Only an account whose every order was internal
+drops out. That matters because one mis-tagged order at a real clinic would
+otherwise remove the whole clinic and all of its revenue from the list, while the
+sales views subtracted only that one order — the two pages would then disagree,
+and which way would depend on the order Shopify happened to return them in.
+
+**Targets and commissions ignore the toggle entirely.** Attainment is measured and
+commission is paid on external sales only, always — that is a rule, not a setting,
+and both pages say so on the page.
+
+An order counts as internal if its customer name or its specialist tag says so.
+Both matter: the tag is how accounting recognises an internal sale, and the
+customer name catches a Remedy order that was booked under a real specialist's tag
+— which the old tag-only rule missed, leaving the difference in the Vs accounting
+gap column.
+
+The split is computed in the nightly Shopify rebuild. Until that has run, the
+toolbar says so rather than showing a control that does nothing.
+
 ## 9.15 Sorting any table
 
 Click any column header to sort A–Z; click it again for Z–A. The header you

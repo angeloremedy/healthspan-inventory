@@ -789,6 +789,40 @@
    "v": "Baked-in conventions: deal +1s are deal units (not free); “free” = ₱0 outside any deal; pull-outs and TEST never count as sales; native orders fold into sales totals only at cutover (no double counting)."
   },
   {
+   "t": "h2",
+   "v": "<b>With or without Remedy</b>"
+  },
+  {
+   "t": "step",
+   "n": "1",
+   "v": "Remedy is a sister company and one of our customers, and Healthspan also sells to its own staff and academy. Accounting’s Sales Booked leaves both out."
+  },
+  {
+   "t": "step",
+   "n": "2",
+   "v": "So every sales view opens on <b>External only</b> — third-party sales, the same population accounting counts. The toolbar switch flips the whole page to <b>Incl. Remedy</b> when you want the full picture."
+  },
+  {
+   "t": "step",
+   "n": "3",
+   "v": "It is one setting across all the sales views, the booked chip on your home page and the Accounts list, so those pages can never show you two different answers. Every figure is labelled with which population it is."
+  },
+  {
+   "t": "step",
+   "n": "4",
+   "v": "The setting is yours, on this device, like the period and product-line filters."
+  },
+  {
+   "t": "step",
+   "n": "5",
+   "v": "On the Accounts list, External only subtracts each clinic’s internal orders rather than hiding the clinic — only an account whose every order was internal drops off the list. So a real clinic that once had an order mis-tagged still shows, minus that order."
+  },
+  {
+   "t": "callout",
+   "v": "TARGETS AND COMMISSIONS — Targets and commissions are the exception: they always count external sales only, whatever the toggle says. A target is set on third-party sales and commission is paid on them, so Remedy and internal orders never move either number.",
+   "c": "#B7791F"
+  },
+  {
    "t": "h1",
    "v": "<b>Forecasting & the AI layer</b>"
   },

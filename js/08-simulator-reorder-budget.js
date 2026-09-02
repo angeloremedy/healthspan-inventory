@@ -452,7 +452,10 @@ function exportSalesTarget(){
   const ym=window._tgMonth||new Date().toISOString().slice(0,7);
   const specs=specMerged();
   let actTotal={u:0,v:0};const actLine={};
-  for(const sku in (SALESIDX||{})){const S=SALESIDX[sku];const c=(S.monthly||{})[ym],b=(S.bmonthly||{})[ym];if(!c&&!b)continue;
+  // forced everywhere below, exactly like renderSalesTarget: a target is set on
+  // external sales, so the CSV must not include Remedy or internal orders
+  for(const sku in (SALESIDX||{})){const S=SALESIDX[sku];
+    const c=netMonthly(S,'',true)[ym],b=netMonthly(S,'b',true)[ym];if(!c&&!b)continue;
     const u=c?c.u:0,v=(c?c.v:0)+(b?b.v:0);
     actTotal.u+=u;actTotal.v+=v;const L=S.line||'';const a=actLine[L]||(actLine[L]={u:0,v:0});a.u+=u;a.v+=v;}
   downloadCSV('sales_vs_target_'+ym,['Month','Scope','Name','Actual PHP','Target PHP','Attainment %','Actual units','Target units'],
@@ -460,14 +463,14 @@ function exportSalesTarget(){
       let act={u:0,v:0};
       if(t.scope==='TOTAL')act=actTotal;
       else if(t.scope==='LINE'){const k=Object.keys(actLine).find(x=>x.toLowerCase()===(t.name||'').toLowerCase());if(k)act=actLine[k];}
-      else if(t.scope==='SPECIALIST'){const k=Object.keys(specs).find(x=>x.toLowerCase()===(t.name||'').toLowerCase());const c=k?(specs[k].monthly||{})[ym]:null;if(c)act={u:c.u,v:c.v};}
+      else if(t.scope==='SPECIALIST'){const k=Object.keys(specs).find(x=>x.toLowerCase()===(t.name||'').toLowerCase());const c=k?netMonthly(specs[k],'',true)[ym]:null;if(c)act={u:c.u,v:c.v};}
       else{const a=tgActualProduct(ym,t.name||'');if(a)act={u:a.u,v:a.v};}
       return [t.month,t.scope,t.name,Math.round(act.v),t.value||'',t.value>0?(act.v/t.value*100).toFixed(0):'',act.u,t.units||''];}));
 }
 function exportSalesSpec(){
   const specs=specMerged();
   downloadCSV('sales_per_specialist_'+SPERIOD,['Specialist','Units','Revenue PHP'],
-    Object.keys(specs).map(n=>{const t=sumPeriod(specs[n],SPERIOD);return [n,t.u,Math.round(t.v)];}).sort((a,b)=>b[2]-a[2]));
+    Object.keys(specs).map(n=>{const t=netPeriod(specs[n],SPERIOD,'');return [n,t.u,Math.round(t.v)];}).sort((a,b)=>b[2]-a[2]));
 }
 function exportSalesRecon(){
   if(!SALESIDX)return;
@@ -618,7 +621,7 @@ async function copyForAI(){
     }
   }
   if(rows.some(p=>p.shopifySales)){
-    t+='\nSHOPIFY UNIT DEMAND PER SKU (physical units booked at the store; deals counted as a whole incl. +1 units; not double-counted; month=units):\n';
+    t+='\nSHOPIFY UNIT DEMAND PER SKU (INCLUDES internal orders to Remedy branches and Healthspan staff/academy — the Sales views default to EXTERNAL ONLY, so these are higher than those pages show) (physical units booked at the store; deals counted as a whole incl. +1 units; not double-counted; month=units):\n';
     for(const p of rows){
       if(!p.shopifySales)continue;
       const yms=Object.keys(p.shopifySales).sort();

@@ -51,7 +51,9 @@ function custNorm(s){return String(s||'').toLowerCase().replace(/\(.*?\)/g,' ').
 
 /* ── PROSPECTS working list: Shopify-only accounts, worth chasing or worth merging ── */
 function renderProspects(){
-  const rows=acctList();
+  // the same external filter as the All-accounts tab, or the card that links here
+  // ("Shopify-only / prospects: 0") lands on a tab listing one
+  const rows=acctExternal(acctList(),SEXT&&(typeof hasIntSplit==='function')&&hasIntSplit());
   const sheet=rows.filter(r=>r.src==='sheet'||r.src==='both');
   const pros=rows.filter(r=>r.src==='shopify'||r.src==='prospect').sort((a,b)=>b.booked-a.booked);
   // fuzzy candidate: shared name tokens (≥4 chars) with a sheet account → likely the
@@ -168,16 +170,37 @@ function renderCustomers(){
   if(f==='prospects')return renderProspects();
   if(f==='all'){ // unified CRM account list: sheet + Shopify + visit-log accounts merged
     ACCTBYNORM=null;
-    const rows=acctList();
+    /* Same setting as the sales views: with External only, Remedy's branches and
+       Healthspan-internal accounts drop out of the list and its totals, so the
+       Booked figure here matches Sales overview instead of contradicting it. */
+    let rows=acctList();
+    /* Internal on two bases, because the two feeds see different things: isRemedy
+       is the warehouse sheet's branch grouping (which collapses BGC/Vertis/GH into
+       one row called "Remedy"), shop.int is the Shopify build's per-order verdict
+       (which is what "Remedy BGC" and "Healthspan Academy" land on). An account is
+       internal if either says so — that is what makes the Booked total here agree
+       with Sales overview instead of contradicting it. */
+    const canSplit=(typeof hasIntSplit==='function')&&hasIntSplit();
+    const hide=SEXT&&canSplit;
+    rows=acctExternal(rows,hide);
+    const hidN=hide?rows._hidden:0;
     const tabs2=[['all','All accounts ('+rows.length+')'],['prospects','Prospects'],['growing','Growing'],['declining','Declining'],['dormant','Dormant'],['shopify','Vs Shopify']];
     $('content').innerHTML=
       '<div class="metrics" style="margin-bottom:14px">'+
       '<div class="met bl"><div class="met-lbl">Accounts</div><div class="met-val">'+rows.length+'</div><div class="met-sub">merged across all systems</div><div class="met-bar"></div></div>'+
-      '<div class="met gr"><div class="met-lbl">Booked (13mo)</div><div class="met-val" style="font-size:15px">'+fmtPeso(rows.reduce((a,r)=>a+r.booked,0))+'</div><div class="met-sub">Shopify, all accounts</div><div class="met-bar"></div></div>'+
+      '<div class="met gr"><div class="met-lbl">Booked (13mo)</div><div class="met-val" style="font-size:15px">'+fmtPeso(rows.reduce((a,r)=>a+r.booked,0))+'</div><div class="met-sub">Shopify · '+(hide?'external only':'all accounts')+'</div><div class="met-bar"></div></div>'+
       '<div class="met am"><div class="met-lbl">Shipped value</div><div class="met-val" style="font-size:15px">'+fmtPeso(rows.reduce((a,r)=>a+r.shipped,0))+'</div><div class="met-sub">warehouse OUT sheet</div><div class="met-bar"></div></div>'+
       '<div class="met pu" onclick="window._custFilter=\'prospects\';renderCustomers()" style="cursor:pointer"><div class="met-lbl">Shopify-only / prospects</div><div class="met-val">'+rows.filter(r=>r.src==='shopify'||r.src==='prospect').length+'</div><div class="met-sub">not yet in the OUT sheet — tap to work the list</div><div class="met-bar"></div></div>'+
       '</div>'+
-      '<div class="tabs" style="margin-bottom:12px">'+tabs2.map(([k,l])=>'<div class="tab'+(k==='all'?' active':'')+'" onclick="window._custFilter=\''+k+'\';renderCustomers()">'+l+'</div>').join('')+'</div>'+
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">'+
+      '<div class="tabs" style="margin:0">'+tabs2.map(([k,l])=>'<div class="tab'+(k==='all'?' active':'')+'" onclick="window._custFilter=\''+k+'\';renderCustomers()">'+l+'</div>').join('')+'</div>'+
+      (canSplit
+        ? '<div class="tabs" style="margin:0" title="Remedy is a sister company and a customer. Accounting excludes it, and so does this list by default.">'+
+          '<div class="tab'+(SEXT?' active':'')+'" onclick="setSext(true);renderCustomers()">External only</div>'+
+          '<div class="tab'+(SEXT?'':' active')+'" onclick="setSext(false);renderCustomers()">Incl. Remedy</div></div>'
+        : '<span style="font-size:11px;color:var(--am)">Incl. Remedy &amp; internal — the sales cache is rebuilding with the split now (2–4 min)</span>')+
+      (hidN?'<span style="font-size:11px;color:var(--tx3)">'+hidN+' internal account'+(hidN===1?'':'s')+' hidden</span>':'')+
+      '</div>'+
       '<div class="tcard"><div class="tscroll"><table><thead><tr><th>#</th><th>Account</th><th style="text-align:center">Health</th><th>Owner</th><th style="text-align:right">Shipped ₱</th><th style="text-align:right">Booked ₱ (13mo)</th><th style="text-align:right">Booked ₱ 90d</th><th style="text-align:right">Last activity</th></tr></thead><tbody>'+
       (function(){const arSet=NORDERS?arOverdueSet():null;
       return rows.map((r,i)=>{const h=healthOf(r,arSet);

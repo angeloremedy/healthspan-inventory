@@ -483,7 +483,9 @@ async function renderSpecPage(){
   const today=new Date().toISOString().slice(0,10);
   const myVisits=(VISITS||[]).filter(v=>isMine(v.spec||''));
   const myOrders=(NORDERS||[]).filter(o=>isMine(o.spec||'')&&!o.deleted_at&&o.status!=='cancelled');
-  const mc=(sp.monthly||{})[ymNow]||{u:0,v:0};
+  // forced: this is the quota figure, and a quota never counts Remedy or internal
+  const nmSp=netMonthly(sp,'',true);
+  const mc=nmSp[ymNow]||{u:0,v:0};
   const tg=(TARGETS||[]).find(x=>x.month===ymNow&&x.scope==='SPECIALIST'&&specCanon(x.name||'').toLowerCase()===name.toLowerCase());
   const fus=myVisits.filter(v=>v.status!=='planned'&&v.outcome==='Follow-up needed'&&!v.fu_done);
   const custs30=new Set(myOrders.filter(o=>o.date>=new Date(Date.now()-30*864e5).toISOString().slice(0,10)).map(o=>acctDedup(o.account||'')).filter(Boolean));
@@ -562,11 +564,11 @@ async function renderSpecPage(){
     '</div>';
   // chart: 13-month bars + target line
   try{
-    const yms=Object.keys(sp.monthly||{}).sort();
+    const yms=Object.keys(nmSp).sort();   // same forced basis as the chips above
     const tgt=yms.map(m=>{const t=(TARGETS||[]).find(x=>x.month===m&&x.scope==='SPECIALIST'&&specCanon(x.name||'').toLowerCase()===name.toLowerCase());return t?t.value:null;});
     if(window._spChart)window._spChart.destroy();
     window._spChart=new Chart($('spChart'),{data:{labels:yms,datasets:[
-      {type:'bar',label:'Booked',data:yms.map(m=>Math.round(sp.monthly[m].v)),backgroundColor:'rgba(29,158,117,0.55)',borderRadius:3},
+      {type:'bar',label:'Booked',data:yms.map(m=>Math.round(nmSp[m].v)),backgroundColor:'rgba(29,158,117,0.55)',borderRadius:3},
       {type:'line',label:'Target',data:tgt,borderColor:'#BA7517',borderDash:[5,4],pointRadius:2,spanGaps:true}]},
       options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}},scales:{y:{beginAtZero:true,ticks:{callback:v=>'₱'+Math.round(v).toLocaleString()},grid:{color:'rgba(128,128,128,0.12)'}},x:{grid:{display:false}}}}});
   }catch(e){}
@@ -668,7 +670,7 @@ function fieldRows(){
   const isFreeLine=(l,ls)=>((l[2]||0)<=0)&&(l[1]||0)>0&&!ls.some(o2=>o2!==l&&String(o2[0]).length>String(l[0]).length&&String(o2[0]).includes(String(l[0])));
   for(const o of recent){
     const raw=specCanon(o.t||'');
-    if(!raw||INTERNAL_TAG.test(raw))continue; // untagged & internal orders aren't field activity
+    if(!raw||ordInternal(o))continue; // untagged & internal orders aren't field activity
     const tag=raw.toLowerCase();               // merge case variants (Rhas/RHAS)
     if(!disp[tag])disp[tag]=raw;
     const S=specs[tag]||(specs[tag]={orders:0,days:new Set(),custs:new Set(),custs6:new Set(),rev:0,free:0});
@@ -739,16 +741,32 @@ function renderSalesField(){
 
 /* ── VS ACCOUNTING — peso-for-peso reconciliation against the official Sales Report ── */
 const INTERNAL_TAG=/^(remedy|reemdy|healthspan)/i; // internal orders: Remedy branches (+typo), Healthspan employees/academy
+/* Whether ONE order in SHOPIFY.recent is internal. The build stamps x on each
+   order, which catches a Remedy sale tagged to a real specialist — something the
+   tag test alone cannot see. Older caches have no x, so fall back to the tag. */
+function ordInternal(o){
+  if(o&&o.x!=null)return !!o.x;
+  return INTERNAL_TAG.test(specCanon((o&&o.t)||''));
+}
 function reconRows(){
   // per-month: dashboard total booked, internal portion (from order tags), external = total − internal
   const dashAll={},internal={};
   for(const sku in (SALESIDX||{})){const S=SALESIDX[sku];
     for(const m in S.monthly)if(m>='2026-01')dashAll[m]=(dashAll[m]||0)+(S.monthly[m].v||0);
     for(const m in (S.bmonthly||{}))if(m>='2026-01')dashAll[m]=(dashAll[m]||0)+(S.bmonthly[m].v||0);}
-  for(const tag in ((SHOPIFY&&SHOPIFY.specialists)||{})){
-    if(!INTERNAL_TAG.test(tag.trim()))continue;
-    const sp=SHOPIFY.specialists[tag];
-    for(const m in (sp.monthly||{}))if(m>='2026-01')internal[m]=(internal[m]||0)+(sp.monthly[m].v||0);}
+  if(hasIntSplit()){
+    /* Per-order truth: a Remedy sale booked under a real specialist's tag counts
+       as internal here, where the old tag-only rule missed it and left the
+       difference sitting in the Δ column. */
+    for(const sku in (SALESIDX||{})){const S=SALESIDX[sku];
+      for(const m in (S.imonthly||{}))if(m>='2026-01')internal[m]=(internal[m]||0)+(S.imonthly[m].v||0);
+      for(const m in (S.ibmonthly||{}))if(m>='2026-01')internal[m]=(internal[m]||0)+(S.ibmonthly[m].v||0);}
+  }else{
+    for(const tag in ((SHOPIFY&&SHOPIFY.specialists)||{})){
+      if(!INTERNAL_TAG.test(tag.trim()))continue;
+      const sp=SHOPIFY.specialists[tag];
+      for(const m in (sp.monthly||{}))if(m>='2026-01')internal[m]=(internal[m]||0)+(sp.monthly[m].v||0);}
+  }
   const acctM=(ACCT&&ACCT.months)||{};
   const yms=[...new Set([...Object.keys(dashAll),...Object.keys(acctM)])].sort();
   return yms.map(m=>{
@@ -785,7 +803,7 @@ function renderSalesRecon(){
       '<td class="r mu">'+(r.gap!==null&&r.acct>0?(r.gap/r.acct*100).toFixed(1)+'%':'—')+'</td>'+
       '<td class="r mu">'+(r.internal?fmtPeso(r.internal):'—')+'</td>'+
       '<td class="r mu">'+fmtPeso(r.all)+'</td></tr>').join('')+
-    '</tbody></table></div><div class="tfooter"><span>Accounting = the official Sales Report’s monthly Sales Booked (excludes Remedy — confirmed: their 102.4M incl. Remedy − 9.9M Remedy = 92.5M booked) · dashboard external applies the same rule via order tags · remaining Δ comes from their as-of date (they lag a few days), credit memos, and untagged orders · QBO shown for reference</span></div></div>';}
+    '</tbody></table></div><div class="tfooter"><span>Accounting = the official Sales Report’s monthly Sales Booked (excludes Remedy — confirmed: their 102.4M incl. Remedy − 9.9M Remedy = 92.5M booked) · dashboard external applies the same rule per order (customer name or tag), so a Remedy sale booked under a specialist’s tag counts as internal too · remaining Δ comes from their as-of date (they lag a few days), credit memos, and untagged orders · QBO shown for reference</span></div></div>';}
 
 /* ── STOCK COVERAGE (weeks/months of runway) ── */
 function renderCoverage(){

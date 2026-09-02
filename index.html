@@ -619,7 +619,8 @@ button:active{transform:scale(.97)}
   <div class="askfoot">Answers come from the live warehouse data · stock is warehouse-level, not per-branch</div>
 </div>
 
-<div id="mmenu" style="display:none;position:absolute;inset:0;height:100dvh;z-index:500;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch">
+<!-- overflow-x hidden: nothing in the menu should ever drag it sideways -->
+<div id="mmenu" style="display:none;position:absolute;inset:0;height:100dvh;z-index:500;background:var(--bg);overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch">
   <div id="mmenu-head" style="position:sticky;top:0;background:var(--sf);border-bottom:1px solid var(--bd);padding:12px 16px 10px;display:flex;gap:10px;align-items:center;z-index:2">
     <b style="font-size:15px">All views</b>
     <input id="mmq" placeholder="Search…" oninput="buildMobileMenu(this.value)" style="flex:1;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;font-size:16px">
