@@ -19,3 +19,18 @@
   to = "/.netlify/functions/refresh"
   status = 200
   force = true
+
+# ── faster load: icons and the logo change ~never, so phones keep them for a week
+# instead of re-asking on every visit. JS and HTML deliberately stay on Netlify's
+# default (etag revalidation): the app ships as unhashed files, and letting one
+# script go stale against the others is how you get half-old, half-new pages.
+[[headers]]
+  for = "/*.png"
+  [headers.values]
+    cache-control = "public, max-age=604800"
+
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    cache-control = "public, max-age=86400"
+

@@ -407,7 +407,63 @@ The pull-out cart goes further: adding or removing an item you just typed doesn'
 touch the database at all. It repaints from what's already loaded, so the line
 appears instantly.
 
-## 9.16 With or without Remedy
+## 9.16 Serial numbers, demo / loaner units, wave picking
+
+Equipment — lasers, devices, handpieces — is tracked **per physical unit** under
+Logistics → Serial numbers: added at receiving (paste several serials at once),
+each unit moving through in stock → on loan / sold / disposed. Consumables stay
+batch-tracked; serials are for the units where *which exact machine* matters.
+
+Logistics → Demo / loaners checks a serial out to a clinic with a due-back date
+and condition notes. The unit leaves available stock immediately, so it cannot be
+lent twice. Overdue loans ping whoever checked the unit out, nightly, once per
+loan. Return puts the serial back in stock with a condition note; a demo that
+closes converts to a sale against the order you name, and the serial is marked
+sold. Loans carry LN- numbers.
+
+Wave picking lives in the fulfillment queue: tick two or more pending orders and
+release them as one WV-numbered pick list — lines merged per SKU, sorted by bin,
+FEFO batches suggested, with the per-order split printed under each product. The
+warehouse walks once, pulls totals, sorts into orders, and confirms each order
+individually.
+
+## 9.17 Expense reports — liquidating a revolving fund
+
+The eighth finance form. Whoever holds a revolving fund files an **Expense
+report** (Finance forms → Expense report): the period covered, then one line per
+receipt — date, category, description, amount — with the receipts attached to the
+register row. ER- numbered, and it moves through the approval steps set for it in
+Admin → Approval routes like every other form (set the route to the finance
+approver who owns fund liquidations). Approval clears the way for topping the
+fund back up, which stays its own form — Request for replenishment.
+
+## 9.17a Back, on phones and iPads
+
+The installed app has no browser chrome, so the phone/iPad top bar now carries a
+small **←** whenever there is somewhere to go back to, and swiping right from the
+left edge of the screen does the same. Both walk the app's own history — the same
+thing the browser back button does on desktop. At the bottom of the history the ←
+takes you Home rather than doing nothing.
+
+## 9.17b My profile
+
+Everyone has a profile now, not just specialists: **My profile** sits right under
+Home in the sidebar, and your name in the desktop footer or the phone menu opens
+it too. It shows who you are signed in as, every finance form you have filed and
+where each one stands, your open follow-ups and this month's visit count (if you
+carry a specialist tag, with a jump to your full sales page), loaners you checked
+out, and the quick actions — password, manual, favourites — without digging
+through menus.
+
+## 9.17c CRM activity — the field effort itself
+
+Sales analytics → CRM activity shows, per specialist: visits, calls, demos,
+accounts touched, active days, contacts per day, and how often a contact ends in
+an order — from the in-app visit log, with a 13-week trend. Planned visits count
+only once done. Sales activity is the input; the Sales views measure the output.
+Every role can open it, including the specialists themselves.
+
+## 9.18 With or without Remedy
 
 Remedy is a sister company and one of Healthspan's customers, and Healthspan also
 sells to its own staff and academy. Accounting's Sales Booked excludes both, so
@@ -467,7 +523,7 @@ dataset rather than the page you're looking at.
 A sort lasts until the page redraws (a filter, a refresh, an action you take).
 That's intentional: it's a way to look at what's on screen, not a saved setting.
 
-## 9.16 Inventory pull-outs — the form, with teeth
+## 9.19 Inventory pull-outs — the form, with teeth
 
 Stock leaves the warehouse for internal reasons all the time: KOL engagements,
 brand campaigns, FOC promos, trade partnerships, launches and training. That
@@ -525,7 +581,7 @@ long-standing pull-out convention. The QBO side stays as it is for now: the
 Shopify↔QBO integration carries it, and pushing *all* orders to QBO directly is
 a separate piece of work.
 
-## 9.17 Accounting integrity: closing a period, and what freezes
+## 9.20 Accounting integrity: closing a period, and what freezes
 
 Until now any month could be edited forever. A July order's amount could change
 in September, after accounting had signed July off — and nothing said no. The
@@ -588,7 +644,7 @@ draft and lands in Approvals as a "purchase" hold, pinging admin. Approving mark
 it ordered; rejecting cancels it. Both thresholds are super-admin settings on the
 Approvals page.
 
-## 9.18 Your manual, in-app
+## 9.21 Your manual, in-app
 
 Sidebar → **manual** (mobile: Menu → My manual) opens the user manual for YOUR
 role right inside the app — read it there, download it, or pop it full screen.

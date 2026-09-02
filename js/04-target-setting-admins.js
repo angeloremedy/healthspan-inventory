@@ -425,8 +425,40 @@ let CUR_ACCT=null,ACCT_BACK='customers';
 let ROUTING=false; // true while applying a route from the URL (prevents push loops)
 function pushRoute(h){
   if(ROUTING)return;
-  try{if(location.hash!==h)history.pushState(null,'',h);}catch(e){}
+  try{if(location.hash!==h){history.pushState(null,'',h);window._navDepth=(window._navDepth||0)+1;}}catch(e){}
+  try{if(typeof backPaint==='function')backPaint();}catch(e){}
 }
+/* ── BACK, for the installed app: iPhones and iPads have no browser chrome, so
+   the little ← in the top bar (and a left-edge swipe right) walk the same
+   history the browser back button would. ── */
+function navBack(){
+  if((window._navDepth||0)>0){window._navDepth--;history.back();}
+  else showView('home',null);   // nowhere back to go: home is never wrong
+  try{if(typeof backPaint==='function')backPaint();}catch(e){}
+}
+function backPaint(){
+  const b=document.getElementById('mbk');if(!b)return;
+  const show=(window._navDepth||0)>0||(typeof currentView!=='undefined'&&currentView&&currentView!=='home');
+  b.style.display=show?'inline-flex':'none';
+}
+/* Left-edge swipe right = back. Touch only; starts within 28px of the edge,
+   mostly horizontal, quick. If iOS ever handles the gesture natively a popstate
+   lands first, so a fresh popstate suppresses ours (no double navigation). */
+(function(){
+  let x0=0,y0=0,t0=0,edge=false;
+  window._lastPop=0;
+  window.addEventListener('popstate',()=>{window._lastPop=Date.now();try{if(typeof backPaint==='function')backPaint();}catch(e){}});
+  document.addEventListener('touchstart',e=>{
+    const t=e.touches&&e.touches[0];if(!t)return;
+    edge=t.clientX<=28;x0=t.clientX;y0=t.clientY;t0=Date.now();
+  },{passive:true});
+  document.addEventListener('touchend',e=>{
+    if(!edge)return;edge=false;
+    const t=e.changedTouches&&e.changedTouches[0];if(!t)return;
+    const dx=t.clientX-x0,dy=Math.abs(t.clientY-y0),dt=Date.now()-t0;
+    if(dx>70&&dy<50&&dt<600&&Date.now()-window._lastPop>600)navBack();
+  },{passive:true});
+})();
 function applyRoute(){
   const h=location.hash||'';
   ROUTING=true;
@@ -437,6 +469,7 @@ function applyRoute(){
     if(h.startsWith('#/p/')){const n=decodeURIComponent(h.slice(4));if(n){showPickSlip(n);return;}}
     if(h.startsWith('#/d/')){const n=decodeURIComponent(h.slice(4));if(n){showDeliveryReceipt(n);return;}}
     if(h.startsWith('#/m/')){const n=decodeURIComponent(h.slice(4));if(n){showStatement(n);return;}}
+    if(h.startsWith('#/w/')){const n=decodeURIComponent(h.slice(4));if(n&&typeof showWavePick==='function'){showWavePick(n);return;}}
     if(h.startsWith('#/v/')){const v=h.slice(4);if(v){showView(v,document.querySelector('.ni[onclick*="\''+v+'\'"]'));return;}}
   }finally{ROUTING=false;}
 }

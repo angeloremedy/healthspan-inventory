@@ -10,7 +10,7 @@ Last updated: 2026-08-28.
 |---|---|---|
 | **super admin** | Angelo only — everything below, plus Cutover switches and permanent user deletion (DB-enforced via `is_super`) | live |
 | **admin** | Paul, Dr. April | live |
-| **manager** (sales manager) | Jojo, Marj | live |
+| **manager** (sales manager) | Marj | live |
 | **sales** (product specialist) | Rhas, Tin, Rechel, Charmaine, Ruth, Joy, Jonathan, RJ + rest of PS team | live |
 | **supply_chain** | Verna (+ Joemar) | live |
 | **finance** | Alex, Tal, Sean | live |
@@ -33,7 +33,7 @@ POs/scan/audit; no costs or margins.
 
 ## The design: circle read, role write (decided 2026-08-27)
 
-Everyone in the weekly meeting — Jojo, Marj, Verna, Alex, Tal, Sean, Maricris,
+Everyone in the weekly meeting — Marj, Verna, Alex, Tal, Sean, Daz, Maricris,
 Mench — forms one **trust circle**: they all get the same broad READ access
 (sales analytics, inventory suite & simulators, AR aging, accounts, pipeline,
 forecasts, campaigns), because the meeting already shares these numbers with
@@ -108,6 +108,14 @@ therefore a floor — implementation grants the full circle read to all three.
 | With/without Remedy toggle | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ — a per-person view setting, not a permission; it changes nothing about what you may open |
 | Targets & commissions population | external only | external only | external only | external only | external only | fixed, not a setting — the toggle does not reach these pages |
 | Remove an attachment | own uploads | own uploads | ✅ | ✅ | ✅ | enforced server-side in upload.mjs, not by the browser |
+| Serial numbers (view) | ✖ | ✅ | ✅ | ✅ | ✅ | sales work from accounts, not the equipment register |
+| Serial numbers (add / mark sold / dispose) | ✖ | ✖ | ✅ | ✅ (supply chain) | ✅ | physical units are the warehouse's |
+| Demo / loaners (view) | ✖ | ✅ | ✅ | ✅ | ✅ | |
+| Demo / loaners (check out / return / convert) | ✖ | ✅ | ✅ | ✅ (supply chain) | ✅ | RLS: supply_chain, admin, manager, super |
+| Release a pick wave | ✖ | ✅ | ✅ | ✅ (supply chain) | ✅ | same gate as fulfilment |
+| CRM activity view | ✅ | ✅ | ✅ | ✅ | ✅ | every role incl. specialists — it is their own effort |
+| Expense report (file one) | ✅ | ✅ | ✅ | ✅ | ✅ | any signed-in user; the approval route is the control, same as all finance forms |
+| My profile | ✅ | ✅ | ✅ | ✅ | ✅ | everyone — it only ever shows your own items |
 | Account documents (view / add) | ✅ | ✅ | ✅ | ✅ | ✅ | 👁 |
 | Visit photos (on your own visit) | ✅ | ✅ | ✅ | ✅ | ✅ | ✖ | everyone may open a visit's files; only its owner attaches |
 | Pull-out request (file one) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (viewer/IT too — `viewAllowed` returns true for every role by rule) |

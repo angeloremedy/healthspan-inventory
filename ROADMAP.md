@@ -111,6 +111,21 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ Product specialists removed from the fund-source approver picker
 - ✅ New **Finance forms** sidebar section (pull-out requests today; the five finance forms as they land)
 
+**People (Sep 2)** — Jojo resigned: disable the account in Team & access and reassign any accounts owned by his tag; Marj is the sales manager of record. Daz joins finance: create the account with role `finance` in Team & access. Both are in-app actions, no SQL.
+
+**Splash, serials, loaners, waves, CRM activity, faster boot (Sep 2)**
+- ✅ Expense reports (ER-): the eighth finance form — revolving-fund liquidation with itemised receipt lines, routed like every form via Approval routes (set the step to Tal in-app)
+- ✅ Back, for the installed app: a small ← in the phone/iPad top bar whenever there is somewhere to go back to, and a left-edge swipe right that does the same — both walk the app's own history, and a native-handled gesture is never doubled
+- ✅ My profile: every user has one (sidebar, under Home; the name in the footer/phone menu opens it) — identity, filed finance forms with status, open follow-ups, checked-out loaners, quick actions
+- ✅ Boot splash: the brand mark on full-bleed blue the instant the page opens (like Instagram/X), fading once the app is ready or the login form is up; an inline failsafe clears it even if the JS errors
+- ✅ Faster loading: every script is deferred (the page paints before ~1.3MB of JS downloads), preconnects to Supabase and the CDNs, and icons cache for a week. JS/HTML deliberately stay on etag revalidation — unhashed files must never go half-stale
+- ✅ Serial numbers (Logistics): one row per equipment unit — lasers, devices — from receiving through loan, sale or disposal. Consumables stay batch-tracked
+- ✅ Demo / loaners (Logistics): check a serial out to a clinic with a due-back date and condition notes; return puts it back in stock, a closed demo converts to a sale; nightly rule 11 pings whoever checked it out once it goes overdue
+- ✅ Wave picking: tick orders in the fulfillment queue → one WV-numbered pick list merged per SKU and sorted by bin — one walk instead of one list per order, with per-order confirm
+- ✅ CRM activity (Sales analytics): visits, calls, demos, accounts touched and contact→order rate per specialist, with a 13-week trend — the view Marj and marketing asked for. Specialists can open it too
+- ✅ iPad typing fixed on the CRM form: iPadOS chokes on <datalist> with hundreds of options (eaten keystrokes, jumping cursor) and iOS zooms the page for inputs under 16px. The four big pickers now use the app's own typeahead, and touch devices get 16px inputs
+- 🔒 Loan/serial stock moves are guarded: check-out flips the serial out of stock first with a zero-rows check, so two people cannot lend the same unit
+
 **Mobile polish (Sep 2)**
 - ✅ Bottom bar: the green highlight follows the page you are on. Each tab used to manage its own class, so tapping Home left the previous tab lit; one `mbarPaint()` now decides it on every navigation
 - ✅ Mobile menu: the five account buttons are a two-column grid (Sign out full-width) instead of one flex row wider than the screen, and the menu clips horizontal overflow outright

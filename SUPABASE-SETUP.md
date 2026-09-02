@@ -2308,3 +2308,146 @@ insert into public.code_lists (list,code,sort) values
   ('team','Finance',5),('team','IT',6),('team','Executives',7),('team','People Ops',8)
 on conflict (list,code) do nothing;
 ```
+
+## Serial numbers, demo/loaner tracking, wave picking (Sep 2)
+
+```sql
+-- ── SERIAL NUMBERS (equipment) ────────────────────────────────────────────────
+-- One row per physical unit. Consumables stay batch-tracked; a SKU is
+-- "serialized" simply by having serials here (GTG lasers, Inthera, SkinPen…).
+create table if not exists public.serials (
+  id bigint generated always as identity primary key,
+  sku text not null,
+  serial text not null,
+  batch text,
+  status text not null default 'in_stock',   -- in_stock | on_loan | sold | disposed
+  sold_ref text,                              -- order / DR reference when sold
+  note text,
+  created_by uuid references auth.users,
+  created_name text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (sku, serial)
+);
+alter table public.serials enable row level security;
+drop policy if exists "serials read" on public.serials;
+create policy "serials read" on public.serials for select to authenticated using (true);
+-- the warehouse owns physical units; admin and super admin can correct
+drop policy if exists "serials write" on public.serials;
+create policy "serials write" on public.serials for insert to authenticated
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid()
+              and (p.role in ('supply_chain','admin') or p.is_super)));
+drop policy if exists "serials update" on public.serials;
+-- manager included: the loan flow (check-out / return / convert) flips the
+-- serial's status, and managers may run loans. A narrower policy here made a
+-- manager's check-out fail with "no longer in stock" and left returns closing
+-- the loan while the serial stayed on_loan forever (0-row RLS update, no error).
+create policy "serials update" on public.serials for update to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid()
+         and (p.role in ('supply_chain','admin','manager') or p.is_super)));
+drop policy if exists "serials delete super" on public.serials;
+create policy "serials delete super" on public.serials for delete to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_super));
+
+-- ── DEMO / LOANER UNITS ───────────────────────────────────────────────────────
+-- A loan checks a serial out to a clinic. Overdue loans ping whoever checked
+-- them out (nightly rule 11). Returning or converting to a sale closes it.
+create table if not exists public.loans (
+  id bigint generated always as identity primary key,
+  serial_id bigint not null references public.serials(id),
+  sku text not null,
+  serial text not null,
+  account text not null,
+  out_date date not null default (now() at time zone 'Asia/Manila')::date,
+  due_date date,
+  cond_out text,                              -- condition noted at check-out
+  status text not null default 'out',        -- out | returned | converted
+  returned_at date,
+  cond_in text,                               -- condition noted at return
+  converted_ref text,                         -- order reference when it became a sale
+  out_by uuid references auth.users,          -- who gets the overdue ping
+  out_name text,
+  note text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table public.loans enable row level security;
+drop policy if exists "loans read" on public.loans;
+create policy "loans read" on public.loans for select to authenticated using (true);
+drop policy if exists "loans write" on public.loans;
+create policy "loans write" on public.loans for insert to authenticated
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid()
+              and (p.role in ('supply_chain','admin','manager') or p.is_super)));
+drop policy if exists "loans update" on public.loans;
+create policy "loans update" on public.loans for update to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid()
+         and (p.role in ('supply_chain','admin','manager') or p.is_super)));
+drop policy if exists "loans delete super" on public.loans;
+create policy "loans delete super" on public.loans for delete to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_super));
+
+-- ── WAVE PICKING ──────────────────────────────────────────────────────────────
+-- The warehouse selects pending orders in the fulfillment queue and releases
+-- them as one wave: a combined FEFO pick list sorted by bin. A wave is done
+-- when none of its orders is still pending (computed, not stored).
+create table if not exists public.waves (
+  id bigint generated always as identity primary key,
+  order_ids jsonb not null,                   -- array of orders.id (uuid strings)
+  note text,
+  created_by uuid references auth.users,
+  created_name text,
+  created_at timestamptz not null default now()
+);
+alter table public.waves enable row level security;
+drop policy if exists "waves read" on public.waves;
+create policy "waves read" on public.waves for select to authenticated using (true);
+drop policy if exists "waves write" on public.waves;
+create policy "waves write" on public.waves for insert to authenticated
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid()
+              and (p.role in ('supply_chain','admin','manager') or p.is_super)));
+drop policy if exists "waves delete super" on public.waves;
+create policy "waves delete super" on public.waves for delete to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_super));
+
+-- document numbers for the two new series
+insert into public.doc_formats (kind,label,prefix,pad,offset_no,sort) values
+  ('loan','Loaner check-outs','LN-',0,100,8),
+  ('wave','Pick waves','WV-',0,100,9)
+on conflict (kind) do nothing;
+```
+
+## Expense reports — revolving-fund liquidation (Sep 2)
+
+```sql
+-- The eighth finance form: expense reports, for whoever holds a revolving fund.
+-- Same engine as the other seven (fin_requests + fin_lines + approval_routes),
+-- so this is registration, not new machinery.
+
+-- 1 · allow the new kind
+alter table public.fin_requests drop constraint if exists fin_requests_kind_check;
+alter table public.fin_requests add constraint fin_requests_kind_check
+  check (kind in ('voucher','orderpay','proofpay','replenish','reimburse','cashadvance','expreport'));
+
+-- 2 · its attachments follow the request's visibility, like the other forms
+drop policy if exists "att read" on public.attachments;
+create policy "att read" on public.attachments for select to authenticated using (
+  rec_type not in ('voucher','orderpay','proofpay','replenish','reimburse','cashadvance','expreport')
+  or exists (select 1 from public.fin_requests q where q.id::text = attachments.rec_id
+             and (q.requester_id = auth.uid()
+                  or exists (select 1 from public.profiles p where p.id = auth.uid() and (p.role in ('admin','finance') or p.is_super))
+                  or exists (select 1 from public.approval_routes r where r.kind = q.kind and r.active
+                             and (r.approver_id = auth.uid()
+                                  or (r.approver_role is not null and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = r.approver_role))
+                                  or (r.use_fund_source and exists (select 1 from public.fund_sources f where f.class = q.fund_class
+                                       and (f.approver_id = auth.uid() or f.backup_id = auth.uid())))))))
+);
+
+-- 3 · ER- numbering
+insert into public.doc_formats (kind,label,prefix,pad,offset_no,sort) values
+  ('expreport','Expense reports','ER-',0,100,10)
+on conflict (kind) do nothing;
+```
+
+After running this, set the approver in **Admin → Approval routes**: add a step for
+"Expense report (revolving fund)" pointing at Tal. Routes are data, so if Tal is
+away the backup is one dropdown change, not a code change.

@@ -154,7 +154,7 @@ function buildMobileNav(){
     return el?el.outerHTML.replace('<svg ','<svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" '):'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>';
   };
   const mLabel=v=>{
-    const SHORT={neworder:'Order',logvisit:'Visit',followups:'To-dos',salesdue:'Reorder',approvals:'Approve',orders:'Orders',salespace:'Pace',customers:'Accounts',fulfillq:'Fulfill',scan:'Scan',cyclecount:'Count',po:'POs',ar:'AR',pdc:'PDCs',cashflow:'Cash',returns:'Returns',campaigns:'Campaigns',promos:'Promos',salesoverview:'Sales',pipeline:'Pipeline',dashboard:'Inventory',quotes:'Quotes',complaints:'Complaints',salesevents:'Events',transfers:'Transfers',quarantine:'Quarantine',whkpi:'KPIs',suppliers:'Suppliers',valuation:'Costs',catalog:'Items',recall:'Recall',targets:'Targets',scorecards:'Reviews',users:'Team',audit:'Log',commissions:'Commis.',regs:'Regs',salestarget:'Vs target',salesfield:'Coverage',all:'SKUs',forecast:'Stockout',health:'Data'};
+    const SHORT={neworder:'Order',logvisit:'Visit',followups:'To-dos',salesdue:'Reorder',approvals:'Approve',orders:'Orders',salespace:'Pace',customers:'Accounts',fulfillq:'Fulfill',scan:'Scan',cyclecount:'Count',po:'POs',ar:'AR',pdc:'PDCs',cashflow:'Cash',returns:'Returns',campaigns:'Campaigns',promos:'Promos',salesoverview:'Sales',pipeline:'Pipeline',dashboard:'Inventory',quotes:'Quotes',complaints:'Complaints',salesevents:'Events',transfers:'Transfers',quarantine:'Quarantine',whkpi:'KPIs',suppliers:'Suppliers',valuation:'Costs',catalog:'Items',recall:'Recall',targets:'Targets',scorecards:'Reviews',users:'Team',audit:'Log',commissions:'Commis.',regs:'Regs',salestarget:'Vs target',salesfield:'Coverage',crmstats:'Activity',serials:'Serials',loans:'Loaners',expreport:'Exp. report',profile:'Profile',all:'SKUs',forecast:'Stockout',health:'Data'};
     if(SHORT[v])return SHORT[v];
     const el=document.querySelector('.nav .ni[onclick*="\''+v+'\'"]');
     if(!el)return v;
@@ -204,6 +204,13 @@ async function initAuth(){
     else showSbLogin();
   }catch(e){showSbLogin('Could not reach the login server — check the connection.');}
 }
+/* fade the boot splash: after the app is ready, or when the login form is up.
+   Kept on screen at least 650ms so a fast load doesn't strobe it. */
+function splashHide(){
+  const s=document.getElementById('splash');if(!s)return;
+  const wait=Math.max(0,650-(Date.now()-(window._splashT0||0)));
+  setTimeout(()=>{s.style.opacity='0';setTimeout(()=>{try{s.remove();}catch(e){}},350);},wait);
+}
 async function sbLoadProfile(user){
   SBUSER=user;
   try{const {data}=await SB.from('profiles').select('name,role,specialist_tag,is_super,can_manage_ps').eq('id',user.id).single();SBPROFILE=data||null;}
@@ -228,7 +235,7 @@ async function sbLoadProfile(user){
   const who=(SBPROFILE&&SBPROFILE.name)||user.email||'';
   if(sf){const old=document.getElementById('rolebadge');if(old)old.remove();
     const d=document.createElement('div');d.id='rolebadge';
-    d.innerHTML=esc(who)+' · '+(ROLE==='sales'?'Sales':ROLE==='manager'?'Sales manager':ROLE==='admin'?'Admin':esc(String(ROLE).replace('_',' ')))+' · <a href="#" onclick="openChangePassword();return false" style="color:var(--ac)">password</a> · <a href="#" onclick="downloadManual();return false" style="color:var(--ac)" title="Download the user manual for your role">manual</a> · <a href="#" onclick="roleLogout();return false" style="color:var(--ac)">sign out</a>';
+    d.innerHTML='<a href="#" onclick="showView(\'profile\',null);return false" style="color:var(--tx2);font-weight:600">'+esc(who)+'</a> · '+(ROLE==='sales'?'Sales':ROLE==='manager'?'Sales manager':ROLE==='admin'?'Admin':esc(String(ROLE).replace('_',' ')))+' · <a href="#" onclick="openChangePassword();return false" style="color:var(--ac)">password</a> · <a href="#" onclick="downloadManual();return false" style="color:var(--ac)" title="Download the user manual for your role">manual</a> · <a href="#" onclick="roleLogout();return false" style="color:var(--ac)">sign out</a>';
     d.style.cssText='padding:6px 14px;border-top:1px solid var(--bd);font-size:10.5px;color:var(--tx3)';
     sf.parentNode.insertBefore(d,sf);}
   buildMobileNav();
@@ -236,8 +243,10 @@ async function sbLoadProfile(user){
   setTimeout(()=>{window._animReady=true;},400); // animations start after login settles (no boot flicker)
   if(location.hash&&location.hash.startsWith('#/'))applyRoute(); // deep link / refresh keeps the page
   else showView('home',document.querySelector('.ni[onclick*="\'home\'"]')); // everyone lands on the role-aware home
+  splashHide();
 }
 function showSbLogin(err){
+  try{splashHide();}catch(e){}   // the login form has to be visible under it
   const g=$('rolegate');if(!g)return;
   document.body.classList.remove('authed'); // signed out / expired: hide app chrome
   g.style.display='flex';

@@ -291,7 +291,7 @@ function buildMobileMenu(q){
   if(nav)walk([...nav.children]);
   // account row at the bottom: who am I + password + sign out (unreachable otherwise on phones)
   const who=(SBPROFILE&&SBPROFILE.name)||(SBUSER&&SBUSER.email)||'';
-  html+='<div style="padding:18px;border-top:2px solid var(--bd);margin-top:8px;font-size:13px;color:var(--tx2)">'+esc(who)+' · '+(ROLE==='sales'?'Sales':ROLE==='manager'?'Sales manager':'Admin')+
+  html+='<div style="padding:18px;border-top:2px solid var(--bd);margin-top:8px;font-size:13px;color:var(--tx2)">'+'<a href="#" onclick="closeMobileMenu();showView(\'profile\',null);return false" style="color:var(--tx);font-weight:700">'+esc(who)+'</a>'+' · '+(ROLE==='sales'?'Sales':ROLE==='manager'?'Sales manager':'Admin')+
     /* a 2-column grid, not a single flex row: five buttons whose labels don't fit
        forced the whole menu to scroll sideways on phones */
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">'+
@@ -3073,7 +3073,7 @@ async function attCheck(){
    Anyone signed in can file one; who signs it off is configured per form in
    approval_routes (Admin → Approval routes), so a route can point at a named
    person, at whoever holds a role, or at the request's own fund source. */
-const FIN_KINDS=['voucher','orderpay','proofpay','replenish','reimburse','cashadvance'];
+const FIN_KINDS=['voucher','orderpay','proofpay','replenish','reimburse','cashadvance','expreport'];
 const FIN_SPEC={
   voucher:{title:'Voucher for approval',no:'voucher',
     blurb:'For payments that need a voucher raised — supplier invoices, honoraria, reimbursable costs already incurred.',
@@ -3176,6 +3176,24 @@ const FIN_SPEC={
             {k:'amount',l:'Amount ₱',t:'money',w:'width:130px'}],
       when:{reimburse_type:['Healthspan Other Expense','Remedy Other Expense']}},
     attach:'Receipts / invoices for every line'},
+
+  expreport:{title:'Expense report (revolving fund)',no:'expreport',
+    blurb:'The liquidation of a revolving fund: every peso spent from the fund, itemised with its receipt, for the period you are reporting. Approval clears the way for the fund to be replenished (file the Request for replenishment separately).',
+    fields:[
+      {k:'date_requested',t:'date',l:'Date submitted',req:1,col:'date_requested'},
+      {k:'team',t:'list',list:'team',l:'Team',req:1,col:'team'},
+      {k:'period_from',t:'date',l:'Period covered — from',req:1},
+      {k:'period_to',t:'date',l:'Period covered — to',req:1},
+      {k:'fund_amount',t:'money',l:'Revolving fund amount'},
+      {k:'purpose',t:'area',l:'Notes (optional)',col:'purpose'},
+      {k:'amount',t:'money',l:'Total spent this period',req:1,col:'amount'}
+    ],
+    lines:{label:'Expenses',hint:'One row per receipt — the total above should equal these.',
+      cols:[{k:'exp_date',l:'Date',t:'text',w:'width:110px'},
+            {k:'category',l:'Category',t:'text',w:'width:150px'},
+            {k:'description',l:'Description',t:'text',w:'flex:1;min-width:180px'},
+            {k:'amount',l:'Amount ₱',t:'money',w:'width:120px'}]},
+    attach:'Receipts for every line'},
 
   cashadvance:{title:'Request for cash advance',no:'cashadvance',
     blurb:'Money needed up front for a project. Liquidate with receipts afterwards.',
@@ -3707,9 +3725,10 @@ function favSidebar(){
     if(v===currentView)d.classList.add('active');   // the rebuild would drop it otherwise
     sec.appendChild(d);
   });
-  // Home stays at the very top; favourites sit directly under it
-  const home=[...nav.children].find(el=>(el.getAttribute&&el.getAttribute('onclick')||'').indexOf("showView('home'")>=0);
-  nav.insertBefore(sec,home?home.nextSibling:nav.firstChild);
+  // Home, then My profile, then the favourites
+  const anchor=[...nav.children].find(el=>(el.getAttribute&&el.getAttribute('onclick')||'').indexOf("showView('profile'")>=0)
+    ||[...nav.children].find(el=>(el.getAttribute&&el.getAttribute('onclick')||'').indexOf("showView('home'")>=0);
+  nav.insertBefore(sec,anchor?anchor.nextSibling:nav.firstChild);
   try{navApplyCollapse();}catch(e){}   // the section was just rebuilt — restore its saved state
 }
 /* the picker — same shape as the bottom-bar customiser, so it feels familiar */

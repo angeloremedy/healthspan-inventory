@@ -205,6 +205,34 @@ Self-disable is rejected. Three privilege tiers:
 `manual.mjs` serves each signed-in user their role's PDF manual (bundled via
 netlify.toml included_files; the /manuals/* static path is force-redirected
 
+### js/11 — serials, loaners, waves, CRM activity
+
+An eleventh classic script (index.html loads it after js/10, same global scope).
+`attachTypeahead()` lives here too: the app's own filtered dropdown, used instead
+of `<datalist>` on the account/product pickers, because iPadOS mangles native
+datalists once they hold hundreds of options. Serial check-out flips the serial's
+status with a `.eq('status','in_stock').select('id')` guard — zero rows back means
+someone else took the unit, and the loan insert never happens.
+
+### The finance-forms engine takes new forms as data
+
+`expreport` (expense reports — revolving-fund liquidation) is the eighth kind:
+an entry in `FIN_KINDS`/`FIN_SPEC` (js/10), a `doc_formats` row (ER-), the kind
+added to the `fin_requests` check constraint and to the attachments-visibility
+policy. No new tables, no new rendering code — the engine draws the form from
+its spec, including the itemised lines (fin_lines). The approval route is data
+(Admin → Approval routes).
+
+### Boot: splash and deferred scripts
+
+`#splash` is inline in index.html before any script and fades via `splashHide()`
+(js/09) once the profile loads or the login form renders; an inline 8s failsafe
+clears it even if the JS fails. Every external script carries `defer`, so first
+paint (the splash) happens before ~1.3MB of JS downloads or parses — order is
+preserved (CDN libs, then js/01…11). JS and HTML stay on Netlify's etag
+revalidation on purpose: the files are unhashed, and long caching would let one
+script go stale against the others mid-deploy. Only images cache long.
+
 ### tools/manuals — where the PDFs come from
 
 The nine role manuals are generated, not hand-edited. `tools/manuals/content/*.json`

@@ -1,7 +1,7 @@
 /* ── VIEWS ── */
 /* ── ONE permission truth for views: showView redirects with it, the sidebar and
    mobile menu hide with it — they can never drift apart again. ── */
-const SALES_VIEWS=['home','logvisit','followups','account','neworder','orders','order','spec','pickslip','pipeline','quotes','salesevents','complaints','pullouts','manual'].concat(['voucher','orderpay','proofpay','replenish','reimburse','cashadvance']);
+const SALES_VIEWS=['home','logvisit','followups','account','neworder','orders','order','spec','pickslip','pipeline','quotes','salesevents','complaints','pullouts','manual','crmstats','expreport','profile'].concat(['voucher','orderpay','proofpay','replenish','reimburse','cashadvance']);
 const CIRCLE_BLOCK_COMMON=['neworder','logvisit','targets','scorecards'];
 const CIRCLE_BLOCK={finance:['scan','scanpick','fulfillq','recall','cyclecount','transfers'],marketing:['scan','scanpick','po','fulfillq','pdc','returns','commissions','cyclecount','quarantine','suppliers','transfers','approvals','poscore'],viewer:['scan','scanpick','po','fulfillq','pdc','returns','recall','commissions','cyclecount','quarantine','suppliers','transfers','approvals','poscore'],supply_chain:['pdc','commissions','approvals']};
 function viewAllowed(v){
@@ -45,10 +45,11 @@ function showView(v,el){
            simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator',
            simmonte:'Monte Carlo stockout risk',simproject:'12-month projection',simcash:'Cash-flow timeline',simbulk:'Bulk-buy trade-off',simbranch:'Remedy branch rebalancing',
            aged:'Aged inventory',shrinkage:'Shrinkage tracker',cashexpiry:'Cash in expiring stock',branchtransfer:'Remedy branch shipments',branchexpiry:'Remedy branch expiry watch',
-           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt',targets:'Set targets',fcastacc:'Forecast accuracy',campaigns:'Campaign calendar',planreview:'AI planning review',salespace:'Leaderboard & pace',pdc:'PDC register',salesdue:'Reorder due',catalog:'Item master',returns:'Returns & credit memos',scan:'Scan — receive / pick / count',cutover:'Cutover switches',creditmemo:'Credit memo',scorecards:'Review scorecards',scanpick:'Scan to pick',recall:'Batch recall trace',pipeline:'Pipeline',po:'Purchase orders',approvals:'Approvals',commissions:'Commissions',salesevents:'Events calendar',quotes:'Quotations',promos:'Promotions',regs:'Product registrations',cyclecount:'Cycle counts',cashflow:'Cash-flow forecast',quarantine:'Quarantine & disposal',pullouts:'Pull-out requests',archive:'Archive — deleted records',numbering:'Document numbering',codelists:'Option lists',routes:'Approval routes',voucher:'Voucher for approval',orderpay:'Request to order / pay',proofpay:'Proof of payment',replenish:'Request for replenishment',reimburse:'Expense reimbursement',cashadvance:'Request for cash advance',shortdated:'Short-dated stock',poscore:'Receiving & supplier scorecard',whkpi:'Warehouse KPIs',complaints:'Complaints log',suppliers:'Suppliers & imports',valuation:'Landed cost & valuation',transfers:'Transfer orders',manual:'Your manual'};
+           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt',targets:'Set targets',fcastacc:'Forecast accuracy',campaigns:'Campaign calendar',planreview:'AI planning review',salespace:'Leaderboard & pace',pdc:'PDC register',salesdue:'Reorder due',catalog:'Item master',returns:'Returns & credit memos',scan:'Scan — receive / pick / count',cutover:'Cutover switches',creditmemo:'Credit memo',scorecards:'Review scorecards',scanpick:'Scan to pick',recall:'Batch recall trace',pipeline:'Pipeline',po:'Purchase orders',approvals:'Approvals',commissions:'Commissions',salesevents:'Events calendar',quotes:'Quotations',promos:'Promotions',regs:'Product registrations',cyclecount:'Cycle counts',cashflow:'Cash-flow forecast',quarantine:'Quarantine & disposal',pullouts:'Pull-out requests',archive:'Archive — deleted records',numbering:'Document numbering',codelists:'Option lists',routes:'Approval routes',voucher:'Voucher for approval',orderpay:'Request to order / pay',proofpay:'Proof of payment',replenish:'Request for replenishment',reimburse:'Expense reimbursement',cashadvance:'Request for cash advance',expreport:'Expense report (revolving fund)',shortdated:'Short-dated stock',serials:'Serial numbers',loans:'Demo / loaner units',profile:'My profile',wavepick:'Wave pick list',crmstats:'CRM activity',poscore:'Receiving & supplier scorecard',whkpi:'Warehouse KPIs',complaints:'Complaints log',suppliers:'Suppliers & imports',valuation:'Landed cost & valuation',transfers:'Transfer orders',manual:'Your manual'};
   $('ptitle').textContent=T[v]||v;
   try{if(typeof favPaint==='function')favPaint();}catch(e){} // star reflects this page
   try{if(typeof mbarPaint==='function')mbarPaint();}catch(e){} // bottom bar follows too
+  try{if(typeof backPaint==='function')backPaint();}catch(e){} // the mobile ← appears when there is somewhere to go
   if(v==='dashboard') renderDashboard();
   else if(v==='action') renderActionCenter();
   else if(v==='customers') renderCustomers();
@@ -121,7 +122,12 @@ function showView(v,el){
   else if(v==='cashflow') renderCashflow();
   else if(v==='quarantine') renderQuarantine();
   else if(v==='pullouts') renderPullouts();
+  else if(v==='serials') renderSerials();
+  else if(v==='loans') renderLoans();
+  else if(v==='crmstats') renderCrmStats();
+  else if(v==='profile') renderMyProfile();
   else if(v==='voucher') renderFinForm('voucher');
+  else if(v==='expreport') renderFinForm('expreport');
   else if(v==='orderpay') renderFinForm('orderpay');
   else if(v==='proofpay') renderFinForm('proofpay');
   else if(v==='replenish') renderFinForm('replenish');
@@ -153,9 +159,9 @@ function fltLine(line,el){
   renderTable();
 }
 
-/* ── SALES SECTION (Shopify booked sales — for Jojo & Marj) ── */
+/* ── SALES SECTION (Shopify booked sales — for the sales managers) ── */
 const SP_LBL={today:'today',yest:'yesterday',['7d']:'last 7 days',mtd:'this month',['30d']:'last 30 days',['3m']:'last 3 months',all:'last 12 months'};
-function fmtPeso(v){return '₱'+Math.round(v||0).toLocaleString('en-PH');} // exact pesos — Jojo wants no K-rounding in Sales views
+function fmtPeso(v){return '₱'+Math.round(v||0).toLocaleString('en-PH');} // exact pesos — the sales managers want no K-rounding in Sales views
 /* Sales drill-down drawer: which orders, customers and specialists moved this product */
 function openSalesDrawer(sku){
   const S=(SALESIDX||{})[sku];
@@ -439,7 +445,11 @@ function specMerged(){
   return out;}
 /* Specialist detail drawer — trend, target, and what they sold */
 function openSpecDrawer(name){
-  const specs=specMerged();const sp=specs[name];if(!sp)return;
+  const specs=specMerged();
+  // case-insensitive: the visit log's spelling may differ from the Shopify tag
+  const key=specs[name]?name:Object.keys(specs).find(k=>k.toLowerCase()===String(name||'').toLowerCase());
+  const sp=key?specs[key]:null;
+  if(!sp){alert('No Shopify sales recorded under "'+name+'" yet — only visit-log activity.');return;}
   const hideInt=SEXT&&hasIntSplit();
   const t=netPeriod(sp,SPERIOD,'');
   const ymNow=new Date().toISOString().slice(0,7);
@@ -616,16 +626,14 @@ function renderLogVisit(){
     (lockSpec?'<input id="lv-spec" value="'+esc(myTag)+'" readonly '+inp.slice(0,-1)+';opacity:.75">':
     '<select id="lv-spec" '+inp+'>'+'<option value=""></option>'+specs.map(s=>'<option'+(s===last?' selected':'')+'>'+esc(s)+'</option>').join('')+'</select>')+
     '<label '+lbl+'>Account / doctor / clinic</label>'+
-    '<input id="lv-acct" list="lv-accts" value="'+esc(preAcct)+'" placeholder="Start typing — or enter a new account" onchange="dupeHint(\'lv-acct\',\'lv-dupe\')" '+inp+'>'+
-    '<datalist id="lv-accts">'+accounts.map(a=>'<option value="'+esc(a)+'">').join('')+'</datalist>'+
+    '<input id="lv-acct" value="'+esc(preAcct)+'" placeholder="Start typing — or enter a new account" onchange="dupeHint(\'lv-acct\',\'lv-dupe\')" '+inp+'>'+
     '<div id="lv-dupe"></div>'+
     '<label '+lbl+'>Visit type</label>'+
     '<select id="lv-type" '+inp+'><option>Clinic visit</option><option>Call / follow-up</option><option>Product demo</option><option>Delivery / after-sales</option><option>Event / congress</option></select>'+
     '<label '+lbl+'>Outcome</label>'+
     '<select id="lv-out" '+inp+'><option>Ordered</option><option>Follow-up needed</option><option>Left samples</option><option>No order</option><option>New account opened</option></select>'+
     '<label '+lbl+'>Products endorsed <span style="text-transform:none;font-weight:400">(pitched to the doctor — tap to add)</span></label>'+
-    '<input id="lv-prod" list="lv-prods" placeholder="Start typing a product…" onchange="lvAddProd()" '+inp+'>'+
-    '<datalist id="lv-prods">'+DATA.map(p=>'<option value="'+esc(p.name)+'">').join('')+'</datalist>'+
+    '<input id="lv-prod" placeholder="Start typing a product…" onchange="lvAddProd()" '+inp+'>'+
     '<div id="lv-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>'+
     '<label '+lbl+'>Date <span style="text-transform:none;font-weight:400">(a future date = planned visit)</span></label><input id="lv-date" type="date" value="'+esc(window._lvDate||today)+'" '+inp+'>'+
     '<label '+lbl+'>Notes (optional)</label><textarea id="lv-notes" rows="2" placeholder="e.g. interested in Cosmelan, follow up next week" '+inp+'></textarea>'+
@@ -634,6 +642,12 @@ function renderLogVisit(){
     '</div>'+
     '<div id="lv-recent" style="margin-top:14px"></div></div>';
   window._lvProds=[];
+  /* iPadOS chokes on <datalist> with hundreds of options — keystrokes get eaten
+     and the cursor jumps. These pickers use the app's own typeahead instead. */
+  if(typeof attachTypeahead==='function'){
+    attachTypeahead($('lv-acct'),()=>accounts);
+    attachTypeahead($('lv-prod'),()=>DATA.map(p=>p.name));
+  }
   renderRecentVisits();
 }
 function lvAddProd(){
@@ -768,15 +782,13 @@ function renderNewOrder(){
   const preAcct=(E&&E.account)||window._noAccount||'';window._noAccount='';
   const inp='style="width:100%;box-sizing:border-box;background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:14px"';
   const lbl='style="font-size:11.5px;color:var(--tx3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin:12px 0 5px;display:block"';
-  const prodOpts=DATA.filter(p=>p.price>0||stk(p)>0).map(p=>'<option value="'+esc(p.name)+' ('+esc(p.sku)+')">'+(p.price>0?fmtPeso(p.price):'no price')+'</option>').join('');
   $('content').innerHTML=
     '<div style="max-width:680px">'+
     (E?'<div class="panel" style="padding:12px 16px;margin-bottom:14px;border-left:3px solid var(--am);display:flex;align-items:center;gap:10px"><b style="font-size:13px">✎ Editing '+esc(E.label)+'</b><span style="font-size:11.5px;color:var(--tx3)">change the lines/details below, then Save</span><span style="flex:1"></span>'+
       '<a href="#" onclick="cancelOrderEdit();return false" style="color:var(--rd);font-size:12px">Cancel edit</a></div>':'')+
     '<div class="panel" style="padding:18px;margin-bottom:14px">'+
     '<label '+lbl+'>Account / doctor / clinic</label>'+
-    '<input id="no-acct" list="no-accts" value="'+esc(preAcct)+'" placeholder="Start typing…" onchange="noAcctChanged()" '+inp+'>'+
-    '<datalist id="no-accts">'+accounts.map(a=>'<option value="'+esc(a)+'">').join('')+'</datalist>'+
+    '<input id="no-acct" value="'+esc(preAcct)+'" placeholder="Start typing…" onchange="noAcctChanged()" '+inp+'>'+
     '<div id="no-credit"></div>'+
     '<div class="g2" style="gap:10px"><div><label '+lbl+'>Specialist</label>'+
     (myTag&&ROLE==='sales'?'<input id="no-spec" value="'+esc(myTag)+'" readonly '+inp.slice(0,-1)+';opacity:.75">':
@@ -784,8 +796,7 @@ function renderNewOrder(){
     '</div><div><label '+lbl+'>Date</label><input id="no-date" type="date" value="'+esc((E&&E.date)||new Date().toISOString().slice(0,10))+'" '+inp+'></div></div>'+
     '</div>'+
     '<div class="panel" style="padding:18px;margin-bottom:14px"><div class="phd">Add products</div>'+
-    '<label '+lbl+'>Product</label><input id="no-prod" list="no-prods" oninput="noProdChanged()" placeholder="Start typing or select…" '+inp+'>'+
-    '<datalist id="no-prods">'+prodOpts+'</datalist>'+
+    '<label '+lbl+'>Product</label><input id="no-prod" oninput="noProdChanged()" placeholder="Start typing or select…" '+inp+'>'+
     '<div class="g2" style="gap:10px"><div><label '+lbl+'>Pricing</label><select id="no-deal" '+inp+'><option value="">À la carte</option></select></div>'+
     '<div><label '+lbl+'>Qty <span style="text-transform:none;font-weight:400">(sets, for deals)</span></label><input id="no-qty" type="number" min="1" value="1" '+inp+'></div></div>'+
     '<label style="display:flex;align-items:center;gap:8px;margin:10px 0;font-size:12.5px"><input type="checkbox" id="no-free"> Free of charge (sample / goodwill)</label>'+
@@ -800,6 +811,10 @@ function renderNewOrder(){
     '</div></div>';
   if(E&&E.spec&&$('no-spec'))$('no-spec').value=E.spec;
   renderCart();
+  if(typeof attachTypeahead==='function'){ // datalist chokes iPadOS with big lists
+    attachTypeahead($('no-acct'),()=>accounts);
+    attachTypeahead($('no-prod'),()=>DATA.filter(p=>p.price>0||stk(p)>0).map(p=>p.name+' ('+p.sku+')'));
+  }
 }
 /* Edit an existing native order: load it into the order form (specialists: own orders only) */
 async function editOrder(id){

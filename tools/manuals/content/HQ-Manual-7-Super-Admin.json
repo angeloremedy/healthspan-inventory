@@ -210,6 +210,25 @@
    "n": "5"
   },
   {
+   "t": "h2",
+   "v": "<b>My profile — your own page</b>"
+  },
+  {
+   "t": "step",
+   "n": "1",
+   "v": "<b>My profile</b> sits right under Home in the sidebar; tapping your name in the footer or the phone menu opens it too."
+  },
+  {
+   "t": "step",
+   "n": "2",
+   "v": "It shows who you are signed in as, every finance form you have filed and where each one stands, your open follow-ups and this month’s visits (if you carry a specialist tag, with a jump to your full sales page), any loaners you checked out, and the quick actions — password, manual, favourites."
+  },
+  {
+   "t": "step",
+   "v": "On a phone or iPad, a small <b>←</b> sits in the top bar whenever there is somewhere to go back to — and swiping right from the left edge of the screen does the same. At the bottom of the history it takes you Home.",
+   "n": "3"
+  },
+  {
    "t": "h1",
    "v": "<b>Taking an order — the full mechanics</b>"
   },
@@ -719,6 +738,25 @@
    "c": "#B7791F"
   },
   {
+   "t": "h2",
+   "v": "<b>CRM activity — visits & calls per specialist</b>"
+  },
+  {
+   "t": "step",
+   "n": "1",
+   "v": "Sales analytics → <b>CRM activity</b>: the field effort itself, per specialist — visits, calls, demos, accounts touched, active days, and how often a contact ends in an order, with a 13-week trend."
+  },
+  {
+   "t": "step",
+   "n": "2",
+   "v": "Calls are the call / follow-up / Viber quick-log visit types; everything else counts as a field visit. Planned visits count once they are done."
+  },
+  {
+   "t": "step",
+   "n": "3",
+   "v": "It reads the in-app visit log, so it is only as good as the logging discipline — activity is the input, the Sales views measure the output."
+  },
+  {
    "t": "h1",
    "v": "<b>Fulfillment — queue to doorstep</b>"
   },
@@ -751,6 +789,67 @@
    "t": "step",
    "v": "Fulfilling or cancelling an order releases its ATP promise automatically.",
    "n": "6"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Serials, loaners & waves</b>"
+  },
+  {
+   "t": "h2",
+   "v": "<b>Serial numbers — equipment, unit by unit</b>"
+  },
+  {
+   "t": "step",
+   "n": "1",
+   "v": "Logistics → <b>Serial numbers</b>: one row per physical equipment unit — lasers, devices, handpieces. Add them at receiving (paste several serials at once, one per line, with the batch if there is one)."
+  },
+  {
+   "t": "step",
+   "n": "2",
+   "v": "Each unit is in stock, on loan, sold or disposed. Consumables stay batch-tracked — serials are for the units where <b>which exact machine</b> matters."
+  },
+  {
+   "t": "step",
+   "n": "3",
+   "v": "Mark a unit sold with its order or DR reference; disposal asks for confirmation. Every change lands in the activity log."
+  },
+  {
+   "t": "h2",
+   "v": "<b>Demo / loaner units</b>"
+  },
+  {
+   "t": "step",
+   "n": "1",
+   "v": "Logistics → <b>Demo / loaners</b>: check a serialized unit out to a clinic with a due-back date and the condition it left in. It gets an LN- number and drops out of available stock immediately, so nobody can lend or sell the same machine twice."
+  },
+  {
+   "t": "step",
+   "n": "2",
+   "v": "The register shows everything out, worst due date first. A loan past its due-back date turns red — and pings whoever checked it out, nightly, once per loan."
+  },
+  {
+   "t": "step",
+   "n": "3",
+   "v": "Return: note the condition it came back in; the serial goes back to stock. A demo that closes: <b>→ sale</b> records the order reference and marks the serial sold."
+  },
+  {
+   "t": "h2",
+   "v": "<b>Wave picking — several orders, one walk</b>"
+  },
+  {
+   "t": "step",
+   "n": "1",
+   "v": "In the <b>Fulfillment queue</b>, tick two or more pending orders and hit <b>Release wave</b>. The wave gets a WV- number."
+  },
+  {
+   "t": "step",
+   "n": "2",
+   "v": "One combined pick list: lines merged per SKU, sorted by bin, FEFO batches suggested — one walk of the warehouse instead of one list per order. The per-order split prints under each product."
+  },
+  {
+   "t": "step",
+   "n": "3",
+   "v": "Pull the total per SKU, sort into orders at the packing bench, then confirm each order individually — the queue and the ledger behave exactly as if each was picked alone."
   },
   {
    "t": "h1",
@@ -1014,6 +1113,20 @@
   {
    "t": "p",
    "v": "Who sees what: these carry bank details and personal claims, so the register is not open to everyone. You see your own requests, any waiting on your decision, and finance and admin see all of them. Attachments follow the same rule."
+  },
+  {
+   "t": "h2",
+   "v": "<b>Expense reports — liquidating a revolving fund</b>"
+  },
+  {
+   "t": "step",
+   "n": "1",
+   "v": "For whoever holds a revolving fund. <b>Finance forms → Expense report</b>: the period covered, then one line per receipt — date, category, description, amount. The total must equal the lines, and every receipt attaches to the register row."
+  },
+  {
+   "t": "step",
+   "n": "2",
+   "v": "It gets an ER- number and moves through the approval steps set for this form, like every finance form. Approval clears the way to top the fund back up — that stays its own filing, the Request for replenishment."
   },
   {
    "t": "h1",

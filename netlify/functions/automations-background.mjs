@@ -1,5 +1,5 @@
 // WORKFLOW AUTOMATION RULES — the nightly sweep (triggered from nightly.mjs).
-// Ten rules, each deduped via auto_log (unique rule+entity, insert-ignore):
+// Eleven rules, each deduped via auto_log (unique rule+entity, insert-ignore):
 //  1. fulfilled order (~14d ago)      → follow-up task + ping for the owner
 //  2. first-ever order (last 2 days)  → welcome-call task + ping for the owner
 //  3. balance >60d past terms         → collection ping to finance + owner (monthly per account)
@@ -10,6 +10,7 @@
 //  8. quote 'sent' 7+ days            → chase ping for the quote's specialist (once per quote)
 //  9. birthday / clinic anniversary   → owner ping 3 days ahead (once per year)
 // 10. the 1st of the month           → freeze-the-valuation nudge to finance + admin
+// 11. loaner past its due-back date   → ping whoever checked the unit out
 // Tasks land in Follow-ups & plans (visits status='planned'); pings hit the bell.
 const SB_URL = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SVC = process.env.SUPABASE_SERVICE_KEY || '';
@@ -285,6 +286,22 @@ export const handler = async (event) => {
       }
     }
   } catch (e) { errors.push('closenudge: ' + e.message); }
+
+  // 11 · overdue loaners: a demo unit past its due-back date pings whoever
+  //      checked it out — once per loan per due date, so a renegotiated due date
+  //      pings again but nobody gets nagged nightly for the same lapse
+  try {
+    const od = await q('loans?select=id,serial,sku,account,due_date,out_by&status=eq.out&due_date=lt.' + today);
+    for (const l of od) {
+      if (!l.out_by) continue;
+      if (!await fresh('loanover', l.id + ':' + l.due_date)) continue;
+      await notif({ user_id: l.out_by }, 'auto', 'Loaner overdue: ' + l.serial,
+        l.serial + ' (' + l.sku + ') was due back from ' + l.account + ' on ' + l.due_date +
+        '. Collect it, extend the due date, or convert the demo to a sale.',
+        '#/v/loans');
+      fired.loanover = (fired.loanover || 0) + 1; // eslint-disable-line
+    }
+  } catch (e) { errors.push('loanover: ' + e.message); }
 
   console.log('automations', today, JSON.stringify(fired), errors.length ? 'errors: ' + JSON.stringify(errors) : 'clean');
   return { statusCode: 200, body: JSON.stringify({ ok: true, fired, errors }) };
