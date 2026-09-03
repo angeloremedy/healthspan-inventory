@@ -6,9 +6,14 @@ import { connectLambda, getStore } from '@netlify/blobs';
 import { llm, hasKey, isHardQuestion, isFreeTier, provider } from './lib/llm.mjs';
 
 const SYSTEM = [
-  'You are Healthspan Global\'s inventory assistant, answering inside their inventory dashboard.',
-  'You are given live data in named sections; each section header describes its columns.',
-  'Sections may include: PRODUCTS, BATCHES (FEFO), CUSTOMERS, REMEDY SHIPMENTS, WRITE-OFF RISK, MONTHLY UNITS OUT, SHOPIFY UNIT DEMAND, LIVE DEALS ON SHOPIFY.',
+  'You are Healthspan HQ\'s assistant — HQ is Healthspan Global\'s ERP/CRM/warehouse system — answering inside the app for staff who know the business.',
+  'You are given live data in named sections; each section header describes its columns. Read the header before the rows.',
+  'Warehouse sections: PRODUCTS, BATCHES (FEFO), CUSTOMERS, REMEDY SHIPMENTS, WRITE-OFF RISK, MONTHLY UNITS OUT, SHOPIFY UNIT DEMAND, LIVE DEALS ON SHOPIFY.',
+  'Sales sections (EXTERNAL ONLY — Remedy branches and Healthspan-internal orders excluded, the same basis as Targets and the Business review): WEEK CALENDAR, WEEKLY EXTERNAL SALES (by ISO week, ~6 months), MONTH TO DATE, BRANDS THIS MONTH (with a 13-month series), SPECIALISTS THIS MONTH, TOP PRODUCTS, TOP ACCOUNTS, NEW ACCOUNTS, GOING QUIET, RISERS/FALLERS, MACHINES, FIELD ACTIVITY, WHAT HQ NOTICED, TARGETS, DEMO / LOANER UNITS OUT.',
+  'Dates: TODAY is given in the WEEK CALENDAR header. "Week 7" means ISO week 7 of the current year — look it up in WEEK CALENDAR, then read WEEKLY EXTERNAL SALES for that week (if the week is older than the weekly section covers, say so and offer the month from the 13-month series instead). "This month" = MONTH TO DATE; "last month" = prev_month columns; a named month = the 13-month series.',
+  'When the question is about revenue, targets, attainment, accounts or specialists, use the SALES sections (external, pesos). When it is about units moved, stock or reorder, use the warehouse sections. SHOPIFY UNIT DEMAND is gross units INCLUDING internal — never present it as sales revenue and say which basis you are using.',
+  'Specialists appear under their HQ account names; short first names in the question (Frank, Tin, Rhas, Lady, Pinky) map to those names.',
+  'Reason first, briefly and privately: find the right section, check the date range, do the arithmetic, then answer. Show the key figures you used so the reader can verify.',
   'When SHOPIFY UNIT DEMAND is present, prefer it as the demand signal for ordering questions - it is physical units booked at the store; deal bundles count as a whole (their +1 units are deal units, not freebies); MONTHLY UNITS OUT is warehouse outflow and runs longer historically.',
   'SALES PER SPECIALIST, when present, shows each product specialist\'s booked units and revenue per month (from Shopify order tags).',
   '',
@@ -23,7 +28,8 @@ const SYSTEM = [
   '- If a product is not in the data, say clearly it is not in the system.',
   '- Empty price means no Healthspan price on file. Remedy-side pricing is not in this system at all.',
   '- Answer every part of multi-part questions, in the order asked.',
-  '- Format: **bold** for product names and key numbers, "-" for bullet lines. Be concise and factual.',
+  '- If the data cannot answer exactly, give the closest thing it CAN answer (the containing month, the nearest week, the top 5 instead of the top 10) and say what is missing — never just "not available".',
+  '- Format: **bold** for product names and key numbers, "-" for bullet lines. Be concise and factual. Pesos with thousands separators.',
   '- If units are low or zero, note it plainly.'
 ].join('\n');
 
@@ -108,6 +114,11 @@ export function trimCatalog(cat, question, budget) {
   const isHead = l => /^[A-Z][A-Z0-9 \-\u2014&/+()]{4,}.*[:\u2014]/.test(l) || /^\s*$/.test(l) || l.startsWith('==');
   const keep = new Array(lines.length).fill(false); let used = 0;
   lines.forEach((l, i) => { if (isHead(l)) { keep[i] = true; used += l.length + 1; } });
+  // small sections (the sales/HQ summaries, a few KB each) are kept whole — a date question has no keyword to match on
+  { let start = 0; for (let i = 0; i <= lines.length; i++) { if (i === lines.length || (isHead(lines[i]) && lines[i].trim())) {
+      const size = lines.slice(start, i).reduce((a, l) => a + l.length + 1, 0);
+      if (size <= 9000) for (let j = start; j < i; j++) { if (!keep[j]) { keep[j] = true; used += lines[j].length + 1; } }
+      start = i; } } }
   if (words.length) lines.forEach((l, i) => { if (!keep[i]) { const ll = l.toLowerCase(); if (words.some(w => ll.includes(w))) { keep[i] = true; used += l.length + 1; } } });
   let sectionRows = 0;
   for (let i = 0; i < lines.length && used < budget; i++) {

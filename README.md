@@ -544,7 +544,19 @@ Supply chain section (inventory value by line, out of stock, expiring batches,
 equipment) as Notion-ready text — paste under *Weekly Report/Updates* in the
 Healthspan Weekly Meeting page and Notion turns it into blocks.
 
-**Draft with AI, Ask AI, the Slack bot and the Monday nudge run on Gemini Flash
+**Ask HQ** (the chat, renamed from "Ask the inventory") now sees the sales side
+too: alongside the warehouse catalog it gets a week calendar with today's date,
+external sales by ISO week (~6 months, with top products), the month's brands
+vs target with a 13-month series, every specialist's MTD / target / accounts /
+activity, top and new accounts, accounts going quiet, risers and fallers,
+machines, targets and loaners — the same external-only figures the Business
+review shows. So "best-selling product in week 7", "how far is Mesoestetic
+from target", "which of Rhas's accounts went quiet" are answerable; the model is
+told to give the closest answer the data supports rather than "not available".
+The server trims the catalog to what the question needs (small sales sections
+are always kept whole) and gives analysis questions a little thinking time.
+
+**Draft with AI, Ask HQ, the Slack bot and the Monday nudge run on Gemini Flash
 (free tier)** by default — one env var, `GEMINI_API_KEY`. On the free tier unit
 costs and supplier payables are left out of prompts; Claude stays as an optional
 safety net. See "AI provider" in SUPABASE-SETUP.md.

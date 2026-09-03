@@ -27,11 +27,11 @@ const timeoutMs = () => Math.max(200, parseInt(process.env.LLM_TIMEOUT_MS || '45
 
 // Gemini 3 and 2.5 think before answering; for "read this table and answer" work
 // the thinking is latency, not quality. 3.7/3.8 only go down to "low".
-function thinkingFor(model) {
+function thinkingFor(model, smart) {
   const m = String(model).toLowerCase();
   if (/gemini-3\.[78]/.test(m) || /gemini-3\.1-pro/.test(m) || /gemini-3-pro/.test(m)) return { thinkingLevel: 'low' };
-  if (/gemini-3/.test(m)) return { thinkingLevel: 'minimal' };
-  if (/gemini-2\.5-flash/.test(m)) return { thinkingBudget: 0 };
+  if (/gemini-3/.test(m)) return { thinkingLevel: smart ? 'low' : 'minimal' };   // analysis questions get a little thinking
+  if (/gemini-2\.5-flash/.test(m)) return smart ? { thinkingBudget: 1024 } : { thinkingBudget: 0 };
   return null;
 }
 async function fetchT(url, opt) { // fetch with a hard ceiling
@@ -59,11 +59,11 @@ export function isHardQuestion(q) {
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-async function callGemini({ system, messages, maxTokens, model, key, noThinking }) {
+async function callGemini({ system, messages, maxTokens, model, key, noThinking, smart }) {
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent';
   const contents = messages.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: String(m.content || '') }] }));
   const body = { contents, generationConfig: { maxOutputTokens: Math.max(maxTokens, 1500), temperature: 0.3 } };
-  const th = noThinking ? null : thinkingFor(model); if (th) body.generationConfig.thinkingConfig = th;
+  const th = noThinking ? null : thinkingFor(model, smart); if (th) body.generationConfig.thinkingConfig = th;
   if (system) body.systemInstruction = { parts: [{ text: system }] };
   const resp = await fetchT(url, { method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body) });
   if (!resp.ok) { const t = await resp.text();
@@ -112,7 +112,7 @@ export async function llm({ system = '', messages = [], maxTokens = 2000, smart 
     let noThinking = false;
     for (let tries = 0; tries < 3; tries++) {
       try {
-        const args = { system, messages, maxTokens, model: a.model, key: a.p === 'gemini' ? gk : ak, noThinking };
+        const args = { system, messages, maxTokens, model: a.model, key: a.p === 'gemini' ? gk : ak, noThinking, smart };
         const text = a.p === 'gemini' ? await callGemini(args) : await callClaude(args);
         return { text, model: a.model, provider: a.p, error: '' };
       } catch (e) {

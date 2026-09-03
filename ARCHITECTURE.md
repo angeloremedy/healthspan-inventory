@@ -361,6 +361,17 @@ model improvement. `lib/` is a subfolder so Netlify does not deploy it as a
 function; esbuild bundles it into each caller. Tested by
 `tools/test/llm-provider.test.mjs` with a mocked fetch.
 
+### 4.5b What Ask HQ is given
+
+`askCatalog()` (js/09) is the warehouse view; `askHqSections()` appends the sales
+view: ISO-week calendar (`isoWeek()`), weekly external sales folded from
+`SHOPIFY.recent` with `ordInternal()` filtering, and the current month's
+`bizCompute()` object flattened into pipe-delimited sections (brands with the
+13-month series, specialists, products, accounts, machines, activity, trends,
+targets, loaners). Each is a few KB, and `trimCatalog()` on the server keeps any
+section under 9 KB whole, so a date question that matches no keyword still has
+its data. The system prompt names the sections and how dates map onto them.
+
 ### 4.6 Role-scoped Ask AI
 `ask.mjs` derives the caller's role/tag server-side (unspoofable) and passes it
 to the worker, which builds an HQ context from Supabase filtered to that role:

@@ -122,6 +122,11 @@ platform feeds it via the accounting export; it does not replace it.
 
 **People (Sep 2)** — Jojo resigned: disable the account in Team & access and reassign any accounts owned by his tag; Marj is the sales manager of record. Daz joins finance: create the account with role `finance` in Team & access. Both are in-app actions, no SQL.
 
+**Ask HQ (Sep 3)**
+- ✅ "Ask the inventory" → **Ask HQ**: the chat now carries the sales side (week calendar + weekly external sales, brands vs target with 13-month series, specialists, accounts, machines, targets, loaners) next to the warehouse catalog; prompt teaches date mapping and "closest answer, never just unavailable"; analysis questions get low thinking
+- ✅ Gemini fixed: 3.6 Flash minimal thinking (the -latest alias was 3.8 Flash thinking at length), 45 s per-attempt cap, catalog trimmed to the question, stage-aware timeouts, AI connection test for managers/admin
+- ✅ Draft with AI briefs per section (wins = achievements not totals, first names, ≤6 bullets; challenges, territory, plan, programs, plan notes; per-specialist boxes)
+
 **Two decks, a Reports page, Notion copy (Sep 3)**
 - ✅ Team deck no longer carries individual slides; each specialist has their own deck in the format of their old reports (glance, wins/challenges/territory, territory sales, products per brand, SkinPen utilisation, accounts monitoring, activities, forecast, proposals) — five text boxes + a per-account forecast table as their inputs
 - ✅ Decks are a slide spec rendered twice: PowerPoint (pptxgenjs) and a slide-sized HTML page for Save as PDF

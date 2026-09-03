@@ -129,11 +129,11 @@
   },
   {
    "t": "h2",
-   "v": "<b>Ask AI</b>"
+   "v": "<b>Ask HQ</b>"
   },
   {
    "t": "p",
-   "v": "The Ask AI button answers plain-language questions over everything HQ knows — inventory, sales, receivables, cheques, approvals, backorders, quotes, pipeline — and its knowledge is automatically scoped to YOUR role: specialists get their own numbers, costs and margins only answer for finance and admin. Any hour, in the app or on Slack (/stock)."
+   "v": "The Ask HQ button (top bar) answers plain-language questions over everything HQ knows — inventory, sales, receivables, cheques, approvals, backorders, quotes, pipeline — and its knowledge is automatically scoped to YOUR role: specialists get their own numbers, costs and margins only answer for finance and admin. Any hour, in the app or on Slack (/stock)."
   },
   {
    "t": "h2",
@@ -204,7 +204,7 @@
   },
   {
    "t": "step",
-   "v": "Ask AI answers plain-language questions — use it freely.",
+   "v": "Ask HQ answers plain-language questions — use it freely.",
    "n": "2"
   },
   {

@@ -629,7 +629,7 @@ button:active{transform:scale(.97)}
     <div class="tbr">
       <button class="btn" id="fav-btn" onclick="favToggleCurrent()" title="Add this page to your favourites" style="display:none;font-size:16px;line-height:1;padding:7px 11px;color:var(--tx3)">☆</button>
       <button class="btn" id="nbell" onclick="toggleNotifs()" title="Notifications" style="position:relative"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span id="nbadge" style="display:none;position:absolute;top:2px;right:2px;background:var(--rd);color:#fff;font-size:9.5px;font-weight:700;border-radius:8px;min-width:15px;height:15px;line-height:15px;text-align:center;padding:0 3px"></span></button>
-      <button class="btn" onclick="toggleAsk()" title="Ask the inventory anything in plain language"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>Ask AI</button>
+      <button class="btn" onclick="toggleAsk()" title="Ask HQ anything — stock, sales, accounts, targets — in plain language"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>Ask AI</button>
       <button class="btn" id="tipsBtn" onclick="toggleTips()" title="Show or hide the plain-language explanation on each tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><circle cx="12" cy="8" r="1" fill="currentColor"/></svg>Tips</button>
       <button class="btn" onclick="exportCurrentView()" title="Export the data on the current tab as a CSV"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV</button>
     </div>
@@ -674,10 +674,10 @@ button:active{transform:scale(.97)}
 <script defer src="js/13-review-decks.js"></script>
 
 <div class="askdrawer" id="askdrawer">
-  <div class="askhd"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>Ask the inventory<button class="ax" onclick="toggleAsk()">×</button></div>
-  <div class="asklog" id="asklog"><div class="askempty">Ask anything about stock, in plain language.<br><br>e.g. “How many HA Densimatrix do we have?”<br>“Which hair products are in stock?”<br>“Do we have melatonin ampoules and what’s the price?”<br><br><a href="#" class="lnk" onclick="askDiag();return false" style="font-size:11px">AI connection test</a></div></div>
-  <div class="askbar"><textarea id="askinput" placeholder="Ask about any product…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAsk();}"></textarea><button id="askbtn" onclick="sendAsk()">Ask</button></div>
-  <div class="askfoot">Answers come from the live warehouse data · stock is warehouse-level, not per-branch</div>
+  <div class="askhd"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>Ask HQ<button class="ax" onclick="toggleAsk()">×</button></div>
+  <div class="asklog" id="asklog"><div class="askempty">Ask anything about stock, sales, accounts or targets, in plain language.<br><br>e.g. “How many HA Densimatrix do we have?”<br>“Best-selling product in week 7?”<br>“Which of Rhas’s accounts went quiet?”<br>“How far is Mesoestetic from its target this month?”<br><br><a href="#" class="lnk" onclick="askDiag();return false" style="font-size:11px">AI connection test</a></div></div>
+  <div class="askbar"><textarea id="askinput" placeholder="Ask HQ…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAsk();}"></textarea><button id="askbtn" onclick="sendAsk()">Ask</button></div>
+  <div class="askfoot">Answers come from live HQ data — warehouse, Shopify sales (external only unless you ask), accounts, targets, visits · stock is warehouse-level, not per-branch</div>
 </div>
 
 <!-- overflow-x hidden: nothing in the menu should ever drag it sideways -->

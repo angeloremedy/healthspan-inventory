@@ -28,7 +28,54 @@ function askCatalog(){
   if(shopSales)out+='\n\nSHOPIFY UNIT DEMAND — physical units booked at the store incl. free +1 deal units, and INCLUDING internal orders to Remedy branches and Healthspan staff/academy (the Sales views default to EXTERNAL ONLY, so these unit figures are higher than what those pages show — say which basis you are quoting) (sku|name|month=units,...):\n'+shopSales;
   const shopDeals=DATA.filter(p=>p.deals&&p.deals.length).map(p=>p.deals.map(d=>[p.sku,d.title,d.setSize,d.price].join('|')).join('\n')).join('\n');
   if(shopDeals)out+='\n\nLIVE DEALS ON SHOPIFY (sku|deal_title|physical_units_per_set|set_price_php):\n'+shopDeals;
+  try{out+=askHqSections();}catch(e){}
   return out;
+}
+/* ── The HQ half of the brain: sales by week and by brand, targets, specialists,
+   accounts, machines, activity — the same external-only figures the Business
+   review shows, plus a week calendar so "week 7" means something. Small sections
+   (a few KB each) that survive the server-side trim whole. ── */
+function isoWeek(d){const x=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()));const day=x.getUTCDay()||7;x.setUTCDate(x.getUTCDate()+4-day);const y0=new Date(Date.UTC(x.getUTCFullYear(),0,1));return {y:x.getUTCFullYear(),w:Math.ceil(((x-y0)/864e5+1)/7)};}
+function askHqSections(){
+  if(!SHOPIFY||!SALESIDX||typeof bizCompute!=='function'||typeof hasIntSplit!=='function'||!hasIntSplit())return '';
+  const P=v=>Math.round(v||0).toLocaleString('en-PH');const today=new Date().toISOString().slice(0,10);
+  const S=[];const sec=(h,lines)=>{if(lines&&lines.length)S.push(h+'\n'+lines.join('\n'));};
+  /* week calendar for this year (ISO weeks, Monday start) */
+  {const y=+today.slice(0,4);const rows=[];const d=new Date(Date.UTC(y,0,4));d.setUTCDate(d.getUTCDate()-((d.getUTCDay()||7)-1));
+    for(let w=1;w<=53;w++){const a=new Date(d);const b=new Date(d);b.setUTCDate(b.getUTCDate()+6);if(isoWeek(a).y!==y&&w>1)break;rows.push('W'+w+'='+a.toISOString().slice(0,10)+'..'+b.toISOString().slice(0,10));d.setUTCDate(d.getUTCDate()+7);}
+    sec('WEEK CALENDAR '+y+' (ISO weeks, Monday to Sunday) — TODAY IS '+today+':',[rows.join(' ')]);}
+  /* weekly external sales from the order index (~6 months) */
+  {const wk={};for(const o of (SHOPIFY.recent||[])){if(!o||!o.dt||ordInternal(o))continue;const k=isoWeek(new Date(o.dt+'T00:00:00Z'));const key=k.y+'-W'+String(k.w).padStart(2,'0');
+      const e=wk[key]||(wk[key]={rev:0,orders:0,skus:{},accts:new Set(),from:o.dt,to:o.dt});e.orders++;if(o.c)e.accts.add(o.c);if(o.dt<e.from)e.from=o.dt;if(o.dt>e.to)e.to=o.dt;
+      for(const [sku,q,a] of (o.ls||[])){e.rev+=(+a||0);const S2=SALESIDX[sku]||SALESIDX[Object.keys(SALESIDX).find(b=>String(sku).startsWith(b))];const nm=(S2&&S2.name)||sku;const x=e.skus[nm]||(e.skus[nm]={u:0,v:0});x.u+=(+q||0);x.v+=(+a||0);}}
+    const keys=Object.keys(wk).sort();
+    sec('WEEKLY EXTERNAL SALES — Shopify orders by ISO week, Remedy/internal excluded (week|revenue_php|orders|accounts|top_products units/revenue) — covers roughly the last 6 months only:',
+      keys.map(k=>{const e=wk[k];const top=Object.keys(e.skus).sort((a,b)=>e.skus[b].v-e.skus[a].v).slice(0,5).map(n=>n+' '+e.skus[n].u+'u/₱'+P(e.skus[n].v)).join('; ');return k+'|₱'+P(e.rev)+'|'+e.orders+'|'+e.accts.size+'|'+top;}));}
+  /* the business review, current month */
+  let R=null;try{R=bizCompute(today.slice(0,7));}catch(e){}
+  if(R){
+    sec('MONTH TO DATE '+R.label+' as of '+R.asOf+' — EXTERNAL SALES ONLY (this is what Targets, Scorecards and the Business review show):',
+      ['total_mtd=₱'+P(R.total.mtd)+' target='+(R.total.tgt!=null?'₱'+P(R.total.tgt):'none')+' attainment='+bizFmtPct(R.total.att)+' projected_month=₱'+P(R.total.proj)+' qtd=₱'+P(R.total.qtd)+' ytd=₱'+P(R.total.ytd)+' orders='+R.accounts.orders+' ordering_accounts='+R.accounts.ordering+' new_accounts='+R.accounts.newAccts.length+' avg_order=₱'+P(R.accounts.aov)]);
+    sec('BRANDS THIS MONTH (brand|mtd_php|target_php|attainment|prev_month_php|qtd|ytd|13_month_series oldest..newest):',R.brands.map(b=>b.name+'|₱'+P(b.mtd)+'|'+(b.tgt!=null?'₱'+P(b.tgt):'-')+'|'+bizFmtPct(b.att)+'|₱'+P(b.prev)+'|₱'+P(b.qtd)+'|₱'+P(b.ytd)+'|'+b.series.map(v=>Math.round(v/1000)+'K').join(',')));
+    sec('MONTHS IN THE 13-MONTH SERIES: '+R.series.join(','),[]);
+    sec('SPECIALISTS THIS MONTH (name|team|mtd_php|target_php|attainment|prev_month|orders|ordering_accounts|new_accounts|masterlist|active_90d|quiet_90d|visits|calls|demos|top_accounts):',
+      R.specs.map(s=>s.label+'|'+(s.team||'-')+'|₱'+P(s.mtd)+'|'+(s.tgt!=null?'₱'+P(s.tgt):'-')+'|'+bizFmtPct(s.att)+'|₱'+P(s.prev)+'|'+s.orders+'|'+s.ordering+'|'+s.newAccts.length+'|'+s.masterlist+'|'+s.active+'|'+s.quiet+'|'+s.visits+'|'+s.calls+'|'+s.demos+'|'+s.topAccts.map(a=>a.name+' ₱'+P(a.v)).join('; ')));
+    sec('TOP PRODUCTS THIS MONTH, external (product|sku|brand|units|revenue_php|prev_month_php|target_php):',R.products.slice(0,40).map(p=>p.name+'|'+p.sku+'|'+p.line+'|'+p.u+'|₱'+P(p.v)+'|₱'+P(p.pv)+'|'+(p.tgt!=null?'₱'+P(p.tgt):'-')));
+    sec('TOP ACCOUNTS THIS MONTH (account|mtd_php|prev_month_php|orders|brands|specialist|new?):',R.accounts.top.map(a=>a.name+'|₱'+P(a.v)+'|₱'+P(a.prev)+'|'+a.orders+'|'+a.lines+'|'+(specDisplay(a.spec||a.owner)||'-')+'|'+(a.isNew?'NEW':'')));
+    sec('NEW ACCOUNTS THIS MONTH (first order in 13 months): ',[R.accounts.newAccts.map(a=>a.name+' ₱'+P(a.v)+(a.spec?' via '+specDisplay(a.spec):'')).join('; ')||'none']);
+    sec('REPEAT ACCOUNTS GOING QUIET, 45-120 days since last order (account|days|orders_13m|revenue_13m|owner):',R.accounts.lapsed.map(l=>l.name+'|'+l.days+'|'+l.o+'|₱'+P(l.v)+'|'+(specDisplay(l.owner)||'-')));
+    sec('RISERS vs last month: ',[R.accounts.risers.map(m=>m.name+' +₱'+P(m.d)).join('; ')||'none']);sec('FALLERS vs last month: ',[R.accounts.fallers.map(m=>m.name+' -₱'+P(-m.d)).join('; ')||'none']);
+    sec('MACHINES (equipment): revenue_mtd=₱'+P(R.machines.rev)+' units='+R.machines.units+' installs_recorded='+R.machines.installs+' demo_units_out='+R.machines.loansOut+' on_loan_now='+R.machines.onLoan+' equipment_in_stock='+R.machines.inStock,R.machines.rows.map(p=>'- '+p.name+' '+p.u+'u ₱'+P(p.v)));
+    sec('FIELD ACTIVITY THIS MONTH (visit log): visits='+R.activity.visits+' calls='+R.activity.calls+' demos='+R.activity.demos+' ended_in_order='+R.activity.ordered+' new_accounts_opened='+R.activity.opened,[]);
+    sec('WHAT HQ NOTICED (auto-generated observations):',R.trends.map(t=>'- '+t.t));
+    if(R.unassigned&&R.unassigned.v>0)sec('REVENUE UNDER TAGS THAT ARE NOT A SPECIALIST ACCOUNT: ₱'+P(R.unassigned.v)+' ('+R.unassigned.tags.join(', ')+')',[]);
+  }
+  /* targets for this and next month */
+  {const ym=today.slice(0,7);const rows=(TARGETS||[]).filter(t=>t.month===ym||t.month===bizYmAdd(ym,1)).map(t=>t.month+'|'+t.scope+'|'+(t.name||'TOTAL')+'|₱'+P(t.value));
+    sec('TARGETS (month|scope|name|php):',rows);}
+  /* loans out */
+  if(typeof LOANS!=='undefined'&&LOANS&&LOANS.length)sec('DEMO / LOANER UNITS OUT (sku|serial|account|out_date|due_date):',LOANS.filter(l=>l.status==='out').map(l=>l.sku+'|'+l.serial+'|'+l.account+'|'+l.out_date+'|'+l.due_date));
+  return S.length?'\n\n'+S.join('\n\n'):'';
 }
 async function askDiag(){ // manager/admin: one tiny model call, timed — is the door open?
   const log=document.getElementById('asklog');if(!log)return;
