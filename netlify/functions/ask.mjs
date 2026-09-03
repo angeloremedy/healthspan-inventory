@@ -82,7 +82,7 @@ export const handler = async (event) => {
     const t = await fetch(base + '/.netlify/functions/ask-work-background', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, question, catalog, history: payload.history || [], who })
+      body: JSON.stringify({ id, question, catalog, history: payload.history || [], who, mode: String(payload.mode || '').slice(0, 20) })
     });
     // a 404/5xx here means the worker never started — say so now instead of letting the UI poll into a timeout
     if (!t.ok && t.status !== 202) return { statusCode: 502, headers: HDRS, body: JSON.stringify({ error: 'The answer job did not start (worker returned ' + t.status + '). Check the ask-work-background function deploy.' }) };

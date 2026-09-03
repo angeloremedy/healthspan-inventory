@@ -366,7 +366,7 @@ async function bizAiDraft(section){
   // asks the same /ask job the chat uses, with the report figures as the live data
   if(!bizCanEdit(section)||!BIZ.R)return;const id=section.replace(/[^a-z0-9]/gi,'_');const ta=$('bz-'+id),st=$('bzs-'+id);if(!ta)return;
   const R=BIZ.R;const lbl=(BIZ_SECTIONS.find(x=>x[0]===section)||[])[1]||section;
-  const STYLE=' Style: 4-6 bullet-like sentences, each starting with "- ". Refer to specialists by FIRST NAME only (the first word of their name). Pesos with thousands separators, attainment as a whole percent. No headings, no preamble, no restating the month total — the at-a-glance slide already has it. Say nothing that is not in the data.';
+  const STYLE=' Style: 5-8 bullet-like sentences, each starting with "- ". Every bullet pairs a figure with its context — versus target, versus last month, who did it, which accounts (name up to three) — so it reads as an insight, not a number. Where the data allows, add the one-line "so what" (what it means for the rest of the month). Refer to specialists by FIRST NAME only (the first word of their name). Money is written with the peso sign and thousands separators, exactly like ₱1,234,567 — never "P1,234" or "PHP". Attainment as a whole percent. No headings, no preamble, no restating the month total — the at-a-glance slide already has it. Say nothing that is not in the data.';
   const BRIEF={
     wins:'Key wins = achievements, not a recap: the specialist(s) who beat or are on pace for target, deals and machine installs (AXION, SkinPen devices, Mark-Vu, Symmed, Zionic), first orders worth naming, the brand furthest ahead, accounts that rose most. Lead with people and accounts. Never present attainment under 80% as a win.',
     challenges:'Key challenges = what is behind or at risk: brands and specialists under 50% of target with the peso gap, the biggest fallers vs last month, repeat accounts going quiet (name the largest), machines with targets and no sales, activity that has not turned into orders. Be specific and unemotional.',
@@ -386,7 +386,7 @@ async function bizAiDraft(section){
       accounts:{top:R.accounts.top,newAccts:R.accounts.newAccts,lapsed:R.accounts.lapsed,risers:R.accounts.risers,fallers:R.accounts.fallers,dealShare:R.accounts.dealShare,free:R.accounts.free,reorderers:R.accounts.reorderers,multiBrand:R.accounts.multiBrand},
       machines:{rev:R.machines.rev,units:R.machines.units,installs:R.machines.installs,loansOut:R.machines.loansOut,rows:R.machines.rows.map(p=>({name:p.name,u:p.u,v:p.v,tgt:p.tgt}))},activity:R.activity,trends:R.trends.map(t=>t.t),early:R.early,previousCommentary:(BIZ.prevNotes[section]||{}).body||''});}
   if(st)st.textContent='Drafting with AI…';
-  try{const r=await fetch('/.netlify/functions/ask',{method:'POST',headers:await sbAuthHeaders({'Content-Type':'application/json'}),body:JSON.stringify({question:q,catalog:'BUSINESS REVIEW FIGURES (external sales only, JSON):\n'+data,history:[]})});
+  try{const r=await fetch('/.netlify/functions/ask',{method:'POST',headers:await sbAuthHeaders({'Content-Type':'application/json'}),body:JSON.stringify({question:q,catalog:'BUSINESS REVIEW FIGURES (external sales only, JSON):\n'+data,history:[],mode:'draft'})});
     const job=await r.json();if(!job||!job.id)throw new Error(job&&job.error||'no job id');
     let last=null;
     for(let i=0;i<60;i++){await new Promise(x=>setTimeout(x,2500));

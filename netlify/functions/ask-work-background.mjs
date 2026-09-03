@@ -29,7 +29,7 @@ const SYSTEM = [
   '- Empty price means no Healthspan price on file. Remedy-side pricing is not in this system at all.',
   '- Answer every part of multi-part questions, in the order asked.',
   '- If the data cannot answer exactly, give the closest thing it CAN answer (the containing month, the nearest week, the top 5 instead of the top 10) and say what is missing — never just "not available".',
-  '- Format: **bold** for product names and key numbers, "-" for bullet lines. Be concise and factual. Pesos with thousands separators.',
+  '- Format: **bold** for product names and key numbers, "-" for bullet lines. Be concise and factual. Money is always written with the peso sign and thousands separators, exactly like ₱1,234,567 — never "P1,234", "PHP" or "Php".',
   '- If units are low or zero, note it plainly.'
 ].join('\n');
 
@@ -140,6 +140,7 @@ export const handler = async (event) => {
   const catalogRaw = String(payload.catalog || '').slice(0, 500000);
   const history = Array.isArray(payload.history) ? payload.history.slice(-4) : [];
   const who = payload.who || { role: 'viewer', tag: '' };
+  const mode = String(payload.mode || '');   // 'draft' = Draft with AI: short prompt, wants depth
   if (!id) return { statusCode: 400, body: 'no id' };
 
   let store = null;
@@ -182,7 +183,7 @@ export const handler = async (event) => {
 
   await stage('model');
   // one call; lib/llm.mjs already retries on a rate limit and falls back across models/providers
-  const out = await llm({ system, messages: msgs, maxTokens: smart ? 8000 : 2000, smart });
+  const out = await llm({ system, messages: msgs, maxTokens: smart ? 8000 : 2000, smart, depth: mode === 'draft' ? 'deep' : '' });
   const res = { answer: out.text, errMsg: out.error };
   const usedModel = out.model || provider();
 

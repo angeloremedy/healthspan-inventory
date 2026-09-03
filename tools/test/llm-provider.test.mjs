@@ -1,6 +1,6 @@
 /* The model door: provider choice, retry on 429, cross-provider fallback, free-tier scrub flag.
    Run from the repo root: node tools/test/llm-provider.test.mjs */
-import { llm, provider, isFreeTier, isHardQuestion } from '../../netlify/functions/lib/llm.mjs';
+import { llm, provider, isFreeTier, isHardQuestion, fixPeso } from '../../netlify/functions/lib/llm.mjs';
 const calls=[];
 globalThis.fetch=async(url,opt)=>{calls.push(url.split('?')[0]);
   const body=JSON.parse(opt.body);
@@ -40,4 +40,17 @@ t('AI_PROVIDER=anthropic goes to Claude first',r3.provider==='anthropic'&&r3.mod
 delete process.env.GEMINI_API_KEY;delete process.env.ANTHROPIC_API_KEY;delete process.env.AI_PROVIDER;
 const r4=await llm({messages:[{role:'user',content:'q'}]});t('no keys → clear error',/not configured/.test(r4.error),r4.error);
 t('hard-question heuristic',isHardQuestion('why did sales drop?')&&!isHardQuestion('stock of TD040'));
+t('peso sign restored: P1,387,520 / PHP 2,415,824 / Php 650000 → ₱; words starting with P untouched',fixPeso('Frank hit P1,387,520 (PHP 2,415,824) and Php 650000; Products P and PRALL Corporation, Peso 5, up P483,840.')==='Frank hit ₱1,387,520 (₱2,415,824) and ₱650000; Products P and PRALL Corporation, Peso 5, up ₱483,840.',fixPeso('Frank hit P1,387,520 (PHP 2,415,824) and Php 650000; Products P and PRALL Corporation, Peso 5, up P483,840.'));
+process.env.GEMINI_API_KEY='g';process.env.ANTHROPIC_API_KEY='a';delete process.env.AI_PROVIDER;calls.length=0;bodies=[];
+globalThis.fetch=async(url,opt)=>{calls.push(url.split('?')[0]);const body=JSON.parse(opt.body);bodies.push(body);
+  if(url.includes('generativelanguage'))return {ok:true,json:async()=>({candidates:[{content:{parts:[{text:'deep answer'}]}}]})};return {ok:true,json:async()=>({content:[{type:'text',text:'claude'}]})};};
+const r7=await llm({system:'S',messages:[{role:'user',content:'draft'}],depth:'deep'});
+t('depth:deep → 3.8 Flash with medium thinking first',r7.model==='gemini-3.8-flash'&&bodies[0].generationConfig.thinkingConfig.thinkingLevel==='medium'&&r7.text==='deep answer',r7.model+' '+JSON.stringify(bodies[0].generationConfig));
+calls.length=0;bodies=[];
+globalThis.fetch=async(url,opt)=>{calls.push(url.split('?')[0]);const body=JSON.parse(opt.body);bodies.push(body);
+  if(url.includes('gemini-3.8-flash'))return {ok:false,status:429,text:async()=>'quota'};
+  if(url.includes('generativelanguage'))return {ok:true,json:async()=>({candidates:[{content:{parts:[{text:'everyday answer'}]}}]})};return {ok:true,json:async()=>({content:[{type:'text',text:'claude'}]})};};
+const r8=await llm({system:'S',messages:[{role:'user',content:'draft'}],depth:'deep'});
+t('deep model rate-limited → retry once → falls to 3.6 Flash (low thinking, since deep implies smart)',r8.model==='gemini-3.6-flash'&&calls.filter(c=>c.includes('3.8')).length===2&&bodies[bodies.length-1].generationConfig.thinkingConfig.thinkingLevel==='low',r8.model+' '+calls.length);
+delete process.env.GEMINI_API_KEY;delete process.env.ANTHROPIC_API_KEY;
 console.log(ok+'/'+(ok+fail)+' passed');process.exit(fail?1:0);

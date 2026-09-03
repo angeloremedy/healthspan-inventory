@@ -8,7 +8,10 @@
 //   GEMINI_MODEL       default gemini-3.6-flash (thinking set to minimal — the
 //                      "-latest" alias points at 3.8 Flash, which thinks at length over a
 //                      120k-token catalog and blows the 150 s the UI waits);
-//                      GEMINI_MODEL_LITE default gemini-3.5-flash-lite (the fallback)
+//                      GEMINI_MODEL_LITE default gemini-3.5-flash-lite (the fallback);
+//                      GEMINI_MODEL_DEEP default gemini-3.8-flash — used with medium
+//                      thinking for depth:'deep' calls (short prompts that want the
+//                      richest answer: Draft with AI, the planning review)
 //   LLM_TIMEOUT_MS     per-attempt ceiling, default 45000 — a hung call never eats the
 //                      whole job
 //   GEMINI_PAID=1      say so once billing is on — lifts the free-tier data scrub
@@ -23,15 +26,16 @@ const FAST_CLAUDE = process.env.STOCKBOT_MODEL || 'claude-haiku-4-5-20251001';
 const SMART_CLAUDE = process.env.STOCKBOT_SMART_MODEL || 'claude-sonnet-5';
 const GEM_MODEL = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
 const GEM_LITE = process.env.GEMINI_MODEL_LITE || 'gemini-3.5-flash-lite';
+const GEM_DEEP = process.env.GEMINI_MODEL_DEEP || 'gemini-3.8-flash';
 const timeoutMs = () => Math.max(200, parseInt(process.env.LLM_TIMEOUT_MS || '45000', 10) || 45000);
 
 // Gemini 3 and 2.5 think before answering; for "read this table and answer" work
 // the thinking is latency, not quality. 3.7/3.8 only go down to "low".
-function thinkingFor(model, smart) {
+function thinkingFor(model, smart, deep) {
   const m = String(model).toLowerCase();
-  if (/gemini-3\.[78]/.test(m) || /gemini-3\.1-pro/.test(m) || /gemini-3-pro/.test(m)) return { thinkingLevel: 'low' };
-  if (/gemini-3/.test(m)) return { thinkingLevel: smart ? 'low' : 'minimal' };   // analysis questions get a little thinking
-  if (/gemini-2\.5-flash/.test(m)) return smart ? { thinkingBudget: 1024 } : { thinkingBudget: 0 };
+  if (/gemini-3\.[78]/.test(m) || /gemini-3\.1-pro/.test(m) || /gemini-3-pro/.test(m)) return { thinkingLevel: deep ? 'medium' : 'low' };
+  if (/gemini-3/.test(m)) return { thinkingLevel: deep ? 'medium' : smart ? 'low' : 'minimal' };   // analysis questions get a little thinking
+  if (/gemini-2\.5-flash/.test(m)) return deep ? { thinkingBudget: 4096 } : smart ? { thinkingBudget: 1024 } : { thinkingBudget: 0 };
   return null;
 }
 async function fetchT(url, opt) { // fetch with a hard ceiling
@@ -59,11 +63,20 @@ export function isHardQuestion(q) {
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-async function callGemini({ system, messages, maxTokens, model, key, noThinking, smart }) {
+// Models drift to "P1,234" or "PHP 1,234" for pesos; the house style is ₱1,234.
+export function fixPeso(text) {
+  return String(text || '')
+    .replace(/(^|[\s(\[>—–-])(?:PHP|Php|php|PhP)\s?(\d)/g, '$1₱$2')
+    .replace(/(^|[\s(\[>—–-])P\s?(\d{1,3}(?:,\d{3})+(?:\.\d+)?)/g, '$1₱$2')
+    .replace(/(^|[\s(\[>—–-])P(\d{4,})/g, '$1₱$2')
+    .replace(/₱\s+(\d)/g, '₱$1');
+}
+
+async function callGemini({ system, messages, maxTokens, model, key, noThinking, smart, deep }) {
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent';
   const contents = messages.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: String(m.content || '') }] }));
   const body = { contents, generationConfig: { maxOutputTokens: Math.max(maxTokens, 1500), temperature: 0.3 } };
-  const th = noThinking ? null : thinkingFor(model, smart); if (th) body.generationConfig.thinkingConfig = th;
+  const th = noThinking ? null : thinkingFor(model, smart, deep); if (th) body.generationConfig.thinkingConfig = th;
   if (system) body.systemInstruction = { parts: [{ text: system }] };
   const resp = await fetchT(url, { method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body) });
   if (!resp.ok) { const t = await resp.text();
@@ -96,15 +109,18 @@ async function callClaude({ system, messages, maxTokens, model, key }) {
  *   gemini:    Flash → (429/5xx) wait, Flash again → Flash-Lite → Claude fast if a key exists
  *   anthropic: smart/fast Claude → fast Claude → Gemini Flash if a key exists
  */
-export async function llm({ system = '', messages = [], maxTokens = 2000, smart = false } = {}) {
+export async function llm({ system = '', messages = [], maxTokens = 2000, smart = false, depth = '' } = {}) {
   const gk = process.env.GEMINI_API_KEY, ak = process.env.ANTHROPIC_API_KEY;
+  const deep = depth === 'deep'; if (deep) smart = true;
   const attempts = [];
   if (provider() === 'gemini') {
-    if (gk) { attempts.push({ p: 'gemini', model: GEM_MODEL, retry: true }); attempts.push({ p: 'gemini', model: GEM_LITE }); }
-    if (ak) attempts.push({ p: 'anthropic', model: FAST_CLAUDE });
+    // deep = a short prompt that deserves the strongest Flash and real thinking; the
+    // everyday model stays next in line so a rate limit on 3.8 never blocks the answer
+    if (gk) { if (deep) attempts.push({ p: 'gemini', model: GEM_DEEP, retry: true, deep: true }); attempts.push({ p: 'gemini', model: GEM_MODEL, retry: !deep }); attempts.push({ p: 'gemini', model: GEM_LITE }); }
+    if (ak) attempts.push({ p: 'anthropic', model: deep ? SMART_CLAUDE : FAST_CLAUDE });
   } else {
     if (ak) { attempts.push({ p: 'anthropic', model: smart ? SMART_CLAUDE : FAST_CLAUDE }); if (smart) attempts.push({ p: 'anthropic', model: FAST_CLAUDE }); }
-    if (gk) attempts.push({ p: 'gemini', model: GEM_MODEL });
+    if (gk) attempts.push({ p: 'gemini', model: deep ? GEM_DEEP : GEM_MODEL, deep });
   }
   if (!attempts.length) return { text: '', model: '', provider: provider(), error: (provider() === 'gemini' ? 'GEMINI_API_KEY' : 'ANTHROPIC_API_KEY') + ' not configured' };
   const errs = [];
@@ -112,8 +128,8 @@ export async function llm({ system = '', messages = [], maxTokens = 2000, smart 
     let noThinking = false;
     for (let tries = 0; tries < 3; tries++) {
       try {
-        const args = { system, messages, maxTokens, model: a.model, key: a.p === 'gemini' ? gk : ak, noThinking, smart };
-        const text = a.p === 'gemini' ? await callGemini(args) : await callClaude(args);
+        const args = { system, messages, maxTokens, model: a.model, key: a.p === 'gemini' ? gk : ak, noThinking, smart, deep: !!a.deep };
+        const text = fixPeso(a.p === 'gemini' ? await callGemini(args) : await callClaude(args));
         return { text, model: a.model, provider: a.p, error: '' };
       } catch (e) {
         errs.push(a.model + ': ' + (e.message || e));

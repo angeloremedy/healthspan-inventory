@@ -2573,6 +2573,7 @@ all go through `netlify/functions/lib/llm.mjs`. Set in Netlify → Environment:
 | `GEMINI_API_KEY` | from Google AI Studio (free tier, no card). With this set and no `AI_PROVIDER`, everything runs on Gemini Flash |
 | `AI_PROVIDER` | optional: `gemini` or `anthropic` to force one |
 | `GEMINI_MODEL` / `GEMINI_MODEL_LITE` | defaults `gemini-3.6-flash` / `gemini-3.5-flash-lite`, both with thinking set to minimal. Do not point these at `gemini-flash-latest`: it resolves to 3.8 Flash, which thinks at length over a big prompt and overran the 150 s the UI waits |
+| `GEMINI_MODEL_DEEP` | default `gemini-3.8-flash` with medium thinking — used only for short prompts that want the richest answer (Draft with AI). Falls back to `GEMINI_MODEL` if rate-limited |
 | `LLM_TIMEOUT_MS` | per-attempt ceiling, default 45000; a hung call is cut and the next model tried |
 | `GEMINI_PAID=1` | set once billing is on — lifts the free-tier scrub (unit costs and supplier payables are left out of prompts on the free tier, because free-tier prompts may be used for model improvement) |
 | `ANTHROPIC_API_KEY` | optional safety net — if the primary provider fails or is rate-limited twice, the call is retried on Claude |
