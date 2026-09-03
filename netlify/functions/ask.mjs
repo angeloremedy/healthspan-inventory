@@ -4,6 +4,7 @@
 // GET ?id=... → returns the finished { answer, model } / { error }, or { pending:true }.
 import crypto from 'node:crypto';
 import { connectLambda, getStore } from '@netlify/blobs';
+import { llm, provider, hasKey } from './lib/llm.mjs';
 
 const HDRS = {
   'Access-Control-Allow-Origin': '*',
@@ -42,6 +43,14 @@ export const handler = async (event) => {
   if(auth&&auth.code)return{statusCode:auth.code,headers:HDRS,body:JSON.stringify({error:auth.error})};
   const who=auth&&auth.ok?{role:auth.role,tag:auth.tag}:{role:'viewer',tag:''}; // server-derived — the client can't spoof it
 
+  // ── Diagnostic: is the model door open? (manager/admin only) — one tiny call, timed
+  if (event.httpMethod === 'GET' && event.queryStringParameters && event.queryStringParameters.diag) {
+    if (!['admin', 'manager', 'super'].includes(who.role)) return { statusCode: 403, headers: HDRS, body: JSON.stringify({ error: 'Admin or sales manager only' }) };
+    const t0 = Date.now();
+    const out = hasKey() ? await llm({ system: 'Reply with exactly: OK', messages: [{ role: 'user', content: 'ping' }], maxTokens: 20 }) : { text: '', model: '', provider: provider(), error: 'no API key configured for ' + provider() };
+    return { statusCode: 200, headers: HDRS, body: JSON.stringify({ provider: out.provider, model: out.model, ms: Date.now() - t0, ok: !!out.text, reply: (out.text || '').slice(0, 60), error: out.error || '' }) };
+  }
+
   // ── Poll for a result
   if (event.httpMethod === 'GET') {
     const id = (event.queryStringParameters && event.queryStringParameters.id) || '';
@@ -70,11 +79,13 @@ export const handler = async (event) => {
   const base = process.env.URL || ('https://' + event.headers.host);
   try {
     // Background functions ack with 202 immediately; the await is quick.
-    await fetch(base + '/.netlify/functions/ask-work-background', {
+    const t = await fetch(base + '/.netlify/functions/ask-work-background', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, question, catalog, history: payload.history || [], who })
     });
+    // a 404/5xx here means the worker never started — say so now instead of letting the UI poll into a timeout
+    if (!t.ok && t.status !== 202) return { statusCode: 502, headers: HDRS, body: JSON.stringify({ error: 'The answer job did not start (worker returned ' + t.status + '). Check the ask-work-background function deploy.' }) };
   } catch (e) {
     return { statusCode: 502, headers: HDRS, body: JSON.stringify({ error: 'Could not start the answer job: ' + e.message }) };
   }

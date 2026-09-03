@@ -675,7 +675,7 @@ button:active{transform:scale(.97)}
 
 <div class="askdrawer" id="askdrawer">
   <div class="askhd"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>Ask the inventory<button class="ax" onclick="toggleAsk()">×</button></div>
-  <div class="asklog" id="asklog"><div class="askempty">Ask anything about stock, in plain language.<br><br>e.g. “How many HA Densimatrix do we have?”<br>“Which hair products are in stock?”<br>“Do we have melatonin ampoules and what’s the price?”</div></div>
+  <div class="asklog" id="asklog"><div class="askempty">Ask anything about stock, in plain language.<br><br>e.g. “How many HA Densimatrix do we have?”<br>“Which hair products are in stock?”<br>“Do we have melatonin ampoules and what’s the price?”<br><br><a href="#" class="lnk" onclick="askDiag();return false" style="font-size:11px">AI connection test</a></div></div>
   <div class="askbar"><textarea id="askinput" placeholder="Ask about any product…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAsk();}"></textarea><button id="askbtn" onclick="sendAsk()">Ask</button></div>
   <div class="askfoot">Answers come from the live warehouse data · stock is warehouse-level, not per-branch</div>
 </div>

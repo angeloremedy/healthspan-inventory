@@ -99,6 +99,26 @@ async function buildHqContext(role, tag) {
   return S.length ? '\n\nHQ LIVE OPERATIONS DATA (already filtered to what this role may see):\n' + S.join('\n\n') : '';
 }
 
+/* Keep every section header and any row that mentions a word from the question;
+   fill the rest of the budget with the first rows of each section in order. */
+export function trimCatalog(cat, question, budget) {
+  if (!cat || cat.length <= budget) return cat;
+  const words = String(question || '').toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length >= 3 && !/^(the|and|for|how|many|much|what|which|have|has|are|our|with|from|this|that|does|did|when|will|should|about|there|their|into|than|all|any|you|can)$/.test(w));
+  const lines = cat.split('\n');
+  const isHead = l => /^[A-Z][A-Z0-9 \-\u2014&/+()]{4,}.*[:\u2014]/.test(l) || /^\s*$/.test(l) || l.startsWith('==');
+  const keep = new Array(lines.length).fill(false); let used = 0;
+  lines.forEach((l, i) => { if (isHead(l)) { keep[i] = true; used += l.length + 1; } });
+  if (words.length) lines.forEach((l, i) => { if (!keep[i]) { const ll = l.toLowerCase(); if (words.some(w => ll.includes(w))) { keep[i] = true; used += l.length + 1; } } });
+  let sectionRows = 0;
+  for (let i = 0; i < lines.length && used < budget; i++) {
+    if (isHead(lines[i])) { sectionRows = 0; continue; }
+    if (keep[i]) continue;
+    if (sectionRows < 150) { keep[i] = true; used += lines[i].length + 1; sectionRows++; }
+  }
+  const out = lines.filter((l, i) => keep[i]).join('\n');
+  return out + '\n\n(NOTE: the catalog was trimmed to fit — rows that match the question were kept in full; other sections show their first rows only. If a product or account is not listed, say it is not in this excerpt rather than that it does not exist.)';
+}
+
 export const handler = async (event) => {
   try { connectLambda(event); } catch (e) {} // wire Blobs context into this handler-style function
 
@@ -106,7 +126,7 @@ export const handler = async (event) => {
   try { payload = JSON.parse(event.body || '{}'); } catch (e) {}
   const id = String(payload.id || '');
   const question = String(payload.question || '').slice(0, 2000).trim();
-  const catalog = String(payload.catalog || '').slice(0, 500000);
+  const catalogRaw = String(payload.catalog || '').slice(0, 500000);
   const history = Array.isArray(payload.history) ? payload.history.slice(-4) : [];
   const who = payload.who || { role: 'viewer', tag: '' };
   if (!id) return { statusCode: 400, body: 'no id' };
@@ -114,7 +134,14 @@ export const handler = async (event) => {
   let store = null;
   try { store = getStore('ask'); } catch (e) {}
   const finish = async (obj) => { if (store) { try { await store.setJSON('res-' + id, { ...obj, at: new Date().toISOString() }); } catch (e) {} } };
+  // a progress marker, so a poll can tell "the worker is on it" from "nothing ever started"
+  const stage = async (s) => { if (store) { try { await store.setJSON('res-' + id, { pending: true, stage: s, provider: provider(), at: new Date().toISOString() }); } catch (e) {} } };
+  await stage('started');
 
+  // The dashboard sends its whole catalog (up to 500 KB). A "how many X do we have"
+  // question needs the rows about X, the section headers and a slice of everything
+  // else — not 120k tokens. Trimming is what makes a free-tier Flash answer in seconds.
+  const catalog = trimCatalog(catalogRaw, question, 140000);
   if (!question || !catalog) { await finish({ error: 'Missing question or catalog' }); return { statusCode: 200, body: 'bad input' }; }
   if (!hasKey()) { await finish({ error: (provider() === 'gemini' ? 'GEMINI_API_KEY' : 'ANTHROPIC_API_KEY') + ' not configured' }); return { statusCode: 200, body: 'no key' }; }
 
@@ -129,6 +156,7 @@ export const handler = async (event) => {
 
   const smart = isHardQuestion(question);
   const t0 = Date.now();
+  await stage('context');
   let hqCtx = '';
   try { hqCtx = (await buildHqContext(who.role, who.tag)).slice(0, 60000); } catch (e) {}
 
@@ -141,6 +169,7 @@ export const handler = async (event) => {
             hqCtx +
             '\n\nLIVE DATA:\n' + catalog;
 
+  await stage('model');
   // one call; lib/llm.mjs already retries on a rate limit and falls back across models/providers
   const out = await llm({ system, messages: msgs, maxTokens: smart ? 8000 : 2000, smart });
   const res = { answer: out.text, errMsg: out.error };

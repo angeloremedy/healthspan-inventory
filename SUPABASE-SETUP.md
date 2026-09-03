@@ -2572,13 +2572,21 @@ all go through `netlify/functions/lib/llm.mjs`. Set in Netlify → Environment:
 |---|---|
 | `GEMINI_API_KEY` | from Google AI Studio (free tier, no card). With this set and no `AI_PROVIDER`, everything runs on Gemini Flash |
 | `AI_PROVIDER` | optional: `gemini` or `anthropic` to force one |
-| `GEMINI_MODEL` / `GEMINI_MODEL_LITE` | defaults `gemini-flash-latest` / `gemini-flash-lite-latest` (Lite is the fallback when Flash is rate-limited) |
+| `GEMINI_MODEL` / `GEMINI_MODEL_LITE` | defaults `gemini-3.6-flash` / `gemini-3.5-flash-lite`, both with thinking set to minimal. Do not point these at `gemini-flash-latest`: it resolves to 3.8 Flash, which thinks at length over a big prompt and overran the 150 s the UI waits |
+| `LLM_TIMEOUT_MS` | per-attempt ceiling, default 45000; a hung call is cut and the next model tried |
 | `GEMINI_PAID=1` | set once billing is on — lifts the free-tier scrub (unit costs and supplier payables are left out of prompts on the free tier, because free-tier prompts may be used for model improvement) |
 | `ANTHROPIC_API_KEY` | optional safety net — if the primary provider fails or is rate-limited twice, the call is retried on Claude |
 
 Free-tier limits (Flash): ~15 requests/min, ~1,500/day, 1M-token context. A
 whole review's worth of drafts is ~25 calls. A 429 is retried once after 4–5 s,
 then Flash-Lite, then Claude if a key exists.
+
+**Checking it works:** open Ask AI → **AI connection test** (manager/admin): one
+tiny call, reports provider, model and milliseconds, or the exact error. The Ask
+chat now trims the catalog to the rows that match the question (+ section heads
+and a slice of the rest, ~140 KB max) so a free-tier Flash answers in seconds; a
+job that never starts is reported at once instead of polling into a timeout, and
+a timeout says which stage the worker reached.
 
 ## Specialist report sections (Sep 3) — re-run the two commentary policies
 

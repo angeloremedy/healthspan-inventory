@@ -30,6 +30,14 @@ function askCatalog(){
   if(shopDeals)out+='\n\nLIVE DEALS ON SHOPIFY (sku|deal_title|physical_units_per_set|set_price_php):\n'+shopDeals;
   return out;
 }
+async function askDiag(){ // manager/admin: one tiny model call, timed — is the door open?
+  const log=document.getElementById('asklog');if(!log)return;
+  const empty=log.querySelector('.askempty');if(empty)empty.remove();
+  log.insertAdjacentHTML('beforeend','<div class="aska" id="ask-diag">Testing the AI connection…</div>');
+  try{const r=await fetch('/.netlify/functions/ask?diag=1',{headers:await sbAuthHeaders()});const o=await r.json();const el=document.getElementById('ask-diag');
+    if(el){el.removeAttribute('id');el.innerHTML=o.ok?'<b>AI connection OK</b> — '+esc(o.provider||'')+' · '+esc(o.model||'')+' answered in '+esc(String(o.ms))+' ms.':'<span style="color:var(--rd)"><b>AI connection failed</b> — '+esc(o.error||('HTTP '+r.status))+(o.ms?' ('+esc(String(o.ms))+' ms)':'')+'</span>';}}
+  catch(e){const el=document.getElementById('ask-diag');if(el){el.removeAttribute('id');el.innerHTML='<span style="color:var(--rd)">Could not reach the function: '+esc(e.message)+'</span>';}}
+  log.scrollTop=log.scrollHeight;}
 function askFmt(t){
   return esc(t).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>');
 }
@@ -50,7 +58,7 @@ async function sendAsk(){
     const job=await r.json();
     if(!job.id)throw new Error(job.error||'could not start');
     // Poll for the answer — deep questions can take 30s+ on the smart model.
-    let out=null;
+    let out=null,last=null;
     const pendEl=()=>document.getElementById('ask-pending');
     for(let i=0;i<60;i++){
       await new Promise(res=>setTimeout(res,2500));
@@ -59,12 +67,12 @@ async function sendAsk(){
       if(pe&&i===12)pe.textContent='Still working — deep analysis takes a little longer…';
       try{
         const rr=await fetch('/.netlify/functions/ask?id='+job.id,{headers:await sbAuthHeaders()});
-        const o=await rr.json();
+        const o=await rr.json();last=o;
         if(!o.pending){out=o;break;}
       }catch(e){}
     }
     const p=pendEl();
-    if(!out)out={error:'Timed out waiting for the answer — please try again.'};
+    if(!out)out={error:'Timed out waiting for the answer'+(last&&last.stage?' — the job was still at "'+last.stage+'" on '+(last.provider||'the model')+'. Try again; if it repeats, run the AI connection test.':' — the answer job never started. Check the ask-work-background function.')};
     if(p){p.removeAttribute('id');p.innerHTML=out.answer?askFmt(out.answer):'<span style="color:var(--rd)">'+esc(out.error||'No answer')+'</span>';}
     if(out.answer){ASKHIST.push({q:q,a:out.answer});if(ASKHIST.length>10)ASKHIST.shift();}
   }catch(err){

@@ -376,12 +376,13 @@ async function bizAiDraft(section){
   if(st)st.textContent='Drafting with AI…';
   try{const r=await fetch('/.netlify/functions/ask',{method:'POST',headers:await sbAuthHeaders({'Content-Type':'application/json'}),body:JSON.stringify({question:q,catalog:'BUSINESS REVIEW FIGURES (external sales only, JSON):\n'+data,history:[]})});
     const job=await r.json();if(!job||!job.id)throw new Error(job&&job.error||'no job id');
+    let last=null;
     for(let i=0;i<60;i++){await new Promise(x=>setTimeout(x,2500));
-      const p=await (await fetch('/.netlify/functions/ask?id='+encodeURIComponent(job.id),{headers:await sbAuthHeaders()})).json();
-      if(p&&p.pending)continue;if(p&&p.error)throw new Error(p.error);
+      const p=await (await fetch('/.netlify/functions/ask?id='+encodeURIComponent(job.id),{headers:await sbAuthHeaders()})).json();last=p;
+      if(p&&p.pending){if(st&&p.stage)st.textContent='Drafting with AI… ('+p.stage+(p.provider?' · '+p.provider:'')+')';continue;}if(p&&p.error)throw new Error(p.error);
       const txt=String((p&&p.answer)||'').replace(/\*\*/g,'').trim();if(!txt)throw new Error('empty answer');
       ta.value=(ta.value.trim()?ta.value.trim()+'\n\n':'')+txt;if(st)st.textContent='Draft added — edit, then Save.';return;}
-    throw new Error('timed out');}
+    throw new Error('timed out'+(last&&last.stage?' — job still at "'+last.stage+'"':' — job never started'));}
   catch(e){if(st)st.textContent='AI draft failed: '+(e.message||e);}}
 
 /* ── the page ──────────────────────────────────────────────────────────── */
