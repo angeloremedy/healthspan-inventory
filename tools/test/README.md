@@ -59,3 +59,9 @@ Mocks `fetch` and drives `netlify/functions/lib/llm.mjs`: Gemini is the default 
 its key exists, a 429 is retried once and then answered, a dead Gemini falls
 through Flash → Flash-Lite → Claude, `AI_PROVIDER=anthropic` goes to Claude
 first, the paid flag lifts the free-tier scrub, and no keys yields a clear error.
+
+The business-review test now also covers js/13: the team deck has no individual
+slides, a specialist's deck has 11–16, the HTML renderer produces slide-sized
+pages, the Reports page shows input status per person and hides other people's
+rows from a specialist, forecasts save as JSON, and Copy for Notion text carries
+brands, specialists and HQ notes.

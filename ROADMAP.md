@@ -122,6 +122,13 @@ platform feeds it via the accounting export; it does not replace it.
 
 **People (Sep 2)** — Jojo resigned: disable the account in Team & access and reassign any accounts owned by his tag; Marj is the sales manager of record. Daz joins finance: create the account with role `finance` in Team & access. Both are in-app actions, no SQL.
 
+**Two decks, a Reports page, Notion copy (Sep 3)**
+- ✅ Team deck no longer carries individual slides; each specialist has their own deck in the format of their old reports (glance, wins/challenges/territory, territory sales, products per brand, SkinPen utilisation, accounts monitoring, activities, forecast, proposals) — five text boxes + a per-account forecast table as their inputs
+- ✅ Decks are a slide spec rendered twice: PowerPoint (pptxgenjs) and a slide-sized HTML page for Save as PDF
+- ✅ Reports page: every deck for the month with an Inputs column (boxes in / missing / last edited), PowerPoint or PDF per row, Download all for the sales manager and admin, own row for a specialist
+- ✅ Copy for Notion: the weekly-meeting Sales and Supply chain blocks as Notion-ready text from live figures
+- ⏭ Next: push straight into the Healthspan Weekly Meeting page via a Notion integration (find this week's page in the Check-Ins database, append an "HQ · date" block under the department callout) — needs an internal integration token shared with the database; the copy button is the zero-setup version
+
 **Business review — the monthly report, generated (Sep 3)**
 - ✅ Sales analytics → Business review: the bimonthly sales performance deck computed from HQ — at a glance, brands (MTD/QTD/YTD vs target, 13-month stacked chart), products per brand, machines & demo units, accounts monitoring per specialist, clients & buying behaviour (repeat vs new, reorders, cross-sell, deal share, risers/fallers, repeat accounts going quiet), specialists with one panel each, plan and next month's targets
 - ✅ What HQ noticed: rule-written trend sentences from the figures — pace, brands ahead/behind, concentration, first orders, quiet accounts, specialists on/off pace, activity without orders, installs. Per-specialist HQ notes too

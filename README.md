@@ -512,7 +512,7 @@ same month it says what moved (revenue, attainment, orders, accounts, per brand
 and per specialist); across months it compares the commentary only, because
 August against September is not "movement".
 
-**Export PowerPoint** (manager) builds the whole deck in the browser — cover, at
+**Two decks, one report.** The **team deck** is the sales manager's — cover, at
 a glance, what moved, the commentary slides two-column (this report / last
 report), brand and product slides with charts (drawn by the page and placed as
 pictures, because Keynote and Google Slides leave PowerPoint-native charts
@@ -520,8 +520,29 @@ blank), machines, accounts,
 clients, specialists, one performance slide and one commentary slide per
 specialist, plan, sales plan, thank-you with the presenter list. Every chart is a
 real PowerPoint chart, every commentary a real text box, so Marj can still edit
-in PowerPoint. **Export my slides** gives a specialist their own three-slide
-deck for their part of the meeting.
+in PowerPoint. It carries **no individual slides**: each specialist presents from
+their **own deck**, in the format they used to type by hand — cover, at a glance
+(their numbers, 13-month line, HQ notes), Key wins, Key challenges, Territory
+updates, Territory sales performance (their brands, QTD/YTD vs target), product
+sales per brand, SkinPen utilisation (treatment kits per account per month),
+Accounts monitoring (masterlist, top accounts, going quiet), Training & marketing
+activities, Sales plan / forecast, Proposals, thank-you. The five text boxes and
+the forecast table are the specialist's inputs, under their panel on the review.
+
+**Reports** (Sales analytics → Reports) is where the files come from: one row per
+deck for the month, an **Inputs** column that says how many of the person's boxes
+are in (and which are missing, on hover) and when they last wrote, then
+**PowerPoint** or **PDF** per row — the PDF is a print-ready page sized to the
+slides, saved with the browser's Save as PDF. The sales manager and admin see
+every deck and **Download all**; a specialist sees their own row. Everything is
+built from live figures the moment it is clicked.
+
+**Weekly meeting → Notion.** The same page has **Copy for Notion**: this week's
+figures for the Sales section (brand table with target and attainment,
+machines, accounts, activity, specialists vs target, what HQ noticed) or the
+Supply chain section (inventory value by line, out of stock, expiring batches,
+equipment) as Notion-ready text — paste under *Weekly Report/Updates* in the
+Healthspan Weekly Meeting page and Notion turns it into blocks.
 
 **Draft with AI, Ask AI, the Slack bot and the Monday nudge run on Gemini Flash
 (free tier)** by default — one env var, `GEMINI_API_KEY`. On the free tier unit

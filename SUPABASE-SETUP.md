@@ -2579,3 +2579,28 @@ all go through `netlify/functions/lib/llm.mjs`. Set in Netlify → Environment:
 Free-tier limits (Flash): ~15 requests/min, ~1,500/day, 1M-token context. A
 whole review's worth of drafts is ~25 calls. A 429 is retried once after 4–5 s,
 then Flash-Lite, then Claude if a key exists.
+
+## Specialist report sections (Sep 3) — re-run the two commentary policies
+
+A specialist's report now has several boxes (`ps:<Tag>:wins`, `:challenges`,
+`:territory`, `:activities`, `:proposals`) plus a forecast table stored as JSON
+(`ps:<Tag>:forecast`). The write policies compare the tag *segment* of the
+section key, so all of them belong to that specialist:
+
+```sql
+drop policy if exists "review_commentary write" on public.review_commentary;
+create policy "review_commentary write" on public.review_commentary for insert to authenticated
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid()
+              and (p.role in ('admin','manager') or p.is_super
+                   or (p.specialist_tag is not null and split_part(lower(section), ':', 1) = 'ps'
+                       and split_part(lower(section), ':', 2) = lower(p.specialist_tag)))));
+drop policy if exists "review_commentary update" on public.review_commentary;
+create policy "review_commentary update" on public.review_commentary for update to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid()
+         and (p.role in ('admin','manager') or p.is_super
+              or (p.specialist_tag is not null and split_part(lower(section), ':', 1) = 'ps'
+                  and split_part(lower(section), ':', 2) = lower(p.specialist_tag)))));
+```
+
+Rows saved under the earlier single box (`ps:<Tag>`) are still readable and stand
+in for Key wins until the specialist writes the new box.

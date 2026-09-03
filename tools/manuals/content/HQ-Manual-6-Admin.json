@@ -792,6 +792,11 @@
    "v": "Names on the review come from each person’s HQ account, not the Shopify tag; the roster is the accounts that carry a specialist tag. Set each specialist’s <b>Team</b> in Team &amp; access (edit → Team) and the review groups by it. Revenue under a tag that is not an account is flagged with its amount so the orders can be re-tagged."
   },
   {
+   "t": "step",
+   "n": "8",
+   "v": "Sales analytics → <b>Reports</b>: every deck for the month — the team deck and one per specialist — with an Inputs column (boxes in / missing / last edited), PowerPoint or PDF per row, Download all, and Copy for Notion for the weekly meeting."
+  },
+  {
    "t": "callout",
    "v": "PERMISSIONS — Save snapshot and Export PowerPoint are manager and admin. Specialists see everything, edit only their own box, and export only their own slides.",
    "c": "#0E8A5F"

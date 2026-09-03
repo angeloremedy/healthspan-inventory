@@ -11,6 +11,13 @@
 
 const BIZ_SECTIONS=[['wins','Key wins'],['challenges','Key challenges'],['territory','Territory updates'],
                     ['plan','Plan of action'],['program','Sales programs & promos'],['forecast','Sales plan notes']];
+/* a specialist's own report: five text boxes + a per-account forecast table (JSON) */
+const BIZ_PS_SECTIONS=[['wins','Key wins'],['challenges','Key challenges'],['territory','Territory updates'],['activities','Training & marketing activities'],['proposals','Proposals / recommendations']];
+const BIZ_PS_ALL=BIZ_PS_SECTIONS.map(x=>x[0]).concat(['forecast']);
+function bizPsSec(tag,key){return 'ps:'+tag+':'+key;}
+function bizNote(section){ // a saved row, with the pre-split 'ps:Tag' box standing in for Key wins
+  const n=BIZ.notes[section];if(n)return n;const m=String(section).match(/^ps:([^:]+):wins$/i);return m?(BIZ.notes['ps:'+m[1]]||null):null;}
+function bizForecast(tag){try{const n=BIZ.notes[bizPsSec(tag,'forecast')];return n&&n.body?JSON.parse(n.body):{};}catch(e){return {};}}
 const BIZ_PPTX_CDN=['https://cdnjs.cloudflare.com/ajax/libs/PptxGenJS/3.12.0/pptxgen.bundle.js',
                     'https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js'];
 let BIZ={ym:null,R:null,notes:{},prevNotes:{},snaps:null,prev:null,busy:false};
@@ -74,7 +81,7 @@ function bizCanEditAll(){return canManage()||isSuper();}
 function bizMySpec(){return specCanon((SBPROFILE&&SBPROFILE.specialist_tag)||'');}
 // mirrors the RLS policy exactly: the raw profile tag, not the alias — so a profile tagged
 // 'Kristine' cannot edit 'ps:Tin' here either (fix the tag in Team, not the code)
-function bizCanEdit(section){if(bizCanEditAll())return true;const raw=String((SBPROFILE&&SBPROFILE.specialist_tag)||'').trim();return !!raw&&String(section).toLowerCase()==='ps:'+raw.toLowerCase();}
+function bizCanEdit(section){if(bizCanEditAll())return true;const raw=String((SBPROFILE&&SBPROFILE.specialist_tag)||'').trim();const parts=String(section).split(':');return !!raw&&parts[0]==='ps'&&(parts[1]||'').toLowerCase()===raw.toLowerCase();}
 function bizMonthsAvail(){
   const set=new Set();for(const k in (SALESIDX||{}))for(const m in (SALESIDX[k].monthly||{}))set.add(m);
   const cur=bizToday().slice(0,7);set.add(cur);
@@ -126,8 +133,8 @@ function bizCompute(ym){
   const ords={};
   for(const sku in (ORDIDX||{})){const L=(SALESIDX[sku]&&SALESIDX[sku].line)||'(no line)';
     for(const o of ORDIDX[sku]){if(!o||!o.n)continue;if(ordInternal(o))continue;
-      const e=ords[o.n]||(ords[o.n]={n:o.n,dt:o.dt||'',t:specCanon(o.t||''),c:o.c||'',a:0,skus:{},lines:new Set()});
-      e.a+=(+o.a||0);e.skus[sku]=(e.skus[sku]||0)+(+o.a||0);e.lines.add(L);}}
+      const e=ords[o.n]||(ords[o.n]={n:o.n,dt:o.dt||'',t:specCanon(o.t||''),c:o.c||'',a:0,skus:{},units:{},lines:new Set()});
+      e.a+=(+o.a||0);e.skus[sku]=(e.skus[sku]||0)+(+o.a||0);e.units[sku]=(e.units[sku]||0)+(+o.q||0);e.lines.add(L);}}
   const O=Object.values(ords);
   const first={},last={},nRecent={};
   for(const o of O){if(!o.c)continue;if(!first[o.c]||o.dt<first[o.c])first[o.c]=o.dt;if(!last[o.c]||o.dt>last[o.c])last[o.c]=o.dt;nRecent[o.c]=(nRecent[o.c]||0)+1;}
@@ -141,7 +148,7 @@ function bizCompute(ym){
   const getSpec=(n,create)=>{const k=specCanon(n);if(!k||INTERNAL_TAG.test(k))return null;const lk=k.toLowerCase();
     if(!create)return specs[lk]||null;
     return specs[lk]||(specs[lk]={name:k,label:specDisplay(k),team:specTeam(k),order:specOrder(k),mtd:0,prev:0,qtd:0,ytd:0,units:0,tgt:null,qtgt:null,ytgt:null,series:series.map(()=>0),
-      lines:{},skus:{},accts:{},orders:0,ordAccts:new Set(),newAccts:[],owned:new Set(),tagged:new Set(),active:0,
+      lines:{},skus:{},accts:{},acctAll:{},prodLine:{},kits:{},events:0,demoV:0,orders:0,ordAccts:new Set(),newAccts:[],owned:new Set(),tagged:new Set(),active:0,
       visits:0,calls:0,demos:0,ordered:0,opened:0,touched:new Set()});};
   // Who is a specialist? The HQ accounts that carry a specialist tag (spec_directory).
   // Only when no directory exists yet do Shopify tags / targets / the roster stand in —
@@ -165,14 +172,21 @@ function bizCompute(ym){
   /* orders → accounts, per specialist and company-wide */
   const acctRev={},acctPrev={},acctOrd={},acctLines={},acctSpec={};
   for(const o of O){const inM=o.dt.slice(0,7)===ym,inP=o.dt.slice(0,7)===prev;const s=o.t?getSpec(o.t):null;
-    if(s&&o.c)s.tagged.add(o.c);
+    if(s&&o.c){s.tagged.add(o.c);
+      // the specialist's whole order window (~6 months): per-account totals, months active, last order, kits
+      const A=s.acctAll[o.c]||(s.acctAll[o.c]={v6:0,mtd:0,prev:0,orders:0,months:new Set(),last:'',first:''});
+      A.v6+=o.a;A.orders++;A.months.add(o.dt.slice(0,7));if(o.dt>A.last)A.last=o.dt;if(!A.first||o.dt<A.first)A.first=o.dt;
+      if(inM)A.mtd+=o.a;if(inP)A.prev+=o.a;
+      for(const sku in o.skus){const nm=(SALESIDX[sku]&&SALESIDX[sku].name)||sku;if(/treatment\s*kit/i.test(nm)||sku==='F5SP072'){ // SkinPen utilisation = kits per account per month
+        const K=s.kits[o.c]||(s.kits[o.c]={});K[o.dt.slice(0,7)]=(K[o.dt.slice(0,7)]||0)+(o.units[sku]||0);}}}
     if(inP&&o.c)acctPrev[o.c]=(acctPrev[o.c]||0)+o.a;
     if(!inM)continue;
     if(o.c){acctRev[o.c]=(acctRev[o.c]||0)+o.a;acctOrd[o.c]=(acctOrd[o.c]||0)+1;
       const al=acctLines[o.c]||(acctLines[o.c]=new Set());o.lines.forEach(l=>al.add(l));
       const as=acctSpec[o.c]||(acctSpec[o.c]={});if(s)as[s.name]=(as[s.name]||0)+o.a;}
     if(s){s.orders++;if(o.c){s.ordAccts.add(o.c);s.accts[o.c]=(s.accts[o.c]||0)+o.a;}
-      for(const sku in o.skus){s.skus[sku]=(s.skus[sku]||0)+o.skus[sku];const L=(SALESIDX[sku]&&SALESIDX[sku].line)||'(no line)';s.lines[L]=(s.lines[L]||0)+o.skus[sku];}}}
+      for(const sku in o.skus){s.skus[sku]=(s.skus[sku]||0)+o.skus[sku];const L=bizGroupOf((SALESIDX[sku]&&SALESIDX[sku].line)||'(no line)');s.lines[L]=(s.lines[L]||0)+o.skus[sku];
+        const PL=s.prodLine[L]||(s.prodLine[L]={});PL[sku]=(PL[sku]||0)+o.skus[sku];}}}
   const newAccts=Object.keys(acctRev).filter(isNewAcct);
   for(const c of newAccts){const as=acctSpec[c]||{};const top=Object.keys(as).sort((a,b)=>as[b]-as[a])[0];const s=top?getSpec(top):null;if(s)s.newAccts.push(c);}
 
@@ -191,7 +205,7 @@ function bizCompute(ym){
   /* visit log (rolling 120 days, so only the current and previous month are complete) */
   for(const v of (VISITS||[])){if(v.status==='planned'||!v.date||v.date.slice(0,7)!==ym)continue;if(INTERNAL_TAG.test(String(v.account||'').trim()))continue;const s=getSpec(v.spec);if(!s)continue;
     if(/call|viber|follow-?up/i.test(v.type||''))s.calls++;else s.visits++;
-    if(/demo/i.test(v.type||''))s.demos++;if(v.outcome==='Ordered')s.ordered++;if(v.outcome==='New account opened')s.opened++;
+    if(/demo/i.test(v.type||''))s.demos++;if(/event|congress|masterclass|training/i.test(v.type||''))s.events++;if(v.outcome==='Ordered')s.ordered++;if(v.outcome==='New account opened')s.opened++;
     if(v.account)s.touched.add(custNorm(v.account));}
   R.activity={visits:0,calls:0,demos:0,ordered:0,opened:0,partial:(VISITS||[]).length?false:true};
   for(const lk in specs){const s=specs[lk];R.activity.visits+=s.visits;R.activity.calls+=s.calls;R.activity.demos+=s.demos;R.activity.ordered+=s.ordered;R.activity.opened+=s.opened;}
@@ -239,6 +253,12 @@ function bizCompute(ym){
       topAccts:Object.keys(s.accts).map(c=>({name:c,v:s.accts[c]})).sort((a,b)=>b.v-a.v).slice(0,5),
       topLines:Object.keys(s.lines).map(l=>({name:l,v:s.lines[l]})).sort((a,b)=>b.v-a.v).slice(0,4),
       topSkus:Object.keys(s.skus).map(k=>({sku:k,name:(SALESIDX[k]&&SALESIDX[k].name)||k,v:s.skus[k]})).sort((a,b)=>b.v-a.v).slice(0,5),
+      lineRows:Object.keys(s.lines).map(l=>({name:l,mtd:s.lines[l],prevLine:null})).sort((a,b)=>b.mtd-a.mtd),
+      prodByLine:Object.fromEntries(Object.keys(s.prodLine).map(L=>[L,Object.keys(s.prodLine[L]).map(k=>({sku:k,name:(SALESIDX[k]&&SALESIDX[k].name)||k,v:s.prodLine[L][k]})).sort((a,b)=>b.v-a.v).slice(0,10)])),
+      accounts:Object.keys(s.acctAll).map(c=>{const A=s.acctAll[c];return {name:c,mtd:A.mtd,prev:A.prev,v6:A.v6,orders:A.orders,months:A.months.size,avg:A.v6/Math.max(1,A.months.size),last:A.last,isNew:s.newAccts.includes(c)};}).sort((a,b)=>b.v6-a.v6),
+      declining:Object.keys(s.acctAll).map(c=>{const A=s.acctAll[c];const days=Math.round((Date.parse(asOf+'T00:00:00Z')-Date.parse(A.last+'T00:00:00Z'))/864e5);return {name:c,last:A.last,days,v6:A.v6,orders:A.orders};}).filter(a=>a.days>=60&&a.orders>=1).sort((a,b)=>b.v6-a.v6).slice(0,10),
+      kits:Object.keys(s.kits).map(c=>({name:c,months:s.kits[c],total:Object.values(s.kits[c]).reduce((x,y)=>x+y,0)})).sort((a,b)=>b.total-a.total),
+      events:s.events,
       visits:s.visits,calls:s.calls,demos:s.demos,ordered:s.ordered,opened:s.opened,touched:s.touched.size}))
     .filter(s=>R.rosterSrc==='directory'||s.mtd>0||s.prev>0||s.tgt||s.masterlist||s.visits||s.calls)
     // presenting order: the order set on the accounts (Team & access), then team, then revenue
@@ -334,7 +354,7 @@ async function bizSaveNote(section){
   catch(e){if(st)st.textContent='Could not save: '+(e.message||e)+(String(e.message||'').includes('review_commentary')?' — run the review_commentary SQL from SUPABASE-SETUP.md first.':'');}}
 function bizDirty(){ // sections whose textarea differs from what is saved
   const out=[];document.querySelectorAll('#content textarea[id^="bz-"]').forEach(ta=>{const sec=ta.getAttribute('data-sec');if(!sec)return;
-    if(ta.value.trim()!==((BIZ.notes[sec]||{}).body||'').trim())out.push(sec);});return out;}
+    if(ta.value.trim()!==((bizNote(sec)||{}).body||'').trim())out.push(sec);});return out;}
 async function bizSnapshot(){
   if(!bizCanEditAll()||!BIZ.R)return;const b=$('bz-snap');if(b){b.disabled=true;b.textContent='Saving…';}
   for(const sec of bizDirty())await bizSaveNote(sec); // unsaved typing goes into the snapshot, not the bin
@@ -370,7 +390,7 @@ function bizKpi(l,v,sub,tone){return '<div class="met '+(tone||'')+'"><div class
 function bizTrendHTML(T){const ic={up:'▲',down:'▼',flat:'▶',info:'●'},col={up:'var(--gr)',down:'var(--rd)',flat:'var(--am)',info:'var(--bl)'};
   return '<div style="display:grid;gap:6px">'+T.map(t=>'<div style="display:flex;gap:10px;align-items:flex-start;font-size:13px"><span style="color:'+col[t.tone]+';font-size:11px;padding-top:3px;width:12px">'+ic[t.tone]+'</span><span>'+esc(t.t)+'</span></div>').join('')+'</div>';}
 function bizNoteBox(section,title,hint){
-  const id=section.replace(/[^a-z0-9]/gi,'_');const cur=BIZ.notes[section]||{};const prev=BIZ.prevNotes[section]||{};const can=bizCanEdit(section);
+  const id=section.replace(/[^a-z0-9]/gi,'_');const cur=bizNote(section)||{};const prev=BIZ.prevNotes[section]||{};const can=bizCanEdit(section);
   const changed=prev.body!=null&&(cur.body||'')!==(prev.body||'');
   return '<div class="panel" style="padding:14px 16px;margin-bottom:14px" id="sec-'+id+'"><div class="phd" style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><span>'+esc(title)+'</span>'+
     (can?'<span class="mu" style="font-weight:400;font-size:11px">'+(section.startsWith('ps:')?'your slide — only you and the sales manager can edit it':'sales manager edits this')+'</span>':'<span class="mu" style="font-weight:400;font-size:11px">view only — the '+(section.startsWith('ps:')?'specialist':'sales manager')+' writes this</span>')+'</div>'+
@@ -380,6 +400,27 @@ function bizNoteBox(section,title,hint){
       '<div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap"><a href="#" class="abtn" onclick="bizSaveNote(\''+jsq(section)+'\');return false">Save</a><a href="#" class="abtn" onclick="bizAiDraft(\''+jsq(section)+'\');return false">Draft with AI</a><span class="mu" id="bzs-'+id+'" style="font-size:11px">'+(cur.updated_at?'Saved · '+esc(cur.updated_name||'')+' · '+esc(String(cur.updated_at).slice(0,10)):'Nothing saved yet')+'</span></div>'
        :'<div style="white-space:pre-wrap;font-size:13px;min-height:24px">'+esc(cur.body||'(nothing written yet)')+'</div>'+(cur.updated_at?'<div class="mu" style="font-size:11px;margin-top:4px">'+esc(cur.updated_name||'')+' · '+esc(String(cur.updated_at).slice(0,10))+'</div>':''))+
     '</div>';}
+function bizForecastBox(s){
+  const sec=bizPsSec(s.name,'forecast');const can=bizCanEdit(sec);const F=bizForecast(s.name);const saved=BIZ.notes[sec];
+  const rows=s.accounts.slice(0,15);const extra=Object.keys(F).filter(a=>!rows.some(r=>r.name===a)).map(a=>({name:a,avg:0,mtd:0,v6:0,months:0}));
+  const all=rows.concat(extra);const tot=all.reduce((x,a)=>x+(+F[a.name]||0),0);
+  return '<div class="panel" style="padding:14px 16px;margin-bottom:14px" id="sec-'+esc(sec.replace(/[^a-z0-9]/gi,'_'))+'"><div class="phd" style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><span>'+esc(s.label)+' — Sales plan / forecast for '+esc(bizMonthLbl(bizYmAdd(BIZ.ym,1)))+'</span><span class="mu" style="font-weight:400;font-size:11px">'+(can?'type a peso forecast per account':'view only — the specialist fills this in')+'</span></div>'+
+    '<div class="mu" style="font-size:12px;margin-bottom:8px">Average monthly sales = the account\'s external orders over the last six months ÷ months with an order. The forecast column is yours.</div>'+
+    bizTbl(['Account','Avg monthly','MTD','Forecast'],all.map(a=>[esc(a.name),a.avg?fmtPeso(a.avg):'—',a.mtd?fmtPeso(a.mtd):'—',can?'<input type="number" min="0" step="1000" data-fc="'+esc(a.name)+'" value="'+(F[a.name]!=null?esc(String(F[a.name])):'')+'" style="width:110px;font:inherit;font-size:12px;padding:4px 6px;border:1px solid var(--bd);border-radius:6px;text-align:right">':(F[a.name]!=null?fmtPeso(F[a.name]):'—')]).concat([['<b>Total</b>','','','<b id="fc-tot-'+esc(s.name.replace(/[^a-z0-9]/gi,'_'))+'">'+fmtPeso(tot)+'</b>']]))+
+    (can?'<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap"><a href="#" class="abtn" onclick="bizSaveForecast(\''+jsq(s.name)+'\');return false">Save forecast</a><a href="#" class="abtn" onclick="bizAddForecastRow(\''+jsq(s.name)+'\');return false">Add an account</a><span class="mu" id="bzs-'+esc(sec.replace(/[^a-z0-9]/gi,'_'))+'" style="font-size:11px">'+(saved&&saved.updated_at?'Saved · '+esc(saved.updated_name||'')+' · '+esc(String(saved.updated_at).slice(0,10)):'Nothing saved yet')+'</span></div>':'')+'</div>';}
+async function bizSaveForecast(tag){
+  const sec=bizPsSec(tag,'forecast');if(!bizCanEdit(sec))return;const id=sec.replace(/[^a-z0-9]/gi,'_');const box=document.getElementById('sec-'+id);if(!box)return;
+  const F={};box.querySelectorAll('input[data-fc]').forEach(i=>{const v=parseFloat(i.value);if(!isNaN(v)&&v>0)F[i.getAttribute('data-fc')]=Math.round(v);});
+  const st=document.getElementById('bzs-'+id);if(st)st.textContent='Saving…';
+  try{const row={month:BIZ.ym,section:sec,body:JSON.stringify(F),updated_by:(SBUSER&&SBUSER.id)||null,updated_name:(SBPROFILE&&SBPROFILE.name)||'',updated_at:new Date().toISOString()};
+    const {error}=await SB.from('review_commentary').upsert(row);if(error)throw error;BIZ.notes[sec]=row;audit('review.forecast',{month:BIZ.ym,tag,accounts:Object.keys(F).length});
+    const tot=document.getElementById('fc-tot-'+tag.replace(/[^a-z0-9]/gi,'_'));if(tot)tot.textContent=fmtPeso(Object.values(F).reduce((a,b)=>a+b,0));
+    if(st)st.textContent='Saved · '+row.updated_name+' · just now';}
+  catch(e){if(st)st.textContent='Could not save: '+(e.message||e);}}
+function bizAddForecastRow(tag){const name=prompt('Account name (as it appears on orders):');if(!name||!name.trim())return;
+  const sec=bizPsSec(tag,'forecast');const id=sec.replace(/[^a-z0-9]/gi,'_');const box=document.getElementById('sec-'+id);const tb=box&&box.querySelector('tbody');if(!tb)return;
+  const tr=document.createElement('tr');tr.innerHTML='<td>'+esc(name.trim())+'</td><td class="r">—</td><td class="r">—</td><td class="r"><input type="number" min="0" step="1000" data-fc="'+esc(name.trim())+'" style="width:110px;font:inherit;font-size:12px;padding:4px 6px;border:1px solid var(--bd);border-radius:6px;text-align:right"></td>';
+  tb.insertBefore(tr,tb.lastElementChild);tr.querySelector('input').focus();}
 function bizTbl(head,rows,opts){opts=opts||{};return '<div class="tcard"><div class="tscroll"><table><thead><tr>'+head.map((h,i)=>'<th'+(i&&!opts.left?' class="r"':'')+'>'+h+'</th>').join('')+'</tr></thead><tbody>'+
   (rows.length?rows.map(r=>'<tr>'+r.map((c,i)=>'<td'+(i&&!opts.left?' class="r"':'')+'>'+c+'</td>').join('')+'</tr>').join(''):'<tr><td colspan="'+head.length+'" class="mu">Nothing to show</td></tr>')+'</tbody></table></div></div>';}
 function bizDiffChip(cur,S,key){if(!S||S[key]==null||cur==null)return '';const d=cur-S[key];if(!d)return ' <span class="pill pgy" title="unchanged since last report">=</span>';
@@ -406,8 +447,8 @@ async function renderBizReview(){
   h+='<div class="no-print" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">'+
     '<select onchange="bizSetMonth(this.value)" style="font:inherit;padding:6px 8px;border-radius:8px;border:1px solid var(--bd)">'+months.map(m=>'<option value="'+m+'"'+(m===ym?' selected':'')+'>'+bizMonthLbl(m)+'</option>').join('')+'</select>'+
     '<span class="mu" style="font-size:12px">as of '+esc(R.asOf)+' · external sales only · targets: '+esc(R.total.tgtSrc)+'</span><span style="flex:1"></span>'+
-    (canAll?'<a href="#" class="abtn" id="bz-snap" onclick="bizSnapshot();return false">Save snapshot</a><a href="#" class="abtn" onclick="bizExport(\'full\');return false">Export PowerPoint</a>':'')+
-    (me?'<a href="#" class="abtn" onclick="bizExport(\'mine\');return false">Export my slides</a>':'')+
+    (canAll?'<a href="#" class="abtn" id="bz-snap" onclick="bizSnapshot();return false">Save snapshot</a><a href="#" class="abtn" onclick="showView(\'reports\',null);return false">Reports &amp; downloads</a>':'')+
+    (me&&!canAll?'<a href="#" class="abtn" onclick="bizDownload(\''+jsq(me)+'\',\'pptx\');return false">My deck (PowerPoint)</a><a href="#" class="abtn" onclick="bizDownload(\''+jsq(me)+'\',\'pdf\');return false">My deck (PDF)</a>':'')+
     '<a href="#" class="abtn" onclick="window.print();return false">Print</a></div>';
   if(!R.ordersComplete)h+='<div class="viewdesc" style="border-color:var(--am)">The order index only reaches back to '+esc(R.ordersFrom)+' — for '+esc(R.label)+' this page shows revenue by brand, product and specialist, but orders, accounts and buying behaviour are blank. Pick a more recent month for the full report.</div>';
   else if(R.recentCapped&&canAll)h+='<div class="viewdesc" style="border-color:var(--am)">The order index hit its 2,500-order cap, so the newest orders may be missing from the account tables. Ask for a cache rebuild (Sales overview → rebuild).</div>';
@@ -477,7 +518,9 @@ async function renderBizReview(){
     h+='<div class="panel" style="padding:14px 16px;margin-bottom:14px'+(mine?';border-color:var(--bl)':'')+'" id="sec-ps-'+esc(s.name.replace(/[^a-z0-9]/gi,'_'))+'"><div class="phd">'+esc(s.label)+(s.team?' <span class="mu" style="font-weight:400;font-size:11px">'+esc(s.team)+'</span>':'')+(mine?' <span class="pill pbl">you</span>':'')+'</div>'+
       '<div class="metrics">'+bizKpi('MTD',P(s.mtd),s.tgt?bizFmtPct(s.att)+' of '+P(s.tgt):'no target',s.att>=100?'gr':s.att>=70?'bl':s.att>=40?'am':s.tgt?'rd':'gy')+(R.early?bizKpi('Pace','—','too early to project','gy'):bizKpi('Pace',P(s.proj),s.tgt?bizFmtPct(s.projAtt)+' of target':'projected','bl'))+(R.early?bizKpi('vs '+bizShortLbl(R.prev),'—',P(s.prev)+' last month','gy'):bizKpi('vs '+bizShortLbl(R.prev),bizDelta(s.proj,s.prev),P(s.prev)+' last month',bizDeltaTone(s.proj,s.prev)))+bizKpi('Accounts',s.ordering+' / '+s.masterlist,s.newAccts.length+' new · '+s.quiet+' quiet','pu')+bizKpi('Activity',String(s.visits+s.calls),s.visits+' visits · '+s.calls+' calls · '+s.demos+' demos','am')+'</div>'+
       '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px"><div><div class="phd" style="font-size:13px">Top accounts</div>'+bizTbl(['Account','MTD'],s.topAccts.map(a=>[esc(a.name),P(a.v)]))+'</div><div><div class="phd" style="font-size:13px">Top products</div>'+bizTbl(['Product','MTD'],s.topSkus.map(a=>[esc(a.name),P(a.v)]))+'</div><div><div class="phd" style="font-size:13px">HQ notes</div><div style="font-size:12.5px;display:grid;gap:4px">'+(R.notesAuto[s.name]||[]).map(t=>'<div>• '+esc(t)+'</div>').join('')+'</div></div></div></div>';
-    h+=bizNoteBox('ps:'+s.name,s.label+' — own commentary','What happened, what is closing, what needs help.');}
+    {h+='<div class="mu" style="font-size:11px;margin:-6px 0 8px 4px">'+esc(s.label)+'\'s own report — these boxes and the forecast go onto '+(mine?'your':'their')+' deck (Reports → '+esc(s.label)+').</div>';
+      for(const [k,lbl] of BIZ_PS_SECTIONS)h+=bizNoteBox(bizPsSec(s.name,k),s.label+' — '+lbl,k==='wins'?'Deals closed, demos that landed, lectures given.':k==='challenges'?'Pricing pushback, stock, competitors, doctor schedules.':k==='territory'?'Accreditations, institutions, menu inclusions, upcoming presentations.':k==='activities'?'Masterclasses, 1:1 demos, trainings, events — accounts reached and what came of it.':'What you propose for next month and what you need from the company.');
+      h+=bizForecastBox(s);}}
   /* plan */
   h+='<div id="sec-plan-top"></div>'+bizNoteBox('plan','Plan of action','The three numbers to focus on, and why.')+bizNoteBox('program','Sales programs & promos','Running promos, deadlines, exclusions.');
   const nextYm=bizYmAdd(ym,1);
@@ -512,6 +555,9 @@ function bizChartCfg(R,key,arg,fs){
   if(key==='prod'){const rows=arg||[];
     return {type:'bar',data:{labels:rows.map(p=>p.name.length>28?p.name.slice(0,27)+'…':p.name),datasets:[{label:'MTD',data:rows.map(p=>Math.round(p.v)),backgroundColor:'rgba(0,22,143,0.85)',borderRadius:3}]},
       options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:tick(money)},y:{ticks:tick()}}}};}
+  if(key==='pslines'){const rows=(arg.lineRows||[]).slice(0,8);
+    return {type:'bar',data:{labels:rows.map(r=>r.name),datasets:[{label:'MTD',data:rows.map(r=>Math.round(r.mtd)),backgroundColor:rows.map((r,i)=>COLORS[i%COLORS.length]),borderRadius:3}]},
+      options:{plugins:{legend:{display:false}},scales:{x:{ticks:tick()},y:{beginAtZero:true,ticks:tick(money)}}}};}
   if(key==='spec'){const sp=arg;const labels=R.series.map(m=>bizShortLbl(m));
     const ds=[{type:'line',label:'Revenue',data:sp.series.map(Math.round),borderColor:'#00168F',backgroundColor:'#00168F',tension:.3,pointRadius:3}];
     if(sp.tgt)ds.push({type:'line',label:'Target',data:labels.map(()=>Math.round(sp.tgt)),borderColor:'#D85A30',borderDash:[6,4],pointRadius:0});
@@ -524,195 +570,20 @@ function bizCharts(R){
   mk('bzBrand',bizChartCfg(R,'brand'));mk('bzMonthly',bizChartCfg(R,'monthly'));mk('bzAccts',bizChartCfg(R,'accts'));mk('bzSpecs',bizChartCfg(R,'specs'));}
 /* Renders every chart the deck needs to a PNG data URL. Boxes are in inches (the
    deck's), drawn at 160 px per inch and 2x pixel ratio so they print crisp. */
-const BIZ_CHART_BOX={brand:[9,1.7],monthly:[9,4.05],specs:[3.15,4.05],prod:[2.95,4.0],spec:[4.6,2.0]};
-async function bizChartImages(R){
-  const out={};
+const BIZ_CHART_BOX={brand:[9,1.7],monthly:[9,4.05],specs:[3.15,4.05],prod:[2.95,4.0],spec:[4.6,2.0],pslines:[4.2,2.6]};
+async function bizChartImages(R,opts){
+  opts=opts||{};const out={};
   if(typeof Chart==='undefined'||typeof document==='undefined')return out;
   const draw=(cfg,box)=>{try{const c=document.createElement('canvas');const W=Math.round(box[0]*160),H=Math.round(box[1]*160);c.width=W;c.height=H;c.style.width=W+'px';c.style.height=H+'px';
       cfg.options=Object.assign({responsive:false,animation:false,devicePixelRatio:2},cfg.options);
       const ch=new Chart(c,cfg);if(typeof ch.toBase64Image!=='function'){ch.destroy&&ch.destroy();return null;}
       const url=ch.toBase64Image('image/png',1);ch.destroy();return url&&url.length>200?url:null;}catch(e){return null;}};
   const fs=20;
-  out.brand=draw(bizChartCfg(R,'brand',null,fs),BIZ_CHART_BOX.brand);
+  if(!opts.only){out.brand=draw(bizChartCfg(R,'brand',null,fs),BIZ_CHART_BOX.brand);
   out.monthly=draw(bizChartCfg(R,'monthly',null,fs),BIZ_CHART_BOX.monthly);
-  out.specs=draw(bizChartCfg(R,'specs',null,fs),BIZ_CHART_BOX.specs);
-  out.prod={};for(const b of R.brands.filter(b=>b.mtd>0).slice(0,8)){const rows=R.products.filter(p=>p.line===b.name&&(p.v>0||p.u>0||p.tgt)).slice(0,8);if(rows.length)out.prod[b.name]=draw(bizChartCfg(R,'prod',rows,fs),BIZ_CHART_BOX.prod);}
-  out.spec={};for(const sp of R.specs)out.spec[sp.name]=draw(bizChartCfg(R,'spec',sp,fs),BIZ_CHART_BOX.spec);
+  out.specs=draw(bizChartCfg(R,'specs',null,fs),BIZ_CHART_BOX.specs);}
+  out.prod={};if(!opts.only)for(const b of R.brands.filter(b=>b.mtd>0).slice(0,8)){const rows=R.products.filter(p=>p.line===b.name&&(p.v>0||p.u>0||p.tgt)).slice(0,8);if(rows.length)out.prod[b.name]=draw(bizChartCfg(R,'prod',rows,fs),BIZ_CHART_BOX.prod);}
+  const want=opts&&opts.only?R.specs.filter(s=>s.name.toLowerCase()===String(opts.only).toLowerCase()):R.specs;
+  out.spec={};out.pslines={};for(const sp of want){out.spec[sp.name]=draw(bizChartCfg(R,'spec',sp,fs),BIZ_CHART_BOX.spec);if(sp.lineRows&&sp.lineRows.length)out.pslines[sp.name]=draw(bizChartCfg(R,'pslines',sp,fs),BIZ_CHART_BOX.pslines);}
   return out;}
 
-/* ── PowerPoint export ─────────────────────────────────────────────────────
-   bizDeck(pptx,R,ctx) is pure: it only reads the report object and the
-   commentary, so tools/test can run it in node against fixture data. The
-   browser side (bizExport) just loads pptxgenjs from a CDN and calls it.   */
-function bizLoadPptx(){
-  if(window.PptxGenJS)return Promise.resolve(window.PptxGenJS);
-  if(window._pptxLoading)return window._pptxLoading;
-  window._pptxLoading=new Promise((res,rej)=>{let i=0;const next=()=>{if(i>=BIZ_PPTX_CDN.length){window._pptxLoading=null;return rej(new Error('Could not load the PowerPoint library — check the connection and try again.'));}
-    const s=document.createElement('script');s.src=BIZ_PPTX_CDN[i++];s.onload=()=>window.PptxGenJS?res(window.PptxGenJS):next();s.onerror=next;document.head.appendChild(s);};next();});
-  return window._pptxLoading;}
-async function bizExport(mode){
-  if(!BIZ.R||BIZ.busy)return;const me=bizMySpec();
-  if(mode==='mine'&&!me)return;if(mode==='full'&&!bizCanEditAll())return;
-  BIZ.busy=true;const btns=[...document.querySelectorAll('#content .abtn')];btns.forEach(b=>b.style.opacity='.5');
-  try{const P=await bizLoadPptx();const pptx=new P();
-    const charts=await bizChartImages(BIZ.R); // pictures: Keynote / Google Slides leave native charts blank
-    const ctx={notes:BIZ.notes,prevNotes:BIZ.prevNotes,prev:BIZ.prev,diff:bizDiff(BIZ.R,BIZ.prev),only:mode==='mine'?me:null,author:(SBPROFILE&&SBPROFILE.name)||'',charts};
-    bizDeck(pptx,BIZ.R,ctx);
-    const fn='Sales review '+BIZ.R.label+(mode==='mine'?' — '+me:'')+' (as of '+BIZ.R.asOf+').pptx';
-    await pptx.writeFile({fileName:fn});audit('review.export',{month:BIZ.ym,mode});}
-  catch(e){alert('Export failed: '+(e.message||e));}
-  finally{BIZ.busy=false;btns.forEach(b=>b.style.opacity='');}}
-
-const BZ={blue:'00168F',blue2:'1226A0',tint:'EEF1FB',ink:'1A2030',mut:'5A6270',grid:'D7DEEE',alt:'F6F8FD',gr:'0E8A5F',rd:'B4322E',am:'B7791F',white:'FFFFFF',font:'Calibri'};
-const BZ_PAL=['00168F','378ADD','1D9E75','D85A30','7F77DD','BA7517','D4537E','639922'];
-function bizDeck(pptx,R,ctx){
-  ctx=ctx||{};const notes=ctx.notes||{},prevNotes=ctx.prevNotes||{},prev=ctx.prev||null,D=ctx.diff||null,only=ctx.only||null;const IMG=ctx.charts||{};
-  // a chart is a picture when the browser drew one, a native chart otherwise (node tests, no canvas)
-  const pic=(s,url,x,y,w,h)=>{if(!url)return false;s.addImage({data:url,x,y,w,h,sizing:{type:'contain',w,h}});return true;};
-  pptx.layout='LAYOUT_16x9';pptx.author='Healthspan HQ';pptx.company='Healthspan Global, Inc.';pptx.title='Sales performance report — '+R.label;
-  const W=10,M=0.5,CW=W-2*M;
-  const P=v=>'₱'+Math.round(v||0).toLocaleString('en-PH');const K=bizCompact;const pct=bizFmtPct;
-  const F=BZ.font;const T=(s,t,o)=>{o=Object.assign({fontFace:F,isTextBox:true,margin:0,color:BZ.ink},o||{});s.addText(t,o);};
-  const AXFMT='[>=1000000]#,##0.0,,"M";[>=1000]#,##0,"K";#,##0';
-  const slide=()=>{const s=pptx.addSlide();s.background={color:BZ.white};return s;};
-  const title=(s,t,sub)=>{T(s,t,{x:M,y:0.28,w:CW,h:0.5,fontSize:22,bold:true,color:BZ.blue,valign:'top'});if(sub)T(s,sub,{x:M,y:0.76,w:CW,h:0.26,fontSize:10,color:BZ.mut});
-    T(s,'Healthspan HQ · '+R.label+' · as of '+R.asOf,{x:M,y:5.28,w:CW-1.2,h:0.22,fontSize:8,color:BZ.mut});};
-  const tile=(s,x,y,w,h,label,value,sub,tone)=>{s.addShape(pptx.ShapeType.roundRect,{x,y,w,h,fill:{color:BZ.tint},line:{color:BZ.tint},rectRadius:0.08});
-    T(s,label.toUpperCase(),{x:x+0.12,y:y+0.08,w:w-0.24,h:0.2,fontSize:7.5,bold:true,color:BZ.mut,charSpacing:1});
-    T(s,value,{x:x+0.12,y:y+0.28,w:w-0.24,h:0.34,fontSize:value.length>12?13:16,bold:true,color:tone==='gr'?BZ.gr:tone==='rd'?BZ.rd:tone==='am'?BZ.am:BZ.blue,fit:'shrink'});
-    if(sub)T(s,sub,{x:x+0.12,y:y+0.62,w:w-0.24,h:0.2,fontSize:7.5,color:BZ.mut,fit:'shrink'});};
-  const tbl=(s,head,rows,o)=>{o=o||{};const fs=o.fontSize||8.5;
-    const hd=head.map((h,i)=>({text:String(h),options:{bold:true,color:BZ.white,fill:{color:BZ.blue},align:i&&!o.leftAll?'right':'left',fontSize:fs,fontFace:F,valign:'middle'}}));
-    const body=rows.map((r,ri)=>r.map((c,i)=>{const cell=(c&&typeof c==='object')?c:{text:String(c==null?'':c)};
-      return {text:cell.text,options:Object.assign({align:i&&!o.leftAll?'right':'left',fontSize:fs,fontFace:F,color:BZ.ink,fill:{color:ri%2?BZ.alt:BZ.white},valign:'middle'},cell.options||{})};}));
-    s.addTable([hd].concat(body),{x:o.x||M,y:o.y||1.1,w:o.w||CW,colW:o.colW,rowH:o.rowH||0.24,border:{type:'solid',pt:0.5,color:BZ.grid},margin:[0.03,0.06,0.03,0.06],autoPage:false});};
-  const bullets=(s,items,o)=>{if(!items.length)return;const arr=items.map((t,i)=>({text:String(t),options:{bullet:{indent:12},breakLine:i<items.length-1,paraSpaceAfter:o.gap==null?5:o.gap}}));
-    T(s,arr,Object.assign({fontSize:11,valign:'top',fit:'shrink'},o));};
-  const tone=(cur,t)=>(t==null||cur==null)?'':(cur>=t?'gr':cur>=t*0.7?'':cur>=t*0.4?'am':'rd');
-  const dTone=(cur,pv)=>!(pv>0)?'':cur>=pv*1.05?'gr':cur<=pv*0.95?'rd':'am';
-  const pctCell=p=>({text:pct(p),options:{bold:true,color:p==null?BZ.mut:p>=100?BZ.gr:p>=70?BZ.blue:p>=40?BZ.am:BZ.rd}});
-  const dCell=(cur,pv)=>({text:bizDelta(cur,pv),options:{color:dTone(cur,pv)==='gr'?BZ.gr:dTone(cur,pv)==='rd'?BZ.rd:BZ.mut}});
-  const who=sec=>sec.startsWith('ps:')?specDisplay(sec.slice(3)):'the sales manager';
-  const fitSize=(txt,base,w)=>{const n=String(txt||'').length*(5.6/w);return n>1400?Math.max(7,base-4):n>900?base-3:n>600?base-2:n>350?base-1:base;}; // chars per inch of width
-  const noteSlide=(sec,ttl,hint)=>{const s=slide();title(s,ttl,hint);const cur=(notes[sec]||{}).body||'',pv=(prevNotes[sec]||{}).body;
-    const hasPrev=!!prev;const changed=hasPrev&&(cur||'')!==(pv||'');
-    if(hasPrev){T(s,'THIS REPORT'+(changed?'  ·  changed since last time':'  ·  unchanged'),{x:M,y:1.1,w:5.6,h:0.22,fontSize:8,bold:true,color:changed?BZ.am:BZ.mut,charSpacing:1});
-      s.addShape(pptx.ShapeType.roundRect,{x:M,y:1.36,w:5.6,h:3.75,fill:{color:BZ.white},line:{color:BZ.grid,width:0.75},rectRadius:0.06});
-      T(s,cur||'(to be written by '+who(sec)+')',{x:M+0.15,y:1.46,w:5.3,h:3.55,fontSize:fitSize(cur,12,5.3),valign:'top',fit:'shrink',color:cur?BZ.ink:BZ.mut,italic:!cur});
-      T(s,'LAST REPORT  ·  '+(prev.asOf||''),{x:6.35,y:1.1,w:3.15,h:0.22,fontSize:8,bold:true,color:BZ.mut,charSpacing:1});
-      s.addShape(pptx.ShapeType.roundRect,{x:6.35,y:1.36,w:3.15,h:3.75,fill:{color:BZ.tint},line:{color:BZ.tint},rectRadius:0.06});
-      T(s,pv||'(nothing written last time)',{x:6.5,y:1.46,w:2.85,h:3.55,fontSize:fitSize(pv,9.5,2.85),valign:'top',fit:'shrink',color:BZ.mut});}
-    else{s.addShape(pptx.ShapeType.roundRect,{x:M,y:1.15,w:CW,h:3.95,fill:{color:BZ.white},line:{color:BZ.grid,width:0.75},rectRadius:0.06});
-      T(s,cur||'(to be written by '+who(sec)+')',{x:M+0.15,y:1.25,w:CW-0.3,h:3.75,fontSize:fitSize(cur,13,CW-0.3),valign:'top',fit:'shrink',color:cur?BZ.ink:BZ.mut,italic:!cur});}
-    s.addNotes('Editable commentary. Written in HQ → Business review → '+ttl+'. '+(hasPrev?'Right column is what the previous report said.':''));return s;};
-  const chartAxis={catAxisLabelFontFace:F,catAxisLabelFontSize:8,catAxisLabelColor:BZ.mut,valAxisLabelFontFace:F,valAxisLabelFontSize:8,valAxisLabelColor:BZ.mut,valAxisLabelFormatCode:AXFMT,
-    valGridLine:{color:'E6EAF3',size:0.5},catGridLine:{style:'none'},legendFontFace:F,legendFontSize:8,legendColor:BZ.mut,legendPos:'b',chartColors:BZ_PAL};
-
-  /* ── cover ── */
-  {const s=pptx.addSlide();s.background={color:BZ.blue};s.addShape(pptx.ShapeType.ellipse,{x:6.9,y:-2.4,w:5.2,h:5.2,fill:{color:BZ.blue2},line:{color:BZ.blue2}});
-    T(s,'HEALTHSPAN HQ',{x:M,y:1.55,w:6,h:0.3,fontSize:12,color:'C8D6FF',charSpacing:2});
-    T(s,only?specDisplay(only).toUpperCase()+'\nSALES REVIEW':'MONTHLY SALES\nPERFORMANCE REPORT',{x:M,y:1.9,w:8,h:1.5,fontSize:34,bold:true,color:BZ.white,valign:'top'});
-    T(s,R.label.toUpperCase(),{x:M,y:3.45,w:6,h:0.45,fontSize:20,color:'C8D6FF'});
-    T(s,'Figures as of '+R.asOf+' · external sales only · generated by Healthspan HQ'+(prev?' · compared with the report saved '+(prev.asOf||''):''),{x:M,y:4.85,w:CW,h:0.3,fontSize:9.5,color:'C8D6FF'});
-    s.addNotes('Generated by Healthspan HQ on '+R.generated.slice(0,16).replace('T',' ')+'. Every number comes from the Shopify cache, Targets, the visit log, account ownership and the serial register.');}
-
-  const specsOut=only?R.specs.filter(s=>s.name.toLowerCase()===only.toLowerCase()):R.specs;
-  if(!only){
-    /* ── at a glance ── */
-    {const s=slide();title(s,'Performance at a glance',(R.total.tgtSrc==='no target set'?'No target set for this month — add one in Targets':'Target source: '+R.total.tgtSrc)+(R.ordersComplete?'':' · orders and accounts unavailable for this month (order index starts '+R.ordersFrom+')'));
-      const tw=(CW-3*0.15)/4,th=0.86;const k=[['Revenue MTD',P(R.total.mtd),R.total.tgt?pct(R.total.att)+' of '+K(R.total.tgt):'no target',tone(R.total.att,100)],
-        R.early?['Projected month','—','too early — day '+R.day+' of '+R.dim,'']:['Projected month',P(R.total.proj),R.total.tgt?pct(R.total.projAtt)+' of target':Math.round(R.elapsed*100)+'% of month gone',tone(R.total.projAtt,100)],
-        R.early?['vs '+bizShortLbl(R.prev),'—',K(R.total.prev)+' last month','']:['vs '+bizShortLbl(R.prev),bizDelta(R.total.proj,R.total.prev),'projected vs '+K(R.total.prev),dTone(R.total.proj,R.total.prev)],
-        ['QTD',P(R.total.qtd),R.total.qtgt?pct(R.total.qatt)+' of '+K(R.total.qtgt):'no target',''],
-        ['YTD',P(R.total.ytd),R.total.ytgt?pct(R.total.yatt)+' of '+K(R.total.ytgt):'no target',''],
-        ['Orders · accounts',R.accounts.orders+' · '+R.accounts.ordering,'average order '+K(R.accounts.aov),''],
-        ['New accounts',String(R.accounts.newAccts.length),K(R.accounts.newRev)+' in first orders',R.accounts.newAccts.length?'gr':''],
-        ['Contacts logged',String(R.activity.visits+R.activity.calls),R.activity.visits+' visits · '+R.activity.calls+' calls · '+R.activity.demos+' demos','']];
-      k.forEach((t,i)=>tile(s,M+(i%4)*(tw+0.15),1.1+Math.floor(i/4)*(th+0.12),tw,th,t[0],t[1],t[2],t[3]));
-      T(s,'WHAT HQ NOTICED',{x:M,y:3.12,w:CW,h:0.22,fontSize:8,bold:true,color:BZ.mut,charSpacing:1});
-      bullets(s,R.trends.slice(0,7).map(t=>t.t),{x:M,y:3.36,w:CW,h:1.85,fontSize:9.5,gap:3});
-      s.addNotes(R.trends.map(t=>'- '+t.t).join('\n'));}
-    /* ── since last report ── */
-    if(D&&(D.kpi.length||Object.keys(D.brands).length)){const s=slide();title(s,'What moved since the last report','Compared with the snapshot saved '+D.asOf+(D.same?'':' ('+bizMonthLbl(D.ym)+')'));
-      tbl(s,['Headline','Change'],D.kpi.map(k=>[k.l,{text:k.txt,options:{bold:true,color:k.d>0?BZ.gr:BZ.rd}}]),{x:M,y:1.1,w:4.2,colW:[2.6,1.6]});
-      const br=R.brands.filter(b=>D.brands[b.name]).slice(0,10);
-      tbl(s,['Brand','Then','Now','Change'],br.map(b=>{const o=D.brands[b.name];return [b.name,P(o.mtd),P(b.mtd),{text:(b.mtd-o.mtd>=0?'+':'−')+P(Math.abs(b.mtd-o.mtd)),options:{color:b.mtd>=o.mtd?BZ.gr:BZ.rd}}];}),{x:5,y:1.1,w:4.5,colW:[1.6,0.95,0.95,1.0]});}
-    noteSlide('wins','Key wins','Sales manager commentary');
-    noteSlide('challenges','Key challenges','Sales manager commentary');
-    noteSlide('territory','Territory updates','Sales manager commentary');
-    /* ── brand overview ── */
-    {const s=slide();title(s,'Sales performance overview — by brand','MTD, quarter and year to date against the Targets tab');
-      const rows=R.brands.slice(0,9).map(b=>[b.name,P(b.mtd),b.tgt!=null?P(b.tgt):'—',pctCell(b.att),P(b.qtd),pctCell(b.qatt),P(b.ytd),pctCell(b.yatt),dCell(b.proj,b.prev)]);
-      rows.push([{text:'Total',options:{bold:true}},{text:P(R.total.mtd),options:{bold:true}},{text:R.total.tgt!=null?P(R.total.tgt):'—',options:{bold:true}},pctCell(R.total.att),{text:P(R.total.qtd),options:{bold:true}},pctCell(R.total.qatt),{text:P(R.total.ytd),options:{bold:true}},pctCell(R.total.yatt),dCell(R.total.proj,R.total.prev)]);
-      tbl(s,['Brand','MTD','Target','%','QTD','%','YTD','%','vs '+bizShortLbl(R.prev)],rows,{y:1.05,rowH:0.22,fontSize:8,colW:[1.7,1.1,1.1,0.6,1.15,0.6,1.15,0.6,1.0]});
-      const cy=1.05+(rows.length+1)*0.22+0.15;const br=R.brands.slice(0,8);
-      if(!pic(s,IMG.brand,M,cy,CW,Math.max(1.2,5.2-cy)))s.addChart(pptx.ChartType.bar,[{name:'MTD',labels:br.map(b=>b.name),values:br.map(b=>Math.round(b.mtd))},{name:'Projected',labels:br.map(b=>b.name),values:br.map(b=>Math.round(b.proj))},{name:'Target',labels:br.map(b=>b.name),values:br.map(b=>Math.round(b.tgt||0))}],
-        Object.assign({x:M,y:cy,w:CW,h:Math.max(1.2,5.2-cy),barDir:'col',barGapWidthPct:60,showLegend:true,chartColors:[BZ.blue,'9DB0F0','D85A30'],showValue:false},chartAxis));}
-    /* ── monthly ── */
-    {const s=slide();title(s,'Monthly performance — 13 months by brand','Stacked by brand; the line is the month total');
-      const top=R.brands.slice(0,6);const other=R.series.map((m,i)=>R.brands.filter(b=>!top.includes(b)).reduce((t,b)=>t+b.series[i],0));
-      const labels=R.series.map(m=>bizShortLbl(m)+' '+m.slice(2,4));
-      const bars=top.map(b=>({name:b.name,labels,values:b.series.map(Math.round)}));if(other.some(x=>x>0))bars.push({name:'Other',labels,values:other.map(Math.round)});
-      if(!pic(s,IMG.monthly,M,1.1,CW,4.05))s.addChart([{type:pptx.ChartType.bar,data:bars,options:{barGrouping:'stacked',chartColors:BZ_PAL.slice(0,bars.length)}},
-                  {type:pptx.ChartType.line,data:[{name:'Total',labels,values:R.total.series.map(Math.round)}],options:{chartColors:[BZ.ink],lineSize:2,lineDataSymbol:'circle',lineDataSymbolSize:5}}],
-        Object.assign({x:M,y:1.1,w:CW,h:4.05,showLegend:true,catAxes:[{catAxisTitle:''}],valAxes:[{valAxisTitle:'',showValAxisTitle:false}]},chartAxis));
-      s.addNotes('Top 6 brands stacked, the rest grouped as Other. External sales only.');}
-    /* ── products per brand ── */
-    for(const b of R.brands.filter(b=>b.mtd>0).slice(0,8)){const rows=R.products.filter(p=>p.line===b.name&&(p.v>0||p.u>0||p.tgt)).slice(0,12);if(!rows.length)continue;
-      const s=slide();title(s,b.name+' — product sales',P(b.mtd)+' MTD'+(b.tgt?' · '+pct(b.att)+' of '+P(b.tgt):'')+' · '+bizDelta(b.proj,b.prev)+' projected vs '+bizShortLbl(R.prev));
-      tbl(s,['Product','Units','MTD','Target','%','vs '+bizShortLbl(R.prev)],rows.map(p=>[p.name.length>46?p.name.slice(0,45)+'…':p.name,p.u.toLocaleString('en-PH'),P(p.v),p.tgt!=null?P(p.tgt):'—',pctCell(p.tgt!=null?bizPct(p.v,p.tgt):null),dCell(p.v/R.elapsed,p.pv)]),{x:M,y:1.1,w:5.9,rowH:0.27,fontSize:8,colW:[2.55,0.5,0.9,0.9,0.45,0.6]});
-      const top=rows.slice(0,8);
-      if(!pic(s,(IMG.prod||{})[b.name],6.55,1.1,2.95,4.0))s.addChart(pptx.ChartType.bar,[{name:'MTD',labels:top.map(p=>p.name.length>26?p.name.slice(0,25)+'…':p.name),values:top.map(p=>Math.round(p.v))}],
-        Object.assign({x:6.55,y:1.1,w:2.95,h:4.0,barDir:'bar',showLegend:false,chartColors:[BZ.blue],showValue:true,dataLabelPosition:'outEnd',dataLabelFormatCode:'#,##0',dataLabelFontSize:7,dataLabelColor:BZ.mut,catAxisOrientation:'maxMin',valAxisHidden:true,valGridLine:{style:'none'}},chartAxis,{valAxisLabelFontSize:7,catAxisLabelFontSize:7}));}
-    /* ── machines ── */
-    {const s=slide();title(s,'Machine sales & demo units','SkinPen devices, Axion, Mark-Vu, Symmed, Zionic, GTG platforms and anything in the serial register — consumables excluded');
-      const tw=(CW-3*0.15)/4;[['Machine revenue',P(R.machines.rev),R.machines.units+' units',''],['Installs recorded',String(R.machines.installs),'serials marked sold this month',R.machines.installs?'gr':''],
-        ['Demo units out',String(R.machines.loansOut),R.machines.onLoan+' on loan now · '+R.machines.converted+' converted','am'],['Equipment in stock',String(R.machines.inStock),R.machines.skus+' serialised SKUs','']].forEach((t,i)=>tile(s,M+i*(tw+0.15),1.1,tw,0.86,t[0],t[1],t[2],t[3]));
-      tbl(s,['Machine','Units','MTD','Target','%'],R.machines.rows.slice(0,10).map(p=>[p.name,p.u.toLocaleString('en-PH'),P(p.v),p.tgt!=null?P(p.tgt):'—',pctCell(p.tgt!=null?bizPct(p.v,p.tgt):null)]).concat(R.machines.rows.length?[]:[[{text:'No machine sales this month',options:{color:BZ.mut,italic:true}},'','','','']]),{y:2.15,rowH:0.26,colW:[4.6,1.0,1.4,1.4,0.6]});}
-    /* ── accounts monitoring ── */
-    {const s=slide();title(s,'Accounts monitoring — per specialist','Masterlist = owned accounts + anyone who ordered under the tag in 6 months · Active = external order in 90 days · New = first order this month');
-      tbl(s,['Specialist','Masterlist','Active 90d','Ordered MTD','New MTD','Quiet 90d+','Contacts','Opened (CRM)'],R.specs.map(sp=>[sp.label+(sp.team?' · '+sp.team:''),sp.masterlist,sp.active,sp.ordering,sp.newAccts.length,sp.quiet,sp.visits+sp.calls,sp.opened]),{y:1.1,rowH:Math.min(0.26,3.9/(R.specs.length+1)),fontSize:R.specs.length>12?7.5:8.5,colW:[2.1,1.05,1.05,1.05,1.05,1.05,0.85,0.8]});}
-    /* ── clients & buying ── */
-    {const s=slide();title(s,'Clients & buying behaviour','Who bought, who came back, who is drifting — straight from the order index');const A=R.accounts;
-      const tw=(CW-3*0.15)/4;[['Repeat vs new revenue',K(A.repeatRev)+' · '+K(A.newRev),pct(bizPct(A.newRev,R.total.mtd))+' from first orders',''],['Ordered 2+ times',String(A.reorderers),'of '+A.ordering+' ordering accounts','gr'],
-        ['Bought 2+ brands',String(A.multiBrand),'cross-sell this month',''],['Deal share',pct(A.dealShare),K(A.dealRev)+' via deals · '+A.free+' free units','am']].forEach((t,i)=>tile(s,M+i*(tw+0.15),1.05,tw,0.86,t[0],t[1],t[2],t[3]));
-      T(s,'TOP ACCOUNTS THIS MONTH',{x:M,y:2.05,w:5.5,h:0.2,fontSize:8,bold:true,color:BZ.mut,charSpacing:1});
-      tbl(s,['Account','MTD','vs '+bizShortLbl(R.prev),'Orders','Specialist'],A.top.slice(0,10).map(a=>[(a.isNew?'★ ':'')+(a.name.length>34?a.name.slice(0,33)+'…':a.name),P(a.v),dCell(a.v,a.prev),a.orders,specDisplay(a.spec||a.owner)||'—']),{x:M,y:2.28,w:5.5,rowH:0.255,fontSize:7.5,colW:[2.45,0.95,0.6,0.5,1.0]});
-      T(s,'RISERS',{x:6.25,y:2.05,w:1.5,h:0.2,fontSize:8,bold:true,color:BZ.gr,charSpacing:1});T(s,'FALLERS',{x:6.25,y:3.62,w:1.5,h:0.2,fontSize:8,bold:true,color:BZ.rd,charSpacing:1});
-      tbl(s,['Account','Δ vs '+bizShortLbl(R.prev)],A.risers.slice(0,5).map(m=>[m.name.length>26?m.name.slice(0,25)+'…':m.name,{text:'+'+P(m.d),options:{color:BZ.gr}}]),{x:6.25,y:2.28,w:3.25,rowH:0.21,fontSize:7.5,colW:[2.1,1.15]});
-      tbl(s,['Account','Δ vs '+bizShortLbl(R.prev)],A.fallers.slice(0,5).map(m=>[m.name.length>26?m.name.slice(0,25)+'…':m.name,{text:'−'+P(-m.d),options:{color:BZ.rd}}]),{x:6.25,y:3.85,w:3.25,rowH:0.21,fontSize:7.5,colW:[2.1,1.15]});
-      T(s,'★ first order this month',{x:M,y:5.08,w:4,h:0.18,fontSize:7.5,color:BZ.mut});}
-    if(R.accounts.lapsed.length){const s=slide();title(s,'Repeat accounts going quiet','Ordered at least twice, nothing for 45–120 days — the recoverable window · '+R.accounts.lapsedN+' accounts, '+P(R.accounts.lapsedV)+' of 13-month history');
-      tbl(s,['Account','Days quiet','Orders (13m)','Revenue (13m)','Owner'],R.accounts.lapsed.slice(0,12).map(l=>[l.name,l.days,l.o,P(l.v),l.owner||'—']),{y:1.1,rowH:0.27,colW:[3.8,1.1,1.2,1.7,1.2]});}
-    /* ── specialists overview ── */
-    {const s=slide();title(s,'Specialists — attainment and pace','Pace = month-to-date ÷ share of the month elapsed, against the monthly target');
-      const sp=R.specs.slice(0,14);
-      tbl(s,['Specialist','MTD','Target','%','Pace %','vs '+bizShortLbl(R.prev),'Orders','New','Contacts'],sp.map(x=>[x.label+(x.team?' · '+x.team:''),P(x.mtd),x.tgt!=null?P(x.tgt):'—',pctCell(x.att),pctCell(x.projAtt),dCell(x.proj,x.prev),x.orders,x.newAccts.length,x.visits+x.calls]),{x:M,y:1.1,w:5.7,rowH:Math.min(0.26,4.0/(sp.length+1)),fontSize:sp.length>10?7:8,colW:[1.2,0.85,0.85,0.45,0.5,0.55,0.45,0.4,0.45]});
-      if(!pic(s,IMG.specs,6.35,1.1,3.15,4.05))s.addChart(pptx.ChartType.bar,[{name:'MTD',labels:sp.map(x=>x.label),values:sp.map(x=>Math.round(x.mtd))},{name:'Target',labels:sp.map(x=>x.label),values:sp.map(x=>Math.round(x.tgt||0))}],
-        Object.assign({x:6.35,y:1.1,w:3.15,h:4.05,barDir:'bar',showLegend:true,chartColors:[BZ.blue,'C9D0E6'],catAxisOrientation:'maxMin'},chartAxis,{catAxisLabelFontSize:7,valAxisLabelFontSize:7}));}
-  }
-  /* ── one performance slide + one commentary slide per specialist ── */
-  for(const sp of specsOut){const s=slide();title(s,sp.label+(sp.team?'  ·  '+sp.team:''),(sp.tgt?pct(sp.att)+' of '+P(sp.tgt)+' target':'no target set')+(R.early?' · day '+R.day+' — too early to project':' · on pace for '+P(sp.proj)+' · '+bizDelta(sp.proj,sp.prev)+' vs '+bizShortLbl(R.prev)));
-    const tw=(CW-4*0.12)/5;[['MTD',P(sp.mtd),sp.tgt?pct(sp.att)+' of target':'no target',tone(sp.att,100)],R.early?['Pace','—','too early to project','']:['Pace',P(sp.proj),sp.tgt?pct(sp.projAtt)+' of target':'projected',tone(sp.projAtt,100)],
-      R.early?['vs '+bizShortLbl(R.prev),'—',K(sp.prev)+' last month','']:['vs '+bizShortLbl(R.prev),bizDelta(sp.proj,sp.prev),K(sp.prev)+' last month',dTone(sp.proj,sp.prev)],['Accounts',sp.ordering+' / '+sp.masterlist,sp.newAccts.length+' new · '+sp.quiet+' quiet',sp.newAccts.length?'gr':''],
-      ['Activity',String(sp.visits+sp.calls),sp.visits+' visits · '+sp.calls+' calls · '+sp.demos+' demos','']].forEach((t,i)=>tile(s,M+i*(tw+0.12),1.05,tw,0.86,t[0],t[1],t[2],t[3]));
-    const labels=R.series.map(m=>bizShortLbl(m));
-    if(!pic(s,(IMG.spec||{})[sp.name],M,2.05,4.6,2.0))s.addChart(pptx.ChartType.line,[{name:'Revenue',labels,values:sp.series.map(Math.round)}].concat(sp.tgt?[{name:'Target',labels,values:labels.map(()=>Math.round(sp.tgt))}]:[]),
-      Object.assign({x:M,y:2.05,w:4.6,h:2.0,showLegend:!!sp.tgt,chartColors:[BZ.blue,'D85A30'],lineSize:2,lineDataSymbol:'circle',lineDataSymbolSize:5,showTitle:true,title:'13 months',titleFontSize:8,titleColor:BZ.mut,titleFontFace:F},chartAxis));
-    tbl(s,['Top accounts','MTD'],sp.topAccts.map(a=>[a.name.length>30?a.name.slice(0,29)+'…':a.name,P(a.v)]).concat(sp.topAccts.length?[]:[[{text:'no orders yet',options:{color:BZ.mut,italic:true}},'']]),{x:5.3,y:2.05,w:4.2,rowH:0.22,fontSize:7.5,colW:[3.0,1.2]});
-    const ty=2.05+(Math.max(1,sp.topAccts.length)+1)*0.22+0.12;
-    tbl(s,['Top products','MTD'],sp.topSkus.slice(0,4).map(a=>[a.name.length>30?a.name.slice(0,29)+'…':a.name,P(a.v)]).concat(sp.topSkus.length?[]:[[{text:'—',options:{color:BZ.mut}},'']]),{x:5.3,y:ty,w:4.2,rowH:0.22,fontSize:7.5,colW:[3.0,1.2]});
-    T(s,'HQ NOTES',{x:M,y:4.12,w:4.6,h:0.2,fontSize:8,bold:true,color:BZ.mut,charSpacing:1});
-    bullets(s,(R.notesAuto[sp.name]||[]).slice(0,4),{x:M,y:4.32,w:4.6,h:0.9,fontSize:8,gap:2});
-    s.addNotes((R.notesAuto[sp.name]||[]).join('\n'));
-    noteSlide('ps:'+sp.name,sp.label+' — commentary','Written by the specialist in HQ → Business review');}
-  if(!only){
-    noteSlide('plan','Plan of action','Sales manager commentary');
-    noteSlide('program','Sales programs & promos','Sales manager commentary');
-    {const nextYm=bizYmAdd(R.ym,1);const s=slide();title(s,'Sales plan — '+bizMonthLbl(nextYm),'Next month\'s targets per specialist, from Targets');
-      tbl(s,['Specialist','This month target','MTD','Gap to target','Next month target'],R.specs.map(x=>[x.label+(x.team?' · '+x.team:''),x.tgt!=null?P(x.tgt):'—',P(x.mtd),x.tgt!=null?P(Math.max(0,x.tgt-x.mtd)):'—',x.nextTgt!=null?P(x.nextTgt):{text:'not set',options:{color:BZ.mut,italic:true}}]),{y:1.1,rowH:Math.min(0.26,3.9/(R.specs.length+1)),fontSize:R.specs.length>12?7.5:8.5,colW:[2.4,1.65,1.65,1.65,1.65]});}
-    noteSlide('forecast','Sales plan notes','Sales manager commentary');
-    {const s=pptx.addSlide();s.background={color:BZ.blue};T(s,'THANK YOU',{x:M,y:1.6,w:CW,h:0.8,fontSize:34,bold:true,color:BZ.white});
-      T(s,'Next presenters',{x:M,y:2.6,w:CW,h:0.3,fontSize:12,color:'C8D6FF'});
-      T(s,(R.teams.length>1?R.teams.map(t=>(t||'Others')+': '+R.specs.filter(x=>(x.team||'')===t).map(x=>x.label).join(', ')).join('\n'):R.specs.map(x=>x.label).join('   ·   '))||'—',{x:M,y:2.95,w:CW,h:1.4,fontSize:13,color:BZ.white,valign:'top',fit:'shrink'});}}
-  return pptx;}

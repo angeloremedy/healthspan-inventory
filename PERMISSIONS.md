@@ -118,7 +118,11 @@ therefore a floor — implementation grants the full circle read to all three.
 | Business review — manager commentary (wins, challenges, territory, plan, programs, plan notes) | ✅ | ✅ | 👁 | 👁 | 👁 | 👁 — RLS: admin, manager, super |
 | Business review — a specialist's own commentary box | ✅ | ✅ | ✅ own only | ✖ | ✖ | ✖ — RLS compares the raw `profiles.specialist_tag` to the section, so the tag must be the canonical name (Tin, not Kristine) |
 | Business review — Save snapshot / Export PowerPoint (full deck) | ✅ | ✅ | ✖ | ✖ | ✖ | ✖ — snapshots are insert-only history; super admin may delete one |
-| Business review — Export my slides | ✖ | ✖ | ✅ | ✖ | ✖ | ✖ — cover + own performance slide + own commentary, for the specialist's own presentation |
+| Business review — a specialist's own boxes (wins, challenges, territory, activities, proposals) and forecast table | ✅ | ✅ | ✅ own only | ✖ | ✖ | ✖ — RLS on the tag segment of `ps:<Tag>:<section>` |
+| Reports — team deck (PowerPoint / PDF), Download all | ✅ | ✅ | ✖ | ✖ | ✖ | ✖ |
+| Reports — a specialist's own deck (PowerPoint / PDF) | ✅ all | ✅ all | ✅ own only | ✖ | ✖ | ✖ — the Inputs column shows whose commentary is in before download |
+| Reports — Copy for Notion (Sales block) | ✅ | ✅ | ✖ | ✖ | 👁 copy | 👁 copy | figures only, no costs |
+| Reports — Copy for Notion (Supply chain block) | ✅ | ✅ | ✖ | ✅ | ✖ | ✖ | inventory at Healthspan price, not cost |
 | Team & access — Order (presenting order) on a specialist | ✅ | ✖ | ✖ | ✖ | ✖ | ✖ — same gate as Team |
 | Team & access — Team field on a specialist | ✅ | ✖ | ✖ | ✖ | ✖ | ✖ — via admin-users.mjs, same gate as editing a user |
 | Business review — Draft with AI | ✅ | ✅ | own box | ✖ | ✖ | ✖ — same gate as editing the box; goes through the existing Ask AI job with the report figures as its data |

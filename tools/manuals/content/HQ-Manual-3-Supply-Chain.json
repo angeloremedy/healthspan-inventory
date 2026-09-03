@@ -986,6 +986,11 @@
    "v": "Every section is readable; the commentary boxes are written by the sales manager and by each specialist, so on this page they are view-only for you. The figures are the same as Targets and Scorecards — external sales only."
   },
   {
+   "t": "step",
+   "n": "3",
+   "v": "Sales analytics → <b>Reports</b> → <b>Copy for Notion — Supply chain</b>: inventory value by line at Healthspan price, out-of-stock count, batches expiring within three months and equipment on hand, as text that pastes into your section of the weekly meeting page."
+  },
+  {
    "t": "h1",
    "v": "<b>The warehouse week</b>"
   },

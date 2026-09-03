@@ -257,6 +257,21 @@ stood; the page compares numbers only against a snapshot of the same month and
 commentary against the newest earlier one. Projections are suppressed in the
 first three days of a month; `bizToday()` is UTC like the cache's month keys.
 
+### js/13 — decks as a slide spec, rendered twice
+
+`bizTeamSpec(R,ctx)` and `bizPsSpec(R,sp,ctx)` build a plain array of slides —
+titles, tiles, tables, text, labels, rectangles and pictures positioned in inches
+on the 10 × 5.625 canvas. `bizRenderPptx()` turns a spec into a pptxgenjs deck
+(pictures for charts, native charts only as the no-canvas fallback);
+`bizRenderHtml()` turns the same spec into a page of slide-sized `<section>`s
+with `@page{size:10in 5.625in}` so the browser's Save as PDF yields one page per
+slide. One description, two files. `bizDeck()` is kept as the compatibility
+entry the tests call. Per-specialist inputs live in `review_commentary` under
+`ps:<Tag>:<section>` (five text boxes) and `ps:<Tag>:forecast` (JSON per
+account); `bizNote()` lets the pre-split `ps:<Tag>` row stand in for Key wins.
+`renderReports()` computes input status from the same rows and hands out files;
+`bizNotionText()` writes the weekly-meeting blocks as markdown for the clipboard.
+
 ### Row actions are buttons, upgraded at render time
 
 Templates still write `<a href="#" onclick="…">` for row actions — ~120 sites

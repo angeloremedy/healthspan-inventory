@@ -796,6 +796,11 @@
    "v": "Names on the review — and on Specialists, CRM activity, Scorecards, Leaderboard and Set targets — come from each person’s HQ account, not the Shopify tag; the roster is the accounts that carry a specialist tag. Set each specialist’s <b>Team</b> in Team &amp; access (edit → Team) and the review groups by it. Revenue under a tag that is not an account is flagged with its amount so the orders can be re-tagged."
   },
   {
+   "t": "step",
+   "n": "8",
+   "v": "Sales analytics → <b>Reports</b>: every deck for the month — the team deck and one per specialist — with an Inputs column (boxes in / missing / last edited), PowerPoint or PDF per row, Download all, and Copy for Notion for the weekly meeting. Specialist inputs are rows in review_commentary under ps:&lt;Tag&gt;:&lt;section&gt; and ps:&lt;Tag&gt;:forecast (JSON); RLS keys on the tag segment."
+  },
+  {
    "t": "callout",
    "v": "TABLES — review_commentary and review_snapshots (SUPABASE-SETUP.md). Snapshots are insert-only history; only a super admin can delete one. A specialist edits only the box whose section matches their profile tag exactly, so the tag must be the canonical name.",
    "c": "#B7791F"

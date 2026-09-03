@@ -348,6 +348,7 @@ const DESC={
   profile:'Your own page — who you are signed in as, the finance forms you have filed and where each one stands, your open follow-ups, loaners you checked out, and the quick actions (password, manual, favourites) without digging through menus.',
   serials:'One row per physical equipment unit — lasers, devices, handpieces — tracked by serial number from receiving through loan, sale or disposal. Consumables stay batch-tracked; serials are for the units where <b>which exact machine</b> matters.',
   loans:'Demo and loaner equipment out with clinics: who has which serial, since when, due back when. Overdue loans ping whoever checked the unit out. A returned unit goes back to stock; a demo that closes converts to a sale against the order you name.',
+  reports:'Every review deck for the month, built from live figures the moment you click: the team deck for the sales manager, one deck per specialist, PowerPoint or PDF. The Inputs column says whose commentary is in before anyone downloads. Copy for Notion hands the weekly-meeting numbers to the clipboard as Notion-ready text.',
   bizreview:'The monthly sales performance report, built from HQ instead of typed into slides: brands, products, machines, accounts, buying behaviour and each specialist, with what HQ noticed in the numbers. People add only the commentary — the sales manager owns the wins / challenges / plan boxes, each specialist owns their own — and every box shows what it said last time. Save snapshot freezes the figures so the next report can say what moved; Export PowerPoint builds the deck.',
   crmstats:'The field effort itself, per specialist: visits, calls, demos, accounts touched, and how often a contact ends in an order — from the in-app visit log. Sales activity is the input; the Sales views measure the output.',
   salesoverview:'Use <b>External only / Incl. Remedy</b> in the toolbar to switch the whole page between third-party sales and everything. External is the default, matching accounting. Booked sales from Shopify (the specialists’ booking POS): units sold and revenue per product over an adjustable period, split into <b>via deals</b> (deals count as a whole — +1s are deal units, not freebies), <b>à la carte</b>, and <b>free</b> (true giveaways). The Stock now column puts sales against inventory at a glance.',
@@ -740,6 +741,7 @@ function applySync(data){
   else if(currentView==='salestarget') renderSalesTarget();
   else if(currentView==='salesspec') renderSalesSpec();
   else if(currentView==='bizreview') renderBizReview();
+  else if(currentView==='reports') renderReports();
   else if(currentView==='salesdeals') renderSalesDeals();
   else if(currentView==='salesrecon') renderSalesRecon();
   else if(currentView==='salesfield') renderSalesField();

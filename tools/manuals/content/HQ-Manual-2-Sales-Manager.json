@@ -772,6 +772,16 @@
    "v": "Names on the review come from each person’s HQ account, and the review groups by the Team set on the account. Revenue under a Shopify tag that is not an account (a territory, “Vacant”) is flagged with its amount — ask for those orders to be re-tagged."
   },
   {
+   "t": "step",
+   "n": "8",
+   "v": "The team deck carries no individual slides any more — each specialist presents from their own deck. Sales analytics → <b>Reports</b> lists every deck for the month with an <b>Inputs</b> column (boxes in, missing on hover, last edited), <b>PowerPoint</b> / <b>PDF</b> per row and <b>Download all</b>. Everything is built from live figures when you click."
+  },
+  {
+   "t": "step",
+   "n": "9",
+   "v": "<b>Copy for Notion</b> on the Reports page puts this week’s Sales block (brands vs target, machines, accounts, activity, specialists, what HQ noticed) on the clipboard as Notion-ready text — paste it under Weekly Report/Updates in the Healthspan Weekly Meeting page."
+  },
+  {
    "t": "callout",
    "v": "BEFORE THE MEETING — open the month, read What HQ noticed, fill the six boxes (or Draft with AI and edit), check each specialist has written theirs, Save snapshot, Export PowerPoint. The deck is the page.",
    "c": "#0E8A5F"

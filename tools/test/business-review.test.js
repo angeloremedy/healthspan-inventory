@@ -15,7 +15,7 @@ const ok=(n,c,x)=>out.push([!!c,n,x===undefined?'':String(x)]);
 const html=fs.readFileSync('index.html','utf8');
 ok('js/12 is loaded after js/11', html.indexOf('js/11-serials')<html.indexOf('js/12-business-review') && /<script defer src="js\/12-business-review\.js">/.test(html));
 ok('sidebar has Business review for specialists', /class="ni nv-sales" onclick="showView\('bizreview',this\)"/.test(html));
-ok('12 app scripts defer', (html.match(/<script defer src="js\//g)||[]).length===12, (html.match(/<script defer src="js\//g)||[]).length);
+ok('13 app scripts defer', (html.match(/<script defer src="js\//g)||[]).length===13, (html.match(/<script defer src="js\//g)||[]).length);
 const app=fs.readdirSync('js').sort().map(f=>fs.readFileSync('js/'+f,'utf8')).join('\n;\n');
 
 const pad=n=>String(n).padStart(2,'0');
@@ -138,7 +138,10 @@ ok('Rhas next-month target', rh.nextTgt===350000);
 ok('Rhas orders/accounts from the order index', rh.orders===2&&rh.ordering===1&&rh.topAccts[0].name==='Dr. Cruz Clinic'&&rh.topAccts[0].v===240000, JSON.stringify(rh.topAccts));
 ok('Rhas masterlist = owned + tagged', rh.masterlist===2&&rh.active===1&&rh.quiet===1, [rh.masterlist,rh.active,rh.quiet]);
 ok('Rhas activity: planned excluded, call vs visit, demo, opened', rh.visits===2&&rh.calls===1&&rh.demos===1&&rh.ordered===1&&rh.opened===1, [rh.visits,rh.calls,rh.demos,rh.opened]);
-ok('Rhas top brand', rh.topLines[0].name==='Inno TDS');
+ok('Rhas top brand (as a meeting brand)', rh.topLines[0].name==='Innoaesthetics'&&rh.lineRows[0].name==='Innoaesthetics'&&rh.lineRows[0].mtd===240000, JSON.stringify(rh.lineRows));
+ok('specialist accounts over the window: 6-month total, months active, average', rh.accounts[0].name==='Dr. Cruz Clinic'&&rh.accounts[0].v6===490000&&rh.accounts[0].months===3&&Math.round(rh.accounts[0].avg)===163333, JSON.stringify(rh.accounts[0]));
+ok('products by brand for the specialist', rh.prodByLine.Innoaesthetics[0].sku==='TD040'&&rh.prodByLine.Innoaesthetics[0].v===240000);
+ok('SkinPen kits per account per month (Tin sold a device, no kits)', tin.kits.length===0&&rh.kits.length===0);
 ok('Skin Station is Tin\\'s new account', tin.newAccts.length===1&&tin.newAccts[0]==='Skin Station', tin.newAccts);
 ok('Dr. Cruz is not new (older orders exist)', !rh.newAccts.length, rh.newAccts);
 ok('Tin prev-month visit not counted this month', tin.visits===0&&tin.calls===0);
@@ -204,17 +207,35 @@ SBPROFILE={name:'Rhas R.',role:'sales',specialist_tag:'Rhas'};
 currentView='bizreview';BIZ.ym=ym;BIZ.snaps=null;await renderBizReview();
 let c=document.getElementById('content').innerHTML;
 ok('page renders with the cover strip', /MONTHLY SALES PERFORMANCE REPORT/.test(c));
-ok('specialist gets own textarea only', document.getElementById('bz-ps_Rhas')&&!document.getElementById('bz-wins')&&!document.getElementById('bz-ps_Tin'));
+ok('specialist gets own five boxes + forecast, nobody else\\'s', document.getElementById('bz-ps_Rhas_wins')&&document.getElementById('bz-ps_Rhas_proposals')&&document.querySelector('#sec-ps_Rhas_forecast input[data-fc]')&&!document.getElementById('bz-wins')&&!document.getElementById('bz-ps_Tin_wins')&&!document.querySelector('#sec-ps_Tin_forecast input'));
 ok('specialist sees manager commentary read-only', /Closed 2 SkinPens/.test(c)&&/view only — the sales manager writes this/.test(c));
-ok('specialist: export my slides, no snapshot/full export', /Export my slides/.test(c)&&!/Save snapshot/.test(c)&&!/Export PowerPoint/.test(c));
+ok('specialist: own deck buttons, no snapshot / reports link', /My deck \\(PowerPoint\\)/.test(c)&&/My deck \\(PDF\\)/.test(c)&&!/Save snapshot/.test(c)&&!/Reports &amp; downloads/.test(c));
+ok('specialist edits ps:tag:section keys (RLS shape)', bizCanEdit('ps:Rhas:wins')&&bizCanEdit('ps:rhas:forecast')&&!bizCanEdit('ps:Tin:wins')&&!bizCanEdit('psx:Rhas:wins'));
 ok('no admin words in the view-only banner', !/admin/i.test(c.match(/view only[^<]*/g).join(' ')));
 ok('own panel flagged', /<span class="pill pbl">you<\\/span>/.test(c));
 ok('charts drawn', ['bzBrand','bzMonthly','bzAccts','bzSpecs'].every(id=>document.getElementById(id)));
 ok('lapsed table present', /Repeat accounts going quiet/.test(c)&&/Old Clinic/.test(c));
 /* render as manager, save note, snapshot */
 ROLE='manager';SBPROFILE={name:'Marj',role:'manager'};await renderBizReview();c=document.getElementById('content').innerHTML;
-ok('manager gets every textarea', document.getElementById('bz-wins')&&document.getElementById('bz-ps_Rhas')&&document.getElementById('bz-ps_Tin')&&document.getElementById('bz-plan'));
-ok('manager toolbar', /Save snapshot/.test(c)&&/Export PowerPoint/.test(c)&&!/Export my slides/.test(c));
+ok('manager gets every textarea', document.getElementById('bz-wins')&&document.getElementById('bz-ps_Rhas_wins')&&document.getElementById('bz-ps_Tin_challenges')&&document.getElementById('bz-plan'));
+ok('manager toolbar', /Save snapshot/.test(c)&&/Reports &amp; downloads/.test(c)&&!/My deck/.test(c));
+/* forecast: save through upsert as JSON */
+document.querySelector('#sec-ps_Rhas_forecast input[data-fc="Dr. Cruz Clinic"]').value='250000';await bizSaveForecast('Rhas');
+ok('forecast saved as JSON under ps:Rhas:forecast', (()=>{const r=DB.review_commentary.find(x=>x.section==='ps:Rhas:forecast');return r&&JSON.parse(r.body)['Dr. Cruz Clinic']===250000;})());
+ok('forecast reads back', bizForecast('Rhas')['Dr. Cruz Clinic']===250000);
+/* legacy single box stands in for Key wins */
+DB.review_commentary.push({month:ym,section:'ps:Tin',body:'old style note',updated_name:'Tin',updated_at:ym+'-01T00:00:00Z'});await loadBizNotes(ym);
+ok('pre-split ps:Tag note shows as Key wins', (bizNote('ps:Tin:wins')||{}).body==='old style note');
+/* reports hub */
+currentView='reports';await renderReports();c=document.getElementById('content').innerHTML;
+ok('reports hub lists the team deck and every specialist for the manager', /Team deck/.test(c)&&/Rhas Porciuncula/.test(c)&&/Tin Arcos/.test(c)&&/Frank Villaverde/.test(c));
+ok('inputs status: Rhas 1/6 (forecast), Tin 1/6 (legacy wins), Abby nothing', /1\\/6 in/.test(c)&&/nothing yet/.test(c), (c.match(/<span class="pill p[a-z]+"[^>]*>[^<]*<\\/span>/g)||[]).slice(0,6).join(' '));
+ok('download all + per-row PowerPoint/PDF', c.includes('Download all (PowerPoint)')&&(c.match(/>PDF</g)||[]).length===5, (c.match(/>PDF</g)||[]).length);
+ok('Copy for Notion panel with a preview table', /Copy — Sales/.test(c)&&/\| BRANDS \| SALES \| TARGET \| PERF \|/.test(c)&&/TOTAL HEALTHSPAN/.test(c));
+const nt=bizNotionText(R,'sales');ok('Notion text carries brands, specialists and HQ notes', nt.includes('| Innoaesthetics | ₱294,000 |')&&nt.includes('Rhas Porciuncula: ₱250,000 (83% of ₱300,000)')&&nt.includes('What HQ noticed'), nt.slice(0,200));
+ROLE='sales';SBPROFILE={name:'Rhas R.',role:'sales',specialist_tag:'Rhas'};await renderReports();c=document.getElementById('content').innerHTML;
+ok('specialist sees only their own row, no team deck, no download-all', /Rhas Porciuncula/.test(c)&&!/Team deck/.test(c)&&!/Tin Arcos/.test(c)&&!/Download all/.test(c)&&(c.match(/>PDF</g)||[]).length===1);
+ROLE='manager';SBPROFILE={name:'Marj',role:'manager'};currentView='bizreview';await renderBizReview();c=document.getElementById('content').innerHTML;
 ok('no earlier snapshot note', /no earlier snapshot to compare with yet/.test(c));
 document.getElementById('bz-challenges').value='Ghost month slowed BMG';await bizSaveNote('challenges');
 ok('note saved through upsert', DB.review_commentary.some(r=>r.section==='challenges'&&r.body==='Ghost month slowed BMG'&&r.updated_name==='Marj'));
@@ -245,6 +266,9 @@ window.__R=R;window.__ctx={notes:BIZ.notes,prevNotes:BIZ.prevNotes,prev:BIZ.prev
 window.__ctxMine={notes:BIZ.notes,prevNotes:BIZ.prevNotes,prev:BIZ.prev,diff:null,only:'Rhas'};
 const PNG='image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 window.__ctxPics=Object.assign({},window.__ctx,{charts:{brand:PNG,monthly:PNG,specs:PNG,prod:{Innoaesthetics:PNG},spec:{Rhas:PNG,Tin:PNG}}});
+window.__ctx.forecasts={Rhas:bizForecast('Rhas')};window.__ctxMine.forecasts=window.__ctx.forecasts;
+window.__html=bizRenderHtml(bizSpecFor(R,window.__ctxMine),{title:'t',foot:'f',charts:{}});
+ok('HTML renderer: slide-sized pages, tables, print CSS', /@page\{size:10in 5.625in/.test(window.__html)&&(window.__html.match(/<section class="sl/g)||[]).length===bizSpecFor(R,window.__ctxMine).length&&/Territory sales performance overview/.test(window.__html)&&/Sales plan \\/ forecast/.test(window.__html)&&/₱250,000/.test(window.__html));
 {const im=await bizChartImages(R);ok('no canvas here → no chart pictures, native charts remain the fallback', Object.values(im).every(v=>v==null||(typeof v==='object'&&Object.values(v).every(x=>x==null))));}
 window.__done=true;
 })().catch(e=>{window.__out.push([false,'test threw',String(e&&e.stack||e)]);window.__done=true;});
@@ -258,12 +282,13 @@ w.eval(app+'\n;\n'+test);
   if(PG&&w.__R){
     try{const p=new PG();w.bizDeck(p,w.__R,w.__ctx);const n=p.slides.length;
       res.push([n>=18,'full deck slide count',n]);
-      const p2=new PG();w.bizDeck(p2,w.__R,w.__ctxMine);res.push([p2.slides.length===3,'specialist deck = cover + slide + commentary',p2.slides.length]);
+      const p2=new PG();w.bizDeck(p2,w.__R,w.__ctxMine);res.push([p2.slides.length>=11&&p2.slides.length<=16,'specialist deck: cover, glance, 3 commentary, territory, products, accounts, activities, forecast, proposals, thank-you',p2.slides.length]);
+      const teamTxt=JSON.stringify(p.slides.map(s=>(s._slideObjects||[]).map(o=>JSON.stringify(o.text||'')).join(' ')));res.push([!/Rhas Porciuncula — commentary|Rhas Porciuncula  ·  Team 1/.test(teamTxt)&&/Next presenters/.test(teamTxt),'team deck carries no individual specialist slides but still names the presenters','']);
       const p3=new PG();w.bizDeck(p3,w.__R,w.__ctxPics);
       const imgs=p3.slides.reduce((n,s)=>n+(s._slideObjects||[]).filter(o=>o._type==='image').length,0);
       const charts=p3.slides.reduce((n,s)=>n+(s._slideObjects||[]).filter(o=>o._type==='chart').length,0);
       const charts1=p.slides.reduce((n,s)=>n+(s._slideObjects||[]).filter(o=>o._type==='chart').length,0);
-      res.push([imgs===6&&charts<charts1,'chart pictures replace native charts where supplied (Keynote-safe)',imgs+' images, '+charts+' native vs '+charts1]);
+      res.push([imgs===4&&charts<charts1,'chart pictures replace native charts where supplied (Keynote-safe)',imgs+' images, '+charts+' native vs '+charts1]);
       if(process.argv[2]){const pp=process.argv[2].replace(/\.pptx$/,'-pics.pptx');await p3.writeFile({fileName:pp});res.push([fs.existsSync(pp),'picture deck written',pp]);}
       const outp=process.argv[2];if(outp){await p.writeFile({fileName:outp});res.push([fs.existsSync(outp),'sample deck written',outp]);
         const mine=outp.replace(/\.pptx$/,'-rhas.pptx');await p2.writeFile({fileName:mine});res.push([fs.existsSync(mine),'specialist deck written',mine]);}}
