@@ -791,6 +791,11 @@
    "v": "Windows: revenue and targets reach back 13 months; orders, accounts and buying behaviour as far as the order index (about six months — older months blank those sections and say so); the visit log 120 days. In the first three days of a month nothing is projected."
   },
   {
+   "t": "step",
+   "n": "7",
+   "v": "Names on the review — and on Specialists, CRM activity, Scorecards, Leaderboard and Set targets — come from each person’s HQ account, not the Shopify tag; the roster is the accounts that carry a specialist tag. Set each specialist’s <b>Team</b> in Team &amp; access (edit → Team) and the review groups by it. Revenue under a tag that is not an account is flagged with its amount so the orders can be re-tagged."
+  },
+  {
    "t": "callout",
    "v": "TABLES — review_commentary and review_snapshots (SUPABASE-SETUP.md). Snapshots are insert-only history; only a super admin can delete one. A specialist edits only the box whose section matches their profile tag exactly, so the tag must be the canonical name.",
    "c": "#B7791F"

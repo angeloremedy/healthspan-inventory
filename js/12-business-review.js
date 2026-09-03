@@ -52,6 +52,24 @@ function bizTgtProduct(sku,name,months){ // exact SKU, exact name, then name-con
     if(k.length>=4&&nm.includes(k)){s+=(+t.value||0);hit=true;}}
   return hit?s:null;}
 
+/* Brands as the meeting talks about them: the sheet's product lines roll up into the
+   brand a target is set for. Targets-tab names are matched loosely ("MESO", "MARK-VU",
+   "SYMMED CONSUMBALES") so a typo in the sheet never zeroes a brand's attainment. */
+const BIZ_GROUPS=[
+  {name:'Innoaesthetics',test:/^(inno|meline)/i,aliases:['innoaesthetics','innoaesthetic','inno','meline','innotds','innoderma','innoce','innoexoma','innoepigen','innoexfo','innomkt','innoshopify']},
+  {name:'Mesoestetic',test:/^meso/i,aliases:['meso','mesoestetic']},
+  {name:'SkinPen',test:/^skinpen/i,aliases:['skinpen']},
+  {name:'BioJuve',test:/^biojuve/i,aliases:['biojuve']},
+  {name:'Symmed (Termosalud)',test:/^(symmed|termosalud)/i,aliases:['symmed','symmedconsumables','symmedconsumbales','termosalud','termosaludmkt']},
+  {name:'Zionic',test:/^zionic/i,aliases:['zionic','zionicconsumables']},
+  {name:'Mark-Vu',test:/^mark/i,aliases:['markvu','psiplus']},
+  {name:'Unmapped (Shopify)',test:/^shopify only$/i,aliases:[]}];
+function bizNorm(s){return String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');}
+function bizGroupOf(line){const g=BIZ_GROUPS.find(g=>g.test.test(String(line||'').trim()));return g?g.name:(line||'(no line)');}
+function bizGroupAliases(group){const g=BIZ_GROUPS.find(g=>g.name===group);return new Set(g?g.aliases.concat([bizNorm(g.name)]):[bizNorm(group)]);}
+function bizLineTgt(group,months){const al=bizGroupAliases(group);let s=0,hit=false;
+  for(const t of (TARGETS||[])){if(t.scope!=='LINE'||!months.includes(t.month))continue;if(!al.has(bizNorm(t.name)))continue;s+=(+t.value||0);hit=true;}
+  return hit?s:null;}
 function bizCanEditAll(){return canManage()||isSuper();}
 function bizMySpec(){return specCanon((SBPROFILE&&SBPROFILE.specialist_tag)||'');}
 // mirrors the RLS policy exactly: the raw profile tag, not the alias — so a profile tagged
@@ -82,19 +100,19 @@ function bizCompute(ym){
   for(const sku in (SALESIDX||{})){
     const S=SALESIDX[sku];const nm=netMonthly(S,'',true),nb=netMonthly(S,'b',true);
     const rev=m=>(((nm[m]||{}).v)||0)+(((nb[m]||{}).v)||0);const un=m=>((nm[m]||{}).u)||0;
-    const L=S.line||'(no line)';const e=lines[L]||(lines[L]={name:L,m:{},u:{}});
+    const raw=S.line||'(no line)';const L=bizGroupOf(raw);const e=lines[L]||(lines[L]={name:L,m:{},u:{},raw:new Set()});e.raw.add(raw);
     for(const m of allM){const v=rev(m),u=un(m);e.m[m]=(e.m[m]||0)+v;e.u[m]=(e.u[m]||0)+u;tot[m]=(tot[m]||0)+v;totU[m]=(totU[m]||0)+u;}
     const v=rev(ym),u=un(ym),pv=rev(prev),pu=un(prev);
-    if(v>0||u>0||pv>0)prods.push({sku,name:S.name||sku,line:L,u,v,pv,pu,f:((nm[ym]||{}).f)||0,d:((nm[ym]||{}).d)||0,
+    if(v>0||u>0||pv>0)prods.push({sku,name:S.name||sku,line:L,raw,u,v,pv,pu,f:((nm[ym]||{}).f)||0,d:((nm[ym]||{}).d)||0,
       deal:((nb[ym]||{}).v)||0,tgt:bizTgtProduct(sku,S.name,[ym]),equip:false});}
   const sumM=(o,ms)=>ms.reduce((s,m)=>s+(o[m]||0),0);
   R.brands=Object.values(lines).map(e=>{
     const mtd=e.m[ym]||0,qtd=sumM(e.m,qM),ytd=sumM(e.m,yM),pm=e.m[prev]||0;
-    const tgt=bizTgt('LINE',e.name,[ym]),qtgt=bizTgt('LINE',e.name,qM),ytgt=bizTgt('LINE',e.name,yM);
-    return {name:e.name,mtd,units:e.u[ym]||0,prev:pm,tgt,qtd,qtgt,ytd,ytgt,att:bizPct(mtd,tgt),qatt:bizPct(qtd,qtgt),yatt:bizPct(ytd,ytgt),
+    const tgt=bizLineTgt(e.name,[ym]),qtgt=bizLineTgt(e.name,qM),ytgt=bizLineTgt(e.name,yM);
+    return {name:e.name,lines:[...e.raw].sort(),mtd,units:e.u[ym]||0,prev:pm,tgt,qtd,qtgt,ytd,ytgt,att:bizPct(mtd,tgt),qatt:bizPct(qtd,qtgt),yatt:bizPct(ytd,ytgt),
       proj:mtd/elapsed,series:series.map(m=>e.m[m]||0)};})
     .filter(b=>b.mtd>0||b.tgt||b.qtd>0||b.ytd>0).sort((a,b)=>b.mtd-a.mtd);
-  const lineTgt=ms=>{let s=0,hit=false;for(const b of R.brands){const t=bizTgt('LINE',b.name,ms);if(t!=null){s+=t;hit=true;}}return hit?s:null;};
+  const lineTgt=ms=>{let s=0,hit=false;for(const b of R.brands){const t=bizLineTgt(b.name,ms);if(t!=null){s+=t;hit=true;}}return hit?s:null;};
   const specTgt=ms=>{let s=0,hit=false;for(const t of (TARGETS||[]))if(t.scope==='SPECIALIST'&&ms.includes(t.month)&&!INTERNAL_TAG.test(t.name||'')){s+=(+t.value||0);hit=true;}return hit?s:null;};
   const totTgt=ms=>{const t=bizTgt('TOTAL','',ms);if(t!=null)return t;const l=lineTgt(ms);if(l!=null)return l;return specTgt(ms);};
   const mtd=tot[ym]||0;
@@ -122,15 +140,24 @@ function bizCompute(ym){
   // authors and order tags only LOOK UP — a manager who logs a visit must not become a slide
   const getSpec=(n,create)=>{const k=specCanon(n);if(!k||INTERNAL_TAG.test(k))return null;const lk=k.toLowerCase();
     if(!create)return specs[lk]||null;
-    return specs[lk]||(specs[lk]={name:k,mtd:0,prev:0,qtd:0,ytd:0,units:0,tgt:null,qtgt:null,ytgt:null,series:series.map(()=>0),
+    return specs[lk]||(specs[lk]={name:k,label:specDisplay(k),team:specTeam(k),mtd:0,prev:0,qtd:0,ytd:0,units:0,tgt:null,qtgt:null,ytgt:null,series:series.map(()=>0),
       lines:{},skus:{},accts:{},orders:0,ordAccts:new Set(),newAccts:[],owned:new Set(),tagged:new Set(),active:0,
       visits:0,calls:0,demos:0,ordered:0,opened:0,touched:new Set()});};
-  for(const n in sm){const s=getSpec(n,true);if(!s)continue;const nm=netMonthly(sm[n],'',true);const rev=m=>((nm[m]||{}).v)||0;
+  // Who is a specialist? The HQ accounts that carry a specialist tag (spec_directory).
+  // Only when no directory exists yet do Shopify tags / targets / the roster stand in —
+  // that fallback is what let "GMA 2", "Vacant" and territory tags masquerade as people.
+  const dir=(SPEC_DIR||[]).filter(r=>r&&r.tag&&r.active!==false);R.rosterSrc=dir.length?'directory':'tags';
+  if(dir.length)for(const r of dir)getSpec(r.tag,true);
+  const unassigned={v:0,tags:[]};
+  for(const n in sm){let s=getSpec(n,!dir.length);
+    if(!s){if(!INTERNAL_TAG.test(specCanon(n))){const nm0=netMonthly(sm[n],'',true);const v0=((nm0[ym]||{}).v)||0;if(v0>0){unassigned.v+=v0;unassigned.tags.push(specCanon(n));}}continue;}
+    const nm=netMonthly(sm[n],'',true);const rev=m=>((nm[m]||{}).v)||0;
     s.mtd+=rev(ym);s.prev+=rev(prev);s.qtd+=sumM(Object.fromEntries(Object.keys(nm).map(m=>[m,rev(m)])),qM);
     s.ytd+=sumM(Object.fromEntries(Object.keys(nm).map(m=>[m,rev(m)])),yM);s.units+=((nm[ym]||{}).u)||0;
     s.series=series.map((m,i)=>s.series[i]+rev(m));}
-  for(const t of (TARGETS||[]))if(t.scope==='SPECIALIST'&&(t.month===ym||qM.includes(t.month)||yM.includes(t.month)))getSpec(t.name,true);
-  try{for(const n of (typeof specNames==='function'?specNames():[]))getSpec(n,true);}catch(e){}
+  if(!dir.length){for(const t of (TARGETS||[]))if(t.scope==='SPECIALIST'&&(t.month===ym||qM.includes(t.month)||yM.includes(t.month)))getSpec(t.name,true);
+    try{for(const n of (typeof specNames==='function'?specNames():[]))getSpec(n,true);}catch(e){}}
+  R.unassigned=unassigned;
   for(const lk in specs){const s=specs[lk];s.tgt=bizTgt('SPECIALIST',s.name,[ym]);s.qtgt=bizTgt('SPECIALIST',s.name,qM);s.ytgt=bizTgt('SPECIALIST',s.name,yM);
     s.nextTgt=bizTgt('SPECIALIST',s.name,[bizYmAdd(ym,1)]);}
 
@@ -171,8 +198,11 @@ function bizCompute(ym){
 
   /* machines: any SKU with a serial number is equipment */
   const eq=new Set((SERIALS||[]).map(s=>s.sku));
-  for(const p of (DATA||[]))if(/machine|equipment|device/i.test(p.category||''))eq.add(p.sku);
-  for(const p of R.products)p.equip=eq.has(p.sku);
+  const catOf={};for(const p of (DATA||[]))catOf[p.sku]=p.category||'';
+  for(const p of R.products)p.equip=eq.has(p.sku)||isEquipment(p.sku,p.name,p.raw,catOf[p.sku]);
+  for(const p of R.products)if(p.equip)eq.add(p.sku);
+  // a machine with no product target of its own inherits the brand target when it is the brand's only machine
+  for(const p of R.products)if(p.equip&&p.tgt==null){const sib=R.products.filter(q=>q.equip&&q.line===p.line);if(sib.length===1){const t=bizLineTgt(p.line,[ym]);if(t!=null){p.tgt=t;p.tgtFrom='brand';}}}
   const notInt=t=>!INTERNAL_TAG.test(String(t||'').trim());
   const sold=(SERIALS||[]).filter(s=>s.status==='sold'&&String(s.updated_at||'').slice(0,7)===ym&&notInt(s.sold_ref)&&notInt(s.note));
   const lo=(LOANS||[]).filter(l=>notInt(l.account)); // demo units at Remedy branches are internal moves, not field demos
@@ -202,14 +232,16 @@ function bizCompute(ym){
     prevOrdering:Object.keys(acctPrev).length};
 
   /* specialist rows for output */
-  R.specs=Object.values(specs).map(s=>({name:s.name,mtd:s.mtd,prev:s.prev,qtd:s.qtd,ytd:s.ytd,units:s.units,tgt:s.tgt,qtgt:s.qtgt,ytgt:s.ytgt,nextTgt:s.nextTgt,
+  R.specs=Object.values(specs).map(s=>({name:s.name,label:s.label||s.name,team:s.team||'',mtd:s.mtd,prev:s.prev,qtd:s.qtd,ytd:s.ytd,units:s.units,tgt:s.tgt,qtgt:s.qtgt,ytgt:s.ytgt,nextTgt:s.nextTgt,
       att:bizPct(s.mtd,s.tgt),qatt:bizPct(s.qtd,s.qtgt),yatt:bizPct(s.ytd,s.ytgt),proj:s.mtd/elapsed,projAtt:bizPct(s.mtd/elapsed,s.tgt),series:s.series,
       orders:s.orders,ordering:s.ordAccts.size,newAccts:s.newAccts,masterlist:s.masterlist,active:s.active,quiet:s.quiet,
       topAccts:Object.keys(s.accts).map(c=>({name:c,v:s.accts[c]})).sort((a,b)=>b.v-a.v).slice(0,5),
       topLines:Object.keys(s.lines).map(l=>({name:l,v:s.lines[l]})).sort((a,b)=>b.v-a.v).slice(0,4),
       topSkus:Object.keys(s.skus).map(k=>({sku:k,name:(SALESIDX[k]&&SALESIDX[k].name)||k,v:s.skus[k]})).sort((a,b)=>b.v-a.v).slice(0,5),
       visits:s.visits,calls:s.calls,demos:s.demos,ordered:s.ordered,opened:s.opened,touched:s.touched.size}))
-    .filter(s=>s.mtd>0||s.prev>0||s.tgt||s.masterlist||s.visits||s.calls).sort((a,b)=>b.mtd-a.mtd);
+    .filter(s=>R.rosterSrc==='directory'||s.mtd>0||s.prev>0||s.tgt||s.masterlist||s.visits||s.calls)
+    .sort((a,b)=>(a.team||'zzz').localeCompare(b.team||'zzz')||(b.mtd-a.mtd)); // by team, then revenue
+  R.teams=[...new Set(R.specs.map(s=>s.team||''))];
   bizTrends(R);
   return R;}
 
@@ -235,13 +267,15 @@ function bizTrends(R){
   if(R.ordersComplete&&A.ordering)add('info',A.ordering+' accounts ordered ('+(A.prevOrdering?bizDelta(A.ordering,A.prevOrdering)+' vs last month, ':'')+A.reorderers+' ordered twice or more, '+A.multiBrand+' bought from 2+ brands). Average order '+P(A.aov)+'.');
   if(R.ordersComplete&&A.lapsedN)add('down',A.lapsedN+' repeat account'+(A.lapsedN>1?'s have':' has')+' gone quiet for 45–120 days ('+P(A.lapsedV)+' of history): '+A.lapsed.slice(0,3).map(a=>a.name+' ('+a.days+'d)').join(', ')+'.');
   if(A.dealShare!=null&&A.dealShare>=10)add('info','Deals carried '+bizFmtPct(A.dealShare)+' of revenue'+(A.free?'; '+A.free+' units went out free':'')+'.');
+  const lead=R.specs.filter(s=>s.mtd>0)[0]&&[...R.specs].sort((a,b)=>b.mtd-a.mtd)[0];
+  if(lead&&lead.mtd>0)add('up',lead.label+' leads the month at '+P(lead.mtd)+(lead.tgt?' ('+bizFmtPct(lead.att)+' of target)':'')+(R.specs.length>1?'; '+[...R.specs].sort((a,b)=>b.mtd-a.mtd)[1].label+' next at '+P([...R.specs].sort((a,b)=>b.mtd-a.mtd)[1].mtd):'')+'.');
   const st=R.specs.filter(s=>s.tgt);
-  if(st.length){const on=st.filter(s=>s.projAtt>=100),off=st.filter(s=>s.projAtt<50);
-    if(on.length&&!R.early)add('up',on.map(s=>s.name).join(', ')+(on.length>1?' are':' is')+' on pace to hit target.');
-    if(off.length)add('down',off.map(s=>s.name+' ('+bizFmtPct(s.att)+')').join(', ')+(off.length>1?' are':' is')+' below half of target so far.');}
+  if(st.length&&!R.early){const on=st.filter(s=>s.projAtt>=100),off=st.filter(s=>s.projAtt<50);
+    if(on.length)add('up',on.map(s=>s.label).join(', ')+(on.length>1?' are':' is')+' on pace to hit target.');
+    if(off.length)add('down',off.map(s=>s.label+' ('+bizFmtPct(s.att)+')').join(', ')+(off.length>1?' are':' is')+' below half of target so far.');}
   const act=R.activity;if(act.visits+act.calls){const conv=bizPct(act.ordered,act.visits+act.calls);
     add('info',(act.visits+act.calls)+' contacts logged ('+act.visits+' visits, '+act.calls+' calls, '+act.demos+' demos); '+bizFmtPct(conv)+' ended in an order'+(act.opened?', '+act.opened+' new accounts opened':'')+'.');
-    const busyNoSale=R.specs.filter(s=>(s.visits+s.calls)>=8&&s.mtd===0);if(busyNoSale.length)add('flat',busyNoSale.map(s=>s.name).join(', ')+' logged activity but no sales yet this month.');}
+    const busyNoSale=R.specs.filter(s=>(s.visits+s.calls)>=8&&s.mtd===0);if(busyNoSale.length)add('flat',busyNoSale.map(s=>s.label).join(', ')+' logged activity but no sales yet this month.');}
   if(R.machines.installs||R.machines.loansOut)add('info',R.machines.installs+' machine install'+(R.machines.installs===1?'':'s')+' recorded'+(R.machines.loansOut?', '+R.machines.loansOut+' demo units sent out':'')+(R.machines.onLoan?', '+R.machines.onLoan+' currently on loan':'')+'.');
   R.trends=T.slice(0,12);
   for(const s of R.specs){const n=[];
@@ -312,7 +346,7 @@ async function bizAiDraft(section){
   const R=BIZ.R;const lbl=(BIZ_SECTIONS.find(x=>x[0]===section)||[])[1]||section;
   let q,data;
   if(section.startsWith('ps:')){const n=section.slice(3);const s=R.specs.find(x=>x.name.toLowerCase()===n.toLowerCase());
-    q='Write a specialist\'s own commentary for the "'+n+'" slide of the '+R.label+' sales review, 3-5 short sentences, first person plural, factual, no headings. Mention pace vs target, best accounts, new accounts and activity, then one concrete focus for the rest of the month. Use pesos with commas.';
+    q='Write a specialist\'s own commentary for the "'+specDisplay(n)+'" slide of the '+R.label+' sales review, 3-5 short sentences, first person plural, factual, no headings. Mention pace vs target, best accounts, new accounts and activity, then one concrete focus for the rest of the month. Use pesos with commas.';
     data=JSON.stringify({specialist:s,autoNotes:R.notesAuto[n],asOf:R.asOf});}
   else{q='Write the "'+lbl+'" section of a monthly sales performance review for '+R.label+' (as of '+R.asOf+'), for a sales manager to edit. 4-7 short bullet-like sentences, factual, name brands, accounts and specialists from the data, no headings, no preamble. Use pesos with commas.';
     data=JSON.stringify({total:R.total,brands:R.brands.map(b=>({name:b.name,mtd:b.mtd,tgt:b.tgt,att:b.att,prev:b.prev})),specs:R.specs.map(s=>({name:s.name,mtd:s.mtd,tgt:s.tgt,att:s.att,newAccts:s.newAccts,visits:s.visits,calls:s.calls})),
@@ -408,25 +442,26 @@ async function renderBizReview(){
   h+='<div id="sec-products"></div>';
   const brandsWithSales=R.brands.filter(b=>b.mtd>0).slice(0,8);
   for(const b of brandsWithSales){const rows=R.products.filter(p=>p.line===b.name&&(p.v>0||p.u>0||p.tgt)).slice(0,12);
-    h+='<div class="panel" style="padding:14px 16px;margin-bottom:14px"><div class="phd">'+esc(b.name)+' — product sales</div>'+
-      bizTbl(['Product','Units','MTD','Target','%','vs '+bizShortLbl(R.prev),'via deals'],rows.map(p=>[esc(p.name)+'<div class="mu" style="font-size:10px">'+esc(p.sku)+'</div>',p.u.toLocaleString('en-PH'),P(p.v),p.tgt!=null?P(p.tgt):'—',p.tgt!=null?attBar(bizPct(p.v,p.tgt)):'—','<span class="pill p'+bizDeltaTone(p.v/R.elapsed,p.pv)+'">'+bizDelta(p.v/R.elapsed,p.pv)+'</span>',p.deal>0?P(p.deal):'—']))+'</div>';}
+    h+='<div class="panel" style="padding:14px 16px;margin-bottom:14px"><div class="phd">'+esc(b.name)+' — product sales'+(b.lines.length>1?' <span class="mu" style="font-weight:400;font-size:11px">'+esc(b.lines.join(' · '))+'</span>':'')+'</div>'+
+      bizTbl(['Product','Units','MTD','Target','%','vs '+bizShortLbl(R.prev),'via deals'],rows.map(p=>[esc(p.name)+'<div class="mu" style="font-size:10px">'+esc(p.sku)+(b.lines.length>1&&p.raw!==b.name?' · '+esc(p.raw):'')+'</div>',p.u.toLocaleString('en-PH'),P(p.v),p.tgt!=null?P(p.tgt):'—',p.tgt!=null?attBar(bizPct(p.v,p.tgt)):'—','<span class="pill p'+bizDeltaTone(p.v/R.elapsed,p.pv)+'">'+bizDelta(p.v/R.elapsed,p.pv)+'</span>',p.deal>0?P(p.deal):'—']))+'</div>';}
   /* machines */
   h+='<div class="panel" style="padding:14px 16px;margin-bottom:14px" id="sec-machines"><div class="phd">Machine sales & demo units</div><div class="metrics">'+
     bizKpi('Machine revenue',P(R.machines.rev),R.machines.units+' units','bl')+bizKpi('Installs recorded',String(R.machines.installs),'serials marked sold this month',R.machines.installs?'gr':'gy')+
     bizKpi('Demo units out',String(R.machines.loansOut),R.machines.onLoan+' on loan now · '+R.machines.converted+' converted','am')+bizKpi('Equipment in stock',String(R.machines.inStock),R.machines.skus+' serialised SKUs','pu')+'</div>'+
-    bizTbl(['Machine','Units','MTD','Target','%'],R.machines.rows.map(p=>[esc(p.name),p.u.toLocaleString('en-PH'),P(p.v),p.tgt!=null?P(p.tgt):'—',p.tgt!=null?attBar(bizPct(p.v,p.tgt)):'—']))+
-    '<div class="mu" style="font-size:11px;margin-top:6px">Equipment = any SKU in the serial register, plus catalog items whose category says machine / device / equipment.</div></div>';
+    bizTbl(['Machine','Units','MTD','Target','%'],R.machines.rows.map(p=>[esc(p.name)+'<div class="mu" style="font-size:10px">'+esc(p.line)+'</div>',p.u.toLocaleString('en-PH'),P(p.v),p.tgt!=null?P(p.tgt)+(p.tgtFrom==='brand'?' <span class="mu">(brand)</span>':''):'—',p.tgt!=null?attBar(bizPct(p.v,p.tgt)):'—']))+
+    '<div class="mu" style="font-size:11px;margin-top:6px">Machines = the SkinPen device packages, Axion, Mark-Vu, Symmed, Zionic and the GTG platforms, plus anything in the serial register — recognised from the product title, so cartridges, kits and tips stay consumables. A machine paid outside Shopify (cash, cheque, direct to the bank) is not in Shopify and therefore not here until it is booked as an order.</div></div>';
   /* accounts monitoring */
   h+='<div class="panel" style="padding:14px 16px;margin-bottom:14px" id="sec-accounts"><div class="phd">Accounts monitoring — per specialist</div>'+
-    bizTbl(['Specialist','Masterlist','Active (90d)','Ordered MTD','New MTD','Quiet 90d+','Contacts','Opened (CRM)'],R.specs.map(s=>[esc(s.name),String(s.masterlist),String(s.active),String(s.ordering),String(s.newAccts.length),String(s.quiet),(s.visits+s.calls)+'',String(s.opened)]))+
-    '<div class="mu" style="font-size:11px;margin-top:6px">Masterlist = accounts assigned in Accounts (owner) plus any that ordered under the specialist\'s tag in the last 6 months. Active = an external order in the last 90 days. New = first order in 13 months landed this month.</div></div>';
+    bizTbl(['Specialist','Masterlist','Active (90d)','Ordered MTD','New MTD','Quiet 90d+','Contacts','Opened (CRM)'],R.specs.map(s=>[esc(s.label)+(s.team?' <span class="mu" style="font-size:10px">'+esc(s.team)+'</span>':''),String(s.masterlist),String(s.active),String(s.ordering),String(s.newAccts.length),String(s.quiet),(s.visits+s.calls)+'',String(s.opened)]))+
+    '<div class="mu" style="font-size:11px;margin-top:6px">Masterlist = accounts assigned in Accounts (owner) plus any that ordered under the specialist\'s tag in the last 6 months. Active = an external order in the last 90 days. New = first order in 13 months landed this month.'+(R.rosterSrc==='directory'?' Specialists = HQ accounts with a specialist tag (names as on the account).':' No specialist directory yet — names come from Shopify tags; run the spec_directory SQL to use account names.')+'</div>'+
+    (R.unassigned.v>0?'<div class="viewdesc" style="border-color:var(--am);margin-top:8px">'+P(R.unassigned.v)+' this month sits under Shopify tags that are not a specialist account ('+esc(R.unassigned.tags.join(', '))+'). It is in the brand totals but on nobody\'s slide — fix the tag on those orders, or add the person in Team &amp; access.</div>':'')+'</div>';
   /* clients & buying */
   const A=R.accounts;
   h+='<div class="panel" style="padding:14px 16px;margin-bottom:14px" id="sec-clients"><div class="phd">Clients & buying behaviour</div><div class="metrics">'+
     bizKpi('Repeat vs new revenue',P(A.repeatRev)+' · '+P(A.newRev),bizFmtPct(bizPct(A.newRev,R.total.mtd))+' from first orders','bl')+bizKpi('Ordered 2+ times',String(A.reorderers),'of '+A.ordering+' ordering accounts','gr')+
     bizKpi('Bought 2+ brands',String(A.multiBrand),'cross-sell this month','pu')+bizKpi('Deal share',bizFmtPct(A.dealShare),P(A.dealRev)+' via deals · '+A.free+' free units','am')+'</div>'+
     '<div class="cw" style="height:220px;margin:6px 0 12px"><canvas id="bzAccts"></canvas></div>'+
-    '<div class="phd" style="font-size:13px">Top accounts this month</div>'+bizTbl(['Account','MTD','vs '+bizShortLbl(R.prev),'Orders','Brands','Specialist'],A.top.map(a=>[esc(a.name)+(a.isNew?' <span class="pill pgr">new</span>':''),P(a.v),'<span class="pill p'+bizDeltaTone(a.v,a.prev)+'">'+bizDelta(a.v,a.prev)+'</span>',String(a.orders),String(a.lines),esc(a.spec||a.owner||'—')]))+
+    '<div class="phd" style="font-size:13px">Top accounts this month</div>'+bizTbl(['Account','MTD','vs '+bizShortLbl(R.prev),'Orders','Brands','Specialist'],A.top.map(a=>[esc(a.name)+(a.isNew?' <span class="pill pgr">new</span>':''),P(a.v),'<span class="pill p'+bizDeltaTone(a.v,a.prev)+'">'+bizDelta(a.v,a.prev)+'</span>',String(a.orders),String(a.lines),esc(specDisplay(a.spec||a.owner)||'—')]))+
     '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-top:12px">'+
       '<div><div class="phd" style="font-size:13px">Biggest risers vs last month</div>'+bizTbl(['Account','Δ','MTD'],A.risers.map(m=>[esc(m.name),'<span style="color:var(--gr)">+'+P(m.d)+'</span>',P(m.v)]))+'</div>'+
       '<div><div class="phd" style="font-size:13px">Biggest fallers vs last month</div>'+bizTbl(['Account','Δ','MTD'],A.fallers.map(m=>[esc(m.name),'<span style="color:var(--rd)">−'+P(-m.d)+'</span>',P(m.v)]))+'</div></div>'+
@@ -434,18 +469,18 @@ async function renderBizReview(){
     '<div class="mu" style="font-size:11px;margin-top:6px">Accounts that ordered at least twice and have not ordered for 45–120 days — the recoverable window before they go dormant.</div></div>';
   /* specialists */
   h+='<div class="panel" style="padding:14px 16px;margin-bottom:14px" id="sec-specs"><div class="phd">Specialists — attainment and pace</div>'+
-    bizTbl(['Specialist','MTD','Target','%','Pace','vs '+bizShortLbl(R.prev),'QTD %','YTD %','Orders','New','Contacts'],R.specs.map(s=>[esc(s.name)+(D?bizDiffChip(s.mtd,D.specs[s.name],'mtd'):''),P(s.mtd),s.tgt!=null?P(s.tgt):'—',s.att!=null?attBar(s.att):'—',s.tgt!=null?bizFmtPct(s.projAtt):P(s.proj),'<span class="pill p'+bizDeltaTone(s.proj,s.prev)+'">'+bizDelta(s.proj,s.prev)+'</span>',bizFmtPct(s.qatt),bizFmtPct(s.yatt),String(s.orders),String(s.newAccts.length),String(s.visits+s.calls)]))+
+    bizTbl(['Specialist','MTD','Target','%','Pace','vs '+bizShortLbl(R.prev),'QTD %','YTD %','Orders','New','Contacts'],R.specs.map(s=>[esc(s.label)+(s.team?' <span class="mu" style="font-size:10px">'+esc(s.team)+'</span>':'')+(D?bizDiffChip(s.mtd,D.specs[s.name],'mtd'):''),P(s.mtd),s.tgt!=null?P(s.tgt):'—',s.att!=null?attBar(s.att):'—',s.tgt!=null?bizFmtPct(s.projAtt):P(s.proj),'<span class="pill p'+bizDeltaTone(s.proj,s.prev)+'">'+bizDelta(s.proj,s.prev)+'</span>',bizFmtPct(s.qatt),bizFmtPct(s.yatt),String(s.orders),String(s.newAccts.length),String(s.visits+s.calls)]))+
     '<div class="cw" style="height:'+Math.max(160,R.specs.length*26+40)+'px;margin-top:12px"><canvas id="bzSpecs"></canvas></div></div>';
   for(const s of R.specs){const mine=me&&s.name.toLowerCase()===me.toLowerCase();
-    h+='<div class="panel" style="padding:14px 16px;margin-bottom:14px'+(mine?';border-color:var(--bl)':'')+'" id="sec-ps-'+esc(s.name.replace(/[^a-z0-9]/gi,'_'))+'"><div class="phd">'+esc(s.name)+(mine?' <span class="pill pbl">you</span>':'')+'</div>'+
+    h+='<div class="panel" style="padding:14px 16px;margin-bottom:14px'+(mine?';border-color:var(--bl)':'')+'" id="sec-ps-'+esc(s.name.replace(/[^a-z0-9]/gi,'_'))+'"><div class="phd">'+esc(s.label)+(s.team?' <span class="mu" style="font-weight:400;font-size:11px">'+esc(s.team)+'</span>':'')+(mine?' <span class="pill pbl">you</span>':'')+'</div>'+
       '<div class="metrics">'+bizKpi('MTD',P(s.mtd),s.tgt?bizFmtPct(s.att)+' of '+P(s.tgt):'no target',s.att>=100?'gr':s.att>=70?'bl':s.att>=40?'am':s.tgt?'rd':'gy')+(R.early?bizKpi('Pace','—','too early to project','gy'):bizKpi('Pace',P(s.proj),s.tgt?bizFmtPct(s.projAtt)+' of target':'projected','bl'))+(R.early?bizKpi('vs '+bizShortLbl(R.prev),'—',P(s.prev)+' last month','gy'):bizKpi('vs '+bizShortLbl(R.prev),bizDelta(s.proj,s.prev),P(s.prev)+' last month',bizDeltaTone(s.proj,s.prev)))+bizKpi('Accounts',s.ordering+' / '+s.masterlist,s.newAccts.length+' new · '+s.quiet+' quiet','pu')+bizKpi('Activity',String(s.visits+s.calls),s.visits+' visits · '+s.calls+' calls · '+s.demos+' demos','am')+'</div>'+
       '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px"><div><div class="phd" style="font-size:13px">Top accounts</div>'+bizTbl(['Account','MTD'],s.topAccts.map(a=>[esc(a.name),P(a.v)]))+'</div><div><div class="phd" style="font-size:13px">Top products</div>'+bizTbl(['Product','MTD'],s.topSkus.map(a=>[esc(a.name),P(a.v)]))+'</div><div><div class="phd" style="font-size:13px">HQ notes</div><div style="font-size:12.5px;display:grid;gap:4px">'+(R.notesAuto[s.name]||[]).map(t=>'<div>• '+esc(t)+'</div>').join('')+'</div></div></div></div>';
-    h+=bizNoteBox('ps:'+s.name,s.name+' — own commentary','What happened, what is closing, what needs help.');}
+    h+=bizNoteBox('ps:'+s.name,s.label+' — own commentary','What happened, what is closing, what needs help.');}
   /* plan */
   h+='<div id="sec-plan-top"></div>'+bizNoteBox('plan','Plan of action','The three numbers to focus on, and why.')+bizNoteBox('program','Sales programs & promos','Running promos, deadlines, exclusions.');
   const nextYm=bizYmAdd(ym,1);
   h+='<div class="panel" style="padding:14px 16px;margin-bottom:14px"><div class="phd">Sales plan — '+esc(bizMonthLbl(nextYm))+' targets per specialist</div>'+
-    bizTbl(['Specialist','This month target','MTD','Gap','Next month target'],R.specs.map(s=>[esc(s.name),s.tgt!=null?P(s.tgt):'—',P(s.mtd),s.tgt!=null?P(Math.max(0,s.tgt-s.mtd)):'—',s.nextTgt!=null?P(s.nextTgt):'<span class="mu">not set</span>']))+
+    bizTbl(['Specialist','This month target','MTD','Gap','Next month target'],R.specs.map(s=>[esc(s.label),s.tgt!=null?P(s.tgt):'—',P(s.mtd),s.tgt!=null?P(Math.max(0,s.tgt-s.mtd)):'—',s.nextTgt!=null?P(s.nextTgt):'<span class="mu">not set</span>']))+
     '<div class="mu" style="font-size:11px;margin-top:6px">Next month\'s targets come from Targets → specialists. Set them there and this table fills itself.</div></div>'+bizNoteBox('forecast','Sales plan notes','Programs per team, conversions, anything the target table does not say.');
   h+='<div class="mu" style="font-size:11px;margin:6px 0 20px">External sales only — Remedy, Healthspan-internal and pull-out orders are excluded everywhere on this page, as in Targets. QTD / YTD attainment counts only months that have a target row. Visit log covers a rolling 120 days'+(R.activity.complete?'':' — activity for this month is incomplete')+'; the order index covers orders since '+esc(R.ordersFrom||'—')+'. Generated '+esc(R.generated.slice(0,16).replace('T',' '))+'.</div>';
   $('content').innerHTML=h;
@@ -465,7 +500,7 @@ function bizCharts(R){
   mk('bzAccts',{type:'bar',data:{labels:ta.map(a=>a.name.length>22?a.name.slice(0,21)+'…':a.name),datasets:[{label:bizShortLbl(R.prev),data:ta.map(a=>Math.round(a.prev)),backgroundColor:'rgba(0,22,143,0.25)',borderRadius:3},{label:'MTD',data:ta.map(a=>Math.round(a.v)),backgroundColor:'rgba(0,22,143,0.85)',borderRadius:3}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}},scales:{y:{beginAtZero:true,ticks:{callback:v=>bizCompact(v)}}}}});
   const sp=R.specs;
-  mk('bzSpecs',{type:'bar',data:{labels:sp.map(s=>s.name),datasets:[{label:'MTD',data:sp.map(s=>Math.round(s.mtd)),backgroundColor:sp.map(s=>s.att==null?'rgba(0,22,143,0.6)':s.att>=100?'rgba(14,138,95,0.85)':s.att>=70?'rgba(0,22,143,0.85)':s.att>=40?'rgba(183,121,31,0.85)':'rgba(200,60,60,0.85)'),borderRadius:3},{label:'Target',data:sp.map(s=>Math.round(s.tgt||0)),backgroundColor:'rgba(0,0,0,0.12)',borderRadius:3}]},
+  mk('bzSpecs',{type:'bar',data:{labels:sp.map(s=>s.label),datasets:[{label:'MTD',data:sp.map(s=>Math.round(s.mtd)),backgroundColor:sp.map(s=>s.att==null?'rgba(0,22,143,0.6)':s.att>=100?'rgba(14,138,95,0.85)':s.att>=70?'rgba(0,22,143,0.85)':s.att>=40?'rgba(183,121,31,0.85)':'rgba(200,60,60,0.85)'),borderRadius:3},{label:'Target',data:sp.map(s=>Math.round(s.tgt||0)),backgroundColor:'rgba(0,0,0,0.12)',borderRadius:3}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}},scales:{x:{beginAtZero:true,ticks:{callback:v=>bizCompact(v)}}}}});}
 
 /* ── PowerPoint export ─────────────────────────────────────────────────────
@@ -517,7 +552,7 @@ function bizDeck(pptx,R,ctx){
   const dTone=(cur,pv)=>!(pv>0)?'':cur>=pv*1.05?'gr':cur<=pv*0.95?'rd':'am';
   const pctCell=p=>({text:pct(p),options:{bold:true,color:p==null?BZ.mut:p>=100?BZ.gr:p>=70?BZ.blue:p>=40?BZ.am:BZ.rd}});
   const dCell=(cur,pv)=>({text:bizDelta(cur,pv),options:{color:dTone(cur,pv)==='gr'?BZ.gr:dTone(cur,pv)==='rd'?BZ.rd:BZ.mut}});
-  const who=sec=>sec.startsWith('ps:')?sec.slice(3):'the sales manager';
+  const who=sec=>sec.startsWith('ps:')?specDisplay(sec.slice(3)):'the sales manager';
   const fitSize=(txt,base,w)=>{const n=String(txt||'').length*(5.6/w);return n>1400?Math.max(7,base-4):n>900?base-3:n>600?base-2:n>350?base-1:base;}; // chars per inch of width
   const noteSlide=(sec,ttl,hint)=>{const s=slide();title(s,ttl,hint);const cur=(notes[sec]||{}).body||'',pv=(prevNotes[sec]||{}).body;
     const hasPrev=!!prev;const changed=hasPrev&&(cur||'')!==(pv||'');
@@ -536,7 +571,7 @@ function bizDeck(pptx,R,ctx){
   /* ── cover ── */
   {const s=pptx.addSlide();s.background={color:BZ.blue};s.addShape(pptx.ShapeType.ellipse,{x:6.9,y:-2.4,w:5.2,h:5.2,fill:{color:BZ.blue2},line:{color:BZ.blue2}});
     T(s,'HEALTHSPAN HQ',{x:M,y:1.55,w:6,h:0.3,fontSize:12,color:'C8D6FF',charSpacing:2});
-    T(s,only?only.toUpperCase()+'\nSALES REVIEW':'MONTHLY SALES\nPERFORMANCE REPORT',{x:M,y:1.9,w:8,h:1.5,fontSize:34,bold:true,color:BZ.white,valign:'top'});
+    T(s,only?specDisplay(only).toUpperCase()+'\nSALES REVIEW':'MONTHLY SALES\nPERFORMANCE REPORT',{x:M,y:1.9,w:8,h:1.5,fontSize:34,bold:true,color:BZ.white,valign:'top'});
     T(s,R.label.toUpperCase(),{x:M,y:3.45,w:6,h:0.45,fontSize:20,color:'C8D6FF'});
     T(s,'Figures as of '+R.asOf+' · external sales only · generated by Healthspan HQ'+(prev?' · compared with the report saved '+(prev.asOf||''):''),{x:M,y:4.85,w:CW,h:0.3,fontSize:9.5,color:'C8D6FF'});
     s.addNotes('Generated by Healthspan HQ on '+R.generated.slice(0,16).replace('T',' ')+'. Every number comes from the Shopify cache, Targets, the visit log, account ownership and the serial register.');}
@@ -590,19 +625,19 @@ function bizDeck(pptx,R,ctx){
       s.addChart(pptx.ChartType.bar,[{name:'MTD',labels:top.map(p=>p.name.length>26?p.name.slice(0,25)+'…':p.name),values:top.map(p=>Math.round(p.v))}],
         Object.assign({x:6.55,y:1.1,w:2.95,h:4.0,barDir:'bar',showLegend:false,chartColors:[BZ.blue],showValue:true,dataLabelPosition:'outEnd',dataLabelFormatCode:'#,##0',dataLabelFontSize:7,dataLabelColor:BZ.mut,catAxisOrientation:'maxMin',valAxisHidden:true,valGridLine:{style:'none'}},chartAxis,{valAxisLabelFontSize:7,catAxisLabelFontSize:7}));}
     /* ── machines ── */
-    {const s=slide();title(s,'Machine sales & demo units','Equipment = any SKU in the serial register');
+    {const s=slide();title(s,'Machine sales & demo units','SkinPen devices, Axion, Mark-Vu, Symmed, Zionic, GTG platforms and anything in the serial register — consumables excluded');
       const tw=(CW-3*0.15)/4;[['Machine revenue',P(R.machines.rev),R.machines.units+' units',''],['Installs recorded',String(R.machines.installs),'serials marked sold this month',R.machines.installs?'gr':''],
         ['Demo units out',String(R.machines.loansOut),R.machines.onLoan+' on loan now · '+R.machines.converted+' converted','am'],['Equipment in stock',String(R.machines.inStock),R.machines.skus+' serialised SKUs','']].forEach((t,i)=>tile(s,M+i*(tw+0.15),1.1,tw,0.86,t[0],t[1],t[2],t[3]));
       tbl(s,['Machine','Units','MTD','Target','%'],R.machines.rows.slice(0,10).map(p=>[p.name,p.u.toLocaleString('en-PH'),P(p.v),p.tgt!=null?P(p.tgt):'—',pctCell(p.tgt!=null?bizPct(p.v,p.tgt):null)]).concat(R.machines.rows.length?[]:[[{text:'No machine sales this month',options:{color:BZ.mut,italic:true}},'','','','']]),{y:2.15,rowH:0.26,colW:[4.6,1.0,1.4,1.4,0.6]});}
     /* ── accounts monitoring ── */
     {const s=slide();title(s,'Accounts monitoring — per specialist','Masterlist = owned accounts + anyone who ordered under the tag in 6 months · Active = external order in 90 days · New = first order this month');
-      tbl(s,['Specialist','Masterlist','Active 90d','Ordered MTD','New MTD','Quiet 90d+','Contacts','Opened (CRM)'],R.specs.map(sp=>[sp.name,sp.masterlist,sp.active,sp.ordering,sp.newAccts.length,sp.quiet,sp.visits+sp.calls,sp.opened]),{y:1.1,rowH:Math.min(0.26,3.9/(R.specs.length+1)),fontSize:R.specs.length>12?7.5:8.5,colW:[2.1,1.05,1.05,1.05,1.05,1.05,0.85,0.8]});}
+      tbl(s,['Specialist','Masterlist','Active 90d','Ordered MTD','New MTD','Quiet 90d+','Contacts','Opened (CRM)'],R.specs.map(sp=>[sp.label+(sp.team?' · '+sp.team:''),sp.masterlist,sp.active,sp.ordering,sp.newAccts.length,sp.quiet,sp.visits+sp.calls,sp.opened]),{y:1.1,rowH:Math.min(0.26,3.9/(R.specs.length+1)),fontSize:R.specs.length>12?7.5:8.5,colW:[2.1,1.05,1.05,1.05,1.05,1.05,0.85,0.8]});}
     /* ── clients & buying ── */
     {const s=slide();title(s,'Clients & buying behaviour','Who bought, who came back, who is drifting — straight from the order index');const A=R.accounts;
       const tw=(CW-3*0.15)/4;[['Repeat vs new revenue',K(A.repeatRev)+' · '+K(A.newRev),pct(bizPct(A.newRev,R.total.mtd))+' from first orders',''],['Ordered 2+ times',String(A.reorderers),'of '+A.ordering+' ordering accounts','gr'],
         ['Bought 2+ brands',String(A.multiBrand),'cross-sell this month',''],['Deal share',pct(A.dealShare),K(A.dealRev)+' via deals · '+A.free+' free units','am']].forEach((t,i)=>tile(s,M+i*(tw+0.15),1.05,tw,0.86,t[0],t[1],t[2],t[3]));
       T(s,'TOP ACCOUNTS THIS MONTH',{x:M,y:2.05,w:5.5,h:0.2,fontSize:8,bold:true,color:BZ.mut,charSpacing:1});
-      tbl(s,['Account','MTD','vs '+bizShortLbl(R.prev),'Orders','Specialist'],A.top.slice(0,10).map(a=>[(a.isNew?'★ ':'')+(a.name.length>34?a.name.slice(0,33)+'…':a.name),P(a.v),dCell(a.v,a.prev),a.orders,a.spec||a.owner||'—']),{x:M,y:2.28,w:5.5,rowH:0.255,fontSize:7.5,colW:[2.45,0.95,0.6,0.5,1.0]});
+      tbl(s,['Account','MTD','vs '+bizShortLbl(R.prev),'Orders','Specialist'],A.top.slice(0,10).map(a=>[(a.isNew?'★ ':'')+(a.name.length>34?a.name.slice(0,33)+'…':a.name),P(a.v),dCell(a.v,a.prev),a.orders,specDisplay(a.spec||a.owner)||'—']),{x:M,y:2.28,w:5.5,rowH:0.255,fontSize:7.5,colW:[2.45,0.95,0.6,0.5,1.0]});
       T(s,'RISERS',{x:6.25,y:2.05,w:1.5,h:0.2,fontSize:8,bold:true,color:BZ.gr,charSpacing:1});T(s,'FALLERS',{x:6.25,y:3.62,w:1.5,h:0.2,fontSize:8,bold:true,color:BZ.rd,charSpacing:1});
       tbl(s,['Account','Δ vs '+bizShortLbl(R.prev)],A.risers.slice(0,5).map(m=>[m.name.length>26?m.name.slice(0,25)+'…':m.name,{text:'+'+P(m.d),options:{color:BZ.gr}}]),{x:6.25,y:2.28,w:3.25,rowH:0.21,fontSize:7.5,colW:[2.1,1.15]});
       tbl(s,['Account','Δ vs '+bizShortLbl(R.prev)],A.fallers.slice(0,5).map(m=>[m.name.length>26?m.name.slice(0,25)+'…':m.name,{text:'−'+P(-m.d),options:{color:BZ.rd}}]),{x:6.25,y:3.85,w:3.25,rowH:0.21,fontSize:7.5,colW:[2.1,1.15]});
@@ -612,12 +647,12 @@ function bizDeck(pptx,R,ctx){
     /* ── specialists overview ── */
     {const s=slide();title(s,'Specialists — attainment and pace','Pace = month-to-date ÷ share of the month elapsed, against the monthly target');
       const sp=R.specs.slice(0,14);
-      tbl(s,['Specialist','MTD','Target','%','Pace %','vs '+bizShortLbl(R.prev),'Orders','New','Contacts'],sp.map(x=>[x.name,P(x.mtd),x.tgt!=null?P(x.tgt):'—',pctCell(x.att),pctCell(x.projAtt),dCell(x.proj,x.prev),x.orders,x.newAccts.length,x.visits+x.calls]),{x:M,y:1.1,w:5.7,rowH:Math.min(0.26,4.0/(sp.length+1)),fontSize:sp.length>10?7:8,colW:[1.2,0.85,0.85,0.45,0.5,0.55,0.45,0.4,0.45]});
-      s.addChart(pptx.ChartType.bar,[{name:'MTD',labels:sp.map(x=>x.name),values:sp.map(x=>Math.round(x.mtd))},{name:'Target',labels:sp.map(x=>x.name),values:sp.map(x=>Math.round(x.tgt||0))}],
+      tbl(s,['Specialist','MTD','Target','%','Pace %','vs '+bizShortLbl(R.prev),'Orders','New','Contacts'],sp.map(x=>[x.label+(x.team?' · '+x.team:''),P(x.mtd),x.tgt!=null?P(x.tgt):'—',pctCell(x.att),pctCell(x.projAtt),dCell(x.proj,x.prev),x.orders,x.newAccts.length,x.visits+x.calls]),{x:M,y:1.1,w:5.7,rowH:Math.min(0.26,4.0/(sp.length+1)),fontSize:sp.length>10?7:8,colW:[1.2,0.85,0.85,0.45,0.5,0.55,0.45,0.4,0.45]});
+      s.addChart(pptx.ChartType.bar,[{name:'MTD',labels:sp.map(x=>x.label),values:sp.map(x=>Math.round(x.mtd))},{name:'Target',labels:sp.map(x=>x.label),values:sp.map(x=>Math.round(x.tgt||0))}],
         Object.assign({x:6.35,y:1.1,w:3.15,h:4.05,barDir:'bar',showLegend:true,chartColors:[BZ.blue,'C9D0E6'],catAxisOrientation:'maxMin'},chartAxis,{catAxisLabelFontSize:7,valAxisLabelFontSize:7}));}
   }
   /* ── one performance slide + one commentary slide per specialist ── */
-  for(const sp of specsOut){const s=slide();title(s,sp.name,(sp.tgt?pct(sp.att)+' of '+P(sp.tgt)+' target':'no target set')+(R.early?' · day '+R.day+' — too early to project':' · on pace for '+P(sp.proj)+' · '+bizDelta(sp.proj,sp.prev)+' vs '+bizShortLbl(R.prev)));
+  for(const sp of specsOut){const s=slide();title(s,sp.label+(sp.team?'  ·  '+sp.team:''),(sp.tgt?pct(sp.att)+' of '+P(sp.tgt)+' target':'no target set')+(R.early?' · day '+R.day+' — too early to project':' · on pace for '+P(sp.proj)+' · '+bizDelta(sp.proj,sp.prev)+' vs '+bizShortLbl(R.prev)));
     const tw=(CW-4*0.12)/5;[['MTD',P(sp.mtd),sp.tgt?pct(sp.att)+' of target':'no target',tone(sp.att,100)],R.early?['Pace','—','too early to project','']:['Pace',P(sp.proj),sp.tgt?pct(sp.projAtt)+' of target':'projected',tone(sp.projAtt,100)],
       R.early?['vs '+bizShortLbl(R.prev),'—',K(sp.prev)+' last month','']:['vs '+bizShortLbl(R.prev),bizDelta(sp.proj,sp.prev),K(sp.prev)+' last month',dTone(sp.proj,sp.prev)],['Accounts',sp.ordering+' / '+sp.masterlist,sp.newAccts.length+' new · '+sp.quiet+' quiet',sp.newAccts.length?'gr':''],
       ['Activity',String(sp.visits+sp.calls),sp.visits+' visits · '+sp.calls+' calls · '+sp.demos+' demos','']].forEach((t,i)=>tile(s,M+i*(tw+0.12),1.05,tw,0.86,t[0],t[1],t[2],t[3]));
@@ -630,14 +665,14 @@ function bizDeck(pptx,R,ctx){
     T(s,'HQ NOTES',{x:M,y:4.12,w:4.6,h:0.2,fontSize:8,bold:true,color:BZ.mut,charSpacing:1});
     bullets(s,(R.notesAuto[sp.name]||[]).slice(0,4),{x:M,y:4.32,w:4.6,h:0.9,fontSize:8,gap:2});
     s.addNotes((R.notesAuto[sp.name]||[]).join('\n'));
-    noteSlide('ps:'+sp.name,sp.name+' — commentary','Written by the specialist in HQ → Business review');}
+    noteSlide('ps:'+sp.name,sp.label+' — commentary','Written by the specialist in HQ → Business review');}
   if(!only){
     noteSlide('plan','Plan of action','Sales manager commentary');
     noteSlide('program','Sales programs & promos','Sales manager commentary');
     {const nextYm=bizYmAdd(R.ym,1);const s=slide();title(s,'Sales plan — '+bizMonthLbl(nextYm),'Next month\'s targets per specialist, from Targets');
-      tbl(s,['Specialist','This month target','MTD','Gap to target','Next month target'],R.specs.map(x=>[x.name,x.tgt!=null?P(x.tgt):'—',P(x.mtd),x.tgt!=null?P(Math.max(0,x.tgt-x.mtd)):'—',x.nextTgt!=null?P(x.nextTgt):{text:'not set',options:{color:BZ.mut,italic:true}}]),{y:1.1,rowH:Math.min(0.26,3.9/(R.specs.length+1)),fontSize:R.specs.length>12?7.5:8.5,colW:[2.4,1.65,1.65,1.65,1.65]});}
+      tbl(s,['Specialist','This month target','MTD','Gap to target','Next month target'],R.specs.map(x=>[x.label+(x.team?' · '+x.team:''),x.tgt!=null?P(x.tgt):'—',P(x.mtd),x.tgt!=null?P(Math.max(0,x.tgt-x.mtd)):'—',x.nextTgt!=null?P(x.nextTgt):{text:'not set',options:{color:BZ.mut,italic:true}}]),{y:1.1,rowH:Math.min(0.26,3.9/(R.specs.length+1)),fontSize:R.specs.length>12?7.5:8.5,colW:[2.4,1.65,1.65,1.65,1.65]});}
     noteSlide('forecast','Sales plan notes','Sales manager commentary');
     {const s=pptx.addSlide();s.background={color:BZ.blue};T(s,'THANK YOU',{x:M,y:1.6,w:CW,h:0.8,fontSize:34,bold:true,color:BZ.white});
       T(s,'Next presenters',{x:M,y:2.6,w:CW,h:0.3,fontSize:12,color:'C8D6FF'});
-      T(s,R.specs.map(x=>x.name).join('   ·   ')||'—',{x:M,y:2.95,w:CW,h:1.4,fontSize:13,color:BZ.white,valign:'top',fit:'shrink'});}}
+      T(s,(R.teams.length>1?R.teams.map(t=>(t||'Others')+': '+R.specs.filter(x=>(x.team||'')===t).map(x=>x.label).join(', ')).join('\n'):R.specs.map(x=>x.label).join('   ·   '))||'—',{x:M,y:2.95,w:CW,h:1.4,fontSize:13,color:BZ.white,valign:'top',fit:'shrink'});}}
   return pptx;}

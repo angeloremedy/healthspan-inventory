@@ -67,6 +67,27 @@ async function loadShopify(){
     }
   }catch(e){}
 }
+/* ── Brand + equipment inference for SKUs that are not on Verna's sheet ──────
+   Mesoestetic, Termosalud (Symmed / Zionic), Mark-Vu and the SkinPen device
+   packages live only in Shopify, so the sheet cannot give them a line. Titles
+   can. Equipment = a machine that gets a serial number, not its consumables. */
+const LINE_RULES=[
+  [/mesoestetic|cosmelan|mesopeel|c\.?\s?prof\b|x\.?\s?prof\b|mesoprotech|\bmelan\b|tran3x|axion|mesoxome|dutexome|\baox\b|tricology|hydra[- ]?vital|post[- _]?peel|crystal fiber|mesostabyl|venofresh|brightening foam|anti[- ]?stress mask|fast skin repair|skin balance|gluta?thione|gummies|water veil|l-carnitine|blemiskin|azelan|retiflash|jessner|mandelic|salicylic|melanoplus|melanostop|depigmentation solution|lipolytic|skinmark|eyecon|global aging|mesohyal|\bmeso\b/i,'Mesoestetic'],
+  [/symmed/i,'Symmed'],[/zionic/i,'Zionic'],[/termosalud|eneka|in[üu]o\b/i,'Termosalud'],
+  [/mark[- ]?vu|psi\s?plus/i,'Mark-Vu'],
+  [/biojuve/i,'BioJuve'],
+  [/skin\s?pen|\bsp\b|treatment kit|lift hg|biocellulose|bv intl/i,'SKINPEN'],
+  [/meline/i,'Meline'],[/inno|\btds\b|epigen|exo-?skin|bi-?dens|face nade|firming/i,'Inno (Shopify)'],
+];
+function inferLine(title,sku){const t=String(title||'')+' '+String(sku||'');for(const [re,line] of LINE_RULES)if(re.test(t))return line;return null;}
+const EQUIP_RE=/device|machine|laser|analy[sz]er|\bsystem\b|hand\s?piece|mark[- ]?vu|zionic|symmed|eneka|in[üu]o\b|axion|skin\s?pen.*(package|standard|device|precision)|package.*skin\s?pen|investa|inthera|inpure|macuray|s-co2|\b[rs]7\b/i;
+const EQUIP_NOT=/cartridge|\btips?\b|\bkit\b|cream|solution|sheath|\bcarts?\b|needle|consumable|catalogue|\bgel\b|mask|pins?\b|box\b|bag|pen holder|lanyard|mirror|notebook|mug|folder|manual|training|cover|refill|serum|cleanser|foam|spray|caps\b|lotion/i;
+function isEquipment(sku,name,line,category){
+  const t=String(name||'')+' '+String(sku||'');
+  if(/machine|equipment|device/i.test(String(category||'')))return true;
+  if(EQUIP_NOT.test(t))return false;
+  if(String(line||'')==='GTG')return true;               // Remedy's lasers and platforms (consumables already excluded above)
+  return EQUIP_RE.test(t);}
 function mergeShopify(){
   if(!SHOPIFY||!SHOPIFY.variants||!DATA.length)return;
   const isNew=SHOPIFY.v>=2;
@@ -103,7 +124,7 @@ function mergeShopify(){
     }
     const S=SALESIDX[base]||(SALESIDX[base]={main:null,bundles:[],monthly:{},daily:{},bmonthly:{},bdaily:{},
       imonthly:{},idaily:{},ibmonthly:{},ibdaily:{}});
-    if(isPseudo){S.pseudo=true;S.name=(v.productTitle||v.sku);S.line='SHOPIFY ONLY';}
+    if(isPseudo){S.pseudo=true;S.name=(v.productTitle||v.sku);S.line=inferLine(v.productTitle,v.sku)||'SHOPIFY ONLY';}
     if(isBundle)S.bundles.push(v);else S.main=v;
     // base lines → monthly/daily (units + revenue); bundle lines → bmonthly/bdaily (deal revenue only)
     const addAgg=(dst,src)=>{for(const k in (src||{})){const c=src[k];const d=dst[k]||(dst[k]={u:0,f:0,v:0,d:0,dv:0});

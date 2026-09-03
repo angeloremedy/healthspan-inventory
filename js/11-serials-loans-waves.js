@@ -375,7 +375,7 @@ async function renderCrmStats(){
     '</div>'+
     '<div class="panel" style="padding:14px 16px;margin-bottom:14px"><div class="phd">Visits + calls per week — all specialists (13 weeks)</div><div class="cw" style="height:180px"><canvas id="crmWk"></canvas></div></div>'+
     (rows.length?'<div class="tcard"><div class="tscroll"><table><thead><tr><th>Specialist</th><th style="text-align:right">Visits</th><th style="text-align:right">Calls</th><th style="text-align:right">Demos</th><th style="text-align:right">Total contacts</th><th style="text-align:right">Active days</th><th style="text-align:right">Contacts/day</th><th style="text-align:right">Accounts touched</th><th style="text-align:right">→ Ordered</th><th style="text-align:right">Follow-ups opened</th></tr></thead><tbody>'+
-      rows.map(r=>'<tr onclick="openSpecDrawer(\''+jsq(r.n)+'\')" style="cursor:pointer"><td style="font-weight:700">'+esc(r.n)+'</td>'+
+      rows.map(r=>'<tr onclick="openSpecDrawer(\''+jsq(r.n)+'\')" style="cursor:pointer"><td style="font-weight:700">'+esc(specDisplay(r.n))+'</td>'+
         '<td class="r" style="font-weight:600">'+r.visits+'</td><td class="r">'+r.calls+'</td><td class="r">'+(r.demos||'—')+'</td>'+
         '<td class="r" style="font-weight:700">'+r.tot+'</td><td class="r mu">'+r.days+'</td><td class="r">'+r.perDay.toFixed(1)+'</td>'+
         '<td class="r">'+r.accts+'</td><td class="r" style="font-weight:600;color:'+(r.hit>=30?'var(--gr)':r.hit>=15?'var(--am)':'var(--tx)')+'">'+r.ordered+' ('+r.hit.toFixed(0)+'%)</td>'+

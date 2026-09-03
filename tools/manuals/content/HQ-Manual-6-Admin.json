@@ -787,6 +787,11 @@
    "v": "Windows: revenue and targets reach back 13 months; orders, accounts and buying behaviour as far as the order index (about six months — older months blank those sections and say so); the visit log 120 days. In the first three days of a month nothing is projected."
   },
   {
+   "t": "step",
+   "n": "7",
+   "v": "Names on the review come from each person’s HQ account, not the Shopify tag; the roster is the accounts that carry a specialist tag. Set each specialist’s <b>Team</b> in Team &amp; access (edit → Team) and the review groups by it. Revenue under a tag that is not an account is flagged with its amount so the orders can be re-tagged."
+  },
+  {
    "t": "callout",
    "v": "PERMISSIONS — Save snapshot and Export PowerPoint are manager and admin. Specialists see everything, edit only their own box, and export only their own slides.",
    "c": "#0E8A5F"

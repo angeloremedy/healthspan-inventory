@@ -2512,3 +2512,35 @@ drop policy if exists "review_snapshots delete super" on public.review_snapshots
 create policy "review_snapshots delete super" on public.review_snapshots for delete to authenticated
   using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_super));
 ```
+
+## Specialist directory — one name per person, app-wide (Sep 3)
+
+```sql
+-- ── SPECIALIST DIRECTORY ────────────────────────────────────────────────────
+-- The Shopify order tag is the join key, but the name people SEE should be the
+-- one on the HQ account. profiles is read-own-row only, so this SECURITY DEFINER
+-- function exposes just tag → name → team → active for accounts that carry a
+-- specialist tag. Nothing else about the profile leaves the table.
+alter table public.profiles add column if not exists team text;   -- Team 1 / Team 2 / Key accounts (Business review grouping)
+
+create or replace function public.spec_directory()
+returns table (tag text, name text, team text, active boolean)
+language sql security definer stable
+set search_path = public
+as $$
+  select p.specialist_tag, p.name, p.team,
+         (u.banned_until is null or u.banned_until < now()) as active
+  from public.profiles p
+  join auth.users u on u.id = p.id
+  where p.specialist_tag is not null and btrim(p.specialist_tag) <> ''
+$$;
+revoke all on function public.spec_directory() from public;
+grant execute on function public.spec_directory() to authenticated;
+```
+
+After running it, open **Team & access** and set each specialist's **Team**
+(edit → Team). Business-review slides and tables group by it; the presenter
+list on the closing slide too. A tag that appears in Shopify orders but on no
+HQ account shows up on the Business review as "sits under Shopify tags that are
+not a specialist account" with the amount — fix the order tag or create the
+account.

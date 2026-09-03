@@ -767,6 +767,11 @@
    "v": "Windows: revenue and targets reach back 13 months; orders, accounts and buying behaviour as far as the order index (about six months — older months blank those sections and say so); the visit log 120 days. In the first three days of a month nothing is projected."
   },
   {
+   "t": "step",
+   "n": "7",
+   "v": "Names on the review come from each person’s HQ account, and the review groups by the Team set on the account. Revenue under a Shopify tag that is not an account (a territory, “Vacant”) is flagged with its amount — ask for those orders to be re-tagged."
+  },
+  {
    "t": "callout",
    "v": "BEFORE THE MEETING — open the month, read What HQ noticed, fill the six boxes (or Draft with AI and edit), check each specialist has written theirs, Save snapshot, Export PowerPoint. The deck is the page.",
    "c": "#0E8A5F"

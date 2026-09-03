@@ -35,7 +35,7 @@ async function renderTargets(){
     '<div id="tg-msg" style="min-height:16px;font-size:12px;margin-bottom:8px"></div>'+
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Specialist</th><th style="text-align:right">Target for '+ym+' (₱)</th><th style="text-align:right">Currently in effect</th><th style="text-align:right">Last month</th><th></th></tr></thead><tbody>'+
     specs.map(s=>{const m=mine(s),sh=sheet(s);
-      return '<tr><td style="font-weight:600">'+esc(s)+'</td>'+
+      return '<tr><td style="font-weight:600">'+esc(specDisplay(s))+(specDisplay(s)!==s?'<div class="mu" style="font-size:10px">tag: '+esc(s)+'</div>':'')+'</td>'+
       '<td class="r"><input class="tg-in" data-spec="'+esc(s)+'" type="number" min="0" step="1000" value="'+(m?m.amount:'')+'" placeholder="'+(sh!=null?sh:'—')+'" '+inp+'></td>'+
       '<td class="r">'+(m?'<b>'+fmtPeso(m.amount)+'</b> <span class="pill pgr" style="font-size:9px">set here</span>':sh!=null?fmtPeso(sh)+' <span class="pill pgy" style="font-size:9px">sheet</span>':'<span class="mu">none</span>')+'</td>'+
       '<td class="r mu">'+(prevOf(s)!=null?fmtPeso(prevOf(s)):'—')+'</td>'+

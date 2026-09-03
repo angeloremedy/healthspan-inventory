@@ -87,13 +87,14 @@ export const handler = async (event) => {
   try {
     if (act === 'list') {
       const users = await svc('/auth/v1/admin/users?per_page=200');
-      const profs = await svc('/rest/v1/profiles?select=id,name,role,specialist_tag,is_super,can_manage_ps');
+      const profs = await svc('/rest/v1/profiles?select=id,name,role,specialist_tag,is_super,can_manage_ps,team');
       const pm = {}; for (const x of (profs || [])) pm[x.id] = x;
       const list = ((users && users.users) || []).map(u => ({
         id: u.id, email: u.email,
         name: (pm[u.id] && pm[u.id].name) || '',
         role: (pm[u.id] && pm[u.id].role) || '(no profile)',
         tag: (pm[u.id] && pm[u.id].specialist_tag) || '',
+        team: (pm[u.id] && pm[u.id].team) || '',
         is_super: !!(pm[u.id] && pm[u.id].is_super),
         ps: !!(pm[u.id] && pm[u.id].can_manage_ps),
         last: u.last_sign_in_at || '',
@@ -102,20 +103,21 @@ export const handler = async (event) => {
       return out(200, { users: list });
     }
     if (act === 'create') {
-      const { email, password, name, role, tag } = p;
+      const { email, password, name, role, tag, team } = p;
       if (!email || !password || !name || !['admin','manager','sales','supply_chain','finance','marketing','viewer'].includes(role)) return out(400, { error: 'Need email, password, name, role' });
       if (password.length < 8) return out(400, { error: 'Password must be 8+ characters' });
       const u = await svc('/auth/v1/admin/users', 'POST', { email, password, email_confirm: true });
       // can_manage_ps (the "IT" role): admin callers only; scoped callers can never grant it
       const ps = !callerScoped && role === 'viewer' && !!p.can_manage_ps;
-      await svc('/rest/v1/profiles', 'POST', { id: u.id, name, role, specialist_tag: tag || null, can_manage_ps: ps });
+      await svc('/rest/v1/profiles', 'POST', { id: u.id, name, role, specialist_tag: tag || null, can_manage_ps: ps, team: (tag && team) ? String(team).trim() : null });
       await log('user.create', { email, name, role, tag: tag || '' });
       return out(200, { ok: true, id: u.id });
     }
     if (act === 'update') {
-      const { id, name, role, tag } = p;
+      const { id, name, role, tag, team } = p;
       if (!id) return out(400, { error: 'Need id' });
       const patch = {};
+      if (team !== undefined) patch.team = String(team || '').trim() || null;
       if (name != null) patch.name = name;
       if (role != null) { if (!['admin','manager','sales','supply_chain','finance','marketing','viewer'].includes(role)) return out(400, { error: 'Bad role' }); patch.role = role; }
       if (tag !== undefined) patch.specialist_tag = tag || null;

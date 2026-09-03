@@ -243,7 +243,7 @@ async function renderScorecards(){
     (rows.length?rows.map(r=>{
       const n=r.note||{};
       return '<div class="panel" style="padding:16px;margin-bottom:12px">'+
-      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px"><b style="font-size:15px"><a href="#" onclick="showSpecPage(\''+jsq(r.name)+'\');return false" style="color:var(--tx);text-decoration:none">'+esc(r.name)+'</a></b>'+dPill(r.rev,r.prev)+'<span style="flex:1"></span>'+
+      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px"><b style="font-size:15px"><a href="#" onclick="showSpecPage(\''+jsq(r.name)+'\');return false" style="color:var(--tx);text-decoration:none">'+esc(specDisplay(r.name))+'</a></b>'+dPill(r.rev,r.prev)+'<span style="flex:1"></span>'+
       (r.att!=null?'<span class="pill '+(r.att>=100?'pgr':r.att>=80?'':'prd')+'" style="'+(r.att<100&&r.att>=80?'background:var(--am-bg);color:var(--am)':'')+'">'+r.att.toFixed(0)+'% of target</span>':'<span class="pill pgy">no target set</span>')+'</div>'+
       '<div class="metrics" style="margin-bottom:10px">'+
       '<div class="met gr"><div class="met-lbl">Booked</div><div class="met-val" style="font-size:14px">'+fmtPeso(r.rev)+'</div><div class="met-sub">'+(r.T?'target '+fmtPeso(r.T):'—')+'</div><div class="met-bar"></div></div>'+
@@ -1141,7 +1141,7 @@ function renderSalesPace(){
     '</div>'+
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th></th><th>Specialist</th><th style="text-align:right">MTD booked</th><th style="text-align:right">Target</th><th style="text-align:right">Now at</th><th style="text-align:right">Projected finish</th><th style="text-align:right">Pace</th><th style="text-align:right">Visits MTD</th></tr></thead><tbody>'+
     rows.map((r,i)=>'<tr onclick="showSpecPage(\''+jsq(r.name)+'\')" style="cursor:pointer'+(i<3?';font-weight:600':'')+'">'+
-      '<td style="font-size:15px">'+medal(i)+'</td><td>'+esc(r.name)+'</td>'+
+      '<td style="font-size:15px">'+medal(i)+'</td><td>'+esc(specDisplay(r.name))+'</td>'+
       '<td class="r" style="font-weight:700">'+fmtPeso(r.mtd)+'</td>'+
       '<td class="r mu">'+(r.T!=null?fmtPeso(r.T):'—')+'</td>'+
       '<td class="r">'+(r.cur!=null?r.cur.toFixed(0)+'%':'—')+'</td>'+

@@ -46,11 +46,15 @@ SHOPIFY={v:9,internalSplit:true,synced:new Date().toISOString(),recentFrom:F.d20
             {sku:'TD040 - AGF',productTitle:'FACE NADE 4+1',monthly:{[ym]:M(0,40000)},imonthly:{},daily:{},idaily:{}},
             {sku:'ME0001',productTitle:'MELINE',monthly:{[pym]:M(10,20000),[ym]:M(2,4000)},imonthly:{},daily:{},idaily:{}},
             {sku:'SP001',productTitle:'SKINPEN',monthly:{[ym]:M(1,150000)},imonthly:{},daily:{},idaily:{}},
-            {sku:'CS001',productTitle:'COSMELAN',monthly:{[pym]:M(3,60000)},imonthly:{},daily:{},idaily:{}}],
+            {sku:'CS001',productTitle:'COSMELAN',monthly:{[pym]:M(3,60000)},imonthly:{},daily:{},idaily:{}},
+            {sku:'MV-001',productTitle:'Mark-Vu - Cash Payment',monthly:{[ym]:M(1,650000)},imonthly:{},daily:{},idaily:{}},
+            {sku:'AX-CART',productTitle:'Axion Box Cartridge 18 Pins (x10 pins)',monthly:{[ym]:M(2,8960)},imonthly:{},daily:{},idaily:{}},
+            {sku:'MP-AZ',productTitle:'Mesopeel Md Azelan Rx 50ml',monthly:{[ym]:M(3,30600)},imonthly:{},daily:{},idaily:{}}],
   specialists:{Rhas:{monthly:{[pym]:{u:20,v:150000},[ym]:{u:20,v:250000}},imonthly:{},daily:{},idaily:{},skus:{}},
                Tin:{monthly:{[ym]:{u:5,v:90000}},imonthly:{},daily:{},idaily:{},skus:{}},
                Abby:{monthly:{[pym]:{u:3,v:60000}},imonthly:{},daily:{},idaily:{},skus:{}},
-               'Remedy BGC':{monthly:{[ym]:{u:5,v:50000}},imonthly:{[ym]:{u:5,v:50000}},daily:{},idaily:{},skus:{}}},
+               'Remedy BGC':{monthly:{[ym]:{u:5,v:50000}},imonthly:{[ym]:{u:5,v:50000}},daily:{},idaily:{},skus:{}},
+               'GMA 2':{monthly:{[ym]:{u:1,v:12345}},imonthly:{},daily:{},idaily:{},skus:{}}},
   customers:{'Dr. Cruz Clinic':{o:6,u:60,v:600000,u90:40,v90:400000,l:F.today,io:0,iu:0,iv:0,iu90:0,iv90:0,int:false},
              'Skin Station':{o:1,u:5,v:90000,u90:5,v90:90000,l:F.today,io:0,iu:0,iv:0,iu90:0,iv90:0,int:false},
              'Old Clinic':{o:3,u:10,v:120000,u90:0,v90:0,l:F.d70,io:0,iu:0,iv:0,iu90:0,iv90:0,int:false},
@@ -67,7 +71,7 @@ SHOPIFY={v:9,internalSplit:true,synced:new Date().toISOString(),recentFrom:F.d20
           {n:'#8',dt:F.d70,t:'Abby',c:'Mixed Clinic',x:0,ls:[['TD040',4,40000]]},
           {n:'#9',dt:F.today,t:'Remedy BGC',c:'Mixed Clinic',x:1,ls:[['TD040',5,50000]]}]};
 mergeShopify();
-TARGETS=[{month:ym,scope:'LINE',name:'Inno TDS',value:500000},{month:ym,scope:'LINE',name:'SKINPEN',value:100000},
+TARGETS=[{month:ym,scope:'LINE',name:'INNOAESTHETICS',value:500000},{month:ym,scope:'LINE',name:'SKINPEN',value:100000},{month:ym,scope:'LINE',name:'MARK-VU',value:550000},{month:ym,scope:'LINE',name:'MESO',value:100000},
          {month:ym,scope:'SPECIALIST',name:'Rhas',value:300000},{month:F.nym,scope:'SPECIALIST',name:'Rhas',value:350000},
          {month:ym,scope:'SPECIALIST',name:'Tin',value:400000},{month:ym,scope:'SPECIALIST',name:'Kristine',value:100000},
          {month:ym,scope:'PRODUCT',name:'TD040',value:450000},{month:ym,scope:'PRODUCT',name:'Meline Int',value:8000}];
@@ -86,6 +90,8 @@ SERIALS=[{id:1,sku:'SP001',serial:'SP-1',status:'sold',sold_ref:'#3',updated_at:
 LOANS=[{id:1,serial_id:3,sku:'SP001',serial:'SP-3',account:'Derma Hub',out_date:ym+'-03',due_date:ym+'-20',status:'out',out_name:'Verna',updated_at:ym+'-03T10:00:00Z'},
        {id:2,serial_id:4,sku:'SP001',serial:'SP-4',account:'Remedy Vertis',out_date:ym+'-04',due_date:ym+'-20',status:'out',out_name:'Verna',updated_at:ym+'-04T10:00:00Z'}];
 loadSerials=async()=>SERIALS;loadLoans=async()=>LOANS;
+SPEC_DIR=[{tag:'Rhas',name:'Rhas Porciuncula',team:'Team 1',active:true},{tag:'Tin',name:'Tin Arcos',team:'Team 1',active:true},
+          {tag:'Abby',name:'Abigael Rodriguez',team:'Team 2',active:true},{tag:'Frank',name:'Frank Villaverde',team:'Team 2',active:true}];
 
 /* Supabase stub with the two new tables */
 const DB={review_commentary:[{month:ym,section:'wins',body:'Closed 2 SkinPens',updated_name:'Marj',updated_at:ym+'-01T00:00:00Z'}],review_snapshots:[]};
@@ -100,24 +106,31 @@ SB={from:t=>mkq(t),auth:{getSession:async()=>({data:{session:null}})}};
 
 /* ── numbers ── */
 const R=bizCompute(ym);
-const tds=R.brands.find(b=>b.name==='Inno TDS');
-ok('brand MTD is external, base + deal revenue', tds&&tds.mtd===300000-50000+40000, tds&&tds.mtd);
-ok('brand attainment vs LINE target', tds&&Math.round(tds.att)===58, tds&&tds.att);
-ok('brand prev month', tds&&tds.prev===200000, tds&&tds.prev);
-ok('SKINPEN attainment 150%', Math.round((R.brands.find(b=>b.name==='SKINPEN')||{}).att)===150);
-ok('total = sum of brands', R.total.mtd===290000+4000+150000, R.total.mtd);
-ok('total target falls back to the sum of brand targets', R.total.tgt===600000&&R.total.tgtSrc==='sum of brand targets', R.total.tgtSrc);
+const tds=R.brands.find(b=>b.name==='Innoaesthetics');
+ok('brand groups: Inno TDS + Meline roll up into Innoaesthetics', tds&&tds.lines.join()==='Inno TDS,Meline', tds&&tds.lines);
+ok('brand MTD is external, base + deal revenue', tds&&tds.mtd===300000-50000+40000+4000, tds&&tds.mtd);
+ok('brand attainment vs a LINE target named INNOAESTHETICS', tds&&Math.round(tds.att)===59, tds&&tds.att);
+ok('brand prev month', tds&&tds.prev===220000, tds&&tds.prev);
+ok('Shopify-only SKUs get a brand from the title', R.brands.some(b=>b.name==='Mesoestetic'&&b.mtd===39560)&&R.brands.some(b=>b.name==='Mark-Vu'&&b.mtd===650000), R.brands.map(b=>b.name+':'+b.mtd).join(' '));
+ok('loose target names: MESO / MARK-VU match', Math.round(R.brands.find(b=>b.name==='Mesoestetic').att)===40&&Math.round(R.brands.find(b=>b.name==='Mark-Vu').att)===118);
+ok('SkinPen attainment 150%', Math.round((R.brands.find(b=>b.name==='SkinPen')||{}).att)===150, (R.brands.find(b=>b.name==='SkinPen')||{}).att);
+ok('total = sum of brands', R.total.mtd===290000+4000+150000+650000+8960+30600, R.total.mtd);
+ok('total target falls back to the sum of brand targets', R.total.tgt===1250000&&R.total.tgtSrc==='sum of brand targets', R.total.tgtSrc);
 ok('projection scales by elapsed', Math.abs(R.total.proj-R.total.mtd/R.elapsed)<1);
 ok('QTD covers the quarter so far', R.total.qtd>=R.total.mtd);
 ok('13-month series', R.series.length===13&&R.series[12]===ym&&R.total.series[12]===R.total.mtd);
 const td=R.products.find(p=>p.sku==='TD040');
 ok('product row: units, deal revenue, PRODUCT target', td&&td.u===25&&td.deal===40000&&td.tgt===450000, JSON.stringify(td));
-ok('products sorted by revenue', R.products[0].sku==='TD040');
+ok('products sorted by revenue', R.products[0].sku==='MV-001');
 /* specialists */
 const names=R.specs.map(s=>s.name);
 ok('internal tag excluded from specialists', !names.some(n=>/remedy/i.test(n)), names);
-ok('Rhas, Tin, Abby present (Abby from prev month)', ['Rhas','Tin','Abby'].every(n=>names.includes(n)), names);
+ok('roster = the directory: Rhas, Tin, Abby, Frank — and nobody else', R.rosterSrc==='directory'&&names.slice().sort().join()==='Abby,Frank,Rhas,Tin', names);
+ok('sorted by team then revenue', R.specs.map(s=>s.name).join()==='Rhas,Tin,Abby,Frank'&&R.teams.join()==='Team 1,Team 2', R.specs.map(s=>s.name));
+ok('a territory tag with sales is flagged as unassigned, not a person', R.unassigned.v===12345&&R.unassigned.tags.join()==='GMA 2'&&!names.includes('GMA 2'), JSON.stringify(R.unassigned));
+ok('trend sentences use account names', R.trends.some(t=>/Rhas Porciuncula|Tin Arcos/.test(t.t)), R.trends.map(t=>t.t).join(' | '));
 const rh=R.specs.find(s=>s.name==='Rhas'),tin=R.specs.find(s=>s.name==='Tin');
+ok('names printed from the account', rh.label==='Rhas Porciuncula'&&tin.label==='Tin Arcos'&&rh.team==='Team 1'&&R.specs.find(s=>s.name==='Abby').team==='Team 2');
 ok('Rhas MTD from specialist buckets', rh.mtd===250000&&rh.tgt===300000&&Math.round(rh.att)===83, rh.mtd);
 ok('Rhas next-month target', rh.nextTgt===350000);
 ok('Rhas orders/accounts from the order index', rh.orders===2&&rh.ordering===1&&rh.topAccts[0].name==='Dr. Cruz Clinic'&&rh.topAccts[0].v===240000, JSON.stringify(rh.topAccts));
@@ -127,7 +140,7 @@ ok('Rhas top brand', rh.topLines[0].name==='Inno TDS');
 ok('Skin Station is Tin\\'s new account', tin.newAccts.length===1&&tin.newAccts[0]==='Skin Station', tin.newAccts);
 ok('Dr. Cruz is not new (older orders exist)', !rh.newAccts.length, rh.newAccts);
 ok('Tin prev-month visit not counted this month', tin.visits===0&&tin.calls===0);
-ok('specs sorted by MTD', R.specs[0].name==='Rhas');
+ok('Rhas first (Team 1, highest MTD)', R.specs[0].name==='Rhas');
 ok('a manager who logs a visit does not become a specialist', !names.includes('Marj'), names);
 ok('alias target rows count for the canonical specialist', tin.tgt===500000&&Math.round(tin.att)===18, tin.tgt);
 ok('PRODUCT target matches by name-contains like the Vs-target view', (R.products.find(p=>p.sku==='ME0001')||{}).tgt===8000);
@@ -148,18 +161,20 @@ ok('lapsed: Old Clinic 70 days (owner Rhas) and Mixed Clinic 70 days — its int
 ok('a visit to a Remedy branch is not a contact', rh.visits===2&&rh.ordered===1);
 ok('a demo unit at a Remedy branch is not a field demo', R.machines.loansOut===1&&R.machines.onLoan===1);
 ok('no Remedy anywhere in the report object', !/remedy|reemdy|healthspan/i.test(JSON.stringify(Object.assign({},R,{label:'',trends:R.trends.map(t=>t.t.replace(/Remedy|Healthspan/g,''))}))), (JSON.stringify(R).match(/[^"]{0,40}remedy[^"]{0,40}/i)||[''])[0]);
-ok('deal share', A.dealRev===40000&&Math.round(A.dealShare)===9, A.dealShare);
+ok('deal share', A.dealRev===40000&&Math.round(A.dealShare)===4, A.dealShare);
 /* machines */
-ok('equipment = serialised SKUs', R.machines.skus===1&&R.products.find(p=>p.sku==='SP001').equip&&!td.equip);
-ok('installs / loans this month', R.machines.installs===1&&R.machines.loansOut===1&&R.machines.onLoan===1&&R.machines.inStock===1&&R.machines.rev===150000, JSON.stringify(R.machines));
+ok('equipment = serialised SKUs + machines recognised from the title, never cartridges', R.products.find(p=>p.sku==='SP001').equip&&R.products.find(p=>p.sku==='MV-001').equip&&!R.products.find(p=>p.sku==='AX-CART').equip&&!R.products.find(p=>p.sku==='MP-AZ').equip&&!td.equip, R.products.filter(p=>p.equip).map(p=>p.sku));
+ok('a lone machine inherits its brand target', R.products.find(p=>p.sku==='MV-001').tgt===550000&&R.products.find(p=>p.sku==='MV-001').tgtFrom==='brand');
+ok('installs / loans this month', R.machines.installs===1&&R.machines.loansOut===1&&R.machines.onLoan===1&&R.machines.inStock===1&&R.machines.rev===800000&&R.machines.units===2, JSON.stringify(R.machines));
 /* trends */
 ok('trends generated', R.trends.length>=6&&R.trends.length<=12, R.trends.length);
-ok('pace sentence first', /Month to date ₱444,000 is 74% of the ₱600,000 target/.test(R.trends[0].t), R.trends[0].t);
+ok('pace sentence first', /Month to date ₱1,133,560 is 91% of the ₱1,250,000 target/.test(R.trends[0].t), R.trends[0].t);
 ok('early-month guard matches the day', R.early===(R.day<4) && (R.early ? /too early to project/.test(R.trends[0].t) : /on this pace the month lands at/.test(R.trends[0].t)), R.day);
 ok('no projection sentences in the first three days', !R.early || !R.trends.some(t=>/Projected month is|is tracking|on pace to hit/.test(t.t)));
 ok('new-account sentence names Skin Station', R.trends.some(t=>/first order this month worth ₱154,000: Skin Station/.test(t.t)));
 ok('lapsed sentence', R.trends.some(t=>/gone quiet for 45–120 days.*Old Clinic \\(70d\\)/.test(t.t)));
-ok('brand leader sentence', R.trends.some(t=>/SKINPEN leads on attainment at 150%/.test(t.t)));
+ok('brand leader sentence', R.trends.some(t=>/SkinPen leads on attainment at 150%/.test(t.t)));
+ok('specialist leader sentence uses account names', R.trends.some(t=>/Rhas Porciuncula leads the month at ₱250,000 \\(83% of target\\); Tin Arcos next at ₱90,000/.test(t.t)), R.trends.map(t=>t.t).find(t=>/leads the month/.test(t)));
 ok('per-specialist auto notes', (R.notesAuto.Rhas||[]).length>=3&&/₱250,000 MTD is 83%/.test(R.notesAuto.Rhas[0]), (R.notesAuto.Rhas||[])[0]);
 ok('specialist note skips pace when early', !R.early || !/on pace for/.test(R.notesAuto.Rhas[0]));
 ok('specialist note mentions quiet accounts', /1 repeat accounts quiet/.test(R.notesAuto.Rhas.join(' ')));

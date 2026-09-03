@@ -239,6 +239,14 @@ fallback) the first time someone exports. Charts are native (`addChart`), colour
 are `#`-less hex, no option object is shared between `add*` calls, stacked charts
 carry no outside data labels — the pptxgenjs faults that corrupt a file.
 
+`inferLine(title,sku)` / `isEquipment()` live in js/01 next to `mergeShopify()`,
+which uses them for SKUs the sheet does not know — so Sales overview, Vs target
+and the review all agree on a Shopify-only SKU's brand. js/12 rolls raw lines into
+`BIZ_GROUPS` and matches Targets-tab names by normalised alias. The roster comes
+from `spec_directory()` (a SECURITY DEFINER function over profiles + auth.users,
+loaded into `SPEC_DIR` by js/02 `loadSpecDir()`); `specDisplay(tag)` and
+`specTeam(tag)` are the app-wide print helpers, and the tag stays the key.
+
 Snapshots store a slim copy of `R` (no product list) plus the commentary as it
 stood; the page compares numbers only against a snapshot of the same month and
 commentary against the newest earlier one. Projections are suppressed in the

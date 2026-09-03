@@ -521,6 +521,27 @@ real PowerPoint chart, every commentary a real text box, so Marj can still edit
 in PowerPoint. **Export my slides** gives a specialist their own three-slide
 deck for their part of the meeting.
 
+**Who is a specialist, and what they are called.** The roster is the HQ accounts
+that carry a specialist tag (`spec_directory()`), and every name printed — here,
+on Specialists, CRM activity, Scorecards, Leaderboard, Set targets and the
+specialist page title — is the name on that account, not the Shopify tag. Team &
+access has a **Team** field per specialist (Team 1 / Team 2 / Key accounts); the
+review groups and sorts by it and the closing slide lists presenters by team.
+Shopify tags that are not an account (territories, "Vacant", a manager's name) no
+longer become people: their revenue stays in the brand totals and the page says
+how much sits under which tags so the orders can be re-tagged.
+
+**Brands and machines.** The sheet's product lines roll up into the brands the
+meeting talks about (Innoaesthetics = Inno TDS + Inno Derma + Meline + …), and
+SKUs that exist only in Shopify — Mesoestetic, Mark-Vu, Symmed, Zionic, the
+SkinPen device packages — get their brand from the product title, so they are no
+longer "SHOPIFY ONLY" anywhere in the app. Targets-tab line names are matched
+loosely ("MESO", "MARK-VU", "SYMMED CONSUMBALES"). Machines are recognised from
+the title too (device / laser / analyzer / the known machine names), never
+cartridges, kits or tips; a lone machine inherits its brand's target. A machine
+paid outside Shopify is not in Shopify, so it is not in HQ until booked as an
+order.
+
 Windows to know: revenue and targets go back 13 months; orders, accounts and
 buying behaviour go back as far as the order index (about six months — the page
 says so and blanks those sections for older months); the visit log covers 120

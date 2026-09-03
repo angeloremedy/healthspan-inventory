@@ -285,16 +285,17 @@ async function renderUsers(){
   const lbl='style="font-size:10.5px;color:var(--tx3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin:8px 0 3px"';
   $('content').innerHTML=
     '<div class="g2" style="align-items:start;gap:14px">'+
-    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Tag</th><th>Last sign-in</th><th></th></tr></thead><tbody>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Tag</th><th>Team</th><th>Last sign-in</th><th></th></tr></thead><tbody>'+
     users.map(u=>'<tr'+(u.banned?' style="opacity:.5"':'')+'><td style="font-weight:600">'+esc(u.name||'—')+(u.is_super?' <span class="pill pbl">super</span>':'')+(u.banned?' <span class="pill prd">disabled</span>':'')+'</td>'+
       '<td class="mu" style="font-size:11.5px">'+esc(u.email)+'</td>'+
       '<td>'+(u.is_super?'<span class="pill pbl" style="font-weight:700">super admin</span>':u.role==='admin'?'<span class="pill pbl">admin</span>':u.role==='manager'?'<span class="pill" style="background:rgba(127,119,221,.15);color:var(--pu)">sales manager</span>':u.role==='sales'?'<span class="pill pgr">product specialist</span>':u.role==='viewer'&&u.ps?'<span class="pill pgy">IT · PS accounts</span>':['supply_chain','finance','marketing','viewer'].includes(u.role)?'<span class="pill pgy">'+esc(u.role.replace('_',' '))+'</span>':'<span class="pill prd">'+esc(u.role)+'</span>')+'</td>'+
       '<td class="mu">'+esc(u.tag||'—')+'</td>'+
+      '<td class="mu">'+esc(u.team||'—')+'</td>'+
       '<td class="mu" style="font-size:11px">'+(u.last?esc(u.last.slice(0,10)):'never')+'</td>'+
       '<td style="white-space:nowrap">'+
       ((u.is_super&&u.id!==(SBUSER&&SBUSER.id))||(psOnly&&u.role!=='sales')?'<span class="pill pbl" title="Outside your scope">'+(u.is_super?'🛡 protected':'—')+'</span>':
       psOnly?((u.banned?'<a href="#" onclick="userToggle(\''+u.id+'\',\'enable\');return false" style="color:var(--gr);font-size:11.5px">enable</a>':'<a href="#" onclick="userToggle(\''+u.id+'\',\'disable\');return false" style="color:var(--rd);font-size:11.5px">disable</a>')):
-      '<a href="#" onclick="userEdit(\''+u.id+'\',\''+jsq(u.name)+'\',\''+esc(u.role)+'\',\''+jsq(u.tag)+'\','+(u.ps?1:0)+');return false" style="color:var(--ac);font-size:11.5px">edit</a> · '+
+      '<a href="#" onclick="userEdit(\''+u.id+'\',\''+jsq(u.name)+'\',\''+esc(u.role)+'\',\''+jsq(u.tag)+'\','+(u.ps?1:0)+',\''+jsq(u.team||'')+'\');return false" style="color:var(--ac);font-size:11.5px">edit</a> · '+
       '<a href="#" onclick="userPass(\''+u.id+'\',\''+jsq(u.name||u.email)+'\');return false" style="color:var(--ac);font-size:11.5px">password</a> · '+
       (isSuper()&&u.id!==(SBUSER&&SBUSER.id)?'<a href="#" onclick="userDelete(\''+u.id+'\',\''+jsq(u.name||u.email)+'\');return false" style="color:var(--rd);font-size:11.5px;font-weight:700">delete</a> · ':'')+
       (u.banned?'<a href="#" onclick="userToggle(\''+u.id+'\',\'enable\');return false" style="color:var(--gr);font-size:11.5px">enable</a>':
@@ -307,7 +308,8 @@ async function renderUsers(){
     '<label '+lbl+'>Starter password (8+ chars)</label><input id="au-pass" '+inp+'>'+
     '<label '+lbl+'>Role</label><select id="au-role"'+(psOnly?' disabled':'')+' onchange="var t=$(\'au-tagwrap\');if(t)t.style.display=this.value===\'sales\'?\'block\':\'none\'" '+inp+'><option value="sales">Product specialist</option><option value="manager">Sales manager</option><option value="supply_chain">Supply chain — warehouse, POs, receiving</option><option value="finance">Finance — AR, payments, PDCs, costs</option><option value="marketing">Marketing — campaigns + circle read</option><option value="viewer">Viewer — read-only, no writes</option><option value="it">IT — viewer + manage specialist accounts</option><option value="admin">Admin — everything</option></select>'+
     '<div id="au-tagwrap"><label '+lbl+'>Specialist tag <span style="text-transform:none;font-weight:400">(blank = manager, sees all)</span></label><input id="au-tag" list="au-tags" '+inp+'>'+
-    '<datalist id="au-tags">'+specNames().map(s=>'<option value="'+esc(s)+'">').join('')+'</datalist></div>'+
+    '<datalist id="au-tags">'+specNames().map(s=>'<option value="'+esc(s)+'">').join('')+'</datalist>'+
+    '<label '+lbl+'>Team <span style="text-transform:none;font-weight:400">(Business review grouping — Team 1 / Team 2 / Key accounts)</span></label><input id="au-team" list="au-teams" '+inp+'><datalist id="au-teams"><option value="Team 1"><option value="Team 2"><option value="Key accounts"></datalist></div>'+
     '<div id="au-msg" style="min-height:16px;font-size:11.5px;margin:8px 0 4px"></div>'+
     '<button onclick="userCreate()" style="width:100%;background:var(--ac);color:#fff;border:none;border-radius:8px;padding:11px;font-size:13px;font-weight:600;cursor:pointer">Create account</button>'+
     '<div style="font-size:10.5px;color:var(--tx3);margin-top:10px">Send them the starter password privately — they can change it in-app via the “password” link in their sidebar.</div>'+
@@ -317,17 +319,18 @@ async function userCreate(){
   const g=id=>($(id)&&$(id).value||'').trim();const msg=$('au-msg');
   try{
     const rv=g('au-role');
-    await adminUsers('create',{email:g('au-email'),password:g('au-pass'),name:g('au-name'),role:rv==='it'?'viewer':rv,can_manage_ps:rv==='it',tag:rv==='sales'?g('au-tag'):''});
+    await adminUsers('create',{email:g('au-email'),password:g('au-pass'),name:g('au-name'),role:rv==='it'?'viewer':rv,can_manage_ps:rv==='it',tag:rv==='sales'?g('au-tag'):'',team:rv==='sales'?g('au-team'):''});
     renderUsers();
   }catch(e){if(msg){msg.style.color='var(--rd)';msg.textContent=e.message;}}
 }
-async function userEdit(id,name,role,tag,ps){
+async function userEdit(id,name,role,tag,ps,team){
   const nn=prompt('Name:',name);if(nn===null)return;
   let nr=prompt('Role (admin / manager / sales / supply_chain / finance / marketing / viewer / it):',ps?'it':(role==='(no profile)'?'sales':role));if(nr===null)return;
   nr=nr.trim().toLowerCase();
   const nt=nr==='sales'?prompt('Specialist tag (blank = manager, sees all):',tag||''):'';
   if(nt===null)return;
-  try{await adminUsers('update',{id,name:nn.trim(),role:nr==='it'?'viewer':nr,can_manage_ps:nr==='it',tag:(nt||'').trim()});renderUsers();}
+  let tm='';if(nr==='sales'&&(nt||'').trim()){tm=prompt('Team (as printed on the Business review, e.g. Team 1 / Team 2 / Key accounts — blank = none):',team||'');if(tm===null)return;}
+  try{await adminUsers('update',{id,name:nn.trim(),role:nr==='it'?'viewer':nr,can_manage_ps:nr==='it',tag:(nt||'').trim(),team:(tm||'').trim()});renderUsers();}
   catch(e){alert(e.message);}
 }
 async function userPass(id,who){
@@ -468,7 +471,7 @@ function showSpecPage(name){
   CUR_SPEC=specCanon(String(name||'').trim());
   currentView='spec';
   pushRoute('#/s/'+encodeURIComponent(CUR_SPEC));
-  $('ptitle').textContent=CUR_SPEC;
+  $('ptitle').textContent=specDisplay(CUR_SPEC);
   renderSpecPage();
   injectDesc('spec');
 }
@@ -737,7 +740,7 @@ function renderSalesField(){
     '<div class="met am"><div class="met-lbl">Not reached</div><div class="met-val">'+F.notVisited.length+'</div><div class="met-sub">accounts with no booking '+spLbl()+'</div><div class="met-bar"></div></div>'+
     '</div>'+
     '<div class="tcard" style="margin-bottom:14px"><div class="tscroll"><table><thead><tr><th>Specialist</th><th style="text-align:right">Orders</th><th style="text-align:right">Visits logged</th><th style="text-align:right">Active days</th><th style="text-align:right">Contacts/day</th><th style="text-align:right">Accounts reached</th><th style="text-align:right">Their universe</th><th style="min-width:120px">Coverage</th><th style="text-align:right">Free/sample u</th><th style="text-align:right">Booked ₱</th></tr></thead><tbody>'+
-    F.rows.map(r=>'<tr onclick="openSpecDrawer(\''+jsq(r.n)+'\')" style="cursor:pointer"><td style="font-weight:600">'+esc(r.n)+'</td>'+
+    F.rows.map(r=>'<tr onclick="openSpecDrawer(\''+jsq(r.n)+'\')" style="cursor:pointer"><td style="font-weight:600">'+esc(specDisplay(r.n))+'</td>'+
       '<td class="r">'+r.orders.toLocaleString()+'</td><td class="r" style="color:var(--bl);font-weight:600">'+(r.visits?r.visits.toLocaleString():'—')+'</td><td class="r mu">'+r.days+'</td><td class="r">'+((r.orders+r.visits)?r.perDay.toFixed(1):'—')+'</td>'+
       '<td class="r" style="font-weight:600">'+r.custs+'</td><td class="r mu">'+r.custs6+'</td><td>'+attBar(r.cov)+'</td>'+
       '<td class="r" style="color:var(--pu)">'+(r.free?r.free.toLocaleString():'—')+'</td><td class="r" style="font-weight:600">'+fmtPeso(r.rev)+'</td></tr>').join('')+

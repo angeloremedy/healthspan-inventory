@@ -427,6 +427,20 @@ function renderSalesTarget(){
 // Left side lowercase → canonical display name.
 const SPEC_ALIAS={'kristine':'Tin'};
 function specCanon(tag){const t=String(tag||'').trim();return SPEC_ALIAS[t.toLowerCase()]||t;}
+/* ── Specialist directory: the HQ accounts that carry a specialist tag ──────────
+   One name per person, app-wide, taken from their account (profiles.name) via the
+   spec_directory() function. The Shopify tag stays the join key; the directory only
+   decides what is PRINTED and who counts as a specialist in the Business review. */
+let SPEC_DIR=null;
+async function loadSpecDir(force){
+  if(SPEC_DIR&&!force)return SPEC_DIR;
+  SPEC_DIR=[];
+  if(SB&&SB.rpc){try{const {data,error}=await SB.rpc('spec_directory');if(!error&&Array.isArray(data))SPEC_DIR=data;}catch(e){}}
+  return SPEC_DIR;}
+function specDirRow(tag){const k=specCanon(tag).toLowerCase(),raw=String(tag||'').trim().toLowerCase();
+  return (SPEC_DIR||[]).find(r=>{const t=String(r.tag||'').trim().toLowerCase();return t===k||t===raw||specCanon(t).toLowerCase()===k;})||null;}
+function specDisplay(tag){const r=specDirRow(tag);return (r&&r.name)?String(r.name).trim():specCanon(tag);}
+function specTeam(tag){const r=specDirRow(tag);return (r&&r.team)?String(r.team).trim():'';}
 // Merge specialist tags that differ only by case/spacing ("Rhas"/"RHAS") or known aliases (Kristine=Tin)
 function specMerged(){
   const specs=(SHOPIFY&&SHOPIFY.specialists)||{};
@@ -501,7 +515,7 @@ function openSpecDrawer(name){
     '<div style="font-size:10px;color:var(--tx3);margin-top:4px">external sales only — a target never counts Remedy or internal orders</div></div>':'';
   $('dbody').innerHTML=
     '<div class="dsku">PRODUCT SPECIALIST</div>'+
-    '<div class="dname">'+esc(name)+'</div>'+
+    '<div class="dname">'+esc(specDisplay(name))+'</div>'+
     '<div class="dstk" style="color:var(--gr)">'+fmtPeso(t.v)+'</div>'+
     '<div class="dsub">'+t.u.toLocaleString()+' units booked '+spLbl()+'</div>'+
     '<div class="dsec"><div class="dsectitle">This month (MTD)</div>'+
@@ -533,7 +547,7 @@ function renderSalesSpec(){
     '<div class="met am"><div class="met-lbl">Top specialist</div><div class="met-val" style="font-size:15px">'+(rows[0]?esc(rows[0].n):'—')+'</div><div class="met-sub">'+(rows[0]?fmtPeso(rows[0].v):'')+'</div><div class="met-bar"></div></div>'+
     '</div>'+
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>#</th><th>Specialist</th><th style="text-align:right">Units</th><th style="text-align:right">Revenue</th><th style="text-align:right">Share</th>'+(anyTg?'<th style="text-align:right">Target ('+ymNow+')</th><th style="min-width:130px">Attainment (MTD)</th>':'')+'</tr></thead><tbody>'+
-    rows.map((r,i)=>'<tr onclick="showSpecPage(\''+jsq(r.n)+'\')" style="cursor:pointer"><td class="mu">'+(i+1)+'</td><td style="font-weight:600">'+esc(r.n)+'</td>'+
+    rows.map((r,i)=>'<tr onclick="showSpecPage(\''+jsq(r.n)+'\')" style="cursor:pointer"><td class="mu">'+(i+1)+'</td><td style="font-weight:600">'+esc(specDisplay(r.n))+'</td>'+
       '<td class="r">'+r.u.toLocaleString()+'</td><td class="r" style="font-weight:600">'+fmtPeso(r.v)+'</td>'+
       '<td class="r mu">'+(totV>0?(r.v/totV*100).toFixed(1)+'%':'—')+'</td>'+
       (anyTg?('<td class="r mu">'+(r.tg&&r.tg.value>0?fmtPeso(r.tg.value):(r.tg&&r.tg.units>0?r.tg.units.toLocaleString()+' u':'—'))+'</td>'+
