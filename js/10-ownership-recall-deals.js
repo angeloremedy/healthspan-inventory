@@ -1711,13 +1711,15 @@ async function renderWhKpi(){
   const since30=new Date(Date.now()-30*864e5).toISOString();
   let ful=[],pend=[],boN=0,boAll=0,picks7=0;
   try{
-    const r1=await SB.from('orders').select('id,num,account,created_at,fulfilled_at,total').eq('source','native').eq('status','fulfilled').is('deleted_at',null).gte('fulfilled_at',since30).not('fulfilled_at','is',null).order('fulfilled_at',{ascending:false}).limit(500);
-    ful=r1.data||[];
-    const r2=await SB.from('orders').select('id,num,date,account').eq('source','native').eq('status','pending').is('deleted_at',null).order('date',{ascending:true}).limit(500);
-    pend=r2.data||[];
-    const b1=await SB.from('backorders').select('id',{count:'exact',head:true}).gte('created_at',since30);boAll=b1.count||0;
-    const b2=await SB.from('orders').select('id',{count:'exact',head:true}).eq('source','native').is('deleted_at',null).gte('created_at',since30);boN=b2.count||0;
-    const p7=await SB.from('stock_moves').select('qty').eq('kind','pick').gte('created_at',new Date(Date.now()-7*864e5).toISOString()).limit(2000);
+    // five independent aggregates — one wave, not five round trips in a row
+    const [r1,r2,b1,b2,p7]=await Promise.all([
+      SB.from('orders').select('id,num,account,created_at,fulfilled_at,total').eq('source','native').eq('status','fulfilled').is('deleted_at',null).gte('fulfilled_at',since30).not('fulfilled_at','is',null).order('fulfilled_at',{ascending:false}).limit(500),
+      SB.from('orders').select('id,num,date,account').eq('source','native').eq('status','pending').is('deleted_at',null).order('date',{ascending:true}).limit(500),
+      SB.from('backorders').select('id',{count:'exact',head:true}).gte('created_at',since30),
+      SB.from('orders').select('id',{count:'exact',head:true}).eq('source','native').is('deleted_at',null).gte('created_at',since30),
+      SB.from('stock_moves').select('qty').eq('kind','pick').gte('created_at',new Date(Date.now()-7*864e5).toISOString()).limit(2000)
+    ]);
+    ful=r1.data||[];pend=r2.data||[];boAll=b1.count||0;boN=b2.count||0;
     picks7=(p7.data||[]).reduce((a,r)=>a+Math.abs(r.qty||0),0);
   }catch(e){}
   const cyc=ful.filter(o=>o.created_at&&o.fulfilled_at).map(o=>(new Date(o.fulfilled_at)-new Date(o.created_at))/36e5).sort((a,b)=>a-b);
@@ -2283,33 +2285,36 @@ async function renderPullouts(cheap){
     return plPaint(window._PLROWS,window._PLLINES);
   }
   loadingHint();
-  await loadFunds(true);
-  try{await loadReservations();}catch(e){} // the Available column is meaningless without this
-  // the fund-source spend panel values lines at item-master cost; ITEMS is lazy,
-  // so prime it or finance would read a confident ₱0
-  if(roleIn('admin','finance')){try{await loadItems();}catch(e){}}
-  if(roleIn('admin')&&!window._PLUSERS){ // roster for the approver dropdowns
-    try{
-      const out=(typeof adminUsers==='function')?await adminUsers('list'):null;
-      let arr=(out&&(out.users||out.list))||out||[];
-      if(!Array.isArray(arr))arr=[];
-      // product specialists never approve spending — keep them out of the picker
-      window._PLUSERS=arr.filter(u=>u&&u.id&&u.role!=='sales')
-        .sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
-    }catch(e){window._PLUSERS=[];}
-  }
+  /* This page chained FIVE round trips — funds, reservations, items, the user
+     roster (a Netlify function, which can cold-start for seconds), then its own
+     data. None of them depends on another; they all go out at once now. */
+  const roster=(roleIn('admin')&&!window._PLUSERS&&typeof adminUsers==='function')
+    ?adminUsers('list').then(out=>{
+        let arr=(out&&(out.users||out.list))||out||[];
+        if(!Array.isArray(arr))arr=[];
+        // product specialists never approve spending — keep them out of the picker
+        window._PLUSERS=arr.filter(u=>u&&u.id&&u.role!=='sales')
+          .sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
+      }).catch(()=>{window._PLUSERS=[];})
+    :Promise.resolve();
   let rows=[],lines=[];
   try{
-    const [a,b]=await Promise.all([
-      SB.from('pullouts').select('*').order('id',{ascending:false}).limit(300),
-      SB.from('pullout_lines').select('*').limit(3000)
-    ]);
+    const [a,b,at]=(await Promise.all([
+      Promise.all([
+        SB.from('pullouts').select('*').order('id',{ascending:false}).limit(300),
+        SB.from('pullout_lines').select('*').limit(3000),
+        SB.from('attachments').select('*').eq('rec_type','pullout')
+      ]),
+      loadFunds(true),
+      loadReservations().catch(()=>{}),           // the Available column needs this
+      roleIn('admin','finance')?loadItems().catch(()=>{}):null, // spend panel costs
+      roster
+    ]))[0];
     if(a.error)throw a.error;if(b.error)throw b.error;
     rows=a.data||[];lines=b.data||[];
+    window._PLATT={};
+    for(const f of ((at&&at.data)||[]))(window._PLATT[f.rec_id]||(window._PLATT[f.rec_id]=[])).push(f);
   }catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Needs the pull-out SQL (SUPABASE-SETUP.md): '+esc(e.message||e)+'</div>';return;}
-  window._PLATT={};
-  try{const {data:at}=await SB.from('attachments').select('*').eq('rec_type','pullout');
-    for(const f of (at||[]))(window._PLATT[f.rec_id]||(window._PLATT[f.rec_id]=[])).push(f);}catch(e){}
   const byPl={};lines.forEach(l=>(byPl[l.pullout_id]||(byPl[l.pullout_id]=[])).push(l));
   window._PLROWS=rows;window._PLLINES=byPl; // the QBO export reads what is on screen
   plPaint(rows,byPl);
@@ -3221,7 +3226,12 @@ async function loadCodes(force){
   return CODES;
 }
 async function loadRoutes(force){
+  // force means "no older than 20s", not "refetch every paint": every finance
+  // page forced this, which is one full round trip per navigation for a table
+  // that changes a few times a year. Decisions still re-check at decide time.
+  if(ROUTES&&force&&(Date.now()-(window._routesAt||0))<20000)return ROUTES;
   if(ROUTES&&!force)return ROUTES;
+  window._routesAt=Date.now();
   ROUTES={};
   try{const {data}=await SB.from('approval_routes').select('*').eq('active',true).order('step');
     for(const r of (data||[]))(ROUTES[r.kind]||(ROUTES[r.kind]=[])).push(r);}catch(e){}
@@ -3305,10 +3315,13 @@ async function renderFinForm(kind,cheap){
   if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
   if(cheap&&window._FINROWS)return finPaint(kind,window._FINROWS,window._FINLINES,window._FINATT);
   loadingHint();
-  await loadFunds();await loadCodes();await loadRoutes(true); // routes change; don't serve a stale chain
+  /* ONE wave of requests, not a waterfall: funds, codes, routes and the page's
+     own data were awaited one after another — 4-5 round trips in series is why
+     these pages sat on "Loading…". Nothing below depends on anything else. */
   let rows=[],lines={},att={};
   try{
-    const [a,b,c]=await Promise.all([
+    const [,,,a,b,c]=await Promise.all([
+      loadFunds(),loadCodes(),loadRoutes(true),
       SB.from('fin_requests').select('*').eq('kind',kind).order('id',{ascending:false}).limit(300),
       SB.from('fin_lines').select('*').order('seq').limit(2000),
       SB.from('attachments').select('*').eq('rec_type',kind)

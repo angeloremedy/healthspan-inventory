@@ -193,6 +193,43 @@ function netMonthly(S,kind,force){
 /* One label, used everywhere a figure is shown, so the reader always knows which
    population they are looking at. */
 function sextLbl(){return (SEXT&&hasIntSplit())?'external only':'incl. Remedy & internal';}
+/* ── upgradeButtons: action links → buttons, everywhere, at render time.
+   The app draws row actions as <a href="#" onclick=…> hyperlinks. Instead of
+   rewriting ~120 template sites across eleven files (and every future one), a
+   MutationObserver upgrades them after each paint: class .abtn, a tone read from
+   the colour the link already carried, and the " · " separators removed.
+   Navigation links (account names, "Open … →", showView) stay links. */
+const ABTN_NAV=/^(showAccountPage|openAccountDrawer|showOrderPage|showView|homeGo|openDrawer|showSpecPage|openSalesDrawer|openCustDrawer|showPickSlip|showDeliveryReceipt|showStatement|attOpen|navBack|mmGo)\b/;
+function upgradeButtons(root){
+  root=root||document;
+  const as=root.querySelectorAll('a[href="#"][onclick]:not(.abtn):not(.lnk)');
+  for(const a of as){
+    const oc=a.getAttribute('onclick')||'';
+    if(ABTN_NAV.test(oc.trim()))continue;                       // it opens something: a link
+    const t=(a.textContent||'').trim();
+    if(!t||t.length>28||/[→←]/.test(t))continue;                // long or arrowed = prose link
+    if(a.closest('.tfooter,.viewdesc,.mu,.hm-lbl,#rolebadge'))continue; // footnotes stay footnotes
+    const st=a.getAttribute('style')||'';
+    const tone=/--gr\b/.test(st)?'t-gr':/--rd\b/.test(st)?'t-rd':/--am\b/.test(st)?'t-am':/--pu\b/.test(st)?'t-pu':/--bl\b/.test(st)?'t-bl':/--ac\b/.test(st)?'t-bl':'';
+    a.classList.add('abtn');if(tone)a.classList.add(tone);
+    // the inline colour/size/weight/underline made it a link; the class decides now
+    a.style.removeProperty('color');a.style.removeProperty('font-size');a.style.removeProperty('font-weight');a.style.removeProperty('text-decoration');
+    // drop the " · " / " | " dividers on either side
+    for(const side of ['previousSibling','nextSibling']){
+      const n=a[side];
+      if(n&&n.nodeType===3&&/^\s*[·|•]\s*$/.test(n.nodeValue))n.parentNode.removeChild(n);
+    }
+  }
+}
+(function(){
+  let t=null;
+  const run=()=>{t=null;try{upgradeButtons(document);}catch(e){}};
+  const kick=()=>{if(!t)t=setTimeout(run,0);};       // coalesce a render's many mutations into one pass
+  try{
+    new MutationObserver(kick).observe(document.documentElement,{childList:true,subtree:true});
+  }catch(e){}
+  kick();
+})();
 function rerenderCurrent(){
   const k={l:fLine,c:fCat,s:fSearch,t:fTab,b:fBin,su:fSup};
   showView(currentView,null);

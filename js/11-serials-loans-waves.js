@@ -403,15 +403,19 @@ async function renderMyProfile(){
   const uid=(SBUSER&&SBUSER.id)||'';
   // everything that is mine, in parallel
   let reqs=[],myLoans=[],fus=0,myVisits=0;
-  try{const {data}=await SB.from('fin_requests').select('id,kind,num,status,amount,created_at,step').eq('requester_id',uid).order('id',{ascending:false}).limit(15);reqs=data||[];}catch(e){}
-  try{const {data}=await SB.from('loans').select('*').eq('out_by',uid).eq('status','out').order('due_date');myLoans=data||[];}catch(e){}
+  const [qr,ql]=await Promise.all([
+    SB.from('fin_requests').select('id,kind,num,status,amount,created_at,step').eq('requester_id',uid).order('id',{ascending:false}).limit(15),
+    SB.from('loans').select('*').eq('out_by',uid).eq('status','out').order('due_date'),
+    loadVisits()
+  ]).catch(()=>[{},{}]);
+  reqs=(qr&&qr.data)||[];myLoans=(ql&&ql.data)||[];
   try{
-    await loadVisits();
     const mine=v=>tag&&specCanon(v.spec||'').toLowerCase()===specCanon(tag).toLowerCase();
     fus=(VISITS||[]).filter(v=>mine(v)&&v.status!=='planned'&&v.outcome==='Follow-up needed'&&!v.fu_done).length;
     const mo=new Date().toISOString().slice(0,7);
     myVisits=(VISITS||[]).filter(v=>mine(v)&&v.status!=='planned'&&(v.date||'').slice(0,7)===mo).length;
   }catch(e){}
+  // (fin requests, loans and visits arrived in one wave above)
   const today=new Date().toISOString().slice(0,10);
   const stPill=r=>r.status==='approved'?'<span class="pill pgr">approved</span>':r.status==='rejected'?'<span class="pill prd">rejected</span>':r.status==='cancelled'?'<span class="pill" style="background:var(--sf2);color:var(--tx3)">cancelled</span>':'<span class="pill pam">pending · step '+(r.step||1)+'</span>';
   $('content').innerHTML=

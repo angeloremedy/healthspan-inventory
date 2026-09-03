@@ -13,6 +13,10 @@ const ok=(n,c,x)=>out.push([!!c,n,x===undefined?'':String(x)]);
 const html=fs.readFileSync('index.html','utf8');
 ok('splash exists before any script', html.indexOf('id="splash"')>=0 && html.indexOf('id="splash"')<html.indexOf('js/01-shopify'));
 ok('splash has a no-JS failsafe', /setTimeout[^]*splash[^]*8000/.test(html));
+ok('splash uses the real app icon', /id="splash"[^]*?icon-512\.png/.test(html));
+ok('splash is standalone-only', /display-mode: standalone/.test(html) && /id="splash" style="display:none/.test(html));
+ok('browser tab never shows it', (()=>{ // jsdom is not standalone, so the gate must leave it hidden
+  const el=d.getElementById('splash'); return el&&el.style.display==='none';})());
 ok('all app scripts defer', (html.match(/<script defer src="js\//g)||[]).length===11, (html.match(/<script defer src="js\//g)||[]).length);
 ok('CDN libs defer too', (html.match(/<script defer src="https:/g)||[]).length===2);
 ok('no blocking external script left', !/<script src=/.test(html));
@@ -157,6 +161,36 @@ window._lastPop=Date.now();
 T('touchstart',10,300);T('touchend',140,310);
 ok('native-handled gesture is not doubled', backs===1, backs);
 history.back=_hb;window._lastPop=0;
+
+// ── action links become buttons, app-wide, after any paint ──
+ROLE='supply_chain';SBPROFILE={name:'Verna'};
+$('content').innerHTML='<div class="tcard"><table><tr><td>'+
+  '<a href="#" onclick="plDecide(1,\\'approve\\');return false" style="color:var(--gr);font-weight:700;text-decoration:underline">approve ✓</a> · '+
+  '<a href="#" onclick="plDecide(1,\\'reject\\');return false" style="color:var(--rd);font-size:11.5px">reject</a> · '+
+  '<a href="#" onclick="plCancel(1);return false" style="color:var(--tx3)">cancel</a> · '+
+  '<a href="#" onclick="archiveRecord(\\'pullout\\',1);return false" style="color:var(--rd)">delete</a>'+
+  '</td><td><a href="#" onclick="showAccountPage(\\'Dr. Cruz\\');return false" style="color:var(--ac)">Dr. Cruz Clinic</a></td>'+
+  '<td><a href="#" onclick="openDrawer(\\'AAA\\');return false" style="color:var(--ac)">Open inventory detail →</a></td></tr></table>'+
+  '<div class="tfooter"><span><a href="#" onclick="exportX();return false">export CSV</a></span></div></div>';
+await new Promise(r=>setTimeout(r,30));   // the observer coalesces into one pass on the next tick
+const btns=[...$('content').querySelectorAll('a.abtn')];
+ok('four action links became buttons', btns.length===4, btns.length+': '+btns.map(b=>b.textContent.trim()).join('|'));
+ok('approve is green', btns[0].classList.contains('t-gr'));
+ok('reject is red (outlined)', btns[1].classList.contains('t-rd'));
+ok('cancel is neutral', !/t-/.test(btns[2].className));
+ok('inline underline/colour stripped', !btns[0].style.color&&!btns[0].style.textDecoration);
+ok('dot separators removed', !/·/.test($('content').querySelector('td').textContent));
+ok('onclick untouched', (btns[0].getAttribute('onclick')||'').indexOf('plDecide(1,')===0, btns[0].getAttribute('onclick'));
+ok('account name stays a link', !$('content').querySelectorAll('td')[1].querySelector('.abtn'));
+ok('arrowed prose link stays a link', !$('content').querySelectorAll('td')[2].querySelector('.abtn'));
+ok('footer link stays a link', !$('content').querySelector('.tfooter .abtn'));
+// convergence: a second pass must change nothing
+const before=$('content').innerHTML; upgradeButtons(document); await new Promise(r=>setTimeout(r,30));
+ok('upgrader converges (idempotent)', $('content').innerHTML===before);
+
+// real pages: the serials register's row actions are buttons now
+currentView='serials';await renderSerials();await new Promise(r=>setTimeout(r,30));
+ok('serials row actions are buttons', $('content').querySelectorAll('a.abtn').length>=2, $('content').querySelectorAll('a.abtn').length);
 
 // sales role may open crmstats but not serials/loans
 ROLE='sales';

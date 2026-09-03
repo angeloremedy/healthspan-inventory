@@ -476,7 +476,7 @@ function calShift(d){const [y,m]=(CAL_YM||new Date().toISOString().slice(0,7)).s
 function calPick(day){CAL_SEL=day;renderSpecPage();}
 async function renderSpecPage(){
   const name=CUR_SPEC;if(!name){showView(SPEC_BACK);return;}
-  await loadVisits();await loadNativeOrders();
+  await Promise.all([loadVisits(),loadNativeOrders()]);
   const specs=specMerged();const sp=specs[name]||specs[Object.keys(specs).find(k=>k.toLowerCase()===name.toLowerCase())]||{monthly:{},daily:{},skus:{}};
   const isMine=v=>specCanon(v).toLowerCase()===name.toLowerCase();
   const ymNow=new Date().toISOString().slice(0,10).slice(0,7);
@@ -577,13 +577,14 @@ async function renderSpecPage(){
 /* ── FULFILLMENT QUEUE (Verna's worklist) ── */
 async function renderFulfillQ(){
   loadingHint();
+  const boQ=SB?SB.from('backorders').select('*').eq('status','open').order('id'):Promise.resolve({data:[]});
   await loadNativeOrders(true);
   const today=new Date().toISOString().slice(0,10);
   const held=(NORDERS||[]).filter(o=>o.status==='pending'&&!o.deleted_at&&o.approved===false).length;
   const pend=(NORDERS||[]).filter(o=>o.status==='pending'&&!o.deleted_at&&o.approved!==false).sort((a,b)=>a.date<b.date?-1:1);
   const age=d=>Math.max(0,Math.round((Date.now()-new Date(d))/864e5));
   const doneToday=(NORDERS||[]).filter(o=>o.status==='fulfilled'&&o.date===today).length;
-  let bos=[];try{const {data}=await SB.from('backorders').select('*').eq('status','open').order('id');bos=data||[];}catch(e){}
+  let bos=[];try{const {data}=await boQ;bos=data||[];}catch(e){} // fired alongside the orders load
   const boPanel=bos.length?'<div class="panel" style="padding:14px 16px;margin-bottom:14px;border-left:3px solid var(--am)"><div class="phd">Backorders waiting on stock ('+bos.length+')</div>'+
     bos.map(b=>'<div class="drow" style="border-bottom:1px solid var(--bd);padding:7px 0"><span class="dlbl" style="max-width:70%"><b>'+esc(b.order_label)+'</b> · '+esc(b.account)+'<br><span style="color:var(--tx3);font-size:11.5px">'+b.qty_short+'u '+esc(b.name)+' short since '+esc((b.created_at||'').slice(0,10))+'</span></span>'+
     '<span class="dval" style="font-size:11.5px">'+(canFulfil()?'<a href="#" onclick="boCancel('+b.id+');return false" style="color:var(--rd)">cancel</a>':'')+'</span></div>').join('')+

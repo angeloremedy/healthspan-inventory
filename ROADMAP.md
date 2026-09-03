@@ -111,13 +111,22 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ Product specialists removed from the fund-source approver picker
 - ✅ New **Finance forms** sidebar section (pull-out requests today; the five finance forms as they land)
 
+**Buttons, not hyperlinks (Sep 2)**
+- ✅ Every row action app-wide — approve / reject / cancel / delete / return / → sale / sold / dispose and the rest — is now a proper button instead of an underlined link with dot separators. One upgrader in js/01 does it at render time from the colour each link already carried (green confirm, outlined red for destructive, blue/amber/purple tones, neutral otherwise), finger-sized on touch devices. Navigation links (account names, "Open … →", footers) stay links. No template was edited; future views get it for free
+
+**Page speed: the waterfalls, not the bundler (Sep 2)**
+- ✅ Pages hung on "Loading…" because renderers awaited their queries ONE AT A TIME — pull-outs chained five round trips (one of them a Netlify function that can cold-start for seconds), the finance forms four, the account page five. Independent loads now go out as one wave: pull-outs, all finance forms, account page, fulfillment queue, specialist page, warehouse KPIs, my profile, catalog, targets, pipeline
+- ✅ Approval routes get a 20s TTL instead of a forced refetch on every finance-page paint; decisions still re-check at decide time
+- ✳ Vite considered and deliberately deferred: the slow pages were painted shells waiting on data — bundling fixes download/parse, not query waterfalls. The deferred-scripts change already covers first-paint. Revisit only if parse time on old iPads still hurts after this ships
+- ✅ Ask AI drawer no longer hides under the top bar (z-index 60 → above it), clears the iPad status bar in the installed app, and its input clears the phone home indicator
+
 **People (Sep 2)** — Jojo resigned: disable the account in Team & access and reassign any accounts owned by his tag; Marj is the sales manager of record. Daz joins finance: create the account with role `finance` in Team & access. Both are in-app actions, no SQL.
 
 **Splash, serials, loaners, waves, CRM activity, faster boot (Sep 2)**
 - ✅ Expense reports (ER-): the eighth finance form — revolving-fund liquidation with itemised receipt lines, routed like every form via Approval routes (set the step to Tal in-app)
 - ✅ Back, for the installed app: a small ← in the phone/iPad top bar whenever there is somewhere to go back to, and a left-edge swipe right that does the same — both walk the app's own history, and a native-handled gesture is never doubled
 - ✅ My profile: every user has one (sidebar, under Home; the name in the footer/phone menu opens it) — identity, filed finance forms with status, open follow-ups, checked-out loaners, quick actions
-- ✅ Boot splash: the brand mark on full-bleed blue the instant the page opens (like Instagram/X), fading once the app is ready or the login form is up; an inline failsafe clears it even if the JS errors
+- ✅ Boot splash for the installed app only: the real app icon on its blue the instant it opens (like Instagram/X), fading once the app is ready or the login form is up; browser tabs never see it, and an inline failsafe clears it even if the JS errors
 - ✅ Faster loading: every script is deferred (the page paints before ~1.3MB of JS downloads), preconnects to Supabase and the CDNs, and icons cache for a week. JS/HTML deliberately stay on etag revalidation — unhashed files must never go half-stale
 - ✅ Serial numbers (Logistics): one row per equipment unit — lasers, devices — from receiving through loan, sale or disposal. Consumables stay batch-tracked
 - ✅ Demo / loaners (Logistics): check a serial out to a clinic with a due-back date and condition notes; return puts it back in stock, a closed demo converts to a sale; nightly rule 11 pings whoever checked it out once it goes overdue

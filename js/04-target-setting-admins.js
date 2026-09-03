@@ -486,8 +486,9 @@ function showAccountPage(name){
 }
 async function renderAccountPage(){
   const name=CUR_ACCT;if(!name){showView(ACCT_BACK);return;}
-  await loadVisits();
-  try{await loadOwners();}catch(e){}
+  // one wave — these four don't depend on each other (only buildAcctIdx needs
+  // the visits). Serially this was four round trips before anything painted.
+  await Promise.all([loadVisits(),loadOwners().catch(()=>{}),loadOverrides(),loadNativeOrders()]);
   if(!ACCTBYNORM)buildAcctIdx();
   const e=ACCTBYNORM[custNorm(acctDedup(name))]||{name:acctDedup(name),names:new Set([name]),sheet:null,shop:null,visitN:0,lastVisit:'',children:null};
   let acct=null;
@@ -498,7 +499,7 @@ async function renderAccountPage(){
   const inNames=new Set(aliases.map(a=>a.trim()));
   const skuName=(()=>{const m={};DATA.forEach(p=>m[p.sku]=p.name);const bs=Object.keys(m).sort((a,b)=>b.length-a.length);
     return s=>{s=String(s).trim();if(m[s])return m[s];const b=bs.find(x=>s.startsWith(x)&&s.length>x.length)||bs.find(x=>x.length>=4&&s.length>x.length&&s.includes(x));return b?m[b]+' (deal)':s;};})();
-  await loadOverrides();await loadNativeOrders();
+  // (overrides and native orders were fetched in the wave above)
   const orders=window._MIGRATED?[]:((SHOPIFY&&SHOPIFY.recent)||[]).filter(o=>inNames.has((o.c||'').trim())&&!(OVR[o.n]&&OVR[o.n].deleted_at))
     .map(o=>({k:'order',dt:o.dt,who:o.t||'',label:o.n,amt:(o.ls||[]).reduce((x,l)=>x+(l[2]||0),0),ref:o.n}));
   const natOrders=(NORDERS||[]).filter(o=>inNames.has(acctDedup(o.account||''))||inNames.has((o.account||'').trim()))

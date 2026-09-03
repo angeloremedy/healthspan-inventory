@@ -439,7 +439,7 @@ function applyCatalog(){ // when independent, the item master overrides prices e
 async function renderCatalog(){
   if(!circleRole()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only.</div>';return;}
   loadingHint();
-  await loadFlags();await loadItems(true);
+  await Promise.all([loadFlags(),loadItems(true)]);
   const items=Object.values(ITEMS).sort((a,b)=>String(a.sku).localeCompare(String(b.sku)));
   const on=flagOn('use_catalog_pricing');
   const shopP={};DATA.forEach(p=>shopP[p.sku]=p.price);

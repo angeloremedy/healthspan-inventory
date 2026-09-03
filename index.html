@@ -104,6 +104,22 @@ body.sbhidden .sb{margin-left:-229px} /* slides out (width+border) — internal 
 @keyframes spin{to{transform:rotate(360deg)}}
 .nav{padding:8px 8px;flex:1;overflow-y:auto}
 .nlbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.09em;color:var(--tx3);padding:8px 8px 3px}
+/* ── Action buttons. Row actions used to be underlined hyperlinks separated by
+   dots ("approve ✓ · reject · cancel · delete"). upgradeButtons() in js/01 turns
+   every action anchor into one of these at render time, app-wide, and drops
+   the dot separators. Tones map from the colour the link already carried. ── */
+.abtn{display:inline-flex;align-items:center;gap:4px;padding:5px 11px;border-radius:8px;font-size:11.5px;font-weight:600;line-height:1.15;
+  text-decoration:none!important;border:1px solid var(--bd);background:var(--sf2);color:var(--tx);white-space:nowrap;margin:2px 3px 2px 0;
+  cursor:pointer;transition:filter .12s,transform .06s;-webkit-tap-highlight-color:transparent}
+.abtn:hover{filter:brightness(.96)}
+.abtn:active{transform:translateY(1px)}
+.abtn.t-gr{background:var(--gr-bg);color:var(--gr);border-color:transparent}
+.abtn.t-rd{background:transparent;color:var(--rd);border-color:var(--rd)}      /* destructive: outlined, never a filled block of red */
+.abtn.t-bl{background:var(--bl-bg);color:var(--bl);border-color:transparent}
+.abtn.t-am{background:var(--am-bg);color:var(--am);border-color:transparent}
+.abtn.t-pu{background:var(--pu-bg);color:var(--pu);border-color:transparent}
+.abtn.t-ac{background:var(--ac);color:#fff;border-color:transparent}
+@media (pointer:coarse){.abtn{padding:8px 13px;font-size:12.5px}}            /* finger-sized on phones and iPads */
 .ni{display:flex;align-items:center;gap:8px;padding:6px 9px;border-radius:var(--rs);cursor:pointer;color:var(--tx2);font-size:12.5px;transition:all .12s;margin-bottom:1px;user-select:none}
 .ni:hover{background:var(--sf2);color:var(--tx)}
 .ni.active{background:var(--gr-bg);color:var(--gr);font-weight:500}
@@ -131,7 +147,11 @@ body.sbhidden .sb{margin-left:-229px} /* slides out (width+border) — internal 
 .calcbody li{margin:3px 0}
 .calcbody b{color:var(--tx1)}
 .calcbody .note{color:var(--tx3);font-size:11px;margin-top:8px}
-.askdrawer{position:fixed;top:0;right:-420px;width:400px;max-width:96vw;height:100vh;background:var(--sf);border-left:1px solid var(--bd);z-index:60;display:flex;flex-direction:column;transition:right .2s ease;box-shadow:-8px 0 24px rgba(0,0,0,.12)}
+/* z-index above the topbar (260): at 60 the drawer slid UNDER it and its header
+   was buried. padding-top clears the iPad/iPhone status bar in the installed
+   app; 100dvh tracks the real viewport instead of overshooting behind the iOS
+   URL bar. */
+.askdrawer{position:fixed;top:0;right:-420px;width:400px;max-width:96vw;height:100vh;height:100dvh;padding-top:var(--sat,0px);box-sizing:border-box;background:var(--sf);border-left:1px solid var(--bd);z-index:320;display:flex;flex-direction:column;transition:right .2s ease;box-shadow:-8px 0 24px rgba(0,0,0,.12)}
 .askdrawer.open{right:0}
 .askhd{display:flex;align-items:center;gap:8px;padding:13px 16px;border-bottom:1px solid var(--bd);font-weight:700;font-size:14px}
 .askhd svg{width:16px;height:16px;stroke:var(--ac);fill:none;stroke-width:2}
@@ -141,7 +161,7 @@ body.sbhidden .sb{margin-left:-229px} /* slides out (width+border) — internal 
 .aska{align-self:flex-start;background:var(--sf2);border:1px solid var(--bd);border-radius:12px 12px 12px 3px;padding:9px 12px;font-size:12.5px;max-width:92%;line-height:1.55;white-space:pre-wrap}
 .aska b{color:var(--tx1)}
 .askempty{color:var(--tx3);font-size:12px;text-align:center;margin-top:30px;line-height:1.7}
-.askbar{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--bd)}
+.askbar{display:flex;gap:8px;padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--bd)}
 .askbar textarea{flex:1;resize:none;height:44px;padding:9px 11px;border:1px solid var(--bd);border-radius:9px;background:var(--sf2);color:var(--tx1);font-size:12.5px;font-family:inherit}
 .askbar button{flex-shrink:0;padding:0 16px;border:none;border-radius:9px;background:var(--ac);color:#fff;font-weight:600;font-size:12.5px;cursor:pointer}
 .askbar button:disabled{opacity:.5;cursor:default}
@@ -369,21 +389,26 @@ try{
 document.addEventListener('gesturestart',function(e){e.preventDefault();},{passive:false});
 document.addEventListener('gesturechange',function(e){e.preventDefault();},{passive:false});
 </script>
-<!-- ── BOOT SPLASH: the brand mark on full-bleed blue, shown before any JS runs
-     (like Instagram/X). splashHide() in js/09 fades it out once the app is ready
-     or the login form is up; the inline timer below is the failsafe so a JS error
-     can never leave the screen stuck on blue. -->
-<div id="splash" style="position:fixed;inset:0;z-index:2000;background:#00168F;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .3s ease">
-  <svg viewBox="0 0 100 100" style="width:88px;height:88px" aria-label="Healthspan HQ">
-    <path fill-rule="evenodd" fill="#fff" stroke="none" d="M4 4h92v92H4zM17 17h66v66H17z"/>
-    <path fill="#fff" stroke="none" d="M31 30h11v40H31zM58 30h11v40H58zM31 45h38v10H31z"/>
-  </svg>
+<!-- ── BOOT SPLASH: the real app icon on its own blue (#00168F — sampled from
+     icon-512.png, they are identical, so the PNG blends into the backdrop).
+     Installed apps ONLY: in a browser tab there is chrome and a URL bar, so a
+     splash is noise — the inline script below shows it only in standalone mode,
+     synchronously, before anything paints. splashHide() in js/09 fades it once
+     the app is ready or the login form is up; the 8s timer is the failsafe so a
+     JS error can never leave the screen stuck on blue. -->
+<div id="splash" style="display:none;position:fixed;inset:0;z-index:2000;background:#00168F;flex-direction:column;align-items:center;justify-content:center;transition:opacity .3s ease">
+  <img src="/icon-512.png" alt="Healthspan HQ" style="width:112px;height:112px">
   <div style="position:absolute;bottom:calc(34px + env(safe-area-inset-bottom,0px));text-align:center">
     <div style="font-size:11px;color:#C8D6FF;letter-spacing:.14em;font-weight:600">HEALTHSPAN HQ</div>
   </div>
 </div>
 <script>
 window._splashT0=Date.now();
+try{
+  if(matchMedia('(display-mode: standalone)').matches||navigator.standalone===true){
+    document.getElementById('splash').style.display='flex';
+  }
+}catch(e){}
 setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opacity='0';setTimeout(function(){s.remove();},350);}},8000);
 </script>
 <!-- ── SIGN-IN GATE: Supabase accounts only (the login form is rendered by showSbLogin) -->

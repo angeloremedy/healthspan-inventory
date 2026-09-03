@@ -214,6 +214,16 @@ datalists once they hold hundreds of options. Serial check-out flips the serial'
 status with a `.eq('status','in_stock').select('id')` guard — zero rows back means
 someone else took the unit, and the loan insert never happens.
 
+### Row actions are buttons, upgraded at render time
+
+Templates still write `<a href="#" onclick="…">` for row actions — ~120 sites
+across the files. `upgradeButtons()` (js/01) runs after every DOM change and
+turns those into `.abtn` buttons: tone from the inline colour the link carried,
+separators (` · `) removed, `onclick` untouched. It skips navigation (an
+allow-list of opener functions, arrowed prose links, footers, `.lnk`). The
+observer converges in one extra pass because an upgraded anchor no longer
+matches. Write new actions the old way; they come out as buttons.
+
 ### The finance-forms engine takes new forms as data
 
 `expreport` (expense reports — revolving-fund liquidation) is the eighth kind:
@@ -225,9 +235,13 @@ its spec, including the itemised lines (fin_lines). The approval route is data
 
 ### Boot: splash and deferred scripts
 
-`#splash` is inline in index.html before any script and fades via `splashHide()`
-(js/09) once the profile loads or the login form renders; an inline 8s failsafe
-clears it even if the JS fails. Every external script carries `defer`, so first
+`#splash` is inline in index.html before any script, shows the real app icon
+(icon-512.png — its background is the same #00168F, so it blends), and appears
+**only in standalone mode**: it defaults to `display:none` and a synchronous
+inline script turns it on when `display-mode: standalone` matches, so a browser
+tab never flashes it and a broken gate fails safe (hidden). It fades via
+`splashHide()` (js/09) once the profile loads or the login form renders; an
+inline 8s failsafe clears it even if the JS fails. Every external script carries `defer`, so first
 paint (the splash) happens before ~1.3MB of JS downloads or parses — order is
 preserved (CDN libs, then js/01…11). JS and HTML stay on Netlify's etag
 revalidation on purpose: the files are unhashed, and long caching would let one
