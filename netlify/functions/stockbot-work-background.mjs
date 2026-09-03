@@ -1,16 +1,7 @@
 // Background worker for the /stock Slack command (up to 15 min runtime).
-// Fetches the live inventory feed, asks Claude to answer from the full
-// dataset, and posts the answer back to Slack via response_url.
-const FAST_MODEL = process.env.STOCKBOT_MODEL || 'claude-haiku-4-5-20251001';
-const SMART_MODEL = process.env.STOCKBOT_SMART_MODEL || 'claude-sonnet-5';
-
-function pickModel(q) {
-  const qq = q.toLowerCase();
-  const hard = q.length > 250 ||
-    (q.match(/\?/g) || []).length >= 3 ||
-    /why|analy|compare|recommend|report|plan\b|should we|strategy|trend|breakdown|summar|review|explain/.test(qq);
-  return hard ? SMART_MODEL : FAST_MODEL;
-}
+// Fetches the live inventory feed, asks the configured model (lib/llm.mjs) to
+// answer from the full dataset, and posts the answer back to Slack.
+import { llm, hasKey, isHardQuestion, provider } from './lib/llm.mjs';
 
 function serialDate(ds) {
   if (!ds || typeof ds !== 'number') return '';
@@ -132,11 +123,11 @@ export const handler = async (event) => {
     body: JSON.stringify({ response_type: 'in_channel', replace_original: false, text: msg })
   });
 
-  const model = pickModel(text);
+  const smart = isHardQuestion(text);
   const t0 = Date.now();
   let ok = false;
 
-  let usedModel = model;
+  let usedModel = provider();
   try {
     const base = process.env.URL;
     const [r, rs] = await Promise.all([
@@ -149,29 +140,14 @@ export const handler = async (event) => {
     try { if (rs && rs.ok) shop = await rs.json(); } catch (e) {}
     const cat = buildData(data) + buildShopifySections(data, shop);
 
-    const key = process.env.ANTHROPIC_API_KEY;
-    if (!key) { await post(':warning: ANTHROPIC_API_KEY is not configured in Netlify.'); return { statusCode: 200, body: 'no key' }; }
+    if (!hasKey()) { await post(':warning: No AI key is configured in Netlify (GEMINI_API_KEY or ANTHROPIC_API_KEY).'); return { statusCode: 200, body: 'no key' }; }
 
-    const callModel = async (m, maxTok) => {
-      const resp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-        body: JSON.stringify({
-          model: m,
-          max_tokens: maxTok, // generous: reasoning models spend output tokens thinking first
-          system: SYSTEM,
-          messages: [{ role: 'user', content: 'LIVE DATA (synced ' + (data.synced || 'now') + '):\n' + cat + '\n\nQUESTION(S) FROM SLACK:\n' + text }]
-        })
-      });
-      if (!resp.ok) throw new Error('Claude API ' + resp.status + ': ' + (await resp.text()).slice(0, 200));
-      const out = await resp.json();
-      return (out.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
-    };
-
-    let answer = await callModel(model, model === SMART_MODEL ? 6000 : 2000);
-    if (!answer && model === SMART_MODEL) { usedModel = FAST_MODEL; answer = await callModel(FAST_MODEL, 2000); }
+    const out = await llm({ system: SYSTEM, smart, maxTokens: smart ? 6000 : 2000,
+      messages: [{ role: 'user', content: 'LIVE DATA (synced ' + (data.synced || 'now') + '):\n' + cat + '\n\nQUESTION(S) FROM SLACK:\n' + text }] });
+    usedModel = out.model || usedModel;
+    const answer = out.text;
     ok = !!answer;
-    await post(answer || ':warning: No answer produced.');
+    await post(answer || ':warning: No answer produced.' + (out.error ? ' (' + out.error + ')' : ''));
   } catch (err) {
     await post(':warning: Sorry - could not answer: ' + err.message);
   }

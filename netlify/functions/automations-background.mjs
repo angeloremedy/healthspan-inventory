@@ -1,3 +1,4 @@
+import { llm, hasKey } from './lib/llm.mjs';
 // WORKFLOW AUTOMATION RULES — the nightly sweep (triggered from nightly.mjs).
 // Eleven rules, each deduped via auto_log (unique rule+entity, insert-ignore):
 //  1. fulfilled order (~14d ago)      → follow-up task + ping for the owner
@@ -208,7 +209,7 @@ export const handler = async (event) => {
         const score = (val[name] || 0) * Math.min(3, quiet / t);
         (perSpec[own.toLowerCase()] = perSpec[own.toLowerCase()] || []).push({ name, quiet, v: val[name] || 0, score });
       }
-      const key = process.env.ANTHROPIC_API_KEY;
+      const key = hasKey();
       for (const p of profiles) {
         if (!p.specialist_tag) continue;
         const list = (perSpec[p.specialist_tag.toLowerCase()] || []).sort((a, b) => b.score - a.score).slice(0, 3);
@@ -217,15 +218,10 @@ export const handler = async (event) => {
         let body = list.map((x, i) => (i + 1) + ') ' + x.name + ' — P' + Math.round(x.v).toLocaleString() + ' in 6mo, quiet ' + x.quiet + 'd').join(' · ');
         if (key) { // let the model phrase the nudge (fallback = the plain list)
           try {
-            const r = await fetch('https://api.anthropic.com/v1/messages', {
-              method: 'POST', headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-              body: JSON.stringify({ model: process.env.STOCKBOT_MODEL || 'claude-haiku-4-5-20251001', max_tokens: 200,
-                system: 'You write ONE short, motivating sentence (max 30 words) telling a pharma sales specialist which clinics to visit this week and why. Peso values matter. No emojis, no preamble.',
-                messages: [{ role: 'user', content: body }] })
-            });
-            const out = await r.json();
-            const txt = ((out.content || []).filter(b => b.type === 'text').map(b => b.text).join(' ') || '').trim();
-            if (txt) body = txt + ' (' + list.map(x => x.name).join(', ') + ')';
+            const out = await llm({ maxTokens: 200,
+              system: 'You write ONE short, motivating sentence (max 30 words) telling a pharma sales specialist which clinics to visit this week and why. Peso values matter. No emojis, no preamble.',
+              messages: [{ role: 'user', content: body }] });
+            if (out.text) body = out.text.replace(/\s+/g, ' ').trim() + ' (' + list.map(x => x.name).join(', ') + ')';
           } catch (e) {}
         }
         await notif({ user_id: p.id }, 'auto', 'Your 3 best calls this week', body, '#/v/salesdue');

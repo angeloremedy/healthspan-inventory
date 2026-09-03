@@ -48,3 +48,14 @@ runs `bizDeck()` through the real pptxgenjs (`npm i pptxgenjs`, or
 `PPTXGENJS=/path/to/node_modules/pptxgenjs`) so the deck can be validated and
 rendered: `python scripts/office/validate.py out.pptx` from the pptx skill, then
 LibreOffice → pdftoppm to eyeball it.
+
+## llm-provider.test.mjs
+
+```bash
+node tools/test/llm-provider.test.mjs
+```
+
+Mocks `fetch` and drives `netlify/functions/lib/llm.mjs`: Gemini is the default when
+its key exists, a 429 is retried once and then answered, a dead Gemini falls
+through Flash → Flash-Lite → Claude, `AI_PROVIDER=anthropic` goes to Claude
+first, the paid flag lifts the free-tier scrub, and no keys yields a clear error.

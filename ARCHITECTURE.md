@@ -232,6 +232,11 @@ tables (`review_commentary`, `review_snapshots`) and, on demand, the existing
 `/.netlify/functions/ask` job for **Draft with AI**, which is sent the report
 figures as its live data.
 
+Charts in the deck are pictures: `bizChartCfg(R,key,arg,fontSize)` builds one
+Chart.js config used both on the page and by `bizChartImages(R)`, which draws
+each chart on an offscreen canvas (160 px/inch, 2× ratio) and hands data URLs to
+the deck; Keynote and Google Slides render pptxgenjs's native charts as blank
+boxes, so native charts are only the fallback when there is no canvas (node).
 `bizDeck(pptx,R,ctx)` is also pure: the test runs it in node with the real
 pptxgenjs and writes a deck from the fixture, so slide layout is checked
 headlessly. In the browser `bizExport()` lazy-loads pptxgenjs from cdnjs (jsDelivr
@@ -326,6 +331,20 @@ stroke attrs) — home and sidebar share one structure, and new nav items appear
 on Home automatically. The old `role-sales` CSS nav filter is gone; `navSync`
 drives sidebar visibility for every role, so sales get the same collapsible
 categories.
+
+### 4.5a One door to the models — `lib/llm.mjs`
+
+Every model call (`ask-work-background`, `stockbot-work-background`, the
+next-best-action rule in `automations-background`) goes through `llm({system,
+messages, maxTokens, smart})`, which never throws and returns `{text, model,
+provider, error}`. The provider is an env decision: Gemini Flash when
+`GEMINI_API_KEY` is set (free tier), Claude otherwise, `AI_PROVIDER` to force.
+Order of attempts on Gemini: Flash → one patient retry on 429/5xx → Flash-Lite →
+Claude fast model if a key exists. `isFreeTier()` lets the ask worker leave unit
+costs and payables out of the context, since free-tier prompts may be used for
+model improvement. `lib/` is a subfolder so Netlify does not deploy it as a
+function; esbuild bundles it into each caller. Tested by
+`tools/test/llm-provider.test.mjs` with a mocked fetch.
 
 ### 4.6 Role-scoped Ask AI
 `ask.mjs` derives the caller's role/tag server-side (unspoofable) and passes it

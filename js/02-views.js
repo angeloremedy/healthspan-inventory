@@ -441,6 +441,7 @@ function specDirRow(tag){const k=specCanon(tag).toLowerCase(),raw=String(tag||''
   return (SPEC_DIR||[]).find(r=>{const t=String(r.tag||'').trim().toLowerCase();return t===k||t===raw||specCanon(t).toLowerCase()===k;})||null;}
 function specDisplay(tag){const r=specDirRow(tag);return (r&&r.name)?String(r.name).trim():specCanon(tag);}
 function specTeam(tag){const r=specDirRow(tag);return (r&&r.team)?String(r.team).trim():'';}
+function specOrder(tag){const r=specDirRow(tag);return (r&&r.sort_order!=null&&r.sort_order!=='')?+r.sort_order:null;} // presenting order on the review
 // Merge specialist tags that differ only by case/spacing ("Rhas"/"RHAS") or known aliases (Kristine=Tin)
 function specMerged(){
   const specs=(SHOPIFY&&SHOPIFY.specialists)||{};

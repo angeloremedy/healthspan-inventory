@@ -90,8 +90,9 @@ SERIALS=[{id:1,sku:'SP001',serial:'SP-1',status:'sold',sold_ref:'#3',updated_at:
 LOANS=[{id:1,serial_id:3,sku:'SP001',serial:'SP-3',account:'Derma Hub',out_date:ym+'-03',due_date:ym+'-20',status:'out',out_name:'Verna',updated_at:ym+'-03T10:00:00Z'},
        {id:2,serial_id:4,sku:'SP001',serial:'SP-4',account:'Remedy Vertis',out_date:ym+'-04',due_date:ym+'-20',status:'out',out_name:'Verna',updated_at:ym+'-04T10:00:00Z'}];
 loadSerials=async()=>SERIALS;loadLoans=async()=>LOANS;
-SPEC_DIR=[{tag:'Rhas',name:'Rhas Porciuncula',team:'Team 1',active:true},{tag:'Tin',name:'Tin Arcos',team:'Team 1',active:true},
-          {tag:'Abby',name:'Abigael Rodriguez',team:'Team 2',active:true},{tag:'Frank',name:'Frank Villaverde',team:'Team 2',active:true}];
+SPEC_DIR=[{tag:'Rhas',name:'Rhas Porciuncula',team:'Team 1',active:true,sort_order:2},{tag:'Tin',name:'Tin Arcos',team:'Team 1',active:true,sort_order:1},
+          {tag:'Abby',name:'Abigael Rodriguez',team:'Team 2',active:true,sort_order:11},{tag:'Frank',name:'Frank Villaverde',team:'Team 2',active:true,sort_order:12},
+          {tag:'Test PS',name:'Test PS',team:'',active:true},{tag:'Old Guy',name:'Old Guy',team:'Team 1',active:false}];
 
 /* Supabase stub with the two new tables */
 const DB={review_commentary:[{month:ym,section:'wins',body:'Closed 2 SkinPens',updated_name:'Marj',updated_at:ym+'-01T00:00:00Z'}],review_snapshots:[]};
@@ -126,7 +127,8 @@ ok('products sorted by revenue', R.products[0].sku==='MV-001');
 const names=R.specs.map(s=>s.name);
 ok('internal tag excluded from specialists', !names.some(n=>/remedy/i.test(n)), names);
 ok('roster = the directory: Rhas, Tin, Abby, Frank — and nobody else', R.rosterSrc==='directory'&&names.slice().sort().join()==='Abby,Frank,Rhas,Tin', names);
-ok('sorted by team then revenue', R.specs.map(s=>s.name).join()==='Rhas,Tin,Abby,Frank'&&R.teams.join()==='Team 1,Team 2', R.specs.map(s=>s.name));
+ok('presenting order from the accounts (Tin before Rhas), then team', R.specs.map(s=>s.name).join()==='Tin,Rhas,Abby,Frank'&&R.teams.join()==='Team 1,Team 2', R.specs.map(s=>s.name));
+ok('test accounts and disabled accounts never appear', !names.includes('Test PS')&&!names.includes('Old Guy'), names);
 ok('a territory tag with sales is flagged as unassigned, not a person', R.unassigned.v===12345&&R.unassigned.tags.join()==='GMA 2'&&!names.includes('GMA 2'), JSON.stringify(R.unassigned));
 ok('trend sentences use account names', R.trends.some(t=>/Rhas Porciuncula|Tin Arcos/.test(t.t)), R.trends.map(t=>t.t).join(' | '));
 const rh=R.specs.find(s=>s.name==='Rhas'),tin=R.specs.find(s=>s.name==='Tin');
@@ -140,7 +142,7 @@ ok('Rhas top brand', rh.topLines[0].name==='Inno TDS');
 ok('Skin Station is Tin\\'s new account', tin.newAccts.length===1&&tin.newAccts[0]==='Skin Station', tin.newAccts);
 ok('Dr. Cruz is not new (older orders exist)', !rh.newAccts.length, rh.newAccts);
 ok('Tin prev-month visit not counted this month', tin.visits===0&&tin.calls===0);
-ok('Rhas first (Team 1, highest MTD)', R.specs[0].name==='Rhas');
+ok('Tin first by presenting order', R.specs[0].name==='Tin');
 ok('a manager who logs a visit does not become a specialist', !names.includes('Marj'), names);
 ok('alias target rows count for the canonical specialist', tin.tgt===500000&&Math.round(tin.att)===18, tin.tgt);
 ok('PRODUCT target matches by name-contains like the Vs-target view', (R.products.find(p=>p.sku==='ME0001')||{}).tgt===8000);
@@ -241,6 +243,9 @@ SHOPIFY.internalSplit=true;BIZ.snaps=null;await renderBizReview();
 /* the deck: needs the real library */
 window.__R=R;window.__ctx={notes:BIZ.notes,prevNotes:BIZ.prevNotes,prev:BIZ.prev,diff:bizDiff(R,S0),author:'Marj'};
 window.__ctxMine={notes:BIZ.notes,prevNotes:BIZ.prevNotes,prev:BIZ.prev,diff:null,only:'Rhas'};
+const PNG='image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+window.__ctxPics=Object.assign({},window.__ctx,{charts:{brand:PNG,monthly:PNG,specs:PNG,prod:{Innoaesthetics:PNG},spec:{Rhas:PNG,Tin:PNG}}});
+{const im=await bizChartImages(R);ok('no canvas here → no chart pictures, native charts remain the fallback', Object.values(im).every(v=>v==null||(typeof v==='object'&&Object.values(v).every(x=>x==null))));}
 window.__done=true;
 })().catch(e=>{window.__out.push([false,'test threw',String(e&&e.stack||e)]);window.__done=true;});
 `;
@@ -254,6 +259,12 @@ w.eval(app+'\n;\n'+test);
     try{const p=new PG();w.bizDeck(p,w.__R,w.__ctx);const n=p.slides.length;
       res.push([n>=18,'full deck slide count',n]);
       const p2=new PG();w.bizDeck(p2,w.__R,w.__ctxMine);res.push([p2.slides.length===3,'specialist deck = cover + slide + commentary',p2.slides.length]);
+      const p3=new PG();w.bizDeck(p3,w.__R,w.__ctxPics);
+      const imgs=p3.slides.reduce((n,s)=>n+(s._slideObjects||[]).filter(o=>o._type==='image').length,0);
+      const charts=p3.slides.reduce((n,s)=>n+(s._slideObjects||[]).filter(o=>o._type==='chart').length,0);
+      const charts1=p.slides.reduce((n,s)=>n+(s._slideObjects||[]).filter(o=>o._type==='chart').length,0);
+      res.push([imgs===6&&charts<charts1,'chart pictures replace native charts where supplied (Keynote-safe)',imgs+' images, '+charts+' native vs '+charts1]);
+      if(process.argv[2]){const pp=process.argv[2].replace(/\.pptx$/,'-pics.pptx');await p3.writeFile({fileName:pp});res.push([fs.existsSync(pp),'picture deck written',pp]);}
       const outp=process.argv[2];if(outp){await p.writeFile({fileName:outp});res.push([fs.existsSync(outp),'sample deck written',outp]);
         const mine=outp.replace(/\.pptx$/,'-rhas.pptx');await p2.writeFile({fileName:mine});res.push([fs.existsSync(mine),'specialist deck written',mine]);}}
     catch(e){res.push([false,'deck build threw',String(e&&e.stack||e)]);}

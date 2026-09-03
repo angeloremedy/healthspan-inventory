@@ -2521,14 +2521,16 @@ create policy "review_snapshots delete super" on public.review_snapshots for del
 -- one on the HQ account. profiles is read-own-row only, so this SECURITY DEFINER
 -- function exposes just tag → name → team → active for accounts that carry a
 -- specialist tag. Nothing else about the profile leaves the table.
-alter table public.profiles add column if not exists team text;   -- Team 1 / Team 2 / Key accounts (Business review grouping)
+alter table public.profiles add column if not exists team text;        -- Team 1 / Team 2 / Key accounts (Business review grouping)
+alter table public.profiles add column if not exists sort_order int;   -- presenting order on the Business review (1 = first)
 
+drop function if exists public.spec_directory();
 create or replace function public.spec_directory()
-returns table (tag text, name text, team text, active boolean)
+returns table (tag text, name text, team text, sort_order int, active boolean)
 language sql security definer stable
 set search_path = public
 as $$
-  select p.specialist_tag, p.name, p.team,
+  select p.specialist_tag, p.name, p.team, p.sort_order,
          (u.banned_until is null or u.banned_until < now()) as active
   from public.profiles p
   join auth.users u on u.id = p.id
@@ -2538,9 +2540,42 @@ revoke all on function public.spec_directory() from public;
 grant execute on function public.spec_directory() to authenticated;
 ```
 
-After running it, open **Team & access** and set each specialist's **Team**
-(edit → Team). Business-review slides and tables group by it; the presenter
-list on the closing slide too. A tag that appears in Shopify orders but on no
+After running it, open **Team & access** and set each specialist's **Team** and
+**Order** (edit → Team → Order), or seed both at once from the sales manager's
+presenting list (tags as they appear on the accounts; adjust if a tag differs):
+
+```sql
+update public.profiles set team = 'Team 1', sort_order = v.o
+  from (values ('charmaine',1),('ruth',2),('jonathan',3),('jon',3),('rechel',4),('joy',5),('rj',6),('tin',7),('rhas',8)) as v(tag,o)
+  where lower(specialist_tag) = v.tag;
+update public.profiles set team = 'Team 2', sort_order = v.o
+  from (values ('abby',11),('frank',12),('cyra',13),('orland reyes',14),('orlan',14)) as v(tag,o)
+  where lower(specialist_tag) = v.tag;
+update public.profiles set team = 'Key accounts', sort_order = v.o
+  from (values ('pinky',21),('lady',22)) as v(tag,o)
+  where lower(specialist_tag) = v.tag;
+```
+
+Business-review tables, per-person slides and the presenter list follow that
+order; accounts with no order come after everyone who has one. Test or dummy
+accounts (tag or name containing "test") and disabled accounts never appear. A tag that appears in Shopify orders but on no
 HQ account shows up on the Business review as "sits under Shopify tags that are
 not a specialist account" with the amount — fix the order tag or create the
 account.
+
+## AI provider (no SQL — Netlify env, Sep 3)
+
+Ask AI, the Slack `/stock` bot, the Monday next-best-action and **Draft with AI**
+all go through `netlify/functions/lib/llm.mjs`. Set in Netlify → Environment:
+
+| Variable | Meaning |
+|---|---|
+| `GEMINI_API_KEY` | from Google AI Studio (free tier, no card). With this set and no `AI_PROVIDER`, everything runs on Gemini Flash |
+| `AI_PROVIDER` | optional: `gemini` or `anthropic` to force one |
+| `GEMINI_MODEL` / `GEMINI_MODEL_LITE` | defaults `gemini-flash-latest` / `gemini-flash-lite-latest` (Lite is the fallback when Flash is rate-limited) |
+| `GEMINI_PAID=1` | set once billing is on — lifts the free-tier scrub (unit costs and supplier payables are left out of prompts on the free tier, because free-tier prompts may be used for model improvement) |
+| `ANTHROPIC_API_KEY` | optional safety net — if the primary provider fails or is rate-limited twice, the call is retried on Claude |
+
+Free-tier limits (Flash): ~15 requests/min, ~1,500/day, 1M-token context. A
+whole review's worth of drafts is ~25 calls. A 429 is retried once after 4–5 s,
+then Flash-Lite, then Claude if a key exists.

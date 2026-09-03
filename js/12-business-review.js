@@ -140,13 +140,14 @@ function bizCompute(ym){
   // authors and order tags only LOOK UP — a manager who logs a visit must not become a slide
   const getSpec=(n,create)=>{const k=specCanon(n);if(!k||INTERNAL_TAG.test(k))return null;const lk=k.toLowerCase();
     if(!create)return specs[lk]||null;
-    return specs[lk]||(specs[lk]={name:k,label:specDisplay(k),team:specTeam(k),mtd:0,prev:0,qtd:0,ytd:0,units:0,tgt:null,qtgt:null,ytgt:null,series:series.map(()=>0),
+    return specs[lk]||(specs[lk]={name:k,label:specDisplay(k),team:specTeam(k),order:specOrder(k),mtd:0,prev:0,qtd:0,ytd:0,units:0,tgt:null,qtgt:null,ytgt:null,series:series.map(()=>0),
       lines:{},skus:{},accts:{},orders:0,ordAccts:new Set(),newAccts:[],owned:new Set(),tagged:new Set(),active:0,
       visits:0,calls:0,demos:0,ordered:0,opened:0,touched:new Set()});};
   // Who is a specialist? The HQ accounts that carry a specialist tag (spec_directory).
   // Only when no directory exists yet do Shopify tags / targets / the roster stand in —
   // that fallback is what let "GMA 2", "Vacant" and territory tags masquerade as people.
-  const dir=(SPEC_DIR||[]).filter(r=>r&&r.tag&&r.active!==false);R.rosterSrc=dir.length?'directory':'tags';
+  const isTestAcct=r=>/\btest\b|dummy|sample/i.test(String(r.tag||''))||/\btest\b|dummy/i.test(String(r.name||''));
+  const dir=(SPEC_DIR||[]).filter(r=>r&&r.tag&&r.active!==false&&!isTestAcct(r));R.rosterSrc=dir.length?'directory':'tags';
   if(dir.length)for(const r of dir)getSpec(r.tag,true);
   const unassigned={v:0,tags:[]};
   for(const n in sm){let s=getSpec(n,!dir.length);
@@ -232,7 +233,7 @@ function bizCompute(ym){
     prevOrdering:Object.keys(acctPrev).length};
 
   /* specialist rows for output */
-  R.specs=Object.values(specs).map(s=>({name:s.name,label:s.label||s.name,team:s.team||'',mtd:s.mtd,prev:s.prev,qtd:s.qtd,ytd:s.ytd,units:s.units,tgt:s.tgt,qtgt:s.qtgt,ytgt:s.ytgt,nextTgt:s.nextTgt,
+  R.specs=Object.values(specs).map(s=>({name:s.name,label:s.label||s.name,team:s.team||'',order:s.order,mtd:s.mtd,prev:s.prev,qtd:s.qtd,ytd:s.ytd,units:s.units,tgt:s.tgt,qtgt:s.qtgt,ytgt:s.ytgt,nextTgt:s.nextTgt,
       att:bizPct(s.mtd,s.tgt),qatt:bizPct(s.qtd,s.qtgt),yatt:bizPct(s.ytd,s.ytgt),proj:s.mtd/elapsed,projAtt:bizPct(s.mtd/elapsed,s.tgt),series:s.series,
       orders:s.orders,ordering:s.ordAccts.size,newAccts:s.newAccts,masterlist:s.masterlist,active:s.active,quiet:s.quiet,
       topAccts:Object.keys(s.accts).map(c=>({name:c,v:s.accts[c]})).sort((a,b)=>b.v-a.v).slice(0,5),
@@ -240,7 +241,8 @@ function bizCompute(ym){
       topSkus:Object.keys(s.skus).map(k=>({sku:k,name:(SALESIDX[k]&&SALESIDX[k].name)||k,v:s.skus[k]})).sort((a,b)=>b.v-a.v).slice(0,5),
       visits:s.visits,calls:s.calls,demos:s.demos,ordered:s.ordered,opened:s.opened,touched:s.touched.size}))
     .filter(s=>R.rosterSrc==='directory'||s.mtd>0||s.prev>0||s.tgt||s.masterlist||s.visits||s.calls)
-    .sort((a,b)=>(a.team||'zzz').localeCompare(b.team||'zzz')||(b.mtd-a.mtd)); // by team, then revenue
+    // presenting order: the order set on the accounts (Team & access), then team, then revenue
+    .sort((a,b)=>((a.order==null?1e9:a.order)-(b.order==null?1e9:b.order))||(a.team||'zzz').localeCompare(b.team||'zzz')||(b.mtd-a.mtd));
   R.teams=[...new Set(R.specs.map(s=>s.team||''))];
   bizTrends(R);
   return R;}
@@ -486,22 +488,57 @@ async function renderBizReview(){
   $('content').innerHTML=h;
   bizCharts(R);}
 
+/* Chart configs are built once and used twice: live on the page, and rendered to
+   PNG for the deck. Keynote and Google Slides do not draw pptxgenjs's native
+   charts reliably (blank boxes), so the exported deck carries pictures of the
+   same charts; native charts remain the fallback when no canvas is available. */
+function bizChartCfg(R,key,arg,fs){
+  fs=fs||12;const F={size:fs};const leg={position:'bottom',labels:{font:F,boxWidth:fs}};const tick=extra=>Object.assign({font:F},extra||{});
+  const money={callback:v=>bizCompact(v)};
+  if(key==='brand'){const brands=R.brands.slice(0,8);
+    return {type:'bar',data:{labels:brands.map(b=>b.name),datasets:[{label:'MTD',data:brands.map(b=>Math.round(b.mtd)),backgroundColor:'rgba(0,22,143,0.85)',borderRadius:3},{label:'Projected',data:brands.map(b=>Math.round(b.proj)),backgroundColor:'rgba(0,22,143,0.25)',borderRadius:3},{label:'Target',data:brands.map(b=>Math.round(b.tgt||0)),backgroundColor:'rgba(215,90,48,0.6)',borderRadius:3}]},
+      options:{plugins:{legend:leg},scales:{x:{ticks:tick()},y:{beginAtZero:true,ticks:tick(money)}}}};}
+  if(key==='monthly'){const top=R.brands.slice(0,6).map(b=>b.name);const other=R.series.map((m,i)=>R.brands.filter(b=>!top.includes(b.name)).reduce((s,b)=>s+b.series[i],0));
+    const ds=R.brands.filter(b=>top.includes(b.name)).map((b,i)=>({type:'bar',label:b.name,data:b.series.map(Math.round),backgroundColor:COLORS[i%COLORS.length],stack:'s'}));
+    if(other.some(x=>x>0))ds.push({type:'bar',label:'Other',data:other.map(Math.round),backgroundColor:'#9AA3B2',stack:'s'});
+    return {data:{labels:R.series.map(m=>bizShortLbl(m)+' '+m.slice(2,4)),datasets:ds.concat([{type:'line',label:'Total',data:R.total.series.map(Math.round),borderColor:'#00168F',backgroundColor:'#00168F',tension:.3,pointRadius:3,yAxisID:'y'}])},
+      options:{plugins:{legend:leg},scales:{x:{stacked:true,ticks:tick()},y:{stacked:true,beginAtZero:true,ticks:tick(money)}}}};}
+  if(key==='accts'){const ta=R.accounts.top;
+    return {type:'bar',data:{labels:ta.map(a=>a.name.length>22?a.name.slice(0,21)+'…':a.name),datasets:[{label:bizShortLbl(R.prev),data:ta.map(a=>Math.round(a.prev)),backgroundColor:'rgba(0,22,143,0.25)',borderRadius:3},{label:'MTD',data:ta.map(a=>Math.round(a.v)),backgroundColor:'rgba(0,22,143,0.85)',borderRadius:3}]},
+      options:{plugins:{legend:leg},scales:{x:{ticks:tick()},y:{beginAtZero:true,ticks:tick(money)}}}};}
+  if(key==='specs'){const sp=R.specs;
+    return {type:'bar',data:{labels:sp.map(s=>s.label),datasets:[{label:'MTD',data:sp.map(s=>Math.round(s.mtd)),backgroundColor:sp.map(s=>s.att==null?'rgba(0,22,143,0.6)':s.att>=100?'rgba(14,138,95,0.85)':s.att>=70?'rgba(0,22,143,0.85)':s.att>=40?'rgba(183,121,31,0.85)':'rgba(200,60,60,0.85)'),borderRadius:3},{label:'Target',data:sp.map(s=>Math.round(s.tgt||0)),backgroundColor:'rgba(0,0,0,0.12)',borderRadius:3}]},
+      options:{indexAxis:'y',plugins:{legend:leg},scales:{x:{beginAtZero:true,ticks:tick(money)},y:{ticks:tick()}}}};}
+  if(key==='prod'){const rows=arg||[];
+    return {type:'bar',data:{labels:rows.map(p=>p.name.length>28?p.name.slice(0,27)+'…':p.name),datasets:[{label:'MTD',data:rows.map(p=>Math.round(p.v)),backgroundColor:'rgba(0,22,143,0.85)',borderRadius:3}]},
+      options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:tick(money)},y:{ticks:tick()}}}};}
+  if(key==='spec'){const sp=arg;const labels=R.series.map(m=>bizShortLbl(m));
+    const ds=[{type:'line',label:'Revenue',data:sp.series.map(Math.round),borderColor:'#00168F',backgroundColor:'#00168F',tension:.3,pointRadius:3}];
+    if(sp.tgt)ds.push({type:'line',label:'Target',data:labels.map(()=>Math.round(sp.tgt)),borderColor:'#D85A30',borderDash:[6,4],pointRadius:0});
+    return {data:{labels,datasets:ds},options:{plugins:{legend:{display:!!sp.tgt,position:'bottom',labels:{font:F,boxWidth:fs}}},scales:{x:{ticks:tick()},y:{beginAtZero:true,ticks:tick(money)}}}};}
+  return null;}
 function bizCharts(R){
-  if(typeof Chart==='undefined')return;const mk=(id,cfg)=>{try{const k='_bz_'+id;if(window[k])window[k].destroy();const el=$(id);if(!el)return;window[k]=new Chart(el,cfg);}catch(e){}};
-  const brands=R.brands.slice(0,8);
-  mk('bzBrand',{type:'bar',data:{labels:brands.map(b=>b.name),datasets:[{label:'MTD',data:brands.map(b=>Math.round(b.mtd)),backgroundColor:'rgba(0,22,143,0.85)',borderRadius:3},{label:'Projected',data:brands.map(b=>Math.round(b.proj)),backgroundColor:'rgba(0,22,143,0.25)',borderRadius:3},{label:'Target',data:brands.map(b=>Math.round(b.tgt||0)),backgroundColor:'rgba(215,90,48,0.6)',borderRadius:3}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}},scales:{y:{beginAtZero:true,ticks:{callback:v=>bizCompact(v)}}}}});
-  const top=R.brands.slice(0,6).map(b=>b.name);const other=R.series.map((m,i)=>R.brands.filter(b=>!top.includes(b.name)).reduce((s,b)=>s+b.series[i],0));
-  const ds=R.brands.filter(b=>top.includes(b.name)).map((b,i)=>({type:'bar',label:b.name,data:b.series.map(Math.round),backgroundColor:COLORS[i%COLORS.length],stack:'s'}));
-  if(other.some(x=>x>0))ds.push({type:'bar',label:'Other',data:other.map(Math.round),backgroundColor:'#9AA3B2',stack:'s'});
-  mk('bzMonthly',{data:{labels:R.series.map(m=>bizShortLbl(m)+' '+m.slice(2,4)),datasets:ds.concat([{type:'line',label:'Total',data:R.total.series.map(Math.round),borderColor:'#00168F',backgroundColor:'#00168F',tension:.3,pointRadius:3,yAxisID:'y'}])},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}},scales:{x:{stacked:true},y:{stacked:true,beginAtZero:true,ticks:{callback:v=>bizCompact(v)}}}}});
-  const ta=R.accounts.top;
-  mk('bzAccts',{type:'bar',data:{labels:ta.map(a=>a.name.length>22?a.name.slice(0,21)+'…':a.name),datasets:[{label:bizShortLbl(R.prev),data:ta.map(a=>Math.round(a.prev)),backgroundColor:'rgba(0,22,143,0.25)',borderRadius:3},{label:'MTD',data:ta.map(a=>Math.round(a.v)),backgroundColor:'rgba(0,22,143,0.85)',borderRadius:3}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}},scales:{y:{beginAtZero:true,ticks:{callback:v=>bizCompact(v)}}}}});
-  const sp=R.specs;
-  mk('bzSpecs',{type:'bar',data:{labels:sp.map(s=>s.label),datasets:[{label:'MTD',data:sp.map(s=>Math.round(s.mtd)),backgroundColor:sp.map(s=>s.att==null?'rgba(0,22,143,0.6)':s.att>=100?'rgba(14,138,95,0.85)':s.att>=70?'rgba(0,22,143,0.85)':s.att>=40?'rgba(183,121,31,0.85)':'rgba(200,60,60,0.85)'),borderRadius:3},{label:'Target',data:sp.map(s=>Math.round(s.tgt||0)),backgroundColor:'rgba(0,0,0,0.12)',borderRadius:3}]},
-    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}},scales:{x:{beginAtZero:true,ticks:{callback:v=>bizCompact(v)}}}}});}
+  if(typeof Chart==='undefined')return;
+  const mk=(id,cfg)=>{try{const k='_bz_'+id;if(window[k])window[k].destroy();const el=$(id);if(!el||!cfg)return;
+    cfg.options=Object.assign({responsive:true,maintainAspectRatio:false},cfg.options);window[k]=new Chart(el,cfg);}catch(e){}};
+  mk('bzBrand',bizChartCfg(R,'brand'));mk('bzMonthly',bizChartCfg(R,'monthly'));mk('bzAccts',bizChartCfg(R,'accts'));mk('bzSpecs',bizChartCfg(R,'specs'));}
+/* Renders every chart the deck needs to a PNG data URL. Boxes are in inches (the
+   deck's), drawn at 160 px per inch and 2x pixel ratio so they print crisp. */
+const BIZ_CHART_BOX={brand:[9,1.7],monthly:[9,4.05],specs:[3.15,4.05],prod:[2.95,4.0],spec:[4.6,2.0]};
+async function bizChartImages(R){
+  const out={};
+  if(typeof Chart==='undefined'||typeof document==='undefined')return out;
+  const draw=(cfg,box)=>{try{const c=document.createElement('canvas');const W=Math.round(box[0]*160),H=Math.round(box[1]*160);c.width=W;c.height=H;c.style.width=W+'px';c.style.height=H+'px';
+      cfg.options=Object.assign({responsive:false,animation:false,devicePixelRatio:2},cfg.options);
+      const ch=new Chart(c,cfg);if(typeof ch.toBase64Image!=='function'){ch.destroy&&ch.destroy();return null;}
+      const url=ch.toBase64Image('image/png',1);ch.destroy();return url&&url.length>200?url:null;}catch(e){return null;}};
+  const fs=20;
+  out.brand=draw(bizChartCfg(R,'brand',null,fs),BIZ_CHART_BOX.brand);
+  out.monthly=draw(bizChartCfg(R,'monthly',null,fs),BIZ_CHART_BOX.monthly);
+  out.specs=draw(bizChartCfg(R,'specs',null,fs),BIZ_CHART_BOX.specs);
+  out.prod={};for(const b of R.brands.filter(b=>b.mtd>0).slice(0,8)){const rows=R.products.filter(p=>p.line===b.name&&(p.v>0||p.u>0||p.tgt)).slice(0,8);if(rows.length)out.prod[b.name]=draw(bizChartCfg(R,'prod',rows,fs),BIZ_CHART_BOX.prod);}
+  out.spec={};for(const sp of R.specs)out.spec[sp.name]=draw(bizChartCfg(R,'spec',sp,fs),BIZ_CHART_BOX.spec);
+  return out;}
 
 /* ── PowerPoint export ─────────────────────────────────────────────────────
    bizDeck(pptx,R,ctx) is pure: it only reads the report object and the
@@ -518,7 +555,8 @@ async function bizExport(mode){
   if(mode==='mine'&&!me)return;if(mode==='full'&&!bizCanEditAll())return;
   BIZ.busy=true;const btns=[...document.querySelectorAll('#content .abtn')];btns.forEach(b=>b.style.opacity='.5');
   try{const P=await bizLoadPptx();const pptx=new P();
-    const ctx={notes:BIZ.notes,prevNotes:BIZ.prevNotes,prev:BIZ.prev,diff:bizDiff(BIZ.R,BIZ.prev),only:mode==='mine'?me:null,author:(SBPROFILE&&SBPROFILE.name)||''};
+    const charts=await bizChartImages(BIZ.R); // pictures: Keynote / Google Slides leave native charts blank
+    const ctx={notes:BIZ.notes,prevNotes:BIZ.prevNotes,prev:BIZ.prev,diff:bizDiff(BIZ.R,BIZ.prev),only:mode==='mine'?me:null,author:(SBPROFILE&&SBPROFILE.name)||'',charts};
     bizDeck(pptx,BIZ.R,ctx);
     const fn='Sales review '+BIZ.R.label+(mode==='mine'?' — '+me:'')+' (as of '+BIZ.R.asOf+').pptx';
     await pptx.writeFile({fileName:fn});audit('review.export',{month:BIZ.ym,mode});}
@@ -528,7 +566,9 @@ async function bizExport(mode){
 const BZ={blue:'00168F',blue2:'1226A0',tint:'EEF1FB',ink:'1A2030',mut:'5A6270',grid:'D7DEEE',alt:'F6F8FD',gr:'0E8A5F',rd:'B4322E',am:'B7791F',white:'FFFFFF',font:'Calibri'};
 const BZ_PAL=['00168F','378ADD','1D9E75','D85A30','7F77DD','BA7517','D4537E','639922'];
 function bizDeck(pptx,R,ctx){
-  ctx=ctx||{};const notes=ctx.notes||{},prevNotes=ctx.prevNotes||{},prev=ctx.prev||null,D=ctx.diff||null,only=ctx.only||null;
+  ctx=ctx||{};const notes=ctx.notes||{},prevNotes=ctx.prevNotes||{},prev=ctx.prev||null,D=ctx.diff||null,only=ctx.only||null;const IMG=ctx.charts||{};
+  // a chart is a picture when the browser drew one, a native chart otherwise (node tests, no canvas)
+  const pic=(s,url,x,y,w,h)=>{if(!url)return false;s.addImage({data:url,x,y,w,h,sizing:{type:'contain',w,h}});return true;};
   pptx.layout='LAYOUT_16x9';pptx.author='Healthspan HQ';pptx.company='Healthspan Global, Inc.';pptx.title='Sales performance report — '+R.label;
   const W=10,M=0.5,CW=W-2*M;
   const P=v=>'₱'+Math.round(v||0).toLocaleString('en-PH');const K=bizCompact;const pct=bizFmtPct;
@@ -606,14 +646,14 @@ function bizDeck(pptx,R,ctx){
       rows.push([{text:'Total',options:{bold:true}},{text:P(R.total.mtd),options:{bold:true}},{text:R.total.tgt!=null?P(R.total.tgt):'—',options:{bold:true}},pctCell(R.total.att),{text:P(R.total.qtd),options:{bold:true}},pctCell(R.total.qatt),{text:P(R.total.ytd),options:{bold:true}},pctCell(R.total.yatt),dCell(R.total.proj,R.total.prev)]);
       tbl(s,['Brand','MTD','Target','%','QTD','%','YTD','%','vs '+bizShortLbl(R.prev)],rows,{y:1.05,rowH:0.22,fontSize:8,colW:[1.7,1.1,1.1,0.6,1.15,0.6,1.15,0.6,1.0]});
       const cy=1.05+(rows.length+1)*0.22+0.15;const br=R.brands.slice(0,8);
-      s.addChart(pptx.ChartType.bar,[{name:'MTD',labels:br.map(b=>b.name),values:br.map(b=>Math.round(b.mtd))},{name:'Projected',labels:br.map(b=>b.name),values:br.map(b=>Math.round(b.proj))},{name:'Target',labels:br.map(b=>b.name),values:br.map(b=>Math.round(b.tgt||0))}],
+      if(!pic(s,IMG.brand,M,cy,CW,Math.max(1.2,5.2-cy)))s.addChart(pptx.ChartType.bar,[{name:'MTD',labels:br.map(b=>b.name),values:br.map(b=>Math.round(b.mtd))},{name:'Projected',labels:br.map(b=>b.name),values:br.map(b=>Math.round(b.proj))},{name:'Target',labels:br.map(b=>b.name),values:br.map(b=>Math.round(b.tgt||0))}],
         Object.assign({x:M,y:cy,w:CW,h:Math.max(1.2,5.2-cy),barDir:'col',barGapWidthPct:60,showLegend:true,chartColors:[BZ.blue,'9DB0F0','D85A30'],showValue:false},chartAxis));}
     /* ── monthly ── */
     {const s=slide();title(s,'Monthly performance — 13 months by brand','Stacked by brand; the line is the month total');
       const top=R.brands.slice(0,6);const other=R.series.map((m,i)=>R.brands.filter(b=>!top.includes(b)).reduce((t,b)=>t+b.series[i],0));
       const labels=R.series.map(m=>bizShortLbl(m)+' '+m.slice(2,4));
       const bars=top.map(b=>({name:b.name,labels,values:b.series.map(Math.round)}));if(other.some(x=>x>0))bars.push({name:'Other',labels,values:other.map(Math.round)});
-      s.addChart([{type:pptx.ChartType.bar,data:bars,options:{barGrouping:'stacked',chartColors:BZ_PAL.slice(0,bars.length)}},
+      if(!pic(s,IMG.monthly,M,1.1,CW,4.05))s.addChart([{type:pptx.ChartType.bar,data:bars,options:{barGrouping:'stacked',chartColors:BZ_PAL.slice(0,bars.length)}},
                   {type:pptx.ChartType.line,data:[{name:'Total',labels,values:R.total.series.map(Math.round)}],options:{chartColors:[BZ.ink],lineSize:2,lineDataSymbol:'circle',lineDataSymbolSize:5}}],
         Object.assign({x:M,y:1.1,w:CW,h:4.05,showLegend:true,catAxes:[{catAxisTitle:''}],valAxes:[{valAxisTitle:'',showValAxisTitle:false}]},chartAxis));
       s.addNotes('Top 6 brands stacked, the rest grouped as Other. External sales only.');}
@@ -622,7 +662,7 @@ function bizDeck(pptx,R,ctx){
       const s=slide();title(s,b.name+' — product sales',P(b.mtd)+' MTD'+(b.tgt?' · '+pct(b.att)+' of '+P(b.tgt):'')+' · '+bizDelta(b.proj,b.prev)+' projected vs '+bizShortLbl(R.prev));
       tbl(s,['Product','Units','MTD','Target','%','vs '+bizShortLbl(R.prev)],rows.map(p=>[p.name.length>46?p.name.slice(0,45)+'…':p.name,p.u.toLocaleString('en-PH'),P(p.v),p.tgt!=null?P(p.tgt):'—',pctCell(p.tgt!=null?bizPct(p.v,p.tgt):null),dCell(p.v/R.elapsed,p.pv)]),{x:M,y:1.1,w:5.9,rowH:0.27,fontSize:8,colW:[2.55,0.5,0.9,0.9,0.45,0.6]});
       const top=rows.slice(0,8);
-      s.addChart(pptx.ChartType.bar,[{name:'MTD',labels:top.map(p=>p.name.length>26?p.name.slice(0,25)+'…':p.name),values:top.map(p=>Math.round(p.v))}],
+      if(!pic(s,(IMG.prod||{})[b.name],6.55,1.1,2.95,4.0))s.addChart(pptx.ChartType.bar,[{name:'MTD',labels:top.map(p=>p.name.length>26?p.name.slice(0,25)+'…':p.name),values:top.map(p=>Math.round(p.v))}],
         Object.assign({x:6.55,y:1.1,w:2.95,h:4.0,barDir:'bar',showLegend:false,chartColors:[BZ.blue],showValue:true,dataLabelPosition:'outEnd',dataLabelFormatCode:'#,##0',dataLabelFontSize:7,dataLabelColor:BZ.mut,catAxisOrientation:'maxMin',valAxisHidden:true,valGridLine:{style:'none'}},chartAxis,{valAxisLabelFontSize:7,catAxisLabelFontSize:7}));}
     /* ── machines ── */
     {const s=slide();title(s,'Machine sales & demo units','SkinPen devices, Axion, Mark-Vu, Symmed, Zionic, GTG platforms and anything in the serial register — consumables excluded');
@@ -648,7 +688,7 @@ function bizDeck(pptx,R,ctx){
     {const s=slide();title(s,'Specialists — attainment and pace','Pace = month-to-date ÷ share of the month elapsed, against the monthly target');
       const sp=R.specs.slice(0,14);
       tbl(s,['Specialist','MTD','Target','%','Pace %','vs '+bizShortLbl(R.prev),'Orders','New','Contacts'],sp.map(x=>[x.label+(x.team?' · '+x.team:''),P(x.mtd),x.tgt!=null?P(x.tgt):'—',pctCell(x.att),pctCell(x.projAtt),dCell(x.proj,x.prev),x.orders,x.newAccts.length,x.visits+x.calls]),{x:M,y:1.1,w:5.7,rowH:Math.min(0.26,4.0/(sp.length+1)),fontSize:sp.length>10?7:8,colW:[1.2,0.85,0.85,0.45,0.5,0.55,0.45,0.4,0.45]});
-      s.addChart(pptx.ChartType.bar,[{name:'MTD',labels:sp.map(x=>x.label),values:sp.map(x=>Math.round(x.mtd))},{name:'Target',labels:sp.map(x=>x.label),values:sp.map(x=>Math.round(x.tgt||0))}],
+      if(!pic(s,IMG.specs,6.35,1.1,3.15,4.05))s.addChart(pptx.ChartType.bar,[{name:'MTD',labels:sp.map(x=>x.label),values:sp.map(x=>Math.round(x.mtd))},{name:'Target',labels:sp.map(x=>x.label),values:sp.map(x=>Math.round(x.tgt||0))}],
         Object.assign({x:6.35,y:1.1,w:3.15,h:4.05,barDir:'bar',showLegend:true,chartColors:[BZ.blue,'C9D0E6'],catAxisOrientation:'maxMin'},chartAxis,{catAxisLabelFontSize:7,valAxisLabelFontSize:7}));}
   }
   /* ── one performance slide + one commentary slide per specialist ── */
@@ -657,7 +697,7 @@ function bizDeck(pptx,R,ctx){
       R.early?['vs '+bizShortLbl(R.prev),'—',K(sp.prev)+' last month','']:['vs '+bizShortLbl(R.prev),bizDelta(sp.proj,sp.prev),K(sp.prev)+' last month',dTone(sp.proj,sp.prev)],['Accounts',sp.ordering+' / '+sp.masterlist,sp.newAccts.length+' new · '+sp.quiet+' quiet',sp.newAccts.length?'gr':''],
       ['Activity',String(sp.visits+sp.calls),sp.visits+' visits · '+sp.calls+' calls · '+sp.demos+' demos','']].forEach((t,i)=>tile(s,M+i*(tw+0.12),1.05,tw,0.86,t[0],t[1],t[2],t[3]));
     const labels=R.series.map(m=>bizShortLbl(m));
-    s.addChart(pptx.ChartType.line,[{name:'Revenue',labels,values:sp.series.map(Math.round)}].concat(sp.tgt?[{name:'Target',labels,values:labels.map(()=>Math.round(sp.tgt))}]:[]),
+    if(!pic(s,(IMG.spec||{})[sp.name],M,2.05,4.6,2.0))s.addChart(pptx.ChartType.line,[{name:'Revenue',labels,values:sp.series.map(Math.round)}].concat(sp.tgt?[{name:'Target',labels,values:labels.map(()=>Math.round(sp.tgt))}]:[]),
       Object.assign({x:M,y:2.05,w:4.6,h:2.0,showLegend:!!sp.tgt,chartColors:[BZ.blue,'D85A30'],lineSize:2,lineDataSymbol:'circle',lineDataSymbolSize:5,showTitle:true,title:'13 months',titleFontSize:8,titleColor:BZ.mut,titleFontFace:F},chartAxis));
     tbl(s,['Top accounts','MTD'],sp.topAccts.map(a=>[a.name.length>30?a.name.slice(0,29)+'…':a.name,P(a.v)]).concat(sp.topAccts.length?[]:[[{text:'no orders yet',options:{color:BZ.mut,italic:true}},'']]),{x:5.3,y:2.05,w:4.2,rowH:0.22,fontSize:7.5,colW:[3.0,1.2]});
     const ty=2.05+(Math.max(1,sp.topAccts.length)+1)*0.22+0.12;

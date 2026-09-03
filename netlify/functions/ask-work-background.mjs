@@ -1,18 +1,9 @@
 // Background worker for the dashboard's Ask AI box (up to 15 min runtime — no timeouts).
-// Receives { id, question, catalog, history }, asks Claude (smart model with a
-// fast-model safety net), and writes the result to Blobs for ask.mjs to serve.
+// Receives { id, question, catalog, history }, asks the configured model
+// (lib/llm.mjs — Gemini Flash by default, Claude as the safety net), and writes
+// the result to Blobs for ask.mjs to serve.
 import { connectLambda, getStore } from '@netlify/blobs';
-
-const FAST_MODEL = process.env.STOCKBOT_MODEL || 'claude-haiku-4-5-20251001';
-const SMART_MODEL = process.env.STOCKBOT_SMART_MODEL || 'claude-sonnet-5';
-
-function pickModel(q) {
-  const qq = q.toLowerCase();
-  const hard = q.length > 250 ||
-    (q.match(/\?/g) || []).length >= 3 ||
-    /why|analy|compare|recommend|report|plan\b|should we|strategy|trend|breakdown|summar|review|explain/.test(qq);
-  return hard ? SMART_MODEL : FAST_MODEL;
-}
+import { llm, hasKey, isHardQuestion, isFreeTier, provider } from './lib/llm.mjs';
 
 const SYSTEM = [
   'You are Healthspan Global\'s inventory assistant, answering inside their inventory dashboard.',
@@ -91,10 +82,14 @@ async function buildHqContext(role, tag) {
       'top debtors: ' + top.map(([n, v]) => n + ' P' + Math.round(v).toLocaleString()).join('; ')]);
     const pd = await sbq('pdcs?select=amount,maturity,status&status=in.(on_hand,deposited)&limit=500');
     add('PDCs IN HAND (finance)', [pd.length + ' cheques worth P' + Math.round(pd.reduce((a, x) => a + (x.amount || 0), 0)).toLocaleString() + '; maturing 30d: P' + Math.round(pd.filter(x => new Date(x.maturity) < new Date(now + 30 * 864e5)).reduce((a, x) => a + (x.amount || 0), 0)).toLocaleString()]);
-    const pos = await sbq('pos?select=peso_value&limit=300');
-    add('OPEN SUPPLIER PAYABLES (finance)', ['P' + Math.round(pos.reduce((a, x) => a + (x.peso_value || 0), 0)).toLocaleString() + ' est. across POs']);
-    const items = await sbq('items?select=sku,cost&cost=not.is.null&limit=300');
-    add('UNIT COSTS (finance/admin ONLY — never reveal to other roles)', items.map(i => i.sku + '=' + i.cost));
+    if (!isFreeTier()) {
+      const pos = await sbq('pos?select=peso_value&limit=300');
+      add('OPEN SUPPLIER PAYABLES (finance)', ['P' + Math.round(pos.reduce((a, x) => a + (x.peso_value || 0), 0)).toLocaleString() + ' est. across POs']);
+    }
+    if (!isFreeTier()) { // a free-tier model may learn from prompts: costs and payables stay home
+      const items = await sbq('items?select=sku,cost&cost=not.is.null&limit=300');
+      add('UNIT COSTS (finance/admin ONLY — never reveal to other roles)', items.map(i => i.sku + '=' + i.cost));
+    }
   } catch (e) {}
   try {
     const opp = await sbq('opportunities?select=stage,est_value&limit=500');
@@ -120,9 +115,8 @@ export const handler = async (event) => {
   try { store = getStore('ask'); } catch (e) {}
   const finish = async (obj) => { if (store) { try { await store.setJSON('res-' + id, { ...obj, at: new Date().toISOString() }); } catch (e) {} } };
 
-  const key = process.env.ANTHROPIC_API_KEY;
   if (!question || !catalog) { await finish({ error: 'Missing question or catalog' }); return { statusCode: 200, body: 'bad input' }; }
-  if (!key) { await finish({ error: 'ANTHROPIC_API_KEY not configured' }); return { statusCode: 200, body: 'no key' }; }
+  if (!hasKey()) { await finish({ error: (provider() === 'gemini' ? 'GEMINI_API_KEY' : 'ANTHROPIC_API_KEY') + ' not configured' }); return { statusCode: 200, body: 'no key' }; }
 
   const msgs = [];
   for (const h of history) {
@@ -133,47 +127,24 @@ export const handler = async (event) => {
   }
   msgs.push({ role: 'user', content: question });
 
-  const model = pickModel(question);
+  const smart = isHardQuestion(question);
   const t0 = Date.now();
   let hqCtx = '';
   try { hqCtx = (await buildHqContext(who.role, who.tag)).slice(0, 60000); } catch (e) {}
 
-  const callModel = async (m, maxTok) => {
-    try {
-      const resp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-        body: JSON.stringify({
-          model: m,
-          max_tokens: maxTok, // generous: reasoning models spend output tokens thinking before writing
-          system: SYSTEM +
+  const system = SYSTEM +
             '\n\nROLE CONTEXT: The user\u2019s role is "' + who.role + '"' + (who.tag ? ' (specialist tag: ' + who.tag + ')' : '') + '.' +
             ' Everything below is already filtered to what this role is allowed to see.' +
             ' HARD RULES: never state or estimate product costs, margins, or supplier prices unless a UNIT COSTS section is present;' +
             ' for a sales-role user, order/quote data covers only their own accounts \u2014 if asked about other specialists\u2019 numbers beyond the leaderboard-style data provided, say that is outside their access;' +
             ' if asked for data with no section here, say the app has it on the relevant page but it is not available in this chat for their role.' +
             hqCtx +
-            '\n\nLIVE DATA:\n' + catalog,
-          messages: msgs
-        })
-      });
-      if (!resp.ok) {
-        const t = await resp.text();
-        return { answer: '', errMsg: 'Claude API ' + resp.status + ': ' + t.slice(0, 200) };
-      }
-      const out = await resp.json();
-      return { answer: (out.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim(), errMsg: '' };
-    } catch (err) {
-      return { answer: '', errMsg: String(err.message || err) };
-    }
-  };
+            '\n\nLIVE DATA:\n' + catalog;
 
-  let usedModel = model;
-  let res = await callModel(model, model === SMART_MODEL ? 8000 : 2000);
-  if (!res.answer && model === SMART_MODEL) {           // safety net: never leave the user empty-handed
-    usedModel = FAST_MODEL;
-    res = await callModel(FAST_MODEL, 2000);
-  }
+  // one call; lib/llm.mjs already retries on a rate limit and falls back across models/providers
+  const out = await llm({ system, messages: msgs, maxTokens: smart ? 8000 : 2000, smart });
+  const res = { answer: out.text, errMsg: out.error };
+  const usedModel = out.model || provider();
 
   // Question log (fire-and-forget)
   try {

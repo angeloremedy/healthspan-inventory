@@ -514,12 +514,19 @@ August against September is not "movement".
 
 **Export PowerPoint** (manager) builds the whole deck in the browser — cover, at
 a glance, what moved, the commentary slides two-column (this report / last
-report), brand and product slides with native charts, machines, accounts,
+report), brand and product slides with charts (drawn by the page and placed as
+pictures, because Keynote and Google Slides leave PowerPoint-native charts
+blank), machines, accounts,
 clients, specialists, one performance slide and one commentary slide per
 specialist, plan, sales plan, thank-you with the presenter list. Every chart is a
 real PowerPoint chart, every commentary a real text box, so Marj can still edit
 in PowerPoint. **Export my slides** gives a specialist their own three-slide
 deck for their part of the meeting.
+
+**Draft with AI, Ask AI, the Slack bot and the Monday nudge run on Gemini Flash
+(free tier)** by default — one env var, `GEMINI_API_KEY`. On the free tier unit
+costs and supplier payables are left out of prompts; Claude stays as an optional
+safety net. See "AI provider" in SUPABASE-SETUP.md.
 
 **Who is a specialist, and what they are called.** The roster is the HQ accounts
 that carry a specialist tag (`spec_directory()`), and every name printed — here,
@@ -527,7 +534,10 @@ on Specialists, CRM activity, Scorecards, Leaderboard, Set targets and the
 specialist page title — is the name on that account, not the Shopify tag. Team &
 access has a **Team** field per specialist (Team 1 / Team 2 / Key accounts); the
 review groups and sorts by it and the closing slide lists presenters by team.
-Shopify tags that are not an account (territories, "Vacant", a manager's name) no
+The order people present in is the **Order** on their account (Team & access,
+or the seed SQL in SUPABASE-SETUP.md); tables, per-person slides and the closing
+slide follow it. Test accounts and disabled accounts never appear. Shopify tags
+that are not an account (territories, "Vacant", a manager's name) no
 longer become people: their revenue stays in the brand totals and the page says
 how much sits under which tags so the orders can be re-tagged.
 

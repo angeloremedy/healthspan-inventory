@@ -285,17 +285,18 @@ async function renderUsers(){
   const lbl='style="font-size:10.5px;color:var(--tx3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin:8px 0 3px"';
   $('content').innerHTML=
     '<div class="g2" style="align-items:start;gap:14px">'+
-    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Tag</th><th>Team</th><th>Last sign-in</th><th></th></tr></thead><tbody>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Tag</th><th>Team</th><th>Order</th><th>Last sign-in</th><th></th></tr></thead><tbody>'+
     users.map(u=>'<tr'+(u.banned?' style="opacity:.5"':'')+'><td style="font-weight:600">'+esc(u.name||'—')+(u.is_super?' <span class="pill pbl">super</span>':'')+(u.banned?' <span class="pill prd">disabled</span>':'')+'</td>'+
       '<td class="mu" style="font-size:11.5px">'+esc(u.email)+'</td>'+
       '<td>'+(u.is_super?'<span class="pill pbl" style="font-weight:700">super admin</span>':u.role==='admin'?'<span class="pill pbl">admin</span>':u.role==='manager'?'<span class="pill" style="background:rgba(127,119,221,.15);color:var(--pu)">sales manager</span>':u.role==='sales'?'<span class="pill pgr">product specialist</span>':u.role==='viewer'&&u.ps?'<span class="pill pgy">IT · PS accounts</span>':['supply_chain','finance','marketing','viewer'].includes(u.role)?'<span class="pill pgy">'+esc(u.role.replace('_',' '))+'</span>':'<span class="pill prd">'+esc(u.role)+'</span>')+'</td>'+
       '<td class="mu">'+esc(u.tag||'—')+'</td>'+
       '<td class="mu">'+esc(u.team||'—')+'</td>'+
+      '<td class="mu r">'+(u.order!==''&&u.order!=null?esc(String(u.order)):'—')+'</td>'+
       '<td class="mu" style="font-size:11px">'+(u.last?esc(u.last.slice(0,10)):'never')+'</td>'+
       '<td style="white-space:nowrap">'+
       ((u.is_super&&u.id!==(SBUSER&&SBUSER.id))||(psOnly&&u.role!=='sales')?'<span class="pill pbl" title="Outside your scope">'+(u.is_super?'🛡 protected':'—')+'</span>':
       psOnly?((u.banned?'<a href="#" onclick="userToggle(\''+u.id+'\',\'enable\');return false" style="color:var(--gr);font-size:11.5px">enable</a>':'<a href="#" onclick="userToggle(\''+u.id+'\',\'disable\');return false" style="color:var(--rd);font-size:11.5px">disable</a>')):
-      '<a href="#" onclick="userEdit(\''+u.id+'\',\''+jsq(u.name)+'\',\''+esc(u.role)+'\',\''+jsq(u.tag)+'\','+(u.ps?1:0)+',\''+jsq(u.team||'')+'\');return false" style="color:var(--ac);font-size:11.5px">edit</a> · '+
+      '<a href="#" onclick="userEdit(\''+u.id+'\',\''+jsq(u.name)+'\',\''+esc(u.role)+'\',\''+jsq(u.tag)+'\','+(u.ps?1:0)+',\''+jsq(u.team||'')+'\','+(u.order!==''&&u.order!=null?u.order:'null')+');return false" style="color:var(--ac);font-size:11.5px">edit</a> · '+
       '<a href="#" onclick="userPass(\''+u.id+'\',\''+jsq(u.name||u.email)+'\');return false" style="color:var(--ac);font-size:11.5px">password</a> · '+
       (isSuper()&&u.id!==(SBUSER&&SBUSER.id)?'<a href="#" onclick="userDelete(\''+u.id+'\',\''+jsq(u.name||u.email)+'\');return false" style="color:var(--rd);font-size:11.5px;font-weight:700">delete</a> · ':'')+
       (u.banned?'<a href="#" onclick="userToggle(\''+u.id+'\',\'enable\');return false" style="color:var(--gr);font-size:11.5px">enable</a>':
@@ -323,14 +324,15 @@ async function userCreate(){
     renderUsers();
   }catch(e){if(msg){msg.style.color='var(--rd)';msg.textContent=e.message;}}
 }
-async function userEdit(id,name,role,tag,ps,team){
+async function userEdit(id,name,role,tag,ps,team,order){
   const nn=prompt('Name:',name);if(nn===null)return;
   let nr=prompt('Role (admin / manager / sales / supply_chain / finance / marketing / viewer / it):',ps?'it':(role==='(no profile)'?'sales':role));if(nr===null)return;
   nr=nr.trim().toLowerCase();
   const nt=nr==='sales'?prompt('Specialist tag (blank = manager, sees all):',tag||''):'';
   if(nt===null)return;
-  let tm='';if(nr==='sales'&&(nt||'').trim()){tm=prompt('Team (as printed on the Business review, e.g. Team 1 / Team 2 / Key accounts — blank = none):',team||'');if(tm===null)return;}
-  try{await adminUsers('update',{id,name:nn.trim(),role:nr==='it'?'viewer':nr,can_manage_ps:nr==='it',tag:(nt||'').trim(),team:(tm||'').trim()});renderUsers();}
+  let tm='',od='';if(nr==='sales'&&(nt||'').trim()){tm=prompt('Team (as printed on the Business review, e.g. Team 1 / Team 2 / Key accounts — blank = none):',team||'');if(tm===null)return;
+    od=prompt('Presenting order on the Business review (1 = first; blank = after everyone with a number):',order==null?'':String(order));if(od===null)return;}
+  try{await adminUsers('update',{id,name:nn.trim(),role:nr==='it'?'viewer':nr,can_manage_ps:nr==='it',tag:(nt||'').trim(),team:(tm||'').trim(),order:(od||'').trim()});renderUsers();}
   catch(e){alert(e.message);}
 }
 async function userPass(id,who){

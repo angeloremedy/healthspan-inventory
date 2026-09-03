@@ -87,7 +87,7 @@ export const handler = async (event) => {
   try {
     if (act === 'list') {
       const users = await svc('/auth/v1/admin/users?per_page=200');
-      const profs = await svc('/rest/v1/profiles?select=id,name,role,specialist_tag,is_super,can_manage_ps,team');
+      const profs = await svc('/rest/v1/profiles?select=id,name,role,specialist_tag,is_super,can_manage_ps,team,sort_order');
       const pm = {}; for (const x of (profs || [])) pm[x.id] = x;
       const list = ((users && users.users) || []).map(u => ({
         id: u.id, email: u.email,
@@ -95,6 +95,7 @@ export const handler = async (event) => {
         role: (pm[u.id] && pm[u.id].role) || '(no profile)',
         tag: (pm[u.id] && pm[u.id].specialist_tag) || '',
         team: (pm[u.id] && pm[u.id].team) || '',
+        order: (pm[u.id] && pm[u.id].sort_order != null) ? pm[u.id].sort_order : '',
         is_super: !!(pm[u.id] && pm[u.id].is_super),
         ps: !!(pm[u.id] && pm[u.id].can_manage_ps),
         last: u.last_sign_in_at || '',
@@ -114,10 +115,11 @@ export const handler = async (event) => {
       return out(200, { ok: true, id: u.id });
     }
     if (act === 'update') {
-      const { id, name, role, tag, team } = p;
+      const { id, name, role, tag, team, order } = p;
       if (!id) return out(400, { error: 'Need id' });
       const patch = {};
       if (team !== undefined) patch.team = String(team || '').trim() || null;
+      if (order !== undefined) { const n = parseInt(order, 10); patch.sort_order = isNaN(n) ? null : n; }
       if (name != null) patch.name = name;
       if (role != null) { if (!['admin','manager','sales','supply_chain','finance','marketing','viewer'].includes(role)) return out(400, { error: 'Bad role' }); patch.role = role; }
       if (tag !== undefined) patch.specialist_tag = tag || null;
