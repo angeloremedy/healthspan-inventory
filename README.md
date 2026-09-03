@@ -463,6 +463,65 @@ an order — from the in-app visit log, with a 13-week trend. Planned visits cou
 only once done. Sales activity is the input; the Sales views measure the output.
 Every role can open it, including the specialists themselves.
 
+## 9.17d Business review — the monthly report, generated
+
+Sales analytics → Business review is the monthly sales performance report that
+used to be typed into PowerPoint from a spreadsheet. HQ now computes it: pick a
+month and the page shows, in the order the deck is presented —
+
+- **Performance at a glance** — revenue MTD, attainment, the projected finish,
+  QTD and YTD against the Targets tab, orders and ordering accounts, new
+  accounts, contacts logged — and **What HQ noticed**: a dozen plain sentences
+  the page writes from the figures (pace vs target, brands ahead and behind,
+  product concentration, first orders, repeat accounts going quiet, specialists
+  on and off pace, activity that has not turned into orders, machine installs).
+- **Brands** — MTD / QTD / YTD vs target per brand with a 13-month stacked chart
+  of monthly performance; then a product table per brand with deal revenue and
+  the change against last month.
+- **Machines & demo units** — equipment revenue, installs (serials marked sold),
+  demo units out and on loan, stock on hand. Equipment = anything in the serial
+  register.
+- **Accounts monitoring** — per specialist: masterlist, active in 90 days,
+  ordered this month, first orders, repeat accounts quiet for 90+ days, contacts.
+- **Clients & buying behaviour** — the part the old report never had: repeat vs
+  new revenue, accounts that reordered within the month, accounts buying from two
+  or more brands, deal share and free units, the top accounts with their change
+  against last month, biggest risers and fallers, and repeat accounts that have
+  gone quiet for 45–120 days (still recoverable) with their owner.
+- **Specialists** — attainment and pace for everyone, then one panel per
+  specialist: their numbers, top accounts and products, HQ's notes, and their
+  own commentary box.
+- **Plan** — plan of action, programs and promos, next month's targets per
+  specialist (from Targets) and plan notes.
+
+The numbers are not editable — they are the same figures the Targets and
+Scorecards pages show, external sales only. What people type is the commentary:
+the sales manager owns the wins / challenges / territory / plan / programs boxes,
+each specialist owns their own box (and can see everyone else's read-only). Every
+box also shows what it said in the **previous report** and whether it changed, so
+the meeting sees movement, not a fresh page each time. **Draft with AI** puts a
+first draft in the box from the report's own figures; edit, then Save.
+
+**Save snapshot** (manager) freezes the figures and the commentary as they stand.
+The next time the page opens it compares itself with that snapshot: within the
+same month it says what moved (revenue, attainment, orders, accounts, per brand
+and per specialist); across months it compares the commentary only, because
+August against September is not "movement".
+
+**Export PowerPoint** (manager) builds the whole deck in the browser — cover, at
+a glance, what moved, the commentary slides two-column (this report / last
+report), brand and product slides with native charts, machines, accounts,
+clients, specialists, one performance slide and one commentary slide per
+specialist, plan, sales plan, thank-you with the presenter list. Every chart is a
+real PowerPoint chart, every commentary a real text box, so Marj can still edit
+in PowerPoint. **Export my slides** gives a specialist their own three-slide
+deck for their part of the meeting.
+
+Windows to know: revenue and targets go back 13 months; orders, accounts and
+buying behaviour go back as far as the order index (about six months — the page
+says so and blanks those sections for older months); the visit log covers 120
+days. In the first three days of a month the page will not project the month.
+
 ## 9.18 With or without Remedy
 
 Remedy is a sister company and one of Healthspan's customers, and Healthspan also

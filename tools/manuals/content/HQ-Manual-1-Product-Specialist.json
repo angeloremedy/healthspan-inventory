@@ -768,6 +768,35 @@
    "v": "It reads the in-app visit log, so it is only as good as the logging discipline — activity is the input, the Sales views measure the output."
   },
   {
+   "t": "h2",
+   "v": "<b>Business review — the monthly report, generated</b>"
+  },
+  {
+   "t": "step",
+   "n": "1",
+   "v": "Sales analytics → <b>Business review</b>: the monthly sales performance report computed from HQ — at a glance, brands vs target with a 13-month chart, products per brand, machines and demo units, accounts monitoring, clients & buying behaviour, one panel per specialist, then the plan. Pick the month at the top; figures are external sales only, as on Targets."
+  },
+  {
+   "t": "step",
+   "n": "2",
+   "v": "<b>What HQ noticed</b> is written by the page from the figures — pace against target, brands ahead and behind, first orders, repeat accounts going quiet, specialists on and off pace, activity that has not turned into orders. It re-reads the same way every time; the story behind the numbers goes in the commentary boxes."
+  },
+  {
+   "t": "step",
+   "n": "3",
+   "v": "Your own panel is marked <b>you</b>. Under it is your commentary box — what happened, what is closing, what needs help — with what you wrote last time beside it. <b>Draft with AI</b> gives you a first draft from your own figures; edit, then <b>Save</b>. The other boxes are the sales manager’s and read-only for you."
+  },
+  {
+   "t": "step",
+   "n": "4",
+   "v": "<b>Export my slides</b> gives you a three-slide deck — cover, your performance slide (targets, pace, 13-month line, top accounts and products, HQ notes) and your commentary — for your part of the meeting."
+  },
+  {
+   "t": "step",
+   "n": "5",
+   "v": "Windows: revenue and targets reach back 13 months; orders, accounts and buying behaviour as far as the order index (about six months — older months blank those sections and say so); the visit log 120 days. In the first three days of a month nothing is projected."
+  },
+  {
    "t": "h1",
    "v": "<b>Period close — what freezes when a month is signed off</b>"
   },

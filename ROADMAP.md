@@ -122,6 +122,14 @@ platform feeds it via the accounting export; it does not replace it.
 
 **People (Sep 2)** — Jojo resigned: disable the account in Team & access and reassign any accounts owned by his tag; Marj is the sales manager of record. Daz joins finance: create the account with role `finance` in Team & access. Both are in-app actions, no SQL.
 
+**Business review — the monthly report, generated (Sep 3)**
+- ✅ Sales analytics → Business review: the bimonthly sales performance deck computed from HQ — at a glance, brands (MTD/QTD/YTD vs target, 13-month stacked chart), products per brand, machines & demo units, accounts monitoring per specialist, clients & buying behaviour (repeat vs new, reorders, cross-sell, deal share, risers/fallers, repeat accounts going quiet), specialists with one panel each, plan and next month's targets
+- ✅ What HQ noticed: rule-written trend sentences from the figures — pace, brands ahead/behind, concentration, first orders, quiet accounts, specialists on/off pace, activity without orders, installs. Per-specialist HQ notes too
+- ✅ Commentary boxes: manager owns wins / challenges / territory / plan / programs / plan notes, each specialist owns their own; everyone reads everything; each box shows what the previous report said and whether it changed. Draft with AI through the existing Ask job
+- ✅ Save snapshot → the next report says what moved since (same month: numbers and commentary; across months: commentary only). Export PowerPoint builds the full deck client-side with native charts and editable text; Export my slides gives a specialist their own three slides
+- 🔒 UI mirrors RLS on the specialist box (raw tag, not alias) — a profile tagged Kristine must be re-tagged Tin in Team & access to edit its box
+- ⏭ Next: schedule the snapshot nightly on the 15th and month-end so the "since last report" comparison never depends on someone clicking; Notion/Drive drop of the exported deck; per-territory grouping once accounts carry a territory field
+
 **Splash, serials, loaners, waves, CRM activity, faster boot (Sep 2)**
 - ✅ Expense reports (ER-): the eighth finance form — revolving-fund liquidation with itemised receipt lines, routed like every form via Approval routes (set the step to Tal in-app)
 - ✅ Back, for the installed app: a small ← in the phone/iPad top bar whenever there is somewhere to go back to, and a left-edge swipe right that does the same — both walk the app's own history, and a native-handled gesture is never doubled

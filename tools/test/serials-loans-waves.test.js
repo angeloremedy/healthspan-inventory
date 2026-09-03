@@ -17,7 +17,7 @@ ok('splash uses the real app icon', /id="splash"[^]*?icon-512\.png/.test(html));
 ok('splash is standalone-only', /display-mode: standalone/.test(html) && /id="splash" style="display:none/.test(html));
 ok('browser tab never shows it', (()=>{ // jsdom is not standalone, so the gate must leave it hidden
   const el=d.getElementById('splash'); return el&&el.style.display==='none';})());
-ok('all app scripts defer', (html.match(/<script defer src="js\//g)||[]).length===11, (html.match(/<script defer src="js\//g)||[]).length);
+ok('all app scripts defer', (html.match(/<script defer src="js\//g)||[]).length===12, (html.match(/<script defer src="js\//g)||[]).length);
 ok('CDN libs defer too', (html.match(/<script defer src="https:/g)||[]).length===2);
 ok('no blocking external script left', !/<script src=/.test(html));
 ok('preconnects present', /rel="preconnect" href="https:\/\/lesjigujcajxurmsmwwc/.test(html));

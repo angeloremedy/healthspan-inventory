@@ -214,6 +214,36 @@ datalists once they hold hundreds of options. Serial check-out flips the serial'
 status with a `.eq('status','in_stock').select('id')` guard — zero rows back means
 someone else took the unit, and the loan insert never happens.
 
+### js/12 — the Business review
+
+A twelfth script; nothing before it references it. `bizCompute(ym)` is a pure
+read over the globals the other sales views use — `SALESIDX`/`netMonthly(...,true)`
+for brand and product revenue (base + deal lines, always external), `specMerged()`
+for specialist revenue, `ORDIDX` re-folded into one row per order for accounts,
+top lists, first orders and cross-sell, `SHOPIFY.customers` for 90-day activity
+and the going-quiet list, `TARGETS` for LINE / PRODUCT / SPECIALIST / TOTAL,
+`VISITS`, `OWNERS`, `SERIALS`, `LOANS` — and returns one report object `R`. It
+never creates a specialist from an owner tag or a visit author: the roster is
+Shopify tags + specialist targets + the active roster, everything else only looks
+up, so a manager who logs a visit does not get a slide. `bizTrends(R)` writes the
+sentences from rules — deterministic, so the same figures always say the same
+thing, and nothing leaves the browser. The only network calls are the two small
+tables (`review_commentary`, `review_snapshots`) and, on demand, the existing
+`/.netlify/functions/ask` job for **Draft with AI**, which is sent the report
+figures as its live data.
+
+`bizDeck(pptx,R,ctx)` is also pure: the test runs it in node with the real
+pptxgenjs and writes a deck from the fixture, so slide layout is checked
+headlessly. In the browser `bizExport()` lazy-loads pptxgenjs from cdnjs (jsDelivr
+fallback) the first time someone exports. Charts are native (`addChart`), colours
+are `#`-less hex, no option object is shared between `add*` calls, stacked charts
+carry no outside data labels — the pptxgenjs faults that corrupt a file.
+
+Snapshots store a slim copy of `R` (no product list) plus the commentary as it
+stood; the page compares numbers only against a snapshot of the same month and
+commentary against the newest earlier one. Projections are suppressed in the
+first three days of a month; `bizToday()` is UTC like the cache's month keys.
+
 ### Row actions are buttons, upgraded at render time
 
 Templates still write `<a href="#" onclick="…">` for row actions — ~120 sites

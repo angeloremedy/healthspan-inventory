@@ -313,6 +313,20 @@
    "n": "7"
   },
   {
+   "t": "h2",
+   "v": "<b>Business review — the monthly report, generated</b>"
+  },
+  {
+   "t": "step",
+   "n": "1",
+   "v": "Sales analytics → <b>Business review</b>: the monthly sales performance report computed from HQ — at a glance, brands vs target with a 13-month chart, products per brand, machines and demo units, accounts monitoring, clients & buying behaviour, one panel per specialist, then the plan. Pick the month at the top; figures are external sales only, as on Targets."
+  },
+  {
+   "t": "step",
+   "n": "2",
+   "v": "Every section is readable; the commentary boxes are written by the sales manager and by each specialist, so on this page they are view-only for you. The figures are the same as Targets and Scorecards — external sales only."
+  },
+  {
    "t": "h1",
    "v": "<b>Finance forms</b>"
   },

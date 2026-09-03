@@ -114,6 +114,12 @@ therefore a floor — implementation grants the full circle read to all three.
 | Demo / loaners (check out / return / convert) | ✖ | ✅ | ✅ | ✅ (supply chain) | ✅ | RLS: supply_chain, admin, manager, super |
 | Release a pick wave | ✖ | ✅ | ✅ | ✅ (supply chain) | ✅ | same gate as fulfilment |
 | CRM activity view | ✅ | ✅ | ✅ | ✅ | ✅ | every role incl. specialists — it is their own effort |
+| Business review (open, read every section) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ — it is presented to the whole team anyway; it carries no cost or margin figure |
+| Business review — manager commentary (wins, challenges, territory, plan, programs, plan notes) | ✅ | ✅ | 👁 | 👁 | 👁 | 👁 — RLS: admin, manager, super |
+| Business review — a specialist's own commentary box | ✅ | ✅ | ✅ own only | ✖ | ✖ | ✖ — RLS compares the raw `profiles.specialist_tag` to the section, so the tag must be the canonical name (Tin, not Kristine) |
+| Business review — Save snapshot / Export PowerPoint (full deck) | ✅ | ✅ | ✖ | ✖ | ✖ | ✖ — snapshots are insert-only history; super admin may delete one |
+| Business review — Export my slides | ✖ | ✖ | ✅ | ✖ | ✖ | ✖ — cover + own performance slide + own commentary, for the specialist's own presentation |
+| Business review — Draft with AI | ✅ | ✅ | own box | ✖ | ✖ | ✖ — same gate as editing the box; goes through the existing Ask AI job with the report figures as its data |
 | Expense report (file one) | ✅ | ✅ | ✅ | ✅ | ✅ | any signed-in user; the approval route is the control, same as all finance forms |
 | My profile | ✅ | ✅ | ✅ | ✅ | ✅ | everyone — it only ever shows your own items |
 | Account documents (view / add) | ✅ | ✅ | ✅ | ✅ | ✅ | 👁 |

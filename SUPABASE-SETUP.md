@@ -2451,3 +2451,64 @@ on conflict (kind) do nothing;
 After running this, set the approver in **Admin → Approval routes**: add a step for
 "Expense report (revolving fund)" pointing at Tal. Routes are data, so if Tal is
 away the backup is one dropdown change, not a code change.
+
+## Business review — commentary + snapshots (Sep 3)
+
+```sql
+-- ── BUSINESS REVIEW: COMMENTARY ─────────────────────────────────────────────
+-- One row per (month, section). Sections are 'wins', 'challenges', 'territory',
+-- 'plan', 'program', 'forecast' (sales manager) and 'ps:<Specialist>' (that
+-- specialist's own slide). Everyone signed in can read; admin / manager write
+-- any section, a specialist writes only their own 'ps:' section.
+create table if not exists public.review_commentary (
+  month text not null check (month ~ '^\d{4}-\d{2}$'),
+  section text not null,
+  body text not null default '',
+  updated_by uuid references auth.users,
+  updated_name text,
+  updated_at timestamptz not null default now(),
+  primary key (month, section)
+);
+alter table public.review_commentary enable row level security;
+drop policy if exists "review_commentary read" on public.review_commentary;
+create policy "review_commentary read" on public.review_commentary for select to authenticated using (true);
+drop policy if exists "review_commentary write" on public.review_commentary;
+create policy "review_commentary write" on public.review_commentary for insert to authenticated
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid()
+              and (p.role in ('admin','manager') or p.is_super
+                   or (p.specialist_tag is not null and lower(section) = 'ps:' || lower(p.specialist_tag)))));
+drop policy if exists "review_commentary update" on public.review_commentary;
+create policy "review_commentary update" on public.review_commentary for update to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid()
+         and (p.role in ('admin','manager') or p.is_super
+              or (p.specialist_tag is not null and lower(section) = 'ps:' || lower(p.specialist_tag)))));
+drop policy if exists "review_commentary delete" on public.review_commentary;
+create policy "review_commentary delete" on public.review_commentary for delete to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and (p.role in ('admin','manager') or p.is_super)));
+
+-- ── BUSINESS REVIEW: SNAPSHOTS ──────────────────────────────────────────────
+-- "Save snapshot" freezes the report's figures (slim JSON) and the commentary as
+-- they stood, so the next report can show what moved since last time. Insert
+-- only — a snapshot is history, nobody edits it; super admin can delete a
+-- mistaken one.
+create table if not exists public.review_snapshots (
+  id bigint generated always as identity primary key,
+  month text not null check (month ~ '^\d{4}-\d{2}$'),
+  as_of date not null,
+  data jsonb not null default '{}'::jsonb,
+  notes jsonb not null default '{}'::jsonb,
+  created_by uuid references auth.users,
+  created_name text,
+  created_at timestamptz not null default now()
+);
+create index if not exists review_snapshots_month on public.review_snapshots (month, created_at desc);
+alter table public.review_snapshots enable row level security;
+drop policy if exists "review_snapshots read" on public.review_snapshots;
+create policy "review_snapshots read" on public.review_snapshots for select to authenticated using (true);
+drop policy if exists "review_snapshots write" on public.review_snapshots;
+create policy "review_snapshots write" on public.review_snapshots for insert to authenticated
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and (p.role in ('admin','manager') or p.is_super)));
+drop policy if exists "review_snapshots delete super" on public.review_snapshots;
+create policy "review_snapshots delete super" on public.review_snapshots for delete to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_super));
+```
