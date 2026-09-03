@@ -111,8 +111,8 @@ function bizCompute(ym){
       const e=ords[o.n]||(ords[o.n]={n:o.n,dt:o.dt||'',t:specCanon(o.t||''),c:o.c||'',a:0,skus:{},lines:new Set()});
       e.a+=(+o.a||0);e.skus[sku]=(e.skus[sku]||0)+(+o.a||0);e.lines.add(L);}}
   const O=Object.values(ords);
-  const first={},nRecent={};
-  for(const o of O){if(!o.c)continue;if(!first[o.c]||o.dt<first[o.c])first[o.c]=o.dt;nRecent[o.c]=(nRecent[o.c]||0)+1;}
+  const first={},last={},nRecent={};
+  for(const o of O){if(!o.c)continue;if(!first[o.c]||o.dt<first[o.c])first[o.c]=o.dt;if(!last[o.c]||o.dt>last[o.c])last[o.c]=o.dt;nRecent[o.c]=(nRecent[o.c]||0)+1;}
   const custs=(SHOPIFY&&SHOPIFY.customers)||{};
   const isNewAcct=c=>{if(!ordersComplete)return false;if(!first[c]||first[c].slice(0,7)!==ym)return false;const cc=custs[c];return !cc||((cc.o||0)-(cc.io||0))<=(nRecent[c]||0);};
 
@@ -150,15 +150,18 @@ function bizCompute(ym){
 
   /* account universe: ownership + Shopify history */
   const shopByNorm={};
-  for(const n in custs){const cc=custs[n];const k=custNorm(acctDedup(n));if(!k)continue;const e=shopByNorm[k]||(shopByNorm[k]={v90:0,v:0,o:0,l:'',int:true,name:n});
-    e.v90+=(cc.v90||0)-(cc.iv90||0);e.v+=(cc.v||0)-(cc.iv||0);e.o+=(cc.o||0)-(cc.io||0);if((cc.l||'')>e.l)e.l=cc.l;if(!cc.int)e.int=false;}
+  // every figure here is the external slice; the last-order date comes from external orders in the
+  // index, or from the cache only when the account has never had an internal order (cc.l is all orders)
+  for(const n in custs){const cc=custs[n];const k=custNorm(acctDedup(n));if(!k)continue;if(cc.int)continue;const e=shopByNorm[k]||(shopByNorm[k]={v90:0,v:0,o:0,l:'',int:false,name:n});
+    e.v90+=(cc.v90||0)-(cc.iv90||0);e.v+=(cc.v||0)-(cc.iv||0);e.o+=(cc.o||0)-(cc.io||0);
+    const l=last[n]||((cc.io||0)===0?(cc.l||''):'');if(l>e.l)e.l=l;}
   for(const k in (OWNERS||{})){const s=getSpec(OWNERS[k]);if(s)s.owned.add(k);}
   for(const lk in specs){const s=specs[lk];const all=new Set([...s.owned,...[...s.tagged].map(c=>custNorm(acctDedup(c)))].filter(Boolean));
     s.masterlist=all.size;s.active=[...all].filter(k=>shopByNorm[k]&&shopByNorm[k].v90>0).length;
     s.quiet=[...all].filter(k=>shopByNorm[k]&&!shopByNorm[k].int&&shopByNorm[k].o>=2&&shopByNorm[k].v90<=0).length;}
 
   /* visit log (rolling 120 days, so only the current and previous month are complete) */
-  for(const v of (VISITS||[])){if(v.status==='planned'||!v.date||v.date.slice(0,7)!==ym)continue;const s=getSpec(v.spec);if(!s)continue;
+  for(const v of (VISITS||[])){if(v.status==='planned'||!v.date||v.date.slice(0,7)!==ym)continue;if(INTERNAL_TAG.test(String(v.account||'').trim()))continue;const s=getSpec(v.spec);if(!s)continue;
     if(/call|viber|follow-?up/i.test(v.type||''))s.calls++;else s.visits++;
     if(/demo/i.test(v.type||''))s.demos++;if(v.outcome==='Ordered')s.ordered++;if(v.outcome==='New account opened')s.opened++;
     if(v.account)s.touched.add(custNorm(v.account));}
@@ -170,8 +173,9 @@ function bizCompute(ym){
   const eq=new Set((SERIALS||[]).map(s=>s.sku));
   for(const p of (DATA||[]))if(/machine|equipment|device/i.test(p.category||''))eq.add(p.sku);
   for(const p of R.products)p.equip=eq.has(p.sku);
-  const sold=(SERIALS||[]).filter(s=>s.status==='sold'&&String(s.updated_at||'').slice(0,7)===ym);
-  const lo=(LOANS||[]);
+  const notInt=t=>!INTERNAL_TAG.test(String(t||'').trim());
+  const sold=(SERIALS||[]).filter(s=>s.status==='sold'&&String(s.updated_at||'').slice(0,7)===ym&&notInt(s.sold_ref)&&notInt(s.note));
+  const lo=(LOANS||[]).filter(l=>notInt(l.account)); // demo units at Remedy branches are internal moves, not field demos
   R.machines={skus:eq.size,installs:sold.length,installList:sold.map(s=>({sku:s.sku,serial:s.serial,ref:s.sold_ref||''})),
     loansOut:lo.filter(l=>String(l.out_date||'').slice(0,7)===ym).length,converted:lo.filter(l=>l.status==='converted'&&String(l.updated_at||'').slice(0,7)===ym).length,
     onLoan:lo.filter(l=>l.status==='out').length,inStock:(SERIALS||[]).filter(s=>s.status==='in_stock').length,
@@ -348,6 +352,8 @@ function bizDiffChip(cur,S,key){if(!S||S[key]==null||cur==null)return '';const d
 async function renderBizReview(){
   loadingHint();
   if(!salesGuard())return;
+  if(!hasIntSplit()){ // the report is external-only by definition: without the split there is nothing honest to show
+    $('content').innerHTML='<div class="empty" style="margin-top:40px"><b>The Business review is external sales only.</b><br>The sales cache has not finished computing the Remedy / internal split yet, so there are no external figures to report. It rebuilds nightly at 2am, or ask for a rebuild from Sales overview, then come back — nothing here will ever show Remedy or internal orders.</div>';return;}
   if(!BIZ.ym)BIZ.ym=bizToday().slice(0,7);
   const ym=BIZ.ym;
   try{await Promise.all([loadVisits(),typeof loadOwners==='function'?(OWNERS?null:loadOwners()):null,typeof loadSerials==='function'?(SERIALS?null:loadSerials()):null,typeof loadLoans==='function'?(LOANS?null:loadLoans()):null,loadBizNotes(ym),BIZ.snaps?null:loadBizSnaps()]);}catch(e){}
@@ -363,7 +369,7 @@ async function renderBizReview(){
   /* toolbar */
   h+='<div class="no-print" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">'+
     '<select onchange="bizSetMonth(this.value)" style="font:inherit;padding:6px 8px;border-radius:8px;border:1px solid var(--bd)">'+months.map(m=>'<option value="'+m+'"'+(m===ym?' selected':'')+'>'+bizMonthLbl(m)+'</option>').join('')+'</select>'+
-    '<span class="mu" style="font-size:12px">as of '+esc(R.asOf)+' · '+(R.intSplit?'external sales only':'incl. Remedy & internal — the cache is still rebuilding the split')+' · targets: '+esc(R.total.tgtSrc)+'</span><span style="flex:1"></span>'+
+    '<span class="mu" style="font-size:12px">as of '+esc(R.asOf)+' · external sales only · targets: '+esc(R.total.tgtSrc)+'</span><span style="flex:1"></span>'+
     (canAll?'<a href="#" class="abtn" id="bz-snap" onclick="bizSnapshot();return false">Save snapshot</a><a href="#" class="abtn" onclick="bizExport(\'full\');return false">Export PowerPoint</a>':'')+
     (me?'<a href="#" class="abtn" onclick="bizExport(\'mine\');return false">Export my slides</a>':'')+
     '<a href="#" class="abtn" onclick="window.print();return false">Print</a></div>';
@@ -441,7 +447,7 @@ async function renderBizReview(){
   h+='<div class="panel" style="padding:14px 16px;margin-bottom:14px"><div class="phd">Sales plan — '+esc(bizMonthLbl(nextYm))+' targets per specialist</div>'+
     bizTbl(['Specialist','This month target','MTD','Gap','Next month target'],R.specs.map(s=>[esc(s.name),s.tgt!=null?P(s.tgt):'—',P(s.mtd),s.tgt!=null?P(Math.max(0,s.tgt-s.mtd)):'—',s.nextTgt!=null?P(s.nextTgt):'<span class="mu">not set</span>']))+
     '<div class="mu" style="font-size:11px;margin-top:6px">Next month\'s targets come from Targets → specialists. Set them there and this table fills itself.</div></div>'+bizNoteBox('forecast','Sales plan notes','Programs per team, conversions, anything the target table does not say.');
-  h+='<div class="mu" style="font-size:11px;margin:6px 0 20px">'+(R.intSplit?'External sales only (Remedy and Healthspan-internal orders excluded, as in Targets).':'Includes Remedy & internal orders until the cache finishes rebuilding the split.')+' QTD / YTD attainment counts only months that have a target row. Visit log covers a rolling 120 days'+(R.activity.complete?'':' — activity for this month is incomplete')+'; the order index covers orders since '+esc(R.ordersFrom||'—')+'. Generated '+esc(R.generated.slice(0,16).replace('T',' '))+'.</div>';
+  h+='<div class="mu" style="font-size:11px;margin:6px 0 20px">External sales only — Remedy, Healthspan-internal and pull-out orders are excluded everywhere on this page, as in Targets. QTD / YTD attainment counts only months that have a target row. Visit log covers a rolling 120 days'+(R.activity.complete?'':' — activity for this month is incomplete')+'; the order index covers orders since '+esc(R.ordersFrom||'—')+'. Generated '+esc(R.generated.slice(0,16).replace('T',' '))+'.</div>';
   $('content').innerHTML=h;
   bizCharts(R);}
 

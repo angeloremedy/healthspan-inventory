@@ -55,14 +55,17 @@ SHOPIFY={v:9,internalSplit:true,synced:new Date().toISOString(),recentFrom:F.d20
              'Skin Station':{o:1,u:5,v:90000,u90:5,v90:90000,l:F.today,io:0,iu:0,iv:0,iu90:0,iv90:0,int:false},
              'Old Clinic':{o:3,u:10,v:120000,u90:0,v90:0,l:F.d70,io:0,iu:0,iv:0,iu90:0,iv90:0,int:false},
              'Derma Hub':{o:1,u:3,v:60000,u90:3,v90:60000,l:pym+'-10',io:0,iu:0,iv:0,iu90:0,iv90:0,int:false},
-             'Remedy BGC':{o:1,u:5,v:50000,u90:5,v90:50000,l:F.today,io:1,iu:5,iv:50000,iu90:5,iv90:50000,int:true}},
+             'Remedy BGC':{o:1,u:5,v:50000,u90:5,v90:50000,l:F.today,io:1,iu:5,iv:50000,iu90:5,iv90:50000,int:true},
+             'Mixed Clinic':{o:3,u:12,v:130000,u90:5,v90:50000,l:F.today,io:1,iu:5,iv:50000,iu90:5,iv90:50000,int:false}},
   recent:[{n:'#1',dt:ym+'-02',t:'Rhas',c:'Dr. Cruz Clinic',x:0,ls:[['TD040',10,100000],['TD040 - AGF',1,40000]]},
           {n:'#2',dt:ym+'-05',t:'Rhas',c:'Dr. Cruz Clinic',x:0,ls:[['TD040',10,100000]]},
           {n:'#3',dt:ym+'-06',t:'Tin',c:'Skin Station',x:0,ls:[['SP001',1,150000],['ME0001',2,4000]]},
           {n:'#4',dt:ym+'-07',t:'Remedy BGC',c:'Remedy BGC',x:1,ls:[['TD040',5,50000]]},
           {n:'#5',dt:pym+'-03',t:'Rhas',c:'Dr. Cruz Clinic',x:0,ls:[['TD040',20,200000]]},
           {n:'#6',dt:pym+'-10',t:'Abby',c:'Derma Hub',x:0,ls:[['CS001',3,60000]]},
-          {n:'#7',dt:F.d200,t:'Rhas',c:'Dr. Cruz Clinic',x:0,ls:[['TD040',5,50000]]}]};
+          {n:'#7',dt:F.d200,t:'Rhas',c:'Dr. Cruz Clinic',x:0,ls:[['TD040',5,50000]]},
+          {n:'#8',dt:F.d70,t:'Abby',c:'Mixed Clinic',x:0,ls:[['TD040',4,40000]]},
+          {n:'#9',dt:F.today,t:'Remedy BGC',c:'Mixed Clinic',x:1,ls:[['TD040',5,50000]]}]};
 mergeShopify();
 TARGETS=[{month:ym,scope:'LINE',name:'Inno TDS',value:500000},{month:ym,scope:'LINE',name:'SKINPEN',value:100000},
          {month:ym,scope:'SPECIALIST',name:'Rhas',value:300000},{month:F.nym,scope:'SPECIALIST',name:'Rhas',value:350000},
@@ -73,13 +76,15 @@ VISITS=[{id:1,spec:'Rhas',account:'Dr. Cruz Clinic',type:'Clinic visit',outcome:
         {id:3,spec:'Rhas',account:'New Derma',type:'Product demo',outcome:'New account opened',date:F.today,status:'done'},
         {id:4,spec:'Rhas',account:'X',type:'Clinic visit',outcome:'Ordered',date:F.today,status:'planned'},
         {id:5,spec:'Tin',account:'Skin Station',type:'Clinic visit',outcome:'Ordered',date:pym+'-20',status:'done'},
-        {id:6,spec:'Marj',account:'Skin Station',type:'Clinic visit',outcome:'No order',date:F.today,status:'done'}];
+        {id:6,spec:'Marj',account:'Skin Station',type:'Clinic visit',outcome:'No order',date:F.today,status:'done'},
+        {id:7,spec:'Rhas',account:'Remedy BGC',type:'Clinic visit',outcome:'Ordered',date:F.today,status:'done'}];
 loadVisits=async()=>VISITS;
 OWNERS={};OWNERS[custNorm(acctDedup('Old Clinic'))]='Rhas';loadOwners=async()=>OWNERS;
 SERIALS=[{id:1,sku:'SP001',serial:'SP-1',status:'sold',sold_ref:'#3',updated_at:ym+'-06T10:00:00Z',created_at:F.d200},
          {id:2,sku:'SP001',serial:'SP-2',status:'in_stock',updated_at:F.d200,created_at:F.d200},
          {id:3,sku:'SP001',serial:'SP-3',status:'on_loan',updated_at:ym+'-03T10:00:00Z',created_at:F.d200}];
-LOANS=[{id:1,serial_id:3,sku:'SP001',serial:'SP-3',account:'Derma Hub',out_date:ym+'-03',due_date:ym+'-20',status:'out',out_name:'Verna',updated_at:ym+'-03T10:00:00Z'}];
+LOANS=[{id:1,serial_id:3,sku:'SP001',serial:'SP-3',account:'Derma Hub',out_date:ym+'-03',due_date:ym+'-20',status:'out',out_name:'Verna',updated_at:ym+'-03T10:00:00Z'},
+       {id:2,serial_id:4,sku:'SP001',serial:'SP-4',account:'Remedy Vertis',out_date:ym+'-04',due_date:ym+'-20',status:'out',out_name:'Verna',updated_at:ym+'-04T10:00:00Z'}];
 loadSerials=async()=>SERIALS;loadLoans=async()=>LOANS;
 
 /* Supabase stub with the two new tables */
@@ -139,7 +144,10 @@ ok('AOV', Math.round(A.aov)===Math.round((240000+154000)/3), A.aov);
 ok('top account with delta', A.top[0].name==='Dr. Cruz Clinic'&&A.top[0].prev===200000&&A.top[0].spec==='Rhas');
 ok('faller: Derma Hub (prev only)', A.fallers.some(f=>f.name==='Derma Hub'&&f.d===-60000), JSON.stringify(A.fallers));
 ok('riser: Dr. Cruz', A.risers.some(f=>f.name==='Dr. Cruz Clinic'&&f.d===40000));
-ok('lapsed: Old Clinic, 70 days, owner Rhas', A.lapsed.length===1&&A.lapsed[0].name==='Old Clinic'&&A.lapsed[0].days===70&&A.lapsed[0].owner==='Rhas', JSON.stringify(A.lapsed));
+ok('lapsed: Old Clinic 70 days (owner Rhas) and Mixed Clinic 70 days — its internal order today does not count as activity', A.lapsed.length===2&&A.lapsed.every(l=>l.days===70)&&A.lapsed.some(l=>l.name==='Old Clinic'&&l.owner==='Rhas')&&A.lapsed.some(l=>l.name==='Mixed Clinic'), JSON.stringify(A.lapsed));
+ok('a visit to a Remedy branch is not a contact', rh.visits===2&&rh.ordered===1);
+ok('a demo unit at a Remedy branch is not a field demo', R.machines.loansOut===1&&R.machines.onLoan===1);
+ok('no Remedy anywhere in the report object', !/remedy|reemdy|healthspan/i.test(JSON.stringify(Object.assign({},R,{label:'',trends:R.trends.map(t=>t.t.replace(/Remedy|Healthspan/g,''))}))), (JSON.stringify(R).match(/[^"]{0,40}remedy[^"]{0,40}/i)||[''])[0]);
 ok('deal share', A.dealRev===40000&&Math.round(A.dealShare)===9, A.dealShare);
 /* machines */
 ok('equipment = serialised SKUs', R.machines.skus===1&&R.products.find(p=>p.sku==='SP001').equip&&!td.equip);
@@ -211,6 +219,10 @@ DB.review_snapshots[0].month=pym;DB.review_snapshots[0].data.ym=pym;BIZ.snaps=nu
 ok('earlier-month snapshot still feeds the "last report" boxes', /Last report \\(/.test(c));
 ok('…but never claims numeric movement', !/Since the last report/.test(c));
 DB.review_snapshots[0].month=ym;DB.review_snapshots[0].data.ym=ym;BIZ.snaps=null;await renderBizReview();
+/* no split → no numbers, ever */
+SHOPIFY.internalSplit=false;BIZ.snaps=null;await renderBizReview();c=document.getElementById('content').innerHTML;
+ok('without the internal split the page refuses to show figures', /external sales only/.test(c)&&!document.getElementById('bz-wins')&&!/MONTHLY SALES PERFORMANCE REPORT/.test(c));
+SHOPIFY.internalSplit=true;BIZ.snaps=null;await renderBizReview();
 /* the deck: needs the real library */
 window.__R=R;window.__ctx={notes:BIZ.notes,prevNotes:BIZ.prevNotes,prev:BIZ.prev,diff:bizDiff(R,S0),author:'Marj'};
 window.__ctxMine={notes:BIZ.notes,prevNotes:BIZ.prevNotes,prev:BIZ.prev,diff:null,only:'Rhas'};

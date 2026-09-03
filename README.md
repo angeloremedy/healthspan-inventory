@@ -495,7 +495,11 @@ month and the page shows, in the order the deck is presented —
   specialist (from Targets) and plan notes.
 
 The numbers are not editable — they are the same figures the Targets and
-Scorecards pages show, external sales only. What people type is the commentary:
+Scorecards pages show, and **external only, without exception**: Remedy,
+Healthspan-internal and pull-out orders are excluded from every figure on the
+page — revenue, orders, accounts, last-order dates, visits to a Remedy branch,
+demo units parked at a branch. There is no toggle. If the sales cache has not yet
+computed the split, the page shows no figures at all rather than gross ones. What people type is the commentary:
 the sales manager owns the wins / challenges / territory / plan / programs boxes,
 each specialist owns their own box (and can see everyone else's read-only). Every
 box also shows what it said in the **previous report** and whether it changed, so
