@@ -447,6 +447,17 @@ takes you Home rather than doing nothing.
 
 ## 9.17b My profile
 
+For anyone with a specialist tag, **My profile is their sales page** — the same
+chips, calendar, 13-month chart, recent orders and visits that Specialists →
+their name shows — with an identity card on top, a **"Your month in numbers"**
+block from the Business review figures (booked vs target, pace, vs last month,
+QTD/YTD, rank, accounts ordered / masterlist, new accounts, going quiet,
+contacts and contact→order rate, next month's target, brands this month), and
+their finance forms and loaners underneath. Buttons lead to their commentary,
+their deck and CRM activity. Everyone else keeps the identity card, forms and
+loaners.
+
+
 Everyone has a profile now, not just specialists: **My profile** sits right under
 Home in the sidebar, and your name in the desktop footer or the phone menu opens
 it too. It shows who you are signed in as, every finance form you have filed and
@@ -529,6 +540,17 @@ Accounts monitoring (masterlist, top accounts, going quiet), Training & marketin
 activities, Sales plan / forecast, Proposals, thank-you. The five text boxes and
 the forecast table are the specialist's inputs, under their panel on the review.
 
+Four slides Paul asked for after the first draft, all in the team deck and on the
+review page: a **monthly performance slide per brand** (13 months of revenue
+against that month's target, six-month table under it); an **Accounts overview**
+— total active accounts (order in 90 days), total new accounts (first order of any
+kind), and new-to-brand accounts per brand (first order containing that brand,
+with names); **SkinPen to date** — pens and treatment kits sold YTD, this month,
+13 months, kits per pen, installed base from the serial register; and the
+**Mixexpert → Mesoestetic** tracker — paste the Mixexpert clinic list once
+(Accounts get `source = Mixexpert`), and the review counts how many have bought
+Mesoestetic against the 250 target.
+
 **Reports** (Sales analytics → Reports) is where the files come from: one row per
 deck for the month, an **Inputs** column that says how many of the person's boxes
 are in (and which are missing, on hover) and when they last wrote, then
@@ -536,6 +558,11 @@ are in (and which are missing, on hover) and when they last wrote, then
 slides, saved with the browser's Save as PDF. The sales manager and admin see
 every deck and **Download all**; a specialist sees their own row. Everything is
 built from live figures the moment it is clicked.
+
+**Google Slides.** Each row also has **Google Slides**: the deck is built, uploaded
+to the shared Drive reports folder, converted to a native Slides file and shared
+with the addresses you give (you are always included) — Paul's "put it into
+Google Slides and share with Marj and team" in one click.
 
 **Weekly meeting → Notion.** The same page has **Copy for Notion**: this week's
 figures for the Sales section (brand table with target and attainment,
@@ -589,6 +616,34 @@ Windows to know: revenue and targets go back 13 months; orders, accounts and
 buying behaviour go back as far as the order index (about six months — the page
 says so and blanks those sections for older months); the visit log covers 120
 days. In the first three days of a month the page will not project the month.
+
+## 9.17e Settings
+
+The little controls that used to sit in the sidebar footer and the phone menu
+live on one page: **Appearance** (theme, light / dark / match device),
+**Account** (change password, **Sign out** — a button now, not a link),
+**Shortcuts & help** (favourites, bottom bar, manual) and, for managers and
+admins, **AI** — which model answers Ask HQ, Draft with AI, the Slack bot and
+the Monday nudge: Gemini Flash (free, default), Claude Haiku, DeepSeek, Kimi or
+Groq. Each shows whether its key is set in Netlify; only the super admin changes
+the choice (it is `app_settings.ai_provider`, read by the workers on every call);
+anyone can run the connection test. The footer keeps name · role · Settings ·
+Sign out.
+
+## 9.17f Approval routes, simplified
+
+Admin → Approval routes is one card per form with its chain as steps, left to
+right. Each step is edited in place — a dropdown for who approves (the request's
+fund-source approver, anyone with a role, or a named person), a label, an amount
+floor — and saves as you change it. "+ Add step" appends the next step to that
+form. No more numbered prompts.
+
+## 9.17g The AI planning review, readable
+
+The review now asks the model for four headed sections and renders them as four
+cards — stockout risks, money at risk, what the forecast misses say, five
+actions — instead of one grey paragraph; Ask HQ answers render headings, bullets
+and numbered lists too (`mdLite`).
 
 ## 9.18 With or without Remedy
 

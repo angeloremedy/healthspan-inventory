@@ -97,6 +97,11 @@ function bizTeamSpec(R,ctx){
     const top=R.brands.slice(0,6);const labels=R.series.map(m=>bizShortLbl(m)+' '+m.slice(2,4));
     bzImg(s,'monthly',BZ_M,1.1,BZ_CW,4.05,{kind:'stacked',series:top.map(b=>({name:b.name,labels,values:b.series.map(Math.round)})),line:{name:'Total',labels,values:R.total.series.map(Math.round)}});
     s.notes='Top 6 brands stacked, the rest grouped as Other. External sales only.';spec.push(s);}
+  /* one monthly-performance slide per brand: 13 months of revenue against the monthly target */
+  for(const b of R.brands.filter(b=>b.series.some(v=>v>0)).slice(0,10)){const s=bzSlide();const yt=R.series.map((m,i)=>m.slice(0,4)===R.ym.slice(0,4)?b.series[i]:0).reduce((a,v)=>a+v,0);
+    bzTitle(s,b.name+' — monthly performance',R.ym.slice(0,4)+' to date '+P(b.ytd)+(b.ytgt?' · '+pct(b.yatt)+' of '+P(b.ytgt):'')+' · best month '+bizShortLbl(R.series[b.series.indexOf(Math.max(...b.series))])+' '+P(Math.max(...b.series))+(R.early?'':' · '+bizDelta(b.proj,b.prev)+' projected vs '+bizShortLbl(R.prev)));
+    bzImg(s,'brandm:'+b.name,BZ_M,1.05,BZ_CW,3.05,{kind:'bar',series:[{name:'Revenue',labels:R.series.map(m=>bizShortLbl(m)+' '+m.slice(2,4)),values:b.series.map(Math.round)}].concat(b.seriesTgt.some(t=>t!=null)?[{name:'Target',labels:R.series.map(m=>bizShortLbl(m)+' '+m.slice(2,4)),values:b.seriesTgt.map(t=>Math.round(t||0))}]:[]),colors:[BZ.blue,'D85A30']});
+    const months=R.series.slice(-6);bzTable(s,['',...months.map(m=>bizShortLbl(m)+' '+m.slice(2,4))],[['Revenue',...months.map(m=>P(b.series[R.series.indexOf(m)]))],['Units',...months.map(m=>String(b.seriesU[R.series.indexOf(m)]))],['Target',...months.map(m=>{const t=b.seriesTgt[R.series.indexOf(m)];return t==null?'—':P(t);})],['Attainment',...months.map(m=>{const i=R.series.indexOf(m);return bzPct(bizPct(b.series[i],b.seriesTgt[i]));})]],{x:BZ_M,y:4.18,w:BZ_CW,rowH:0.2,fontSize:7.5,colW:[1.2,...months.map(()=>(BZ_CW-1.2)/6)]});spec.push(s);}
   for(const b of R.brands.filter(b=>b.mtd>0).slice(0,8)){const rows=R.products.filter(p=>p.line===b.name&&(p.v>0||p.u>0||p.tgt)).slice(0,12);if(!rows.length)continue;
     const s=bzSlide();bzTitle(s,b.name+' — product sales',P(b.mtd)+' MTD'+(b.tgt?' · '+pct(b.att)+' of '+P(b.tgt):'')+' · '+bizDelta(b.proj,b.prev)+' projected vs '+bizShortLbl(R.prev));
     bzTable(s,['Product','Units','MTD','Target','%','vs '+bizShortLbl(R.prev)],rows.map(p=>[bzCut(p.name,46),p.u.toLocaleString('en-PH'),P(p.v),p.tgt!=null?P(p.tgt):'—',bzPct(p.tgt!=null?bizPct(p.v,p.tgt):null),bzD(p.v/R.elapsed,p.pv)]),{x:BZ_M,y:1.1,w:5.9,rowH:0.27,fontSize:8,colW:[2.55,0.5,0.9,0.9,0.45,0.6]});
@@ -104,6 +109,19 @@ function bizTeamSpec(R,ctx){
   {const s=bzSlide();bzTitle(s,'Machine sales & demo units','SkinPen devices, Axion, Mark-Vu, Symmed, Zionic, GTG platforms and anything in the serial register — consumables excluded');
     bzTiles(s,[{label:'Machine revenue',value:P(R.machines.rev),sub:R.machines.units+' units'},{label:'Installs recorded',value:String(R.machines.installs),sub:'serials marked sold this month',tone:R.machines.installs?'gr':''},{label:'Demo units out',value:String(R.machines.loansOut),sub:R.machines.onLoan+' on loan now · '+R.machines.converted+' converted',tone:'am'},{label:'Equipment in stock',value:String(R.machines.inStock),sub:R.machines.skus+' serialised SKUs'}],BZ_M,1.1,BZ_CW);
     bzTable(s,['Machine','Units','MTD','Target','%'],R.machines.rows.slice(0,10).map(p=>[p.name,p.u.toLocaleString('en-PH'),P(p.v),p.tgt!=null?P(p.tgt):'—',bzPct(p.tgt!=null?bizPct(p.v,p.tgt):null)]).concat(R.machines.rows.length?[]:[[{text:'No machine sales this month',options:{color:BZ.mut,italic:true}},'','','','']]),{x:BZ_M,y:2.15,w:BZ_CW,rowH:0.26,colW:[4.6,1.0,1.4,1.4,0.6]});spec.push(s);}
+  {const s=bzSlide();bzTitle(s,'Accounts overview','Active = external order in the last 90 days · New = first order of any kind in 13 months · New to brand = first order containing that brand in the order window');const A=R.accounts;
+    bzTiles(s,[{label:'Active accounts',value:String(A.active),sub:'ordered in the last 90 days',tone:'gr'},{label:'Ordered this month',value:String(A.ordering),sub:A.orders+' orders'},{label:'New accounts',value:String(A.newAccts.length),sub:K(A.newRev)+' in first orders',tone:A.newAccts.length?'gr':''},{label:'Bought 2+ brands',value:String(A.multiBrand),sub:'this month'}],BZ_M,1.05,BZ_CW);
+    bzTable(s,['Brand','Active accounts (90d)','New to the brand this month','Who'],A.byBrand.slice(0,9).map(b=>[b.name,b.active,b.newN,bzCut(b.newNames.join(', ')+(b.newN>b.newNames.length?' …':''),70)]),{x:BZ_M,y:2.1,w:BZ_CW,rowH:0.27,fontSize:8,colW:[1.8,1.5,1.7,4.0],left:[3]});spec.push(s);}
+  if(R.skinpen){const Kp=R.skinpen;const s=bzSlide();bzTitle(s,'SkinPen to date — pens and kits','Units, external only · pens = device packages, kits = treatment kits · kits per pen is the utilisation proxy');
+    bzTiles(s,[{label:'Pens sold YTD',value:String(Kp.pensYtd),sub:Kp.pensMtd+' this month · '+Kp.pens13+' in 13 months'},{label:'Kits sold YTD',value:String(Kp.kitsYtd),sub:Kp.kitsMtd+' this month · '+Kp.kits13+' in 13 months',tone:'gr'},{label:'Kits per pen (YTD)',value:Kp.kitsPerPenYtd!=null?Kp.kitsPerPenYtd.toFixed(1):'—',sub:'kits ÷ pens this year'},{label:'Installed (serial register)',value:String(Kp.installedSerials),sub:'pens marked sold',tone:'am'}],BZ_M,1.05,BZ_CW);
+    bzImg(s,'skinpen',BZ_M,2.1,5.4,3.05,{kind:'bar',series:[{name:'Kits',labels:R.series.map(m=>bizShortLbl(m)),values:Kp.kitsSeries},{name:'Pens',labels:R.series.map(m=>bizShortLbl(m)),values:Kp.pensSeries}],colors:[BZ.blue,'D85A30']});
+    const months=R.series.slice(-6);bzTable(s,['',...months.map(m=>bizShortLbl(m))],[['Pens',...months.map(m=>String(Kp.pensSeries[R.series.indexOf(m)]))],['Kits',...months.map(m=>String(Kp.kitsSeries[R.series.indexOf(m)]))]],{x:6.15,y:2.1,w:3.35,rowH:0.26,fontSize:7.5,colW:[0.65,...months.map(()=>0.45)]});spec.push(s);}
+  {const X=R.mixexpert;const s=bzSlide();bzTitle(s,'Mixexpert → Mesoestetic conversion','Target: '+X.target+' Mixexpert accounts opened on Mesoestetic · list maintained on the Business review (Accounts → source = Mixexpert)');
+    bzTiles(s,[{label:'Target',value:String(X.target),sub:'new Mesoestetic accounts from Mixexpert'},{label:'Converted so far',value:String(X.mesoEver),sub:bizFmtPct(bizPct(X.mesoEver,X.target))+' of target',tone:X.mesoEver?'gr':''},{label:'This month',value:String(X.mesoMonth),sub:'bought Mesoestetic in '+R.label,tone:X.mesoMonth?'gr':''},{label:'Mixexpert list',value:String(X.total),sub:X.anyEver+' bought anything in the window'}],BZ_M,1.05,BZ_CW);
+    bzRect(s,BZ_M,2.15,BZ_CW,0.3,BZ.tint,BZ.tint);bzRect(s,BZ_M,2.15,Math.max(0.05,BZ_CW*Math.min(1,X.mesoEver/Math.max(1,X.target))),0.3,BZ.gr,BZ.gr);
+    bzText(s,X.mesoEver+' of '+X.target,{x:BZ_M,y:2.5,w:BZ_CW,h:0.25,size:9,color:BZ.mut});
+    bzLabel(s,'CONVERTED ACCOUNTS',BZ_M,2.9,BZ_CW,BZ.mut);
+    bzText(s,X.total?(X.mesoNames.join('  ·  ')+(X.mesoEver>X.mesoNames.length?'  ·  …':'')||'none yet'):'No Mixexpert accounts on file yet — paste the list on the Business review.',{x:BZ_M,y:3.12,w:BZ_CW,h:1.9,size:10,color:X.total?BZ.ink:BZ.mut,italic:!X.total,valign:'top'});spec.push(s);}
   {const s=bzSlide();bzTitle(s,'Accounts monitoring — per specialist','Masterlist = owned accounts + anyone who ordered under the tag in 6 months · Active = external order in 90 days · New = first order this month');
     bzTable(s,['Specialist','Masterlist','Active 90d','Ordered MTD','New MTD','Quiet 90d+','Contacts','Opened (CRM)'],R.specs.map(sp=>[sp.label+(sp.team?' · '+sp.team:''),sp.masterlist,sp.active,sp.ordering,sp.newAccts.length,sp.quiet,sp.visits+sp.calls,sp.opened]),{x:BZ_M,y:1.1,w:BZ_CW,rowH:Math.min(0.26,3.9/(R.specs.length+1)),fontSize:R.specs.length>12?7.5:8.5,colW:[2.1,1.05,1.05,1.05,1.05,1.05,0.85,0.8]});spec.push(s);}
   {const s=bzSlide();bzTitle(s,'Clients & buying behaviour','Who bought, who came back, who is drifting — straight from the order index');const A=R.accounts;
@@ -204,9 +222,10 @@ function bizRenderPptx(pptx,spec,ctx,meta){
           T(s,String(t.value),{x:x+0.12,y:e.y+0.28,w:tw-0.24,h:0.34,fontSize:String(t.value).length>12?13:16,bold:true,color:t.tone==='gr'?BZ.gr:t.tone==='rd'?BZ.rd:t.tone==='am'?BZ.am:BZ.blue,fit:'shrink'});
           if(t.sub)T(s,t.sub,{x:x+0.12,y:e.y+0.62,w:tw-0.24,h:0.2,fontSize:7.5,color:BZ.mut,fit:'shrink'});});}
       else if(e.t==='table'){const fs=e.fontSize||8.5;
-        const hd=e.head.map((h,i)=>({text:String(h),options:{bold:true,color:BZ.white,fill:{color:BZ.blue},align:i?'right':'left',fontSize:fs,fontFace:F,valign:'middle'}}));
+        const al=i=>(i===0||(e.left||[]).includes(i))?'left':'right';
+        const hd=e.head.map((h,i)=>({text:String(h),options:{bold:true,color:BZ.white,fill:{color:BZ.blue},align:al(i),fontSize:fs,fontFace:F,valign:'middle'}}));
         const body=e.rows.map((r,ri)=>r.map((c,i)=>{const cell=(c&&typeof c==='object')?c:{text:String(c==null?'':c)};
-          return {text:cell.text,options:Object.assign({align:i?'right':'left',fontSize:fs,fontFace:F,color:BZ.ink,fill:{color:ri%2?BZ.alt:BZ.white},valign:'middle'},cell.options||{})};}));
+          return {text:cell.text,options:Object.assign({align:al(i),fontSize:fs,fontFace:F,color:BZ.ink,fill:{color:ri%2?BZ.alt:BZ.white},valign:'middle'},cell.options||{})};}));
         s.addTable([hd].concat(body),{x:e.x,y:e.y,w:e.w,colW:e.colW,rowH:e.rowH||0.24,border:{type:'solid',pt:0.5,color:BZ.grid},margin:[0.03,0.06,0.03,0.06],autoPage:false});}
       else if(e.t==='bullets'){if(!e.items.length)continue;const arr=e.items.map((t,i)=>({text:String(t),options:{bullet:{indent:12},breakLine:i<e.items.length-1,paraSpaceAfter:e.gap}}));
         T(s,arr,{x:e.x,y:e.y,w:e.w,h:e.h,fontSize:e.size,valign:'top',fit:'shrink'});}
@@ -235,9 +254,9 @@ function bizRenderHtml(spec,meta){
       else if(e.t==='tiles'){const n=e.tiles.length,gap=0.12,tw=(e.w-(n-1)*gap)/n;
         e.tiles.forEach((t,i)=>{const x=e.x+i*(tw+gap);const tc=t.tone==='gr'?BZ.gr:t.tone==='rd'?BZ.rd:t.tone==='am'?BZ.am:BZ.blue;
           h+='<div class="abs tile" style="left:'+px(x)+';top:'+px(e.y)+';width:'+px(tw)+';height:'+px(e.h)+'"><div class="tl">'+E(t.label)+'</div><div class="tv" style="color:#'+tc+';font-size:'+pt(String(t.value).length>12?13:16)+'">'+E(t.value)+'</div>'+(t.sub?'<div class="ts">'+E(t.sub)+'</div>':'')+'</div>';});}
-      else if(e.t==='table'){const fs=e.fontSize||8.5;const cw=e.colW||e.head.map(()=>e.w/e.head.length);
-        h+='<table class="abs tb" style="left:'+px(e.x)+';top:'+px(e.y)+';width:'+px(e.w)+';font-size:'+pt(fs)+'"><colgroup>'+cw.map(w=>'<col style="width:'+px(w)+'">').join('')+'</colgroup><thead><tr>'+e.head.map((c,i)=>'<th style="height:'+px(e.rowH||0.24)+(i?';text-align:right':'')+'">'+E(c)+'</th>').join('')+'</tr></thead><tbody>'+
-          e.rows.map(r=>'<tr>'+r.map((c,i)=>{const cell=(c&&typeof c==='object')?c:{text:c};const o=cell.options||{};return '<td style="height:'+px(e.rowH||0.24)+(i?';text-align:right':'')+(o.bold?';font-weight:700':'')+(o.italic?';font-style:italic':'')+(o.color?';color:#'+o.color:'')+'">'+E(cell.text)+'</td>';}).join('')+'</tr>').join('')+'</tbody></table>';}
+      else if(e.t==='table'){const fs=e.fontSize||8.5;const cw=e.colW||e.head.map(()=>e.w/e.head.length);const ra=i=>(i===0||(e.left||[]).includes(i))?'':';text-align:right';
+        h+='<table class="abs tb" style="left:'+px(e.x)+';top:'+px(e.y)+';width:'+px(e.w)+';font-size:'+pt(fs)+'"><colgroup>'+cw.map(w=>'<col style="width:'+px(w)+'">').join('')+'</colgroup><thead><tr>'+e.head.map((c,i)=>'<th style="height:'+px(e.rowH||0.24)+ra(i)+'">'+E(c)+'</th>').join('')+'</tr></thead><tbody>'+
+          e.rows.map(r=>'<tr>'+r.map((c,i)=>{const cell=(c&&typeof c==='object')?c:{text:c};const o=cell.options||{};return '<td style="height:'+px(e.rowH||0.24)+ra(i)+(o.bold?';font-weight:700':'')+(o.italic?';font-style:italic':'')+(o.color?';color:#'+o.color:'')+'">'+E(cell.text)+'</td>';}).join('')+'</tr>').join('')+'</tbody></table>';}
       else if(e.t==='bullets')h+='<ul class="abs bl" style="left:'+px(e.x)+';top:'+px(e.y)+';width:'+px(e.w)+';height:'+px(e.h)+';font-size:'+pt(e.size)+'">'+e.items.map(t=>'<li style="margin-bottom:'+(e.gap*1.2)+'px">'+E(t)+'</li>').join('')+'</ul>';
       else if(e.t==='img'){const url=img(e.key);h+='<div class="abs" style="left:'+px(e.x)+';top:'+px(e.y)+';width:'+px(e.w)+';height:'+px(e.h)+';display:flex;align-items:center;justify-content:center">'+(url?'<img src="'+url+'" style="max-width:100%;max-height:100%">':'<div class="mu" style="font-size:11px;color:#'+BZ.mut+'">chart</div>')+'</div>';}
     }
@@ -279,6 +298,31 @@ async function bizDownload(tag,fmt){
     audit('review.export',{month:BIZ.ym,who:tag||'team',fmt});}
   catch(e){alert('Export failed: '+(e.message||e));}
   finally{BIZ.busy=false;btns.forEach(b=>b.style.opacity='');}}
+/* Google Slides: build the deck, hand the bytes to Drive with "convert to Slides",
+   share with the addresses given, show the link. The team edits a native Slides
+   deck in the shared reports folder — no download / re-upload. */
+async function bizToSlides(tag){
+  if(!BIZ.R||BIZ.busy)return;const R=BIZ.R;const sp=tag?R.specs.find(s=>s.name.toLowerCase()===String(tag).toLowerCase()):null;
+  const mine=sp&&bizMySpec().toLowerCase()===sp.name.toLowerCase();if(!bizCanEditAll()&&!mine)return;
+  let def='';try{def=localStorage.getItem('hq_slides_share')||'';}catch(e){}
+  const who=prompt('Share the Google Slides with (emails, comma-separated). You are added automatically.',def);if(who===null)return;
+  try{localStorage.setItem('hq_slides_share',who);}catch(e){}
+  const emails=who.split(/[,;\s]+/).map(x=>x.trim()).filter(Boolean);
+  BIZ.busy=true;const st=$('rp-status');const say=t=>{if(st)st.textContent=t;};
+  try{say('Building '+(sp?sp.label:'the team deck')+'…');const pptx=await bizBuildPptx(R,tag);const blob=await pptx.write({outputType:'blob'});
+    say('Asking Drive for an upload slot…');const name=bizFileName(R,sp,'pptx').replace(/\.pptx$/,'');
+    const s1=await (await fetch('/.netlify/functions/deck-to-drive',{method:'POST',headers:await sbAuthHeaders({'Content-Type':'application/json'}),body:JSON.stringify({action:'session',name,tag:tag||''})})).json();
+    if(!s1.url)throw new Error(s1.error||'no upload URL');
+    say('Uploading '+Math.round(blob.size/1024)+' KB and converting to Slides…');
+    const up=await fetch(s1.url,{method:'PUT',headers:{'Content-Type':'application/vnd.openxmlformats-officedocument.presentationml.presentation'},body:blob});
+    if(!up.ok)throw new Error('Drive upload failed ('+up.status+')');const f=await up.json();if(!f.id)throw new Error('Drive did not return a file id');
+    say('Sharing…');const s2=await (await fetch('/.netlify/functions/deck-to-drive',{method:'POST',headers:await sbAuthHeaders({'Content-Type':'application/json'}),body:JSON.stringify({action:'share',id:f.id,emails,tag:tag||''})})).json();
+    if(!s2.link)throw new Error(s2.error||'could not share');
+    audit('review.slides',{month:BIZ.ym,who:tag||'team',shared:(s2.shared||[]).length});
+    const box=$('rp-links');if(box)box.insertAdjacentHTML('afterbegin','<div style="font-size:12.5px;margin:4px 0"><a href="'+esc(s2.link)+'" target="_blank" rel="noopener" style="font-weight:600">'+esc(s2.name||name)+'</a> — Google Slides, shared with '+esc((s2.shared||[]).join(', ')||'you')+(s2.failed&&s2.failed.length?' <span style="color:var(--rd)">(could not share with '+esc(s2.failed.join(', '))+')</span>':'')+'</div>');
+    say('Done.');try{window.open(s2.link,'_blank');}catch(e){}}
+  catch(e){alert('Google Slides export failed: '+(e.message||e));say('');}
+  finally{BIZ.busy=false;}}
 async function bizDownloadAll(){ // every specialist's deck plus the team deck, one file after another
   if(!BIZ.R||BIZ.busy||!bizCanEditAll())return;const R=BIZ.R;
   if(!confirm('Download '+(R.specs.length+1)+' PowerPoint files (the team deck and one per specialist)? The browser may ask once to allow multiple downloads.'))return;
@@ -310,18 +354,19 @@ async function renderReports(){
   const canAll=bizCanEditAll();const me=bizMySpec();const ST=bizInputStatus(R);const months=bizMonthsAvail();
   const chip=(st)=>st.done>=st.total?'<span class="pill pgr">complete · '+st.done+'/'+st.total+'</span>':st.done?'<span class="pill pam" title="'+esc('Missing: '+st.missing.join(', '))+'">'+st.done+'/'+st.total+' in</span>':'<span class="pill pgy">nothing yet</span>';
   const when=t=>t?'<span class="mu" style="font-size:11px">'+esc(String(t).slice(0,10))+'</span>':'<span class="mu" style="font-size:11px">—</span>';
-  const acts=(tag)=>'<a href="#" class="abtn" onclick="bizDownload('+(tag?'\''+jsq(tag)+'\'':'null')+',\'pptx\');return false">PowerPoint</a> <a href="#" class="abtn" onclick="bizDownload('+(tag?'\''+jsq(tag)+'\'':'null')+',\'pdf\');return false">PDF</a>';
+  const acts=(tag)=>'<a href="#" class="abtn" onclick="bizDownload('+(tag?'\''+jsq(tag)+'\'':'null')+',\'pptx\');return false">PowerPoint</a> <a href="#" class="abtn" onclick="bizDownload('+(tag?'\''+jsq(tag)+'\'':'null')+',\'pdf\');return false">PDF</a> <a href="#" class="abtn" onclick="bizToSlides('+(tag?'\''+jsq(tag)+'\'':'null')+');return false" title="Upload to the shared Drive folder as a Google Slides deck and share it">Google Slides</a>';
   let h='<div class="no-print" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">'+
     '<select onchange="BIZ.ym=this.value;renderReports()" style="font:inherit;padding:6px 8px;border-radius:8px;border:1px solid var(--bd)">'+months.map(m=>'<option value="'+m+'"'+(m===ym?' selected':'')+'>'+bizMonthLbl(m)+'</option>').join('')+'</select>'+
     '<span class="mu" style="font-size:12px">as of '+esc(R.asOf)+' · external sales only</span><span style="flex:1"></span>'+
     (canAll?'<a href="#" class="abtn" onclick="bizDownloadAll();return false">Download all (PowerPoint)</a><span class="mu" id="rp-status" style="font-size:11px"></span>':'')+
     '<a href="#" class="abtn" onclick="showView(\'bizreview\',null);return false">Open the review</a></div>';
-  h+='<div class="viewdesc">Every file is built from the live figures the moment you click. "In" counts the boxes a person has filled on the Business review — the deck is only as complete as the commentary behind it. PDF opens a print-ready copy; use the browser\'s Save as PDF.</div>';
+  h+='<div class="viewdesc">Every file is built from the live figures the moment you click. "In" counts the boxes a person has filled on the Business review — the deck is only as complete as the commentary behind it. PDF opens a print-ready copy; use the browser\'s Save as PDF. <b>Google Slides</b> uploads the deck to the shared Drive folder, converts it to a native Slides file and shares it with the addresses you give — the team edits it there.</div>';
   const rows=[];
   if(canAll)rows.push(['<b>Team deck</b><div class="mu" style="font-size:11px">the sales manager\'s report — brands, machines, accounts, buying, specialists overview, plan</div>','Sales manager',chip(ST.team)+(ST.team.snap?' <span class="pill pbl" title="snapshot saved">snapshot '+esc(String(ST.team.snap.as_of||''))+'</span>':' <span class="pill pgy" title="no snapshot this month">no snapshot</span>'),when(ST.team.last),acts(null)]);
   for(const sp of R.specs){const mine=me&&sp.name.toLowerCase()===me.toLowerCase();if(!canAll&&!mine)continue;
     rows.push(['<b>'+esc(sp.label)+'</b>'+(mine?' <span class="pill pbl">you</span>':'')+'<div class="mu" style="font-size:11px">'+esc(sp.team||'')+(sp.team?' · ':'')+fmtPeso(sp.mtd)+' MTD'+(sp.tgt?' · '+bizFmtPct(sp.att)+' of target':'')+'</div>',esc(sp.label),chip(ST[sp.name]),when(ST[sp.name].last),acts(sp.name)]);}
   h+=bizTbl(['Report','Owner','Inputs','Last edited','Download'],rows,{left:true});
+  h+='<div id="rp-links" style="margin-top:8px"></div>';
   if(!canAll&&!me)h='<div class="empty" style="margin-top:40px">Reports are downloaded by the sales manager and by each specialist for their own deck.</div>';
   else h+='<div class="mu" style="font-size:11px;margin-top:10px">Inputs per specialist: Key wins, Key challenges, Territory updates, Training &amp; marketing activities, Proposals, and the forecast table — all on their panel of the Business review. The team deck no longer carries individual slides; each specialist presents from their own deck.</div>';
   h+=bizNotionPanel(R);
@@ -358,3 +403,46 @@ async function bizCopyNotion(dept){
   if(!BIZ.R)return;const txt=bizNotionText(BIZ.R,dept);const st=$('nt-status');const pv=$('nt-preview');if(pv)pv.textContent=txt;
   try{await navigator.clipboard.writeText(txt);if(st)st.textContent='Copied — paste into the Notion page.';audit('review.notion_copy',{dept});}
   catch(e){if(st)st.textContent='Could not reach the clipboard — copy from the preview below.';const d=pv&&pv.closest('details');if(d)d.open=true;}}
+
+/* ── SETTINGS: appearance, account, shortcuts, AI ─────────────────────────────
+   The little controls that used to live in the sidebar footer and the phone
+   menu — theme, light/dark, password, manual — in one page, plus the AI
+   provider switch (super admin) with a live connection test.                  */
+const AI_CHOICES=[['gemini','Gemini Flash (Google) — free tier, default'],['mistral','Mistral Large — free tier (1B tokens/month, opt-in training), handles the full Ask HQ context'],['openrouter','OpenRouter — free community models (Llama, DeepSeek, Qwen), ~20 requests/min'],['groq','Groq — Llama 3.3 70B, free tier (short prompts only: drafts, nudges)'],['cerebras','Cerebras — Llama 3.3 70B, free 1M tokens/day (short prompts only)'],['anthropic','Claude Haiku (Anthropic) — paid per call'],['deepseek','DeepSeek — paid, cheap'],['kimi','Kimi (Moonshot) — paid, cheap']];
+async function renderSettings(){
+  loadingHint();
+  const who=(SBPROFILE&&SBPROFILE.name)||(SBUSER&&SBUSER.email)||'';const email=(SBUSER&&SBUSER.email)||'';
+  const t=(function(){try{return localStorage.getItem('hs_theme');}catch(e){return null;}})()||'healthspan';
+  const m=(function(){try{return localStorage.getItem('hs_mode');}catch(e){return null;}})()||'system';
+  const roleLbl=ROLE==='sales'?'Product specialist':ROLE==='manager'?'Sales manager':ROLE==='supply_chain'?'Supply chain / warehouse':ROLE==='finance'?'Finance':ROLE==='marketing'?'Marketing':ROLE==='viewer'?'Viewer':(isSuper()?'Super admin':'Admin');
+  const seg=(v,lbl,icon)=>'<a href="#" class="abtn'+(m===v?' t-ac':'')+'" data-mode="'+v+'" onclick="applyMode(\''+v+'\');document.querySelectorAll(\'[data-mode]\').forEach(b=>b.classList.toggle(\'t-ac\',b.dataset.mode===\''+v+'\'));return false">'+icon+' '+lbl+'</a>';
+  let h='<div class="panel" style="padding:16px 18px;margin-bottom:14px"><div class="phd">Appearance</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">'+
+    '<div><div class="mu" style="font-size:11px;margin-bottom:4px">Theme</div><select id="themeSel" onchange="applyTheme(this.value)" style="font:inherit;padding:7px 10px;border-radius:8px;border:1px solid var(--bd);background:var(--sf);color:var(--tx)"><option value="healthspan"'+(t==='healthspan'?' selected':'')+'>Healthspan (brand)</option><option value="classic"'+(t==='classic'?' selected':'')+'>Classic</option></select></div>'+
+    '<div><div class="mu" style="font-size:11px;margin-bottom:4px">Light / dark</div>'+seg('light','Light','☀️')+seg('dark','Dark','🌙')+seg('system','Match device','🖥')+'</div></div>'+
+    '<div class="mu" style="font-size:11px;margin-top:8px">Remembered on this device.</div></div>';
+  h+='<div class="panel" style="padding:16px 18px;margin-bottom:14px"><div class="phd">Account</div>'+
+    '<div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><div style="width:44px;height:44px;border-radius:50%;background:var(--ac);color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800">'+esc((who||'?').trim().charAt(0).toUpperCase())+'</div>'+
+    '<div style="flex:1;min-width:180px"><div style="font-weight:700">'+esc(who)+'</div><div class="mu" style="font-size:12px">'+esc(roleLbl)+(email?' · '+esc(email):'')+'</div></div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap"><a href="#" class="abtn" onclick="showView(\'profile\',null);return false">My profile</a><a href="#" class="abtn" onclick="openChangePassword();return false">Change password</a><a href="#" class="abtn t-rd" onclick="roleLogout();return false">Sign out</a></div></div></div>';
+  h+='<div class="panel" style="padding:16px 18px;margin-bottom:14px"><div class="phd">Shortcuts &amp; help</div><div style="display:flex;gap:8px;flex-wrap:wrap">'+
+    '<a href="#" class="abtn" onclick="favOpen();return false">★ Favourites</a><a href="#" class="abtn" onclick="mbarOpen();return false">☆ Customize the bottom bar</a><a href="#" class="abtn" onclick="downloadManual();return false">📖 My manual</a><a href="#" class="abtn" onclick="showView(\'manual\',null);return false">Manual in-app</a></div></div>';
+  if(roleIn('admin','manager')){
+    let cur='',keys={};try{const r=await fetch('/.netlify/functions/ask?diag=keys',{headers:await sbAuthHeaders()});const o=await r.json();cur=o.provider||'';keys=o.keys||{};}catch(e){}
+    if(currentView!=='settings')return;
+    const canSet=isSuper();
+    h+='<div class="panel" style="padding:16px 18px;margin-bottom:14px"><div class="phd">AI — which model answers Ask HQ, Draft with AI, the Slack bot and the Monday nudge</div>'+
+      '<div style="display:grid;gap:6px">'+AI_CHOICES.map(([k,lbl])=>'<label style="display:flex;gap:10px;align-items:center;font-size:13px;'+(canSet?'cursor:pointer':'')+'"><input type="radio" name="aiprov" value="'+k+'"'+(cur===k?' checked':'')+(canSet?'':' disabled')+' onchange="setAiProvider(this.value)"> <span style="flex:1">'+esc(lbl)+'</span>'+(keys[k]?'<span class="pill pgr">key set</span>':'<span class="pill pgy" title="Add the API key in Netlify → Environment">no key</span>')+'</label>').join('')+'</div>'+
+      '<div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap"><a href="#" class="abtn" onclick="settingsAiTest();return false">Test connection</a><span class="mu" id="ai-test" style="font-size:11.5px">'+(canSet?'Saved for everyone the moment you pick it.':'Only the super admin changes this; you can test it.')+'</span></div>'+
+      '<div class="mu" style="font-size:11px;margin-top:8px">Whatever is chosen, a failed or rate-limited call falls back to the other providers that have keys. Gemini free tier and Groq may use prompts for training, so unit costs and payables are left out of what they see. Keys live in Netlify, never here.</div></div>';}
+  $('content').innerHTML=h;}
+async function setAiProvider(v){
+  if(!isSuper())return;const st=$('ai-test');if(st)st.textContent='Saving…';
+  try{const {error}=await SB.from('app_settings').upsert({key:'ai_provider',value:String(v),updated_by:(SBUSER&&SBUSER.id)||null,updated_at:new Date().toISOString()});if(error)throw error;
+    audit('settings.ai_provider',{value:v});if(st)st.textContent='Saved — '+v+' answers from the next question on.';}
+  catch(e){if(st)st.textContent='Could not save: '+(e.message||e);}}
+async function settingsAiTest(){
+  const st=$('ai-test');if(st)st.textContent='Testing…';
+  try{const r=await fetch('/.netlify/functions/ask?diag=1',{headers:await sbAuthHeaders()});const o=await r.json();
+    if(st)st.textContent=o.ok?'OK — '+(o.provider||'')+' · '+(o.model||'')+' answered in '+o.ms+' ms.':'Failed — '+(o.error||('HTTP '+r.status));}
+  catch(e){if(st)st.textContent='Could not reach the function: '+(e.message||e);}}

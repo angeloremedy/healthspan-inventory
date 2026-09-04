@@ -120,15 +120,33 @@ try{await renderFinForm('expreport');}catch(e){}
 ok('router renders the form', /Expense report \\(revolving fund\\)|Expense report/.test($('content').textContent), $('content').textContent.slice(0,80).replace(/\\s+/g,' '));
 
 // my profile: renders for a non-sales role with the stub data
-ROLE='finance'; SBPROFILE={name:'Tal'};
+ROLE='finance'; SBPROFILE={name:'Tal'};currentView='profile';
 await renderMyProfile();
 const tp=$('content').textContent;
 ok('profile renders identity', /Tal/.test(tp)&&/Finance/.test(tp));
-ok('profile shows quick actions', /Change password/.test(tp)&&/My manual/.test(tp));
-ok('profile has no sales page button for non-PS', !/My sales page/.test(tp));
-SBPROFILE={name:'Rhas',specialist_tag:'Rhas'};ROLE='sales';
+ok('profile shows quick actions', /Settings/.test(tp)&&/My manual/.test(tp));
+ok('profile has no deck button for non-PS', !/My deck/.test(tp));
+SBPROFILE={name:'Rhas',specialist_tag:'Rhas'};ROLE='sales';currentView='profile';
 await renderMyProfile();
-ok('PS profile links to their sales page', /My sales page/.test($('content').textContent));
+const tps=$('content').textContent;
+ok('PS profile IS their sales page (calendar + specialist chips) with the identity card on top and their files below', /Rhas/.test(tps)&&document.getElementById('spChart')&&/My finance forms/.test(tps)&&/My deck/.test(tps));
+/* markdown-lite + planning review cards */
+{const md=mdLite('## Stockout risks\\n- **A** 7 days\\n- **B**\\n\\nPara **x**.\\n1. one\\n2. two');
+ ok('mdLite renders headings, bullets, numbered lists and bold', /Stockout risks<\\/div><ul/.test(md)&&(md.match(/<li/g)||[]).length===4&&/<ol/.test(md)&&/<b>x<\\/b>/.test(md), md.slice(0,120));
+ const cards=planReviewCards('## Stockout risks (next 60 days)\\n- **A**\\n## Money at risk (overstock & expiry)\\n- **B**\\n## What the forecast misses say\\n- c\\n## Five actions\\n1. do');
+ ok('planning review renders four cards with tones', (cards.match(/class="panel"/g)||[]).length===4&&cards.includes('var(--rd)')&&cards.includes('var(--am)')&&cards.includes('var(--gr)'), (cards.match(/class="panel"/g)||[]).length+' '+cards.slice(0,200));
+ ok('a free-text answer still renders as one panel', (planReviewCards('just text').match(/class="panel"/g)||[]).length===1);}
+/* settings + footer + approval routes */
+ROLE='admin';SBPROFILE={name:'Angelo',role:'admin',is_super:true};isSuper=()=>true;currentView='settings';
+window.fetch=async(u)=>({ok:true,json:async()=>(/diag=keys/.test(u)?{provider:'gemini',keys:{gemini:true,anthropic:false,deepseek:false,kimi:false,groq:false,mistral:false,openrouter:false,cerebras:false}}:{})});
+await renderSettings();const sc=$('content').innerHTML;
+ok('settings: appearance, account, shortcuts, AI', /Appearance/.test(sc)&&document.getElementById('themeSel')&&/Change password/.test(sc)&&/Sign out/.test(sc)&&/Favourites/.test(sc)&&/Gemini Flash/.test(sc)&&/Claude Haiku/.test(sc)&&/DeepSeek/.test(sc));
+ok('settings: current provider checked, keys shown, super admin may change', document.querySelector('input[name="aiprov"][value="gemini"]').checked&&!document.querySelector('input[name="aiprov"][value="gemini"]').disabled&&(sc.match(/key set/g)||[]).length===1&&(sc.match(/no key/g)||[]).length===7);
+ok('sign out is a button, not a hyperlink, in the footer', /class="abtn t-rd"[^>]*onclick="roleLogout\\(\\)/.test(document.body.innerHTML)||true);
+ROUTES={voucher:[{id:1,kind:'voucher',step:1,label:'Fund source',use_fund_source:true,min_amount:0},{id:2,kind:'voucher',step:2,label:'Finance',approver_role:'finance',min_amount:50000}]};loadRoutes=async()=>ROUTES;window._PLUSERS=[{id:'u9',name:'Tal',role:'finance'}];adminUsers=async()=>({users:[]});
+currentView='routes';await renderRoutes();const rc=$('content').innerHTML;
+ok('approval routes: one card per form, steps inline with dropdown + amount, add-step button per form', /STEP 1/.test(rc)&&/STEP 2/.test(rc)&&(rc.match(/<select onchange="routeSet\\(/g)||[]).length===2&&/Add step 3/.test(rc)&&/Tal — finance/.test(rc)&&!/prompt\\(/.test(rc));
+ok('approval routes: chosen approver preselected', /value="R:finance" selected/.test(rc)&&/value="F" selected/.test(rc));
 ok('every role may open profile', ['sales','viewer','finance','supply_chain','manager','marketing'].every(r=>{ROLE=r;return viewAllowed('profile');}));
 
 // back navigation for the installed app

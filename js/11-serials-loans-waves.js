@@ -394,51 +394,66 @@ async function renderCrmStats(){
    Identity, the things waiting on YOU, what you have filed, and the quick
    actions that were previously buried in the footer / phone menu. Specialists
    additionally get a link to their full sales page. */
+/* My profile. For a specialist it IS their sales page (same chips, calendar,
+   chart and lists as Specialists → their name), with a "your month in numbers"
+   block from the Business review figures and their own files layered on top.
+   Everyone else gets the identity card, their finance forms and loaners. */
 async function renderMyProfile(){
   loadingHint();
-  const who=(SBPROFILE&&SBPROFILE.name)||(SBUSER&&SBUSER.email)||'';
-  const email=(SBUSER&&SBUSER.email)||'';
-  const roleLbl=ROLE==='sales'?'Product specialist':ROLE==='manager'?'Sales manager':ROLE==='supply_chain'?'Supply chain / warehouse':ROLE==='finance'?'Finance':ROLE==='marketing'?'Marketing':ROLE==='viewer'?'Viewer':ROLE==='it'?'IT — specialist accounts':'Admin';
   const tag=(SBPROFILE&&SBPROFILE.specialist_tag)||'';
-  const uid=(SBUSER&&SBUSER.id)||'';
-  // everything that is mine, in parallel
-  let reqs=[],myLoans=[],fus=0,myVisits=0;
+  if(tag&&typeof renderSpecPage==='function'){CUR_SPEC=specCanon(tag);SPEC_BACK='home';await renderSpecPage();return;} // profileDecorate() runs at its end
+  const c=$('content');if(!c)return;c.innerHTML='';await profileDecorate();}
+async function profileDecorate(){
+  const c=$('content');if(!c||currentView!=='profile')return;
+  const who=(SBPROFILE&&SBPROFILE.name)||(SBUSER&&SBUSER.email)||'';const email=(SBUSER&&SBUSER.email)||'';
+  const roleLbl=ROLE==='sales'?'Product specialist':ROLE==='manager'?'Sales manager':ROLE==='supply_chain'?'Supply chain / warehouse':ROLE==='finance'?'Finance':ROLE==='marketing'?'Marketing':ROLE==='viewer'?'Viewer':ROLE==='it'?'IT — specialist accounts':'Admin';
+  const tag=(SBPROFILE&&SBPROFILE.specialist_tag)||'';const uid=(SBUSER&&SBUSER.id)||'';
   const [qr,ql]=await Promise.all([
     SB.from('fin_requests').select('id,kind,num,status,amount,created_at,step').eq('requester_id',uid).order('id',{ascending:false}).limit(15),
     SB.from('loans').select('*').eq('out_by',uid).eq('status','out').order('due_date'),
     loadVisits()
   ]).catch(()=>[{},{}]);
-  reqs=(qr&&qr.data)||[];myLoans=(ql&&ql.data)||[];
-  try{
-    const mine=v=>tag&&specCanon(v.spec||'').toLowerCase()===specCanon(tag).toLowerCase();
-    fus=(VISITS||[]).filter(v=>mine(v)&&v.status!=='planned'&&v.outcome==='Follow-up needed'&&!v.fu_done).length;
-    const mo=new Date().toISOString().slice(0,7);
-    myVisits=(VISITS||[]).filter(v=>mine(v)&&v.status!=='planned'&&(v.date||'').slice(0,7)===mo).length;
-  }catch(e){}
-  // (fin requests, loans and visits arrived in one wave above)
-  const today=new Date().toISOString().slice(0,10);
-  const stPill=r=>r.status==='approved'?'<span class="pill pgr">approved</span>':r.status==='rejected'?'<span class="pill prd">rejected</span>':r.status==='cancelled'?'<span class="pill" style="background:var(--sf2);color:var(--tx3)">cancelled</span>':'<span class="pill pam">pending · step '+(r.step||1)+'</span>';
-  $('content').innerHTML=
-    '<div class="panel" style="padding:18px;margin-bottom:14px;display:flex;gap:16px;align-items:center;flex-wrap:wrap">'+
-      '<div style="width:56px;height:56px;border-radius:50%;background:var(--ac);color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800">'+esc((who||'?').trim().charAt(0).toUpperCase())+'</div>'+
-      '<div style="flex:1;min-width:200px"><div style="font-size:18px;font-weight:800">'+esc(who)+'</div>'+
-      '<div class="mu" style="font-size:12.5px">'+esc(roleLbl)+(tag?' · tag: '+esc(tag):'')+(email?' · '+esc(email):'')+'</div></div>'+
-      '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
-      '<button onclick="openChangePassword()" style="background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:9px;padding:9px 14px;font-size:12.5px;cursor:pointer">Change password</button>'+
-      '<button onclick="downloadManual()" style="background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:9px;padding:9px 14px;font-size:12.5px;cursor:pointer">📖 My manual</button>'+
-      '<button onclick="favOpen()" style="background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:9px;padding:9px 14px;font-size:12.5px;cursor:pointer">★ Favourites</button>'+
-      (tag?'<button onclick="showSpecPage(\''+jsq(tag)+'\')" style="background:var(--ac);color:#fff;border:none;border-radius:9px;padding:9px 14px;font-size:12.5px;font-weight:600;cursor:pointer">My sales page →</button>':'')+
-      '</div></div>'+
-    '<div class="metrics" style="margin-bottom:14px">'+
-    '<div class="met bl" onclick="showView(\'voucher\',null)" style="cursor:pointer"><div class="met-lbl">My finance requests</div><div class="met-val">'+reqs.filter(r=>r.status==='pending').length+'</div><div class="met-sub">still pending of my last '+reqs.length+'</div><div class="met-bar"></div></div>'+
-    (tag?'<div class="met gr" onclick="showView(\'followups\',null)" style="cursor:pointer"><div class="met-lbl">Open follow-ups</div><div class="met-val">'+fus+'</div><div class="met-sub">'+myVisits+' visits logged this month</div><div class="met-bar"></div></div>':'')+
-    (myLoans.length?'<div class="met am" onclick="showView(\'loans\',null)" style="cursor:pointer"><div class="met-lbl">Loaners I checked out</div><div class="met-val">'+myLoans.length+'</div><div class="met-sub">'+myLoans.filter(l=>l.due_date&&l.due_date<today).length+' overdue</div><div class="met-bar"></div></div>':'')+
-    '</div>'+
-    (reqs.length?'<div class="tcard"><div class="tscroll"><table><thead><tr><th>Request</th><th>Form</th><th style="text-align:right">Amount</th><th>Status</th><th>Filed</th></tr></thead><tbody>'+
-      reqs.map(r=>'<tr><td style="font-weight:700">'+esc(FIN_NO(r.kind,r.num))+'</td>'+
-        '<td>'+esc((FIN_SPEC[r.kind]&&FIN_SPEC[r.kind].title)||r.kind)+'</td>'+
-        '<td class="r" style="font-weight:600">'+fmtPeso(r.amount||0)+'</td>'+
-        '<td>'+stPill(r)+'</td><td class="mu">'+esc((r.created_at||'').slice(0,10))+'</td></tr>').join('')+
+  if(currentView!=='profile')return;
+  const reqs=(qr&&qr.data)||[],myLoans=(ql&&ql.data)||[];const today=new Date().toISOString().slice(0,10);
+  const btn=(fn,lbl,primary)=>'<a href="#" class="abtn'+(primary?' t-ac':'')+'" onclick="'+fn+';return false">'+lbl+'</a>';
+  const head='<div class="panel" style="padding:16px 18px;margin-bottom:14px;display:flex;gap:16px;align-items:center;flex-wrap:wrap">'+
+      '<div style="width:52px;height:52px;border-radius:50%;background:var(--ac);color:#fff;display:flex;align-items:center;justify-content:center;font-size:21px;font-weight:800">'+esc((who||'?').trim().charAt(0).toUpperCase())+'</div>'+
+      '<div style="flex:1;min-width:200px"><div style="font-size:18px;font-weight:800">'+esc(tag?specDisplay(tag):who)+'</div>'+
+      '<div class="mu" style="font-size:12.5px">'+esc(roleLbl)+(tag?' · tag '+esc(tag)+(specTeam(tag)?' · '+esc(specTeam(tag)):''):'')+(email?' · '+esc(email):'')+'</div></div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">'+btn("showView('settings',null)",'Settings')+btn('downloadManual()','My manual')+btn('favOpen()','Favourites')+(tag?btn("showView('reports',null)",'My deck',true):'')+'</div></div>';
+  /* your month in numbers — the same figures as the Business review, for this person */
+  let stats='';
+  if(tag&&typeof bizCompute==='function'&&typeof hasIntSplit==='function'&&hasIntSplit()){
+    try{await Promise.all([typeof loadOwners==='function'?(OWNERS?null:loadOwners()):null,typeof loadSerials==='function'?(SERIALS?null:loadSerials()):null,typeof loadLoans==='function'?(LOANS?null:loadLoans()):null]);}catch(e){}
+    if(currentView!=='profile')return;
+    let R=null;try{R=bizCompute(new Date().toISOString().slice(0,7));}catch(e){}
+    const s=R&&R.specs.find(x=>x.name.toLowerCase()===specCanon(tag).toLowerCase());
+    if(R&&s){const P=fmtPeso;const tone=s.att==null?'bl':s.att>=100?'gr':s.att>=70?'bl':s.att>=40?'am':'rd';
+      const rank=[...R.specs].sort((a,b)=>b.mtd-a.mtd).findIndex(x=>x.name===s.name)+1;
+      stats='<div class="panel" style="padding:14px 16px;margin-bottom:14px"><div class="phd" style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px"><span>Your month in numbers — '+esc(R.label)+'</span><span class="mu" style="font-weight:400;font-size:11px">external sales only · the same figures as your deck · as of '+esc(R.asOf)+'</span></div>'+
+        '<div class="metrics">'+
+        bizKpi('Booked MTD',P(s.mtd),s.tgt?bizFmtPct(s.att)+' of '+P(s.tgt):'no target set',tone)+
+        (R.early?bizKpi('Pace','—','too early — day '+R.day,'gy'):bizKpi('Pace',P(s.proj),s.tgt?bizFmtPct(s.projAtt)+' of target':'projected month','bl'))+
+        bizKpi('vs '+bizShortLbl(R.prev),R.early?'—':bizDelta(s.proj,s.prev),P(s.prev)+' last month',R.early?'gy':bizDeltaTone(s.proj,s.prev))+
+        bizKpi('QTD · YTD',bizCompact(s.qtd)+' · '+bizCompact(s.ytd),(s.qtgt?bizFmtPct(s.qatt):'—')+' · '+(s.ytgt?bizFmtPct(s.yatt):'—')+' of target','pu')+
+        bizKpi('Rank this month','#'+rank+' of '+R.specs.length,'by booked revenue',rank===1?'gr':'bl')+
+        bizKpi('Accounts',s.ordering+' / '+s.masterlist,'ordered · masterlist','bl')+
+        bizKpi('New accounts',String(s.newAccts.length),s.newAccts.slice(0,2).join(', ')||'first orders this month',s.newAccts.length?'gr':'gy')+
+        bizKpi('Going quiet',String(s.quiet),'repeat accounts, 90+ days',s.quiet?'am':'gy')+
+        bizKpi('Contacts logged',String(s.visits+s.calls),s.visits+' visits · '+s.calls+' calls · '+s.demos+' demos','bl')+
+        bizKpi('Contact → order',bizFmtPct(bizPct(s.ordered,s.visits+s.calls)),s.ordered+' contacts ended in an order','pu')+
+        (s.nextTgt!=null?bizKpi('Next month target',P(s.nextTgt),bizMonthLbl(bizYmAdd(R.ym,1)),'bl'):'')+
+        '</div>'+
+        (s.topLines.length?'<div class="mu" style="font-size:12px;margin-top:4px">Brands this month: '+s.topLines.map(l=>esc(l.name)+' '+P(l.v)).join(' · ')+'</div>':'')+
+        (s.declining.length?'<div class="mu" style="font-size:12px;margin-top:4px">Going quiet: '+s.declining.slice(0,5).map(d=>esc(d.name)+' (last '+esc(d.last)+')').join(' · ')+'</div>':'')+
+        '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'+btn("showView('bizreview',null)",'Write my commentary')+btn("showView('reports',null)",'Download my deck')+btn("showView('crmstats',null)",'CRM activity')+'</div></div>';}}
+  const stPill=r=>r.status==='approved'?'<span class="pill pgr">approved</span>':r.status==='rejected'?'<span class="pill prd">rejected</span>':r.status==='cancelled'?'<span class="pill pgy">cancelled</span>':'<span class="pill pam">pending · step '+esc(String(r.step||1))+'</span>';
+  const mine='<div class="panel" style="padding:14px 16px;margin-bottom:14px"><div class="phd">My finance forms &amp; loaners</div><div class="metrics">'+
+    '<div class="met bl" onclick="showView(\'voucher\',null)" style="cursor:pointer"><div class="met-lbl">My finance requests</div><div class="met-val">'+reqs.filter(r=>r.status==='pending').length+'</div><div class="mu" style="font-size:11px">still pending of my last '+reqs.length+'</div></div>'+
+    (myLoans.length?'<div class="met am" onclick="showView(\'loans\',null)" style="cursor:pointer"><div class="met-lbl">Loaners I checked out</div><div class="met-val">'+myLoans.length+'</div><div class="mu" style="font-size:11px">'+myLoans.filter(l=>l.due_date&&l.due_date<today).length+' overdue</div></div>':'')+'</div>'+
+    (reqs.length?'<div class="tcard"><div class="tscroll"><table><thead><tr><th>Request</th><th>Form</th><th class="r">Amount</th><th>Status</th><th>Filed</th></tr></thead><tbody>'+
+      reqs.map(r=>'<tr><td style="font-weight:700">'+esc(FIN_NO(r.kind,r.num))+'</td><td>'+esc((FIN_SPEC[r.kind]&&FIN_SPEC[r.kind].title)||r.kind)+'</td><td class="r" style="font-weight:600">'+fmtPeso(r.amount||0)+'</td><td>'+stPill(r)+'</td><td class="mu">'+esc((r.created_at||'').slice(0,10))+'</td></tr>').join('')+
       '</tbody></table></div><div class="tfooter"><span>Your last '+reqs.length+' finance forms — open the form\u2019s page to see or cancel a pending one</span></div></div>'
-      :'<div class="empty" style="margin-top:20px">No finance requests filed yet. Everything you file — vouchers, expense reports, reimbursements — will show here with its status.</div>');
-}
+      :'<div class="mu" style="font-size:12px">No finance requests filed yet — vouchers, expense reports and reimbursements you file will show here with their status.</div>')+'</div>';
+  if(!tag){c.innerHTML=head+mine;return;}
+  c.insertAdjacentHTML('afterbegin',head+stats);c.insertAdjacentHTML('beforeend',mine);}

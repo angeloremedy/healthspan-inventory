@@ -801,6 +801,16 @@
    "v": "Sales analytics → <b>Reports</b>: every deck for the month — the team deck and one per specialist — with an Inputs column (boxes in / missing / last edited), PowerPoint or PDF per row, Download all, and Copy for Notion for the weekly meeting. Specialist inputs are rows in review_commentary under ps:&lt;Tag&gt;:&lt;section&gt; and ps:&lt;Tag&gt;:forecast (JSON); RLS keys on the tag segment."
   },
   {
+   "t": "step",
+   "n": "9",
+   "v": "Reports → <b>Google Slides</b> converts a deck to a native Slides file in the shared Drive folder (GDRIVE_REPORTS_FOLDER_ID, else the attachments folder) and shares it. Mixexpert list: Business review → Mixexpert panel (sets accounts.source = Mixexpert)."
+  },
+  {
+   "t": "step",
+   "n": "10",
+   "v": "<b>Settings</b> (footer or phone menu) holds theme and light/dark mode, Change password, Sign out, favourites, the bottom bar and your manual. Admin → Approval routes is one card per form; edit each step in place — saves on change. Settings → AI is where you pick the model for everyone (Gemini Flash default, Claude Haiku, DeepSeek, Kimi, Groq); keys live in Netlify and the page shows which are set."
+  },
+  {
    "t": "callout",
    "v": "TABLES — review_commentary and review_snapshots (SUPABASE-SETUP.md). Snapshots are insert-only history; only a super admin can delete one. A specialist edits only the box whose section matches their profile tag exactly, so the tag must be the canonical name.",
    "c": "#B7791F"

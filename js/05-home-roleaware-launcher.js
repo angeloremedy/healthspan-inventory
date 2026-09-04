@@ -577,6 +577,8 @@ async function renderSpecPage(){
       {type:'line',label:'Target',data:tgt,borderColor:'#BA7517',borderDash:[5,4],pointRadius:2,spanGaps:true}]},
       options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}},scales:{y:{beginAtZero:true,ticks:{callback:v=>'₱'+Math.round(v).toLocaleString()},grid:{color:'rgba(128,128,128,0.12)'}},x:{grid:{display:false}}}}});
   }catch(e){}
+  // My profile for a specialist IS this page, with their own numbers and files layered on
+  if(currentView==='profile'&&typeof profileDecorate==='function'){try{await profileDecorate();}catch(e){}}
 }
 
 /* ── FULFILLMENT QUEUE (Verna's worklist) ── */

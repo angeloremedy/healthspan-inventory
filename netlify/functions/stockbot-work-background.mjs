@@ -1,7 +1,7 @@
 // Background worker for the /stock Slack command (up to 15 min runtime).
 // Fetches the live inventory feed, asks the configured model (lib/llm.mjs) to
 // answer from the full dataset, and posts the answer back to Slack.
-import { llm, hasKey, isHardQuestion, provider } from './lib/llm.mjs';
+import { llm, hasKey, isHardQuestion, provider, setProviderPref } from './lib/llm.mjs';
 
 function serialDate(ds) {
   if (!ds || typeof ds !== 'number') return '';
@@ -140,7 +140,8 @@ export const handler = async (event) => {
     try { if (rs && rs.ok) shop = await rs.json(); } catch (e) {}
     const cat = buildData(data) + buildShopifySections(data, shop);
 
-    if (!hasKey()) { await post(':warning: No AI key is configured in Netlify (GEMINI_API_KEY or ANTHROPIC_API_KEY).'); return { statusCode: 200, body: 'no key' }; }
+    try { const SB_URL = (process.env.SUPABASE_URL || '').replace(/\/$/, ''), SVC = process.env.SUPABASE_SERVICE_KEY || ''; if (SB_URL && SVC) { const r = await fetch(SB_URL + '/rest/v1/app_settings?select=value&key=eq.ai_provider', { headers: { apikey: SVC, Authorization: 'Bearer ' + SVC } }).then(x => x.json()); setProviderPref((r[0] || {}).value || ''); } } catch (e) {}
+    if (!hasKey()) { await post(':warning: No AI key is configured for the chosen provider (' + provider() + ') — HQ → Settings → AI.'); return { statusCode: 200, body: 'no key' }; }
 
     const out = await llm({ system: SYSTEM, smart, maxTokens: smart ? 6000 : 2000,
       messages: [{ role: 'user', content: 'LIVE DATA (synced ' + (data.synced || 'now') + '):\n' + cat + '\n\nQUESTION(S) FROM SLACK:\n' + text }] });

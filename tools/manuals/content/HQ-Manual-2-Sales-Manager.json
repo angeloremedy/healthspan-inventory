@@ -782,6 +782,16 @@
    "v": "<b>Copy for Notion</b> on the Reports page puts this week’s Sales block (brands vs target, machines, accounts, activity, specialists, what HQ noticed) on the clipboard as Notion-ready text — paste it under Weekly Report/Updates in the Healthspan Weekly Meeting page."
   },
   {
+   "t": "step",
+   "n": "10",
+   "v": "<b>Google Slides</b> on the Reports page uploads a deck to the shared Drive folder, converts it to Slides and shares it with the addresses you type (you are always included) — the team edits it there. The team deck now also carries a monthly slide per brand, an Accounts overview (active, new, new-to-brand), SkinPen to date and the Mixexpert → Mesoestetic tracker; paste the Mixexpert clinic list once on the Business review and HQ counts conversions."
+  },
+  {
+   "t": "step",
+   "n": "11",
+   "v": "<b>Settings</b> (footer or phone menu) holds theme and light/dark mode, Change password, Sign out, favourites, the bottom bar and your manual. Settings → AI shows which model answers Ask HQ and Draft with AI and lets you test the connection."
+  },
+  {
    "t": "callout",
    "v": "BEFORE THE MEETING — open the month, read What HQ noticed, fill the six boxes (or Draft with AI and edit), check each specialist has written theirs, Save snapshot, Export PowerPoint. The deck is the page.",
    "c": "#0E8A5F"

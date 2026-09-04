@@ -417,6 +417,11 @@
    "v": "Every section is readable; the commentary boxes are written by the sales manager and by each specialist, so on this page they are view-only for you. The figures are the same as Targets and Scorecards — external sales only."
   },
   {
+   "t": "step",
+   "n": "4",
+   "v": "<b>Settings</b> (footer or phone menu) holds theme and light/dark mode, Change password, Sign out, favourites, the bottom bar and your manual. "
+  },
+  {
    "t": "h1",
    "v": "<b>Accounts (CRM) — one memory per clinic</b>"
   },

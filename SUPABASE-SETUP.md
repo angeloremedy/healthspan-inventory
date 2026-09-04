@@ -2563,6 +2563,19 @@ HQ account shows up on the Business review as "sits under Shopify tags that are
 not a specialist account" with the amount — fix the order tag or create the
 account.
 
+## Google Slides export (no SQL — Netlify env, Sep 4)
+
+Reports → **Google Slides** builds the deck in the browser and hands the bytes to
+Drive through `deck-to-drive.mjs`, which asks Drive to convert the .pptx into a
+native Google Slides file inside a shared folder and shares it with the addresses
+given (the clicker is always added). Uses the attachments' service account
+(`GDRIVE_CLIENT_EMAIL`, `GDRIVE_PRIVATE_KEY`). Optional `GDRIVE_REPORTS_FOLDER_ID`
+points the decks at their own folder in the Shared Drive (the service account must
+be a Content manager there); without it the attachments folder is used.
+Mixexpert list: paste the clinic names on the Business review → Mixexpert panel;
+it sets `accounts.source = 'Mixexpert'` (creating the account if new) and the
+review counts conversions from the order index. No new tables.
+
 ## AI provider (no SQL — Netlify env, Sep 3)
 
 Ask AI, the Slack `/stock` bot, the Monday next-best-action and **Draft with AI**
@@ -2573,6 +2586,8 @@ all go through `netlify/functions/lib/llm.mjs`. Set in Netlify → Environment:
 | `GEMINI_API_KEY` | from Google AI Studio (free tier, no card). With this set and no `AI_PROVIDER`, everything runs on Gemini Flash |
 | `AI_PROVIDER` | optional: `gemini` or `anthropic` to force one |
 | `GEMINI_MODEL` / `GEMINI_MODEL_LITE` | defaults `gemini-3.6-flash` / `gemini-3.5-flash-lite`, both with thinking set to minimal. Do not point these at `gemini-flash-latest`: it resolves to 3.8 Flash, which thinks at length over a big prompt and overran the 150 s the UI waits |
+| `DEEPSEEK_API_KEY` / `MOONSHOT_API_KEY` / `GROQ_API_KEY` / `MISTRAL_API_KEY` / `OPENROUTER_API_KEY` / `CEREBRAS_API_KEY` | optional, one per choice in Settings → AI (model overrides: `*_MODEL`). Free tiers: Mistral (1B tokens/month, opt-in training — the only free one besides Gemini that fits the full Ask HQ context), OpenRouter (free community models, ~20 req/min), Groq and Cerebras (Llama 70B, ~8–12k tokens/min — drafts and nudges, not the chat) |
+| *(setting)* `app_settings.ai_provider` | written from Settings → AI by the super admin: `gemini` (default) · `mistral` · `openrouter` · `groq` · `cerebras` · `anthropic` · `deepseek` · `kimi`. Read by the workers on every call; `AI_PROVIDER` env is the fallback |
 | `GEMINI_MODEL_DEEP` | default `gemini-3.8-flash` with medium thinking — used only for short prompts that want the richest answer (Draft with AI). Falls back to `GEMINI_MODEL` if rate-limited |
 | `LLM_TIMEOUT_MS` | per-attempt ceiling, default 45000; a hung call is cut and the next model tried |
 | `GEMINI_PAID=1` | set once billing is on — lifts the free-tier scrub (unit costs and supplier payables are left out of prompts on the free tier, because free-tier prompts may be used for model improvement) |

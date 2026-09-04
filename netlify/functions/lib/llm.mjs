@@ -17,6 +17,11 @@
 //   GEMINI_PAID=1      say so once billing is on — lifts the free-tier data scrub
 //   ANTHROPIC_API_KEY  kept as the safety net: if the primary provider fails or is
 //                      rate-limited and this key exists, the call is retried on Claude
+//   DEEPSEEK_API_KEY / MOONSHOT_API_KEY (Kimi) / GROQ_API_KEY / MISTRAL_API_KEY /
+//   OPENROUTER_API_KEY / CEREBRAS_API_KEY — OpenAI-compatible providers, chosen in
+//                      Settings → AI (app_settings.ai_provider) or AI_PROVIDER=<name>.
+//                      Model overrides: DEEPSEEK_MODEL, MOONSHOT_MODEL, GROQ_MODEL,
+//                      MISTRAL_MODEL, OPENROUTER_MODEL, CEREBRAS_MODEL
 //
 // Free-tier note (Gemini): prompts may be used for model improvement, so
 // isFreeTier() lets callers leave unit costs and supplier payables out of the
@@ -45,14 +50,28 @@ async function fetchT(url, opt) { // fetch with a hard ceiling
   finally { clearTimeout(t); }
 }
 
+// OpenAI-compatible vendors: one caller, three presets
+export const COMPAT = {
+  deepseek: { url: 'https://api.deepseek.com/v1', key: 'DEEPSEEK_API_KEY', model: process.env.DEEPSEEK_MODEL || 'deepseek-chat', label: 'DeepSeek' },
+  kimi:     { url: 'https://api.moonshot.ai/v1',  key: 'MOONSHOT_API_KEY', model: process.env.MOONSHOT_MODEL || 'kimi-latest', label: 'Kimi (Moonshot)' },
+  groq:     { url: 'https://api.groq.com/openai/v1', key: 'GROQ_API_KEY', model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile', label: 'Groq (Llama)' },
+  mistral:  { url: 'https://api.mistral.ai/v1', key: 'MISTRAL_API_KEY', model: process.env.MISTRAL_MODEL || 'mistral-large-latest', label: 'Mistral' },
+  openrouter:{ url: 'https://openrouter.ai/api/v1', key: 'OPENROUTER_API_KEY', model: process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free', label: 'OpenRouter (free models)' },
+  cerebras: { url: 'https://api.cerebras.ai/v1', key: 'CEREBRAS_API_KEY', model: process.env.CEREBRAS_MODEL || 'llama-3.3-70b', label: 'Cerebras (Llama)' }
+};
+export const PROVIDERS = ['gemini', 'anthropic', 'deepseek', 'kimi', 'groq', 'mistral', 'openrouter', 'cerebras'];
+let _pref = ''; // set per request from app_settings (Settings → AI); env AI_PROVIDER is the fallback
+export function setProviderPref(p) { _pref = PROVIDERS.includes(String(p || '').toLowerCase()) ? String(p).toLowerCase() : ''; }
+export function keyFor(p) { return p === 'gemini' ? process.env.GEMINI_API_KEY : p === 'anthropic' ? process.env.ANTHROPIC_API_KEY : COMPAT[p] ? process.env[COMPAT[p].key] : ''; }
+export function keysPresent() { const o = {}; for (const p of PROVIDERS) o[p] = !!keyFor(p); return o; }
 export function provider() {
-  const p = String(process.env.AI_PROVIDER || '').toLowerCase();
-  if (p === 'gemini' || p === 'anthropic') return p;
+  const p = _pref || String(process.env.AI_PROVIDER || '').toLowerCase();
+  if (PROVIDERS.includes(p)) return p;
   return process.env.GEMINI_API_KEY ? 'gemini' : 'anthropic';
 }
-export function isFreeTier() { return provider() === 'gemini' && !process.env.GEMINI_PAID; }
-export function hasKey() { return provider() === 'gemini' ? !!process.env.GEMINI_API_KEY : !!process.env.ANTHROPIC_API_KEY; }
-export function providerLabel() { return provider() === 'gemini' ? 'Gemini' : 'Claude'; }
+export function isFreeTier() { const p = provider(); return (p === 'gemini' && !process.env.GEMINI_PAID) || ['groq', 'mistral', 'openrouter', 'cerebras'].includes(p); } // free tiers may train on prompts
+export function hasKey() { return !!keyFor(provider()); }
+export function providerLabel() { const p = provider(); return p === 'gemini' ? 'Gemini' : p === 'anthropic' ? 'Claude' : (COMPAT[p] || {}).label || p; }
 
 // the same heuristic the workers used to choose Sonnet over Haiku
 export function isHardQuestion(q) {
@@ -90,6 +109,17 @@ async function callGemini({ system, messages, maxTokens, model, key, noThinking,
   return text;
 }
 
+async function callCompat({ system, messages, maxTokens, model, key, base }) { // OpenAI chat-completions shape
+  const msgs = (system ? [{ role: 'system', content: system }] : []).concat(messages.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content || '') })));
+  const resp = await fetchT(base + '/chat/completions', { method: 'POST', headers: { Authorization: 'Bearer ' + key, 'content-type': 'application/json' },
+    body: JSON.stringify({ model, messages: msgs, max_tokens: maxTokens, temperature: 0.3 }) });
+  if (!resp.ok) { const t = await resp.text(); const e = new Error(model + ' ' + resp.status + ': ' + t.slice(0, 200)); e.status = resp.status; throw e; }
+  const out = await resp.json();
+  const text = String(((out.choices || [])[0] || {}).message?.content || '').trim();
+  if (!text) { const e = new Error(model + ' returned no text'); e.status = 502; throw e; }
+  return text;
+}
+
 async function callClaude({ system, messages, maxTokens, model, key }) {
   const resp = await fetchT('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -113,7 +143,12 @@ export async function llm({ system = '', messages = [], maxTokens = 2000, smart 
   const gk = process.env.GEMINI_API_KEY, ak = process.env.ANTHROPIC_API_KEY;
   const deep = depth === 'deep'; if (deep) smart = true;
   const attempts = [];
-  if (provider() === 'gemini') {
+  const P = provider();
+  if (COMPAT[P]) { // DeepSeek / Kimi / Groq first, then whatever else has a key
+    const c = COMPAT[P]; if (keyFor(P)) attempts.push({ p: P, model: c.model, retry: true, base: c.url, key: keyFor(P) });
+    if (gk) attempts.push({ p: 'gemini', model: GEM_MODEL });
+    if (ak) attempts.push({ p: 'anthropic', model: FAST_CLAUDE });
+  } else if (P === 'gemini') {
     // deep = a short prompt that deserves the strongest Flash and real thinking; the
     // everyday model stays next in line so a rate limit on 3.8 never blocks the answer
     if (gk) { if (deep) attempts.push({ p: 'gemini', model: GEM_DEEP, retry: true, deep: true }); attempts.push({ p: 'gemini', model: GEM_MODEL, retry: !deep }); attempts.push({ p: 'gemini', model: GEM_LITE }); }
@@ -122,14 +157,14 @@ export async function llm({ system = '', messages = [], maxTokens = 2000, smart 
     if (ak) { attempts.push({ p: 'anthropic', model: smart ? SMART_CLAUDE : FAST_CLAUDE }); if (smart) attempts.push({ p: 'anthropic', model: FAST_CLAUDE }); }
     if (gk) attempts.push({ p: 'gemini', model: deep ? GEM_DEEP : GEM_MODEL, deep });
   }
-  if (!attempts.length) return { text: '', model: '', provider: provider(), error: (provider() === 'gemini' ? 'GEMINI_API_KEY' : 'ANTHROPIC_API_KEY') + ' not configured' };
+  if (!attempts.length) return { text: '', model: '', provider: P, error: (P === 'gemini' ? 'GEMINI_API_KEY' : P === 'anthropic' ? 'ANTHROPIC_API_KEY' : (COMPAT[P] || {}).key || 'API key') + ' not configured' };
   const errs = [];
   for (const a of attempts) {
     let noThinking = false;
     for (let tries = 0; tries < 3; tries++) {
       try {
         const args = { system, messages, maxTokens, model: a.model, key: a.p === 'gemini' ? gk : ak, noThinking, smart, deep: !!a.deep };
-        const text = fixPeso(a.p === 'gemini' ? await callGemini(args) : await callClaude(args));
+        const text = fixPeso(a.base ? await callCompat(Object.assign(args, { base: a.base, key: a.key })) : a.p === 'gemini' ? await callGemini(args) : await callClaude(args));
         return { text, model: a.model, provider: a.p, error: '' };
       } catch (e) {
         errs.push(a.model + ': ' + (e.message || e));

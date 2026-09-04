@@ -3,7 +3,7 @@
 // (lib/llm.mjs — Gemini Flash by default, Claude as the safety net), and writes
 // the result to Blobs for ask.mjs to serve.
 import { connectLambda, getStore } from '@netlify/blobs';
-import { llm, hasKey, isHardQuestion, isFreeTier, provider } from './lib/llm.mjs';
+import { llm, hasKey, isHardQuestion, isFreeTier, provider, setProviderPref } from './lib/llm.mjs';
 
 const SYSTEM = [
   'You are Healthspan HQ\'s assistant — HQ is Healthspan Global\'s ERP/CRM/warehouse system — answering inside the app for staff who know the business.',
@@ -141,6 +141,7 @@ export const handler = async (event) => {
   const history = Array.isArray(payload.history) ? payload.history.slice(-4) : [];
   const who = payload.who || { role: 'viewer', tag: '' };
   const mode = String(payload.mode || '');   // 'draft' = Draft with AI: short prompt, wants depth
+  try { const r = await sbq('app_settings?select=value&key=eq.ai_provider'); setProviderPref((r[0] || {}).value || ''); } catch (e) {} // Settings → AI
   if (!id) return { statusCode: 400, body: 'no id' };
 
   let store = null;
@@ -155,7 +156,7 @@ export const handler = async (event) => {
   // else — not 120k tokens. Trimming is what makes a free-tier Flash answer in seconds.
   const catalog = trimCatalog(catalogRaw, question, 140000);
   if (!question || !catalog) { await finish({ error: 'Missing question or catalog' }); return { statusCode: 200, body: 'bad input' }; }
-  if (!hasKey()) { await finish({ error: (provider() === 'gemini' ? 'GEMINI_API_KEY' : 'ANTHROPIC_API_KEY') + ' not configured' }); return { statusCode: 200, body: 'no key' }; }
+  if (!hasKey()) { await finish({ error: 'No API key configured for the chosen AI provider (' + provider() + ') — see Settings → AI' }); return { statusCode: 200, body: 'no key' }; }
 
   const msgs = [];
   for (const h of history) {

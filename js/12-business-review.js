@@ -18,6 +18,19 @@ function bizPsSec(tag,key){return 'ps:'+tag+':'+key;}
 function bizNote(section){ // a saved row, with the pre-split 'ps:Tag' box standing in for Key wins
   const n=BIZ.notes[section];if(n)return n;const m=String(section).match(/^ps:([^:]+):wins$/i);return m?(BIZ.notes['ps:'+m[1]]||null):null;}
 function bizForecast(tag){try{const n=BIZ.notes[bizPsSec(tag,'forecast')];return n&&n.body?JSON.parse(n.body):{};}catch(e){return {};}}
+const BIZ_MIXX_TARGET=250; // Mixexpert accounts to convert to Mesoestetic (Paul, Sep 2026)
+let MIXX=null; // Set of custNorm(account) for accounts whose source is Mixexpert (Accounts → source)
+async function loadMixexpert(force){
+  if(MIXX&&!force)return MIXX;MIXX=new Set();
+  try{const {data}=await SB.from('accounts').select('name,source').ilike('source','%mixexpert%');for(const r of (data||[]))MIXX.add(custNorm(acctDedup(r.name)));}catch(e){}
+  return MIXX;}
+async function bizMixxImport(){ // paste a list of clinic names → accounts.source = Mixexpert (creates the account row if new)
+  if(!bizCanEditAll())return;const ta=$('mixx-paste');if(!ta)return;const names=[...new Set(ta.value.split(/\n|;|,(?=\s*[A-Z])/).map(x=>x.trim()).filter(x=>x.length>=3))];
+  if(!names.length)return;const st=$('mixx-status');if(st)st.textContent='Tagging '+names.length+' accounts…';
+  try{const rows=names.map(n=>({name:acctDedup(n),source:'Mixexpert',updated_at:new Date().toISOString()}));
+    const {error}=await SB.from('accounts').upsert(rows,{onConflict:'name'});if(error)throw error;
+    audit('mixexpert.import',{n:names.length});await loadMixexpert(true);if(st)st.textContent='Tagged '+names.length+' — '+MIXX.size+' Mixexpert accounts on file.';ta.value='';renderBizReview();}
+  catch(e){if(st)st.textContent='Could not save: '+(e.message||e);}}
 const BIZ_PPTX_CDN=['https://cdnjs.cloudflare.com/ajax/libs/PptxGenJS/3.12.0/pptxgen.bundle.js',
                     'https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js'];
 let BIZ={ym:null,R:null,notes:{},prevNotes:{},snaps:null,prev:null,busy:false};
@@ -117,7 +130,7 @@ function bizCompute(ym){
     const mtd=e.m[ym]||0,qtd=sumM(e.m,qM),ytd=sumM(e.m,yM),pm=e.m[prev]||0;
     const tgt=bizLineTgt(e.name,[ym]),qtgt=bizLineTgt(e.name,qM),ytgt=bizLineTgt(e.name,yM);
     return {name:e.name,lines:[...e.raw].sort(),mtd,units:e.u[ym]||0,prev:pm,tgt,qtd,qtgt,ytd,ytgt,att:bizPct(mtd,tgt),qatt:bizPct(qtd,qtgt),yatt:bizPct(ytd,ytgt),
-      proj:mtd/elapsed,series:series.map(m=>e.m[m]||0)};})
+      proj:mtd/elapsed,series:series.map(m=>e.m[m]||0),seriesU:series.map(m=>e.u[m]||0),seriesTgt:series.map(m=>bizLineTgt(e.name,[m]))};})
     .filter(b=>b.mtd>0||b.tgt||b.qtd>0||b.ytd>0).sort((a,b)=>b.mtd-a.mtd);
   const lineTgt=ms=>{let s=0,hit=false;for(const b of R.brands){const t=bizLineTgt(b.name,ms);if(t!=null){s+=t;hit=true;}}return hit?s:null;};
   const specTgt=ms=>{let s=0,hit=false;for(const t of (TARGETS||[]))if(t.scope==='SPECIALIST'&&ms.includes(t.month)&&!INTERNAL_TAG.test(t.name||'')){s+=(+t.value||0);hit=true;}return hit?s:null;};
@@ -131,7 +144,7 @@ function bizCompute(ym){
 
   /* orders: one row per order, rebuilt from the per-SKU order index */
   const ords={};
-  for(const sku in (ORDIDX||{})){const L=(SALESIDX[sku]&&SALESIDX[sku].line)||'(no line)';
+  for(const sku in (ORDIDX||{})){const L=bizGroupOf((SALESIDX[sku]&&SALESIDX[sku].line)||'(no line)'); // brands as the meeting names them
     for(const o of ORDIDX[sku]){if(!o||!o.n)continue;if(ordInternal(o))continue;
       const e=ords[o.n]||(ords[o.n]={n:o.n,dt:o.dt||'',t:specCanon(o.t||''),c:o.c||'',a:0,skus:{},units:{},lines:new Set()});
       e.a+=(+o.a||0);e.skus[sku]=(e.skus[sku]||0)+(+o.a||0);e.units[sku]=(e.units[sku]||0)+(+o.q||0);e.lines.add(L);}}
@@ -188,6 +201,11 @@ function bizCompute(ym){
       for(const sku in o.skus){s.skus[sku]=(s.skus[sku]||0)+o.skus[sku];const L=bizGroupOf((SALESIDX[sku]&&SALESIDX[sku].line)||'(no line)');s.lines[L]=(s.lines[L]||0)+o.skus[sku];
         const PL=s.prodLine[L]||(s.prodLine[L]={});PL[sku]=(PL[sku]||0)+o.skus[sku];}}}
   const newAccts=Object.keys(acctRev).filter(isNewAcct);
+  // new to a BRAND: the account's first order containing that brand (within the order window) landed this month
+  const firstByBrand={};for(const o of O){if(!o.c)continue;for(const L of o.lines){const k=L+'\u0001'+o.c;if(!firstByBrand[k]||o.dt<firstByBrand[k])firstByBrand[k]=o.dt;}}
+  const newByBrand={};for(const k in firstByBrand){if(firstByBrand[k].slice(0,7)!==ym)continue;const [L,c]=k.split('\u0001');(newByBrand[L]=newByBrand[L]||[]).push(c);}
+  const activeByBrand={};const d90=new Date(Date.parse(asOf+'T00:00:00Z')-90*864e5).toISOString().slice(0,10);
+  for(const o of O){if(!o.c||o.dt<d90||o.dt>asOf)continue;for(const L of o.lines)(activeByBrand[L]=activeByBrand[L]||new Set()).add(o.c);}
   for(const c of newAccts){const as=acctSpec[c]||{};const top=Object.keys(as).sort((a,b)=>as[b]-as[a])[0];const s=top?getSpec(top):null;if(s)s.newAccts.push(c);}
 
   /* account universe: ownership + Shopify history */
@@ -227,6 +245,21 @@ function bizCompute(ym){
     rev:R.products.filter(p=>p.equip).reduce((s,p)=>s+p.v,0),units:R.products.filter(p=>p.equip).reduce((s,p)=>s+p.u,0),
     rows:R.products.filter(p=>p.equip).slice(0,12)};
 
+  /* SkinPen to date: pens (equipment in the SkinPen brand) and treatment kits, by month */
+  {const isKit=p=>/treatment\s*kit/i.test(p.name||'')||p.sku==='F5SP072';
+    const pens={},kits={};for(const sku in (SALESIDX||{})){const S=SALESIDX[sku];if(bizGroupOf(S.line||'')!=='SkinPen')continue;
+      const nm=S.name||sku;const equip=eq.has(sku)||isEquipment(sku,nm,S.line,catOf[sku]);const kit=isKit({name:nm,sku});if(!equip&&!kit)continue;
+      const nmo=netMonthly(S,'',true);for(const m of series){const u=((nmo[m]||{}).u)||0;const tgt=equip?pens:kits;tgt[m]=(tgt[m]||0)+u;}}
+    const sumS=(o,ms)=>ms.reduce((a,m)=>a+(o[m]||0),0);const pensY=sumS(pens,yM),kitsY=sumS(kits,yM),pens13=sumS(pens,series),kits13=sumS(kits,series);
+    const installed=(SERIALS||[]).filter(x=>x.status==='sold'&&bizGroupOf((SALESIDX[x.sku]||{}).line||(DATA.find(d=>d.sku===x.sku)||{}).line||'')==='SkinPen').length;
+    R.skinpen={pensSeries:series.map(m=>pens[m]||0),kitsSeries:series.map(m=>kits[m]||0),pensMtd:pens[ym]||0,kitsMtd:kits[ym]||0,pensYtd:pensY,kitsYtd:kitsY,pens13,kits13,
+      kitsPerPenYtd:pensY?kitsY/pensY:null,kitsPerPen13:pens13?kits13/pens13:null,installedSerials:installed,monthsYtd:yM.length};}
+  /* Mixexpert conversion: accounts tagged source=Mixexpert in Accounts, how many now buy Mesoestetic */
+  {const set=(typeof MIXX!=='undefined'&&MIXX)||null;const names=set?[...set]:[];const has=n=>!!(set&&set.has(custNorm(acctDedup(n||''))));
+    const mesoEver=new Set(),mesoM=new Set(),anyM=new Set(),anyEver=new Set();
+    for(const o of O){if(!o.c||!has(o.c))continue;const inM=o.dt.slice(0,7)===ym;anyEver.add(o.c);if(inM)anyM.add(o.c);if(o.lines.has('Mesoestetic')){mesoEver.add(o.c);if(inM)mesoM.add(o.c);}}
+    R.mixexpert={total:names.length,target:BIZ_MIXX_TARGET,mesoEver:mesoEver.size,mesoMonth:mesoM.size,anyMonth:anyM.size,anyEver:anyEver.size,mesoNames:[...mesoEver].slice(0,12),loaded:!!set};}
+
   /* clients & buying — the part the old deck never had */
   const orderAccts=Object.keys(acctRev);const orders=O.filter(o=>o.dt.slice(0,7)===ym);
   const topAccts=orderAccts.map(c=>({name:c,v:acctRev[c],prev:acctPrev[c]||0,orders:acctOrd[c],lines:acctLines[c]?acctLines[c].size:0,
@@ -239,7 +272,10 @@ function bizCompute(ym){
   const newRev=newAccts.reduce((s,c)=>s+acctRev[c],0);
   const dealRev=R.products.reduce((s,p)=>s+p.deal,0),free=R.products.reduce((s,p)=>s+p.f,0);
   const top5=R.products.slice(0,5).reduce((s,p)=>s+p.v,0);
+  const activeTotal=Object.values(shopByNorm).filter(e=>e.v90>0).length;
   R.accounts={orders:orders.length,ordering:orderAccts.length,aov:orders.length?orders.reduce((s,o)=>s+o.a,0)/orders.length:0,
+    active:activeTotal,byBrand:R.brands.map(b=>({name:b.name,active:(activeByBrand[b.name]||new Set()).size,newN:(newByBrand[b.name]||[]).length,newNames:(newByBrand[b.name]||[]).slice(0,6)})).filter(b=>b.active||b.newN),
+    newFirstEver:newAccts.length,
     newAccts:newAccts.map(c=>({name:c,v:acctRev[c],spec:(topAccts.find(x=>x.name===c)||{}).spec||''})).sort((a,b)=>b.v-a.v),newRev,
     repeatRev:Math.max(0,(tot[ym]||0)-newRev),reorderers:orderAccts.filter(c=>acctOrd[c]>=2).length,multiBrand:orderAccts.filter(c=>acctLines[c]&&acctLines[c].size>=2).length,
     top:topAccts.slice(0,10),risers:movers.filter(m=>m.d>0&&m.prev>0).sort((a,b)=>b.d-a.d).slice(0,5),fallers:movers.filter(m=>m.d<0).sort((a,b)=>a.d-b.d).slice(0,5),
@@ -446,7 +482,7 @@ async function renderBizReview(){
     $('content').innerHTML='<div class="empty" style="margin-top:40px"><b>The Business review is external sales only.</b><br>The sales cache has not finished computing the Remedy / internal split yet, so there are no external figures to report. It rebuilds nightly at 2am, or ask for a rebuild from Sales overview, then come back — nothing here will ever show Remedy or internal orders.</div>';return;}
   if(!BIZ.ym)BIZ.ym=bizToday().slice(0,7);
   const ym=BIZ.ym;
-  try{await Promise.all([loadVisits(),typeof loadOwners==='function'?(OWNERS?null:loadOwners()):null,typeof loadSerials==='function'?(SERIALS?null:loadSerials()):null,typeof loadLoans==='function'?(LOANS?null:loadLoans()):null,loadBizNotes(ym),BIZ.snaps?null:loadBizSnaps()]);}catch(e){}
+  try{await Promise.all([loadVisits(),typeof loadOwners==='function'?(OWNERS?null:loadOwners()):null,typeof loadSerials==='function'?(SERIALS?null:loadSerials()):null,typeof loadLoans==='function'?(LOANS?null:loadLoans()):null,loadBizNotes(ym),BIZ.snaps?null:loadBizSnaps(),MIXX?null:loadMixexpert()]);}catch(e){}
   if(currentView!=='bizreview'||BIZ.ym!==ym)return;
   const R=BIZ.R=bizCompute(ym);
   await bizLoadPrev(R);
@@ -467,7 +503,7 @@ async function renderBizReview(){
   else if(R.recentCapped&&canAll)h+='<div class="viewdesc" style="border-color:var(--am)">The order index hit its 2,500-order cap, so the newest orders may be missing from the account tables. Ask for a cache rebuild (Sales overview → rebuild).</div>';
   if(!R.current)h+='<div class="viewdesc">Viewing a past month: revenue, targets and activity are for '+esc(R.label)+'; "Active (90d)", "Quiet 90d+" and the going-quiet list are as of today.</div>';
   if(window._bizSnapErr&&canAll)h+='<div class="viewdesc" style="border-color:var(--am)">Snapshots table not reachable ('+esc(window._bizSnapErr)+') — run the review_snapshots SQL from SUPABASE-SETUP.md.</div>';
-  h+='<div class="no-print" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;font-size:12px">'+[['glance','At a glance'],['brands','Brands'],['monthly','Monthly'],['products','Products'],['machines','Machines'],['accounts','Accounts'],['clients','Clients & buying'],['specs','Specialists'],['plan-top','Plan']].map(x=>'<a href="#sec-'+x[0]+'" class="pill pbl" onclick="const e=document.getElementById(\'sec-'+x[0]+'\');if(e)e.scrollIntoView({behavior:\'smooth\'});return false">'+x[1]+'</a>').join('')+'</div>';
+  h+='<div class="no-print" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;font-size:12px">'+[['glance','At a glance'],['brands','Brands'],['monthly','Monthly'],['products','Products'],['machines','Machines'],['acctov','Accounts'],['skinpen','SkinPen'],['mixx','Mixexpert'],['accounts','Per specialist'],['clients','Clients & buying'],['specs','Specialists'],['plan-top','Plan']].map(x=>'<a href="#sec-'+x[0]+'" class="pill pbl" onclick="const e=document.getElementById(\'sec-'+x[0]+'\');if(e)e.scrollIntoView({behavior:\'smooth\'});return false">'+x[1]+'</a>').join('')+'</div>';
   /* cover strip */
   h+='<div class="panel" style="padding:18px 20px;margin-bottom:14px;background:#00168F;color:#fff"><div style="font-size:11px;letter-spacing:.12em;opacity:.8">MONTHLY SALES PERFORMANCE REPORT</div><div style="font-size:24px;font-weight:700;margin-top:2px">'+esc(R.label)+'</div><div style="font-size:12px;opacity:.85;margin-top:4px">Generated by Healthspan HQ · as of '+esc(R.asOf)+(BIZ.prev?' · compared with the report saved '+esc(BIZ.prev.asOf||''):' · no earlier snapshot to compare with yet')+'</div></div>';
   /* at a glance */
@@ -506,6 +542,26 @@ async function renderBizReview(){
     bizKpi('Demo units out',String(R.machines.loansOut),R.machines.onLoan+' on loan now · '+R.machines.converted+' converted','am')+bizKpi('Equipment in stock',String(R.machines.inStock),R.machines.skus+' serialised SKUs','pu')+'</div>'+
     bizTbl(['Machine','Units','MTD','Target','%'],R.machines.rows.map(p=>[esc(p.name)+'<div class="mu" style="font-size:10px">'+esc(p.line)+'</div>',p.u.toLocaleString('en-PH'),P(p.v),p.tgt!=null?P(p.tgt)+(p.tgtFrom==='brand'?' <span class="mu">(brand)</span>':''):'—',p.tgt!=null?attBar(bizPct(p.v,p.tgt)):'—']))+
     '<div class="mu" style="font-size:11px;margin-top:6px">Machines = the SkinPen device packages, Axion, Mark-Vu, Symmed, Zionic and the GTG platforms, plus anything in the serial register — recognised from the product title, so cartridges, kits and tips stay consumables. A machine paid outside Shopify (cash, cheque, direct to the bank) is not in Shopify and therefore not here until it is booked as an order.</div></div>';
+  /* accounts overview: active, new, new by brand */
+  h+='<div class="panel" style="padding:14px 16px;margin-bottom:14px" id="sec-acctov"><div class="phd">Accounts overview</div><div class="metrics">'+
+    bizKpi('Active accounts',String(R.accounts.active),'external order in the last 90 days','gr')+bizKpi('Ordered this month',String(R.accounts.ordering),R.accounts.orders+' orders','bl')+
+    bizKpi('New accounts',String(R.accounts.newAccts.length),'first order of any kind (13-month view)',R.accounts.newAccts.length?'gr':'gy')+bizKpi('Bought 2+ brands',String(R.accounts.multiBrand),'this month','pu')+'</div>'+
+    bizTbl(['Brand','Active accounts (90d)','New to the brand this month','Who'],R.accounts.byBrand.map(b=>[esc(b.name),String(b.active),String(b.newN),'<span class="mu" style="font-size:11px">'+esc(b.newNames.join(', '))+(b.newN>b.newNames.length?' …':'')+'</span>']))+
+    '<div class="mu" style="font-size:11px;margin-top:6px">New to the brand = the account\'s first order containing that brand within the order index ('+esc(R.ordersFrom||'~6 months')+' onward). An account can be new to Mesoestetic while being an old Innoaesthetics buyer.</div></div>';
+  /* SkinPen to date */
+  if(R.skinpen){const K=R.skinpen;
+    h+='<div class="panel" style="padding:14px 16px;margin-bottom:14px" id="sec-skinpen"><div class="phd">SkinPen to date — pens and kits</div><div class="metrics">'+
+      bizKpi('Pens sold YTD',String(K.pensYtd),K.pensMtd+' this month · '+K.pens13+' in 13 months','bl')+bizKpi('Kits sold YTD',String(K.kitsYtd),K.kitsMtd+' this month · '+K.kits13+' in 13 months','gr')+
+      bizKpi('Kits per pen (YTD)',K.kitsPerPenYtd!=null?K.kitsPerPenYtd.toFixed(1):'—','kits sold ÷ pens sold this year','pu')+bizKpi('Installed (serial register)',String(K.installedSerials),'pens marked sold in Serial numbers','am')+'</div>'+
+      '<div class="cw" style="height:220px"><canvas id="bzSkinpen"></canvas></div><div class="mu" style="font-size:11px;margin-top:6px">Pens = SkinPen equipment SKUs (device packages), kits = treatment kits; units, external only. The serial register is the exact installed base once every pen is entered.</div></div>';}
+  /* Mixexpert */
+  {const X=R.mixexpert;const pct=bizPct(X.mesoEver,X.target);
+    h+='<div class="panel" style="padding:14px 16px;margin-bottom:14px" id="sec-mixx"><div class="phd">Mixexpert → Mesoestetic conversion</div><div class="metrics">'+
+      bizKpi('Target',String(X.target),'new Mesoestetic accounts from Mixexpert','bl')+bizKpi('Converted so far',String(X.mesoEver),'Mixexpert accounts that bought Mesoestetic (order window)',X.mesoEver?'gr':'gy')+
+      bizKpi('This month',String(X.mesoMonth),'bought Mesoestetic in '+esc(R.label),X.mesoMonth?'gr':'gy')+bizKpi('Mixexpert list',String(X.total),X.anyEver+' bought anything in the window','pu')+'</div>'+
+      (X.target?attBar(pct||0):'')+
+      (X.total?'<div class="mu" style="font-size:12px;margin-top:8px">Converted: '+esc(X.mesoNames.join(', '))+(X.mesoEver>X.mesoNames.length?' …':'')+'</div>':'<div class="viewdesc" style="margin-top:8px">No Mixexpert accounts on file yet. Paste the list below (one clinic per line, names as they appear on orders) and HQ tracks conversion from there.</div>')+
+      (canAll?'<details style="margin-top:8px"><summary style="cursor:pointer;font-size:12px;color:var(--mu)">Add / update the Mixexpert list</summary><textarea id="mixx-paste" rows="5" placeholder="One clinic per line" style="width:100%;font:inherit;font-size:12.5px;padding:8px 10px;border:1px solid var(--bd);border-radius:8px;margin-top:6px"></textarea><div style="display:flex;gap:8px;align-items:center;margin-top:6px"><a href="#" class="abtn" onclick="bizMixxImport();return false">Tag as Mixexpert</a><span class="mu" id="mixx-status" style="font-size:11px">Sets source = Mixexpert on the account (creates it if new). Names are matched the way orders spell them.</span></div></details>':'')+'</div>';}
   /* accounts monitoring */
   h+='<div class="panel" style="padding:14px 16px;margin-bottom:14px" id="sec-accounts"><div class="phd">Accounts monitoring — per specialist</div>'+
     bizTbl(['Specialist','Masterlist','Active (90d)','Ordered MTD','New MTD','Quiet 90d+','Contacts','Opened (CRM)'],R.specs.map(s=>[esc(s.label)+(s.team?' <span class="mu" style="font-size:10px">'+esc(s.team)+'</span>':''),String(s.masterlist),String(s.active),String(s.ordering),String(s.newAccts.length),String(s.quiet),(s.visits+s.calls)+'',String(s.opened)]))+
@@ -568,6 +624,13 @@ function bizChartCfg(R,key,arg,fs){
   if(key==='prod'){const rows=arg||[];
     return {type:'bar',data:{labels:rows.map(p=>p.name.length>28?p.name.slice(0,27)+'…':p.name),datasets:[{label:'MTD',data:rows.map(p=>Math.round(p.v)),backgroundColor:'rgba(0,22,143,0.85)',borderRadius:3}]},
       options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:tick(money)},y:{ticks:tick()}}}};}
+  if(key==='brandm'){const b=arg;const labels=R.series.map(m=>bizShortLbl(m)+' '+m.slice(2,4));
+    const ds=[{type:'bar',label:'Revenue',data:b.series.map(Math.round),backgroundColor:'rgba(0,22,143,0.85)',borderRadius:3}];
+    if(b.seriesTgt.some(t=>t!=null))ds.push({type:'line',label:'Target',data:b.seriesTgt.map(t=>t==null?null:Math.round(t)),borderColor:'#D85A30',backgroundColor:'#D85A30',borderDash:[6,4],pointRadius:3,spanGaps:true});
+    return {data:{labels,datasets:ds},options:{plugins:{legend:leg},scales:{x:{ticks:tick()},y:{beginAtZero:true,ticks:tick(money)}}}};}
+  if(key==='skinpen'){const K=arg;const labels=R.series.map(m=>bizShortLbl(m)+' '+m.slice(2,4));
+    return {data:{labels,datasets:[{type:'bar',label:'Treatment kits (units)',data:K.kitsSeries,backgroundColor:'rgba(0,22,143,0.85)',borderRadius:3,yAxisID:'y'},{type:'line',label:'Pens (units)',data:K.pensSeries,borderColor:'#D85A30',backgroundColor:'#D85A30',tension:.3,pointRadius:4,yAxisID:'y1'}]},
+      options:{plugins:{legend:leg},scales:{x:{ticks:tick()},y:{beginAtZero:true,ticks:tick({precision:0}),title:{display:true,text:'kits',font:F}},y1:{beginAtZero:true,position:'right',grid:{drawOnChartArea:false},ticks:tick({precision:0}),title:{display:true,text:'pens',font:F}}}}};}
   if(key==='pslines'){const rows=(arg.lineRows||[]).slice(0,8);
     return {type:'bar',data:{labels:rows.map(r=>r.name),datasets:[{label:'MTD',data:rows.map(r=>Math.round(r.mtd)),backgroundColor:rows.map((r,i)=>COLORS[i%COLORS.length]),borderRadius:3}]},
       options:{plugins:{legend:{display:false}},scales:{x:{ticks:tick()},y:{beginAtZero:true,ticks:tick(money)}}}};}
@@ -580,10 +643,10 @@ function bizCharts(R){
   if(typeof Chart==='undefined')return;
   const mk=(id,cfg)=>{try{const k='_bz_'+id;if(window[k])window[k].destroy();const el=$(id);if(!el||!cfg)return;
     cfg.options=Object.assign({responsive:true,maintainAspectRatio:false},cfg.options);window[k]=new Chart(el,cfg);}catch(e){}};
-  mk('bzBrand',bizChartCfg(R,'brand'));mk('bzMonthly',bizChartCfg(R,'monthly'));mk('bzAccts',bizChartCfg(R,'accts'));mk('bzSpecs',bizChartCfg(R,'specs'));}
+  mk('bzBrand',bizChartCfg(R,'brand'));mk('bzMonthly',bizChartCfg(R,'monthly'));mk('bzAccts',bizChartCfg(R,'accts'));mk('bzSpecs',bizChartCfg(R,'specs'));if(R.skinpen)mk('bzSkinpen',bizChartCfg(R,'skinpen',R.skinpen));}
 /* Renders every chart the deck needs to a PNG data URL. Boxes are in inches (the
    deck's), drawn at 160 px per inch and 2x pixel ratio so they print crisp. */
-const BIZ_CHART_BOX={brand:[9,1.7],monthly:[9,4.05],specs:[3.15,4.05],prod:[2.95,4.0],spec:[4.6,2.0],pslines:[4.2,2.6]};
+const BIZ_CHART_BOX={brand:[9,1.7],monthly:[9,4.05],specs:[3.15,4.05],prod:[2.95,4.0],spec:[4.6,2.0],pslines:[4.2,2.6],brandm:[9,3.05],skinpen:[5.4,3.05]};
 async function bizChartImages(R,opts){
   opts=opts||{};const out={};
   if(typeof Chart==='undefined'||typeof document==='undefined')return out;
@@ -595,6 +658,8 @@ async function bizChartImages(R,opts){
   if(!opts.only){out.brand=draw(bizChartCfg(R,'brand',null,fs),BIZ_CHART_BOX.brand);
   out.monthly=draw(bizChartCfg(R,'monthly',null,fs),BIZ_CHART_BOX.monthly);
   out.specs=draw(bizChartCfg(R,'specs',null,fs),BIZ_CHART_BOX.specs);}
+  out.brandm={};if(!opts.only)for(const b of R.brands.filter(b=>b.series.some(v=>v>0)).slice(0,10))out.brandm[b.name]=draw(bizChartCfg(R,'brandm',b,fs),BIZ_CHART_BOX.brandm);
+  if(!opts.only&&R.skinpen)out.skinpen=draw(bizChartCfg(R,'skinpen',R.skinpen,fs),BIZ_CHART_BOX.skinpen);
   out.prod={};if(!opts.only)for(const b of R.brands.filter(b=>b.mtd>0).slice(0,8)){const rows=R.products.filter(p=>p.line===b.name&&(p.v>0||p.u>0||p.tgt)).slice(0,8);if(rows.length)out.prod[b.name]=draw(bizChartCfg(R,'prod',rows,fs),BIZ_CHART_BOX.prod);}
   const want=opts&&opts.only?R.specs.filter(s=>s.name.toLowerCase()===String(opts.only).toLowerCase()):R.specs;
   out.spec={};out.pslines={};for(const sp of want){out.spec[sp.name]=draw(bizChartCfg(R,'spec',sp,fs),BIZ_CHART_BOX.spec);if(sp.lineRows&&sp.lineRows.length)out.pslines[sp.name]=draw(bizChartCfg(R,'pslines',sp,fs),BIZ_CHART_BOX.pslines);}

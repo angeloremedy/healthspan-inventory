@@ -143,17 +143,24 @@ async function campaignDel(id){
 async function renderPlanReview(){
   if(!canManage()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only.</div>';return;}
   $('content').innerHTML=
-    '<div class="panel" style="padding:18px;max-width:760px">'+
-    '<div class="phd">AI planning review</div>'+
-    '<div style="font-size:12.5px;color:var(--tx2);margin-bottom:12px">The AI walks every SKU — stock, velocity, days-to-stockout, expiry — plus the campaign calendar and last month’s forecast accuracy, and reports what needs attention: stockout risks, overstock/expiry money, forecast misses, and what to do about each. Takes ~30–60 seconds on the smart model.</div>'+
-    '<button id="pr-btn" onclick="runPlanReview()" style="background:var(--ac);color:#fff;border:none;border-radius:10px;padding:12px 22px;font-size:13.5px;font-weight:700;cursor:pointer">Run planning review</button>'+
-    '<div id="pr-out" style="margin-top:16px;font-size:13px;line-height:1.65"></div></div>';
+    '<div class="panel" style="padding:14px 16px;margin-bottom:14px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">'+
+    '<div style="flex:1;min-width:260px"><div class="phd" style="margin-bottom:2px">AI planning review</div><div class="mu" style="font-size:12px">Walks every SKU — stock, velocity, days to stockout, expiry — plus the campaign calendar and last month’s forecast misses, and comes back with four cards: stockout risks, money at risk, what the misses mean, and five actions. About a minute.</div></div>'+
+    '<a href="#" id="pr-btn" class="abtn t-ac" onclick="runPlanReview();return false" style="padding:9px 16px;font-size:13px">Run planning review</a></div>'+
+    '<div id="pr-out"></div>';
 }
+/* the review as four cards — one per heading — instead of one paragraph */
+function planReviewCards(text){
+  const TONE={stockout:['rd','⚠'],money:['am','₱'],forecast:['bl','↔'],action:['gr','✓']};
+  const parts=String(text||'').replace(/\r/g,'').split(/\n(?=#{1,4}\s)/).filter(x=>x.trim());
+  const secs=parts.map(p=>{const m=p.match(/^#{1,4}\s+(.*)\n?([\s\S]*)$/);return m?{h:m[1].replace(/\*\*/g,'').trim(),body:m[2]}:{h:'',body:p};});
+  if(secs.length<2)return '<div class="panel" style="padding:14px 16px">'+mdLite(text)+'</div>';
+  return '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px">'+secs.map(sc=>{const k=/money|expir|overstock/i.test(sc.h)?'money':/stockout|stock/i.test(sc.h)?'stockout':/forecast|miss/i.test(sc.h)?'forecast':'action';const [tone,icon]=TONE[k];
+    return '<div class="panel" style="padding:14px 16px;border-top:3px solid var(--'+tone+')"><div class="phd" style="display:flex;gap:8px;align-items:center"><span class="pill p'+tone+'" style="font-weight:700">'+icon+'</span>'+esc(sc.h||'Review')+'</div><div style="font-size:12.5px;line-height:1.55">'+mdLite(sc.body)+'</div></div>';}).join('')+'</div>';}
 async function runPlanReview(){
   const btn=$('pr-btn'),out=$('pr-out');
   if(!out||btn.disabled)return;
   btn.disabled=true;btn.textContent='Reviewing…';
-  out.innerHTML='<span style="color:var(--tx3)">Gathering the catalog, campaigns, and accuracy history…</span>';
+  out.innerHTML='<div class="empty">Gathering the catalog, campaigns and accuracy history…</div>';
   try{
     await loadCampaigns();
     let acc='';
@@ -168,18 +175,18 @@ async function runPlanReview(){
     const today=new Date().toISOString().slice(0,10);
     const camps=(CAMPAIGNS||[]).filter(c=>c.to_date>=today);
     const campTxt=camps.length?'\n\nPlanned/running campaigns (expect demand uplift on these):\n'+camps.map(c=>c.name+' ('+c.from_date+' to '+c.to_date+', '+(c.skus||'all products')+(c.uplift_pct?', ~+'+c.uplift_pct+'%':'')+')').join('\n'):'\n\nNo campaigns planned.';
-    const q='You are Healthspan\'s demand planner doing the monthly planning review. Using the live catalog data you have (stock, velocity, months of stock, days to stockout, expiry, batches), plus the notes below, give a decisive exception report: 1) SKUs at real stockout risk in the next 60 days (consider campaign uplift — flag any campaign SKU that cannot support the promo), 2) overstock and expiry money at risk worth acting on, 3) what last month\'s worst forecast misses suggest (one-off event vs trend change), 4) exactly 5 prioritized actions for Paul with quantities where possible. Be specific with product names and numbers; no preamble; keep it under 450 words.'+campTxt+acc;
+    const q='You are Healthspan\'s demand planner doing the monthly planning review. Using the live catalog data you have (stock, velocity, months of stock, days to stockout, expiry, batches), plus the notes below, give a decisive exception report: 1) SKUs at real stockout risk in the next 60 days (consider campaign uplift — flag any campaign SKU that cannot support the promo), 2) overstock and expiry money at risk worth acting on, 3) what last month\'s worst forecast misses suggest (one-off event vs trend change), 4) exactly 5 prioritized actions for the buyer with quantities where possible. FORMAT STRICTLY as markdown with these four headings, in this order, each followed by "- " bullets (one SKU or one action per bullet, product names in **bold**, numbers exact): "## Stockout risks (next 60 days)", "## Money at risk (overstock & expiry)", "## What the forecast misses say", "## Five actions". No preamble, no closing paragraph; under 450 words.'+campTxt+acc;
     const r=await fetch('/.netlify/functions/ask',{method:'POST',headers:await sbAuthHeaders({'Content-Type':'application/json'}),body:JSON.stringify({question:q,catalog:askCatalog(),history:[]})});
     const job=await r.json();
     if(!job.id)throw new Error(job.error||'could not start');
     let res=null;
     for(let i=0;i<70;i++){
       await new Promise(s=>setTimeout(s,2500));
-      if(i===6)out.innerHTML='<span style="color:var(--tx3)">Thinking it through — deep review takes a little longer…</span>';
+      if(i===6)out.innerHTML='<div class="empty">Thinking it through — the deep review takes a little longer…</div>';
       try{const rr=await fetch('/.netlify/functions/ask?id='+job.id,{headers:await sbAuthHeaders()});const o=await rr.json();if(!o.pending){res=o;break;}}catch(e){}
     }
     if(!res||!res.answer)throw new Error((res&&res.error)||'Timed out — please run it again.');
-    out.innerHTML=askFmt(res.answer)+'<div style="font-size:10.5px;color:var(--tx3);margin-top:12px">Generated '+new Date().toLocaleString()+' · AI analysis over live data — sanity-check quantities before ordering</div>';
+    out.innerHTML=planReviewCards(res.answer)+'<div class="mu" style="font-size:10.5px;margin-top:10px">Generated '+new Date().toLocaleString()+' · '+esc(res.model||'AI')+' over live data — sanity-check quantities before ordering</div>';
     audit('planning.review',{campaigns:camps.length});
   }catch(e){out.innerHTML='<span style="color:var(--rd)">Could not complete the review: '+esc(e.message||e)+'</span>';}
   btn.disabled=false;btn.textContent='Run planning review';

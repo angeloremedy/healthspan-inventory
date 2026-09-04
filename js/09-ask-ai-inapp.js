@@ -85,9 +85,20 @@ async function askDiag(){ // manager/admin: one tiny model call, timed — is th
     if(el){el.removeAttribute('id');el.innerHTML=o.ok?'<b>AI connection OK</b> — '+esc(o.provider||'')+' · '+esc(o.model||'')+' answered in '+esc(String(o.ms))+' ms.':'<span style="color:var(--rd)"><b>AI connection failed</b> — '+esc(o.error||('HTTP '+r.status))+(o.ms?' ('+esc(String(o.ms))+' ms)':'')+'</span>';}}
   catch(e){const el=document.getElementById('ask-diag');if(el){el.removeAttribute('id');el.innerHTML='<span style="color:var(--rd)">Could not reach the function: '+esc(e.message)+'</span>';}}
   log.scrollTop=log.scrollHeight;}
-function askFmt(t){
-  return esc(t).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>');
-}
+/* markdown-lite → HTML: headings, bullet and numbered lists, bold, paragraphs.
+   The models write markdown; before this everything landed in one grey blob. */
+function mdLite(t){
+  const lines=String(t||'').replace(/\r/g,'').split('\n');let out='',list=null;
+  const inl=s=>esc(s).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/`([^`]+)`/g,'<code style="font-size:.92em;background:var(--sf2);padding:0 4px;border-radius:4px">$1</code>');
+  const close=()=>{if(list){out+='</'+list+'>';list=null;}};
+  for(let raw of lines){const l=raw.trim();if(!l){close();continue;}
+    let m;
+    if((m=l.match(/^#{1,4}\s+(.*)$/))){close();out+='<div style="font-weight:700;margin:10px 0 4px;color:var(--ac)">'+inl(m[1].replace(/\*\*/g,''))+'</div>';continue;}
+    if((m=l.match(/^[-*•]\s+(.*)$/))){if(list!=='ul'){close();out+='<ul style="margin:4px 0 6px 18px;padding:0">';list='ul';}out+='<li style="margin:2px 0">'+inl(m[1])+'</li>';continue;}
+    if((m=l.match(/^(\d+)[.)]\s+(.*)$/))){if(list!=='ol'){close();out+='<ol style="margin:4px 0 6px 18px;padding:0">';list='ol';}out+='<li style="margin:2px 0">'+inl(m[2])+'</li>';continue;}
+    close();out+='<p style="margin:4px 0">'+inl(l)+'</p>';}
+  close();return out;}
+function askFmt(t){return mdLite(t);}
 async function sendAsk(){
   const inp=document.getElementById('askinput'), log=document.getElementById('asklog'), btn=document.getElementById('askbtn');
   if(!inp||!log)return;
@@ -159,7 +170,7 @@ function initTheme(){
   const t=(function(){try{return localStorage.getItem('hs_theme');}catch(e){return null;}})()||'healthspan';
   applyTheme(t);
   const m=(function(){try{return localStorage.getItem('hs_mode');}catch(e){return null;}})()||'system';
-  const sf=$('sf-foot');
+  const sf=null; // the theme row moved to Settings; applyTheme/applyMode below still run at boot
   if(sf&&!document.getElementById('themeRow')){
     const d=document.createElement('div');d.id='themeRow';
     d.style.cssText='padding:6px 14px;border-top:1px solid var(--bd);font-size:10.5px;color:var(--tx3);display:flex;align-items:center;gap:6px;flex-wrap:wrap';
@@ -209,7 +220,7 @@ function buildMobileNav(){
     return el?el.outerHTML.replace('<svg ','<svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" '):'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>';
   };
   const mLabel=v=>{
-    const SHORT={bizreview:'Review',reports:'Reports',neworder:'Order',logvisit:'Visit',followups:'To-dos',salesdue:'Reorder',approvals:'Approve',orders:'Orders',salespace:'Pace',customers:'Accounts',fulfillq:'Fulfill',scan:'Scan',cyclecount:'Count',po:'POs',ar:'AR',pdc:'PDCs',cashflow:'Cash',returns:'Returns',campaigns:'Campaigns',promos:'Promos',salesoverview:'Sales',pipeline:'Pipeline',dashboard:'Inventory',quotes:'Quotes',complaints:'Complaints',salesevents:'Events',transfers:'Transfers',quarantine:'Quarantine',whkpi:'KPIs',suppliers:'Suppliers',valuation:'Costs',catalog:'Items',recall:'Recall',targets:'Targets',scorecards:'Reviews',users:'Team',audit:'Log',commissions:'Commis.',regs:'Regs',salestarget:'Vs target',salesfield:'Coverage',crmstats:'Activity',serials:'Serials',loans:'Loaners',expreport:'Exp. report',profile:'Profile',all:'SKUs',forecast:'Stockout',health:'Data'};
+    const SHORT={bizreview:'Review',reports:'Reports',settings:'Settings',neworder:'Order',logvisit:'Visit',followups:'To-dos',salesdue:'Reorder',approvals:'Approve',orders:'Orders',salespace:'Pace',customers:'Accounts',fulfillq:'Fulfill',scan:'Scan',cyclecount:'Count',po:'POs',ar:'AR',pdc:'PDCs',cashflow:'Cash',returns:'Returns',campaigns:'Campaigns',promos:'Promos',salesoverview:'Sales',pipeline:'Pipeline',dashboard:'Inventory',quotes:'Quotes',complaints:'Complaints',salesevents:'Events',transfers:'Transfers',quarantine:'Quarantine',whkpi:'KPIs',suppliers:'Suppliers',valuation:'Costs',catalog:'Items',recall:'Recall',targets:'Targets',scorecards:'Reviews',users:'Team',audit:'Log',commissions:'Commis.',regs:'Regs',salestarget:'Vs target',salesfield:'Coverage',crmstats:'Activity',serials:'Serials',loans:'Loaners',expreport:'Exp. report',profile:'Profile',all:'SKUs',forecast:'Stockout',health:'Data'};
     if(SHORT[v])return SHORT[v];
     const el=document.querySelector('.nav .ni[onclick*="\''+v+'\'"]');
     if(!el)return v;
@@ -291,7 +302,8 @@ async function sbLoadProfile(user){
   const who=(SBPROFILE&&SBPROFILE.name)||user.email||'';
   if(sf){const old=document.getElementById('rolebadge');if(old)old.remove();
     const d=document.createElement('div');d.id='rolebadge';
-    d.innerHTML='<a href="#" onclick="showView(\'profile\',null);return false" style="color:var(--tx2);font-weight:600">'+esc(who)+'</a> · '+(ROLE==='sales'?'Sales':ROLE==='manager'?'Sales manager':ROLE==='admin'?'Admin':esc(String(ROLE).replace('_',' ')))+' · <a href="#" onclick="openChangePassword();return false" style="color:var(--ac)">password</a> · <a href="#" onclick="downloadManual();return false" style="color:var(--ac)" title="Download the user manual for your role">manual</a> · <a href="#" onclick="roleLogout();return false" style="color:var(--ac)">sign out</a>';
+    d.innerHTML='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><a href="#" onclick="showView(\'profile\',null);return false" style="color:var(--tx2);font-weight:600">'+esc(who)+'</a><span>· '+(ROLE==='sales'?'Sales':ROLE==='manager'?'Sales manager':ROLE==='admin'?'Admin':esc(String(ROLE).replace('_',' ')))+'</span><span style="flex:1"></span>'+
+      '<a href="#" class="abtn" onclick="showView(\'settings\',null);return false" title="Theme, password, manual, AI" style="padding:3px 9px;font-size:10.5px">Settings</a><a href="#" class="abtn t-rd" onclick="roleLogout();return false" style="padding:3px 9px;font-size:10.5px">Sign out</a></div>';
     d.style.cssText='padding:6px 14px;border-top:1px solid var(--bd);font-size:10.5px;color:var(--tx3)';
     sf.parentNode.insertBefore(d,sf);}
   buildMobileNav();

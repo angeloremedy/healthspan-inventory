@@ -122,6 +122,16 @@ platform feeds it via the accounting export; it does not replace it.
 
 **People (Sep 2)** — Jojo resigned: disable the account in Team & access and reassign any accounts owned by his tag; Marj is the sales manager of record. Daz joins finance: create the account with role `finance` in Team & access. Both are in-app actions, no SQL.
 
+**Profile, Settings, Approval routes, planning review (Sep 4)**
+- ✅ A specialist's My profile is their sales page plus "Your month in numbers" (booked vs target, pace, rank, accounts, new, quiet, contacts, conversion, next target) and their files
+- ✅ Settings page: theme + light/dark, password, Sign out as a button, favourites / bottom bar / manual, and the AI provider switch (Gemini Flash default · Claude Haiku · DeepSeek · Kimi · Groq) with key presence and a connection test; footer and phone menu simplified
+- ✅ Approval routes rebuilt: one card per form, steps in place with dropdown / label / amount floor, saves on change — no prompt chains
+- ✅ AI planning review as four cards; Ask HQ answers render markdown (headings, lists, bold)
+
+**Paul's slides + Google Slides (Sep 4)**
+- ✅ Team deck: monthly performance slide per brand (13 months vs monthly target), Accounts overview (active / new / new-to-brand with names), SkinPen to date (pens, kits, kits per pen, installed base), Mixexpert → Mesoestetic conversion vs the 250 target (list pasted once → accounts.source)
+- ✅ Reports → Google Slides: deck uploaded to the shared Drive folder, converted to native Slides, shared with the given emails (deck-to-drive.mjs, same service account as attachments)
+
 **Ask HQ (Sep 3)**
 - ✅ "Ask the inventory" → **Ask HQ**: the chat now carries the sales side (week calendar + weekly external sales, brands vs target with 13-month series, specialists, accounts, machines, targets, loaners) next to the warehouse catalog; prompt teaches date mapping and "closest answer, never just unavailable"; analysis questions get low thinking
 - ✅ Gemini fixed: 3.6 Flash minimal thinking (the -latest alias was 3.8 Flash thinking at length), 45 s per-attempt cap, catalog trimmed to the question, stage-aware timeouts, AI connection test for managers/admin

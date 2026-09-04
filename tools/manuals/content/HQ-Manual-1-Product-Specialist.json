@@ -807,6 +807,11 @@
    "v": "Sales analytics → <b>Reports</b> shows your row: how many of your boxes are in, when you last wrote, and <b>PowerPoint</b> / <b>PDF</b> (the PDF opens print-ready — use Save as PDF). The sales manager sees the same status before the meeting, so an empty box shows."
   },
   {
+   "t": "step",
+   "n": "8",
+   "v": "<b>Settings</b> (footer or phone menu) holds theme and light/dark mode, Change password, Sign out, favourites, the bottom bar and your manual. My profile is your sales page — chips, calendar, chart, orders, visits — with \"Your month in numbers\" (booked vs target, pace, rank, accounts, new, quiet, contacts) and your finance forms and loaners underneath."
+  },
+  {
    "t": "h1",
    "v": "<b>Period close — what freezes when a month is signed off</b>"
   },

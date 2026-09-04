@@ -991,6 +991,11 @@
    "v": "Sales analytics → <b>Reports</b> → <b>Copy for Notion — Supply chain</b>: inventory value by line at Healthspan price, out-of-stock count, batches expiring within three months and equipment on hand, as text that pastes into your section of the weekly meeting page."
   },
   {
+   "t": "step",
+   "n": "4",
+   "v": "<b>Settings</b> (footer or phone menu) holds theme and light/dark mode, Change password, Sign out, favourites, the bottom bar and your manual. "
+  },
+  {
    "t": "h1",
    "v": "<b>The warehouse week</b>"
   },

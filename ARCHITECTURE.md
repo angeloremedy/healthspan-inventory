@@ -372,6 +372,16 @@ targets, loaners). Each is a few KB, and `trimCatalog()` on the server keeps any
 section under 9 KB whole, so a date question that matches no keyword still has
 its data. The system prompt names the sections and how dates map onto them.
 
+### 4.5c Provider choice at runtime
+
+`lib/llm.mjs` now also speaks the OpenAI chat-completions shape for DeepSeek,
+Kimi (Moonshot) and Groq (`COMPAT` presets, one `callCompat`). The active
+provider is `app_settings.ai_provider` (Settings → AI, super admin), read by each
+worker via the service key and applied with `setProviderPref()` before the call;
+`AI_PROVIDER` env is the fallback, then "Gemini if it has a key". Whatever is
+chosen, the attempt list still ends in the other providers that have keys.
+`GET /ask?diag=keys` tells Settings which keys exist without exposing them.
+
 ### 4.6 Role-scoped Ask AI
 `ask.mjs` derives the caller's role/tag server-side (unspoofable) and passes it
 to the worker, which builds an HQ context from Supabase filtered to that role:

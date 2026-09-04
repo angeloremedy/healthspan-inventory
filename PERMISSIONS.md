@@ -121,6 +121,12 @@ therefore a floor — implementation grants the full circle read to all three.
 | Business review — a specialist's own boxes (wins, challenges, territory, activities, proposals) and forecast table | ✅ | ✅ | ✅ own only | ✖ | ✖ | ✖ — RLS on the tag segment of `ps:<Tag>:<section>` |
 | Reports — team deck (PowerPoint / PDF), Download all | ✅ | ✅ | ✖ | ✖ | ✖ | ✖ |
 | Reports — a specialist's own deck (PowerPoint / PDF) | ✅ all | ✅ all | ✅ own only | ✖ | ✖ | ✖ — the Inputs column shows whose commentary is in before download |
+| Settings — appearance, password, sign out, shortcuts | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (every role) |
+| Settings — see AI provider + test connection | ✅ | ✅ | ✖ | ✖ | ✖ | ✖ |
+| Settings — change AI provider | super admin only | ✖ | ✖ | ✖ | ✖ | ✖ — app_settings is super-only |
+| Approval routes (edit in place) | ✅ | ✖ | ✖ | ✖ | ✖ | ✖ |
+| Reports — Google Slides (upload + share) | ✅ | ✅ | ✅ own deck | ✖ | ✖ | ✖ — server checks role / own tag; the clicker's email is always on the share |
+| Business review — Mixexpert list (tag accounts as source = Mixexpert) | ✅ | ✅ | ✖ | ✖ | ✖ | ✖ |
 | Reports — Copy for Notion (Sales block) | ✅ | ✅ | ✖ | ✖ | 👁 copy | 👁 copy | figures only, no costs |
 | Reports — Copy for Notion (Supply chain block) | ✅ | ✅ | ✖ | ✅ | ✖ | ✖ | inventory at Healthspan price, not cost |
 | Team & access — Order (presenting order) on a specialist | ✅ | ✖ | ✖ | ✖ | ✖ | ✖ — same gate as Team |

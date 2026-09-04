@@ -383,6 +383,11 @@
    "v": "Two tables back it: review_commentary (one row per month and section, RLS by role and by the specialist’s own tag) and review_snapshots (insert-only). The PowerPoint library loads from a CDN on first export; if it fails the page says so and nothing else is affected."
   },
   {
+   "t": "step",
+   "n": "3",
+   "v": "<b>Settings</b> (footer or phone menu) holds theme and light/dark mode, Change password, Sign out, favourites, the bottom bar and your manual. "
+  },
+  {
    "t": "h1",
    "v": "<b>Your admin power: specialist accounts</b>"
   },

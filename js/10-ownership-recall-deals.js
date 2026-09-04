@@ -295,15 +295,12 @@ function buildMobileMenu(q){
     /* a 2-column grid, not a single flex row: five buttons whose labels don't fit
        forced the whole menu to scroll sideways on phones */
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">'+
-    '<button onclick="closeMobileMenu();openChangePassword()" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px">Change password</button>'+
+    '<button onclick="closeMobileMenu();showView(\'settings\',null)" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px">⚙ Settings</button>'+
     '<button onclick="closeMobileMenu();downloadManual()" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px">📖 My manual</button>'+
     '<button onclick="favOpen()" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px">★ Favourites</button>'+
     '<button onclick="mbarOpen()" style="background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px">☆ Customize bar</button>'+
     '<button onclick="roleLogout()" style="grid-column:1 / -1;background:var(--rd-bg);color:var(--rd);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:13px;font-weight:600">Sign out</button></div>'+
-    '<div style="display:flex;gap:8px;margin-top:10px;align-items:center;font-size:12px;color:var(--tx3)">Theme:'+
-    '<button onclick="applyMode(\'light\')" style="background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:7px 12px">☀️</button>'+
-    '<button onclick="applyMode(\'dark\')" style="background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:7px 12px">🌙</button>'+
-    '<button onclick="applyMode(\'system\')" style="background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:7px 12px">🖥</button></div></div>';
+    '</div>';
   list.innerHTML=html||'<div class="empty" style="margin-top:30px">No matching views.</div>';
 }
 
@@ -3563,7 +3560,11 @@ async function clToggle(id,active){
   }catch(e){alert('Could not save: '+(e.message||e));}
 }
 
-/* ── approval routes: who signs off which form ── */
+/* ── approval routes: who signs off which form ──
+   One card per form, its chain shown as steps left to right. Everything is
+   edited in place — a dropdown for who approves, a box for the amount floor,
+   a label — and saved the moment it changes. No prompt chains. */
+const ROUTE_ROLES=['admin','manager','finance','supply_chain','marketing'];
 async function renderRoutes(){
   if(!roleIn('admin')){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins only.</div>';return;}
   loadingHint();
@@ -3571,83 +3572,57 @@ async function renderRoutes(){
   if(!window._PLUSERS){try{
     const o=(typeof adminUsers==='function')?await adminUsers('list'):null;
     let arr=(o&&(o.users||o.list))||o||[];if(!Array.isArray(arr))arr=[];
-    window._PLUSERS=arr.filter(u=>u&&u.id&&u.role!=='sales').sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
+    window._PLUSERS=arr.filter(u=>u&&u.id&&u.role!=='sales'&&!u.banned).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
   }catch(e){window._PLUSERS=[];}}
-  const rows=[];
-  for(const k of FIN_KINDS)for(const r of ((ROUTES||{})[k]||[]))rows.push(r);
-  const nameOf=k=>(FIN_SPEC[k]?FIN_SPEC[k].title:k);
-  $('content').innerHTML=
-    '<div class="panel" style="padding:12px 16px;margin-bottom:12px;font-size:12px;color:var(--tx2)">'+
-      'Who signs off each form, in order. A step can point at <b>a named person</b>, at <b>whoever holds a role</b> (so it survives someone leaving), or at <b>the request’s own fund source</b> — which routes marketing spend to the marketing approver and sales spend to the sales approver without a step each. '+
-      'A step with a minimum amount only applies at or above that figure, so small claims skip it. '+
-      '<b>Pull-out requests are not here</b> \u2014 they route off the fund-source table directly.</div>'+
-    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Form</th><th class="r">Step</th><th>Label</th><th>Goes to</th><th class="r">Applies from</th><th></th></tr></thead><tbody>'+
-    (rows.length?rows.map(r=>'<tr><td style="font-weight:600">'+esc(nameOf(r.kind))+'</td><td class="r">'+r.step+'</td>'+
-      '<td class="mu">'+esc(r.label||'')+'</td>'+
-      '<td>'+(r.use_fund_source?'<span class="pill pbl">the request’s fund source</span>':r.approver_name?esc(r.approver_name):r.approver_role?'<span class="pill" style="background:var(--sf2);color:var(--tx2)">any '+esc(String(r.approver_role).replace('_',' '))+'</span>':'<span style="color:var(--rd)">not set</span>')+'</td>'+
-      '<td class="r mu">'+(r.min_amount?fmtPeso(r.min_amount):'any amount')+'</td>'+
-      '<td style="white-space:nowrap;font-size:11.5px"><a href="#" onclick="routeEdit('+r.id+');return false" style="color:var(--ac)">change</a> · '+
-      '<a href="#" onclick="routeDrop('+r.id+');return false" style="color:var(--rd)">remove</a></td></tr>').join('')
-      :'<tr><td colspan="6" class="mu">No routes configured — every form would submit with nobody notified.</td></tr>')+
-    '</tbody></table></div><div class="tfooter"><span>Steps run in order; a request sits at one step until it is approved, then moves to the next. Rejecting at any step ends it.</span></div></div>'+
-    '<div class="panel" style="padding:12px 14px;margin-top:12px"><button onclick="routeAdd()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:700;cursor:pointer">+ Add a step</button></div>';
-}
-function routeWhoPrompt(){
   const us=window._PLUSERS||[];
-  const list=us.map((u,i)=>(i+1)+') '+(u.name||u.email)+' — '+String(u.role||'').replace('_',' ')).join('\n');
-  const v=prompt('Who approves this step?\n\n  F = the request’s own fund source\n  R:<role> = anyone with that role (admin, finance, manager, supply_chain, marketing)\n'+list+'\n\nEnter F, R:finance, or a number:','F');
-  if(v===null)return null;
-  const t=v.trim();
-  if(/^f$/i.test(t))return {use_fund_source:true,approver_id:null,approver_name:null,approver_role:null};
-  if(/^r:/i.test(t)){
-    const role=t.slice(2).trim().toLowerCase();
-    const ROLES=['admin','manager','sales','supply_chain','finance','marketing','viewer'];
-    if(!ROLES.includes(role))return alert('“'+role+'” is not a role. Use one of: '+ROLES.join(', ')),null;
-    return {use_fund_source:false,approver_id:null,approver_name:null,approver_role:role};
-  }
-  const u=us[parseInt(t,10)-1];
-  if(!u)return alert('No match — nothing changed.'),null;
-  return {use_fund_source:false,approver_id:u.id,approver_name:u.name||u.email,approver_role:null};
+  const whoSel=r=>{const cur=r.use_fund_source?'F':r.approver_role?'R:'+r.approver_role:r.approver_id?'U:'+r.approver_id:'';
+    return '<select onchange="routeSet('+r.id+',\'who\',this.value)" style="font:inherit;font-size:12px;padding:5px 6px;border:1px solid var(--bd);border-radius:7px;max-width:100%">'+
+      '<option value=""'+(cur===''?' selected':'')+'>— choose —</option>'+
+      '<option value="F"'+(cur==='F'?' selected':'')+'>The request\u2019s fund source approver</option>'+
+      '<optgroup label="Anyone with the role">'+ROUTE_ROLES.map(x=>'<option value="R:'+x+'"'+(cur==='R:'+x?' selected':'')+'>'+esc(x.replace('_',' '))+'</option>').join('')+'</optgroup>'+
+      '<optgroup label="A named person">'+us.map(u=>'<option value="U:'+esc(u.id)+'"'+(cur==='U:'+u.id?' selected':'')+'>'+esc(u.name||u.email)+' \u2014 '+esc(String(u.role||'').replace('_',' '))+'</option>').join('')+'</optgroup></select>';};
+  const stepCard=(r,n)=>'<div style="flex:1 1 220px;min-width:210px;max-width:290px;background:var(--sf2);border:1px solid var(--bd);border-radius:10px;padding:10px 12px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:6px"><span style="font-size:10.5px;font-weight:700;letter-spacing:.06em;color:var(--tx3)">STEP '+r.step+'</span>'+
+      '<a href="#" class="abtn t-rd" onclick="routeDrop('+r.id+');return false" title="Remove this step" style="padding:2px 8px">remove</a></div>'+
+      '<input value="'+esc(r.label||'')+'" placeholder="Label (e.g. Finance)" onchange="routeSet('+r.id+',\'label\',this.value)" style="font:inherit;font-size:12px;padding:5px 6px;border:1px solid var(--bd);border-radius:7px;width:100%;margin-bottom:6px;box-sizing:border-box">'+
+      '<div class="mu" style="font-size:10.5px;margin-bottom:2px">Approved by</div>'+whoSel(r)+
+      '<div class="mu" style="font-size:10.5px;margin:8px 0 2px">Only from (\u20b1, 0 = every request)</div><input type="number" min="0" step="1000" value="'+(r.min_amount||0)+'" onchange="routeSet('+r.id+',\'min\',this.value)" style="font:inherit;font-size:12px;padding:5px 6px;border:1px solid var(--bd);border-radius:7px;width:120px">'+
+      (!r.use_fund_source&&!r.approver_role&&!r.approver_id?'<div style="color:var(--rd);font-size:11px;margin-top:6px">Nobody is set \u2014 requests will stall here.</div>':'')+'</div>';
+  const arrow='<div style="align-self:center;color:var(--tx3);font-size:18px;padding:0 2px">\u2192</div>';
+  let h='<div class="viewdesc">Who signs off each form, in order. A step can point at a <b>named person</b>, at <b>anyone with a role</b> (survives someone leaving), or at the <b>request\u2019s own fund source approver</b>. A step with an amount floor only applies at or above it, so small claims skip it. Changes save as you make them. Pull-out requests route off the fund-source table, not here.</div>';
+  for(const k of FIN_KINDS){const steps=((ROUTES||{})[k]||[]).slice().sort((a,b)=>a.step-b.step);const title=FIN_SPEC[k]?FIN_SPEC[k].title:k;
+    h+='<div class="panel" style="padding:14px 16px;margin-bottom:12px"><div class="phd" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><span>'+esc(title)+' <span class="mu" style="font-weight:400;font-size:11px">'+(steps.length?steps.length+' step'+(steps.length>1?'s':''):'no route \u2014 submits with nobody notified')+'</span></span>'+
+      '<a href="#" class="abtn" onclick="routeAdd(\''+jsq(k)+'\');return false">+ Add step '+(steps.length+1)+'</a></div>'+
+      (steps.length?'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:stretch">'+steps.map((r,i)=>(i?arrow:'')+stepCard(r,i)).join('')+'</div>':'<div class="mu" style="font-size:12px">Nobody approves this form yet. Add a step and pick who.</div>')+'</div>';}
+  $('content').innerHTML=h;
 }
-async function routeAdd(){
+async function routeSet(id,field,value){ // one field, saved at once
   if(!roleIn('admin'))return;
-  const kinds=FIN_KINDS.slice(); // pull-outs route off fund_sources, not this table
-  const pick=prompt('Which form?\n\n'+kinds.map((k,i)=>(i+1)+') '+FIN_SPEC[k].title).join('\n')+'\n\nEnter a number:','1');
-  if(pick===null)return;
-  const kind=kinds[parseInt(pick,10)-1];if(!kind)return alert('No match.');
-  const step=parseInt(prompt('Step number (1 = first to approve):','1')||'0',10);
-  if(!step||step<1)return alert('Step must be 1 or more.');
-  const label=(prompt('Label for this step (e.g. Fund source, Finance):','')||'').trim();
-  const who=routeWhoPrompt();if(!who)return;
-  const min=Math.round(parseFloat(prompt('Only apply this step at or above what amount? (0 = always)','0')||'0')||0);
-  try{
-    const {error}=await SB.from('approval_routes').insert(Object.assign({kind,step,label:label||null,min_amount:min,active:true},who));
-    if(error)throw error;
-    audit('route.add',{kind,step,who:who.approver_name||who.approver_role||'fund source'});
-    await loadRoutes(true);renderRoutes();
-  }catch(e){alert(String(e.message||e).match(/duplicate|unique/i)?'That form already has a step '+step+' — change it instead.':'Could not add: '+(e.message||e));}
+  let patch={};
+  if(field==='who'){const v=String(value||'');
+    if(v==='F')patch={use_fund_source:true,approver_id:null,approver_name:null,approver_role:null};
+    else if(v.startsWith('R:'))patch={use_fund_source:false,approver_id:null,approver_name:null,approver_role:v.slice(2)};
+    else if(v.startsWith('U:')){const u=(window._PLUSERS||[]).find(x=>x.id===v.slice(2));if(!u)return;patch={use_fund_source:false,approver_id:u.id,approver_name:u.name||u.email,approver_role:null};}
+    else patch={use_fund_source:false,approver_id:null,approver_name:null,approver_role:null};}
+  else if(field==='label')patch={label:String(value||'').trim()||null};
+  else if(field==='min')patch={min_amount:Math.max(0,Math.round(parseFloat(value)||0))};
+  try{const {data,error}=await SB.from('approval_routes').update(patch).eq('id',id).select('id');if(error)throw error;if(!data||!data.length)throw new Error('nothing saved \u2014 refresh and try again');
+    audit('route.edit',{id,field});await loadRoutes(true);if(field==='who')renderRoutes();}
+  catch(e){alert('Could not save: '+(e.message||e));renderRoutes();}
 }
-async function routeEdit(id){
-  if(!roleIn('admin'))return;
-  let cur=null;try{const {data}=await SB.from('approval_routes').select('*').eq('id',id).maybeSingle();cur=data;}catch(e){}
-  const who=routeWhoPrompt();if(!who)return;
-  const min=Math.round(parseFloat(prompt('Only apply this step at or above what amount? (0 = always)',String((cur&&cur.min_amount)||0))||'0')||0);
-  try{
-    const {error}=await SB.from('approval_routes').update(Object.assign({min_amount:min},who)).eq('id',id);
-    if(error)throw error;
-    audit('route.edit',{id,who:who.approver_name||who.approver_role||'fund source'});
-    await loadRoutes(true);renderRoutes();
-  }catch(e){alert('Could not save: '+(e.message||e));}
+async function routeAdd(kind){
+  if(!roleIn('admin')||!FIN_SPEC[kind])return;
+  const steps=((ROUTES||{})[kind]||[]);const step=steps.reduce((m,r)=>Math.max(m,r.step),0)+1;
+  try{const {error}=await SB.from('approval_routes').insert({kind,step,label:null,min_amount:0,active:true,use_fund_source:step===1,approver_id:null,approver_name:null,approver_role:null});
+    if(error)throw error;audit('route.add',{kind,step});await loadRoutes(true);renderRoutes();}
+  catch(e){alert('Could not add: '+(e.message||e));}
 }
 async function routeDrop(id){
   if(!roleIn('admin'))return;
-  if(!confirm('Remove this approval step? Requests already waiting on it will fall to the next step.'))return;
-  try{
-    const {error}=await SB.from('approval_routes').delete().eq('id',id);
-    if(error)throw error;
-    audit('route.remove',{id});
-    await loadRoutes(true);renderRoutes();
-  }catch(e){alert('Could not remove: '+(e.message||e));}
+  if(!confirm('Remove this approval step? Requests already waiting on it fall to the next step.'))return;
+  try{const {data,error}=await SB.from('approval_routes').delete().eq('id',id).select('id');if(error)throw error;
+    audit('route.remove',{id});await loadRoutes(true);renderRoutes();}
+  catch(e){alert('Could not remove: '+(e.message||e));}
 }
 
 /* ══════════════════ FAVOURITES ══════════════════

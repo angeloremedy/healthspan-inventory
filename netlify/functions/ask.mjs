@@ -4,7 +4,7 @@
 // GET ?id=... → returns the finished { answer, model } / { error }, or { pending:true }.
 import crypto from 'node:crypto';
 import { connectLambda, getStore } from '@netlify/blobs';
-import { llm, provider, hasKey } from './lib/llm.mjs';
+import { llm, provider, hasKey, keysPresent, setProviderPref } from './lib/llm.mjs';
 
 const HDRS = {
   'Access-Control-Allow-Origin': '*',
@@ -46,6 +46,9 @@ export const handler = async (event) => {
   // ── Diagnostic: is the model door open? (manager/admin only) — one tiny call, timed
   if (event.httpMethod === 'GET' && event.queryStringParameters && event.queryStringParameters.diag) {
     if (!['admin', 'manager', 'super'].includes(who.role)) return { statusCode: 403, headers: HDRS, body: JSON.stringify({ error: 'Admin or sales manager only' }) };
+    try { const SB_URL = (process.env.SUPABASE_URL || '').replace(/\/$/, ''), SVC = process.env.SUPABASE_SERVICE_KEY || '';
+      const r = await fetch(SB_URL + '/rest/v1/app_settings?select=value&key=eq.ai_provider', { headers: { apikey: SVC, Authorization: 'Bearer ' + SVC } }).then(x => x.json()); setProviderPref((r[0] || {}).value || ''); } catch (e) {}
+    if (event.queryStringParameters.diag === 'keys') return { statusCode: 200, headers: HDRS, body: JSON.stringify({ provider: provider(), keys: keysPresent() }) };
     const t0 = Date.now();
     const out = hasKey() ? await llm({ system: 'Reply with exactly: OK', messages: [{ role: 'user', content: 'ping' }], maxTokens: 20 }) : { text: '', model: '', provider: provider(), error: 'no API key configured for ' + provider() };
     return { statusCode: 200, headers: HDRS, body: JSON.stringify({ provider: out.provider, model: out.model, ms: Date.now() - t0, ok: !!out.text, reply: (out.text || '').slice(0, 60), error: out.error || '' }) };

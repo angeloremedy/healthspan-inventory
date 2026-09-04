@@ -797,6 +797,16 @@
    "v": "Sales analytics → <b>Reports</b>: every deck for the month — the team deck and one per specialist — with an Inputs column (boxes in / missing / last edited), PowerPoint or PDF per row, Download all, and Copy for Notion for the weekly meeting."
   },
   {
+   "t": "step",
+   "n": "9",
+   "v": "Reports → <b>Google Slides</b> converts a deck to a native Slides file in the shared Drive folder and shares it. Mixexpert list: Business review → Mixexpert panel (sets source = Mixexpert on the account)."
+  },
+  {
+   "t": "step",
+   "n": "10",
+   "v": "<b>Settings</b> (footer or phone menu) holds theme and light/dark mode, Change password, Sign out, favourites, the bottom bar and your manual. Admin → Approval routes is one card per form; edit each step in place (who, label, amount floor) — it saves as you change it. Settings → AI shows the provider and tests the connection."
+  },
+  {
    "t": "callout",
    "v": "PERMISSIONS — Save snapshot and Export PowerPoint are manager and admin. Specialists see everything, edit only their own box, and export only their own slides.",
    "c": "#0E8A5F"
