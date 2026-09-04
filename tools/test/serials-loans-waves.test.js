@@ -140,8 +140,8 @@ ok('PS profile IS their sales page (calendar + specialist chips) with the identi
 ROLE='admin';SBPROFILE={name:'Angelo',role:'admin',is_super:true};isSuper=()=>true;currentView='settings';
 window.fetch=async(u)=>({ok:true,json:async()=>(/diag=keys/.test(u)?{provider:'gemini',keys:{gemini:true,anthropic:false,deepseek:false,kimi:false,groq:false,mistral:false,openrouter:false,cerebras:false}}:{})});
 await renderSettings();const sc=$('content').innerHTML;
-ok('settings: appearance, account, shortcuts, AI', /Appearance/.test(sc)&&document.getElementById('themeSel')&&/Change password/.test(sc)&&/Sign out/.test(sc)&&/Favourites/.test(sc)&&/Gemini Flash/.test(sc)&&/Claude Haiku/.test(sc)&&/DeepSeek/.test(sc));
-ok('settings: current provider checked, keys shown, super admin may change', document.querySelector('input[name="aiprov"][value="gemini"]').checked&&!document.querySelector('input[name="aiprov"][value="gemini"]').disabled&&(sc.match(/key set/g)||[]).length===1&&(sc.match(/no key/g)||[]).length===7);
+ok('settings: appearance, account, shortcuts, AI dropdown', /Appearance/.test(sc)&&document.getElementById('themeSel')&&/Change password/.test(sc)&&/Sign out/.test(sc)&&/Favourites/.test(sc)&&document.getElementById('aiprov')&&/Gemini Flash/.test(sc)&&/Mistral/.test(sc)&&!/free tier/.test(sc));
+ok('settings: current provider selected, keyless providers greyed, super admin may change', document.getElementById('aiprov').value==='gemini'&&!document.getElementById('aiprov').disabled&&document.querySelectorAll('#aiprov option[disabled]').length===7);
 ok('sign out is a button, not a hyperlink, in the footer', /class="abtn t-rd"[^>]*onclick="roleLogout\\(\\)/.test(document.body.innerHTML)||true);
 ROUTES={voucher:[{id:1,kind:'voucher',step:1,label:'Fund source',use_fund_source:true,min_amount:0},{id:2,kind:'voucher',step:2,label:'Finance',approver_role:'finance',min_amount:50000}]};loadRoutes=async()=>ROUTES;window._PLUSERS=[{id:'u9',name:'Tal',role:'finance'}];adminUsers=async()=>({users:[]});
 currentView='routes';await renderRoutes();const rc=$('content').innerHTML;

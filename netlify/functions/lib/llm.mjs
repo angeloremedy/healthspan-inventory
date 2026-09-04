@@ -139,10 +139,10 @@ async function callClaude({ system, messages, maxTokens, model, key }) {
  *   gemini:    Flash → (429/5xx) wait, Flash again → Flash-Lite → Claude fast if a key exists
  *   anthropic: smart/fast Claude → fast Claude → Gemini Flash if a key exists
  */
-export async function llm({ system = '', messages = [], maxTokens = 2000, smart = false, depth = '' } = {}) {
+export async function llm({ system = '', messages = [], maxTokens = 2000, smart = false, depth = '', only = false } = {}) {
   const gk = process.env.GEMINI_API_KEY, ak = process.env.ANTHROPIC_API_KEY;
   const deep = depth === 'deep'; if (deep) smart = true;
-  const attempts = [];
+  let attempts = [];
   const P = provider();
   if (COMPAT[P]) { // DeepSeek / Kimi / Groq first, then whatever else has a key
     const c = COMPAT[P]; if (keyFor(P)) attempts.push({ p: P, model: c.model, retry: true, base: c.url, key: keyFor(P) });
@@ -157,7 +157,8 @@ export async function llm({ system = '', messages = [], maxTokens = 2000, smart 
     if (ak) { attempts.push({ p: 'anthropic', model: smart ? SMART_CLAUDE : FAST_CLAUDE }); if (smart) attempts.push({ p: 'anthropic', model: FAST_CLAUDE }); }
     if (gk) attempts.push({ p: 'gemini', model: deep ? GEM_DEEP : GEM_MODEL, deep });
   }
-  if (!attempts.length) return { text: '', model: '', provider: P, error: (P === 'gemini' ? 'GEMINI_API_KEY' : P === 'anthropic' ? 'ANTHROPIC_API_KEY' : (COMPAT[P] || {}).key || 'API key') + ' not configured' };
+  if (only) attempts = attempts.filter(a => a.p === P); // a connection test asks about ONE provider — no falling back
+  if (!attempts.length) return { text: '', model: '', provider: P, wanted: P, error: (P === 'gemini' ? 'GEMINI_API_KEY' : P === 'anthropic' ? 'ANTHROPIC_API_KEY' : (COMPAT[P] || {}).key || 'API key') + ' not configured' };
   const errs = [];
   for (const a of attempts) {
     let noThinking = false;
@@ -165,7 +166,7 @@ export async function llm({ system = '', messages = [], maxTokens = 2000, smart 
       try {
         const args = { system, messages, maxTokens, model: a.model, key: a.p === 'gemini' ? gk : ak, noThinking, smart, deep: !!a.deep };
         const text = fixPeso(a.base ? await callCompat(Object.assign(args, { base: a.base, key: a.key })) : a.p === 'gemini' ? await callGemini(args) : await callClaude(args));
-        return { text, model: a.model, provider: a.p, error: '' };
+        return { text, model: a.model, provider: a.p, wanted: P, fellBack: a.p !== P, errors: errs.slice(), error: '' };
       } catch (e) {
         errs.push(a.model + ': ' + (e.message || e));
         if (e.thinking && !noThinking) { noThinking = true; continue; }                 // same model, thinking left at default
@@ -175,5 +176,5 @@ export async function llm({ system = '', messages = [], maxTokens = 2000, smart 
       }
     }
   }
-  return { text: '', model: '', provider: provider(), error: errs.join(' | ').slice(0, 400) };
+  return { text: '', model: '', provider: P, wanted: P, errors: errs, error: errs.join(' | ').slice(0, 400) };
 }

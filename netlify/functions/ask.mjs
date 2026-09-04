@@ -49,9 +49,11 @@ export const handler = async (event) => {
     try { const SB_URL = (process.env.SUPABASE_URL || '').replace(/\/$/, ''), SVC = process.env.SUPABASE_SERVICE_KEY || '';
       const r = await fetch(SB_URL + '/rest/v1/app_settings?select=value&key=eq.ai_provider', { headers: { apikey: SVC, Authorization: 'Bearer ' + SVC } }).then(x => x.json()); setProviderPref((r[0] || {}).value || ''); } catch (e) {}
     if (event.queryStringParameters.diag === 'keys') return { statusCode: 200, headers: HDRS, body: JSON.stringify({ provider: provider(), keys: keysPresent() }) };
+    // ?provider=mistral tests THAT provider alone — no falling back, so the answer names the one you asked about
+    const want = String(event.queryStringParameters.provider || '').toLowerCase(); if (want) setProviderPref(want);
     const t0 = Date.now();
-    const out = hasKey() ? await llm({ system: 'Reply with exactly: OK', messages: [{ role: 'user', content: 'ping' }], maxTokens: 20 }) : { text: '', model: '', provider: provider(), error: 'no API key configured for ' + provider() };
-    return { statusCode: 200, headers: HDRS, body: JSON.stringify({ provider: out.provider, model: out.model, ms: Date.now() - t0, ok: !!out.text, reply: (out.text || '').slice(0, 60), error: out.error || '' }) };
+    const out = hasKey() ? await llm({ system: 'Reply with exactly: OK', messages: [{ role: 'user', content: 'ping' }], maxTokens: 20, only: !!want }) : { text: '', model: '', provider: provider(), wanted: provider(), error: 'no API key configured for ' + provider() };
+    return { statusCode: 200, headers: HDRS, body: JSON.stringify({ provider: out.provider, wanted: out.wanted || provider(), fellBack: !!out.fellBack, errors: out.errors || [], model: out.model, ms: Date.now() - t0, ok: !!out.text, reply: (out.text || '').slice(0, 60), error: out.error || '' }) };
   }
 
   // ── Poll for a result

@@ -1,6 +1,6 @@
 /* The model door: provider choice, retry on 429, cross-provider fallback, free-tier scrub flag.
    Run from the repo root: node tools/test/llm-provider.test.mjs */
-import { llm, provider, isFreeTier, isHardQuestion, fixPeso } from '../../netlify/functions/lib/llm.mjs';
+import { llm, provider, isFreeTier, isHardQuestion, fixPeso, setProviderPref } from '../../netlify/functions/lib/llm.mjs';
 const calls=[];
 globalThis.fetch=async(url,opt)=>{calls.push(url.split('?')[0]);
   const body=JSON.parse(opt.body);
@@ -53,4 +53,11 @@ globalThis.fetch=async(url,opt)=>{calls.push(url.split('?')[0]);const body=JSON.
 const r8=await llm({system:'S',messages:[{role:'user',content:'draft'}],depth:'deep'});
 t('deep model rate-limited → retry once → falls to 3.6 Flash (low thinking, since deep implies smart)',r8.model==='gemini-3.6-flash'&&calls.filter(c=>c.includes('3.8')).length===2&&bodies[bodies.length-1].generationConfig.thinkingConfig.thinkingLevel==='low',r8.model+' '+calls.length);
 delete process.env.GEMINI_API_KEY;delete process.env.ANTHROPIC_API_KEY;
+process.env.MISTRAL_API_KEY='m';process.env.GEMINI_API_KEY='g';delete process.env.AI_PROVIDER;setProviderPref('mistral');calls.length=0;
+globalThis.fetch=async(url,opt)=>{calls.push(url.split('?')[0]);if(url.includes('mistral'))return {ok:false,status:401,text:async()=>'Unauthorized'};return {ok:true,json:async()=>({candidates:[{content:{parts:[{text:'g'}]}}]})};};
+const r9=await llm({system:'S',messages:[{role:'user',content:'q'}]});
+t('chosen provider failing → fell back to Gemini, and the result says so',r9.provider==='gemini'&&r9.wanted==='mistral'&&r9.fellBack===true&&/mistral-large-latest: mistral-large-latest 401/.test(r9.errors.join('|')),JSON.stringify({p:r9.provider,w:r9.wanted,fb:r9.fellBack,e:r9.errors}));
+calls.length=0;const r10=await llm({system:'S',messages:[{role:'user',content:'q'}],only:true});
+t('only:true tests that provider alone — no fallback, the 401 surfaces',!r10.text&&r10.provider==='mistral'&&/401/.test(r10.error)&&calls.length===1,r10.error);
+setProviderPref('');delete process.env.MISTRAL_API_KEY;delete process.env.GEMINI_API_KEY;
 console.log(ok+'/'+(ok+fail)+' passed');process.exit(fail?1:0);

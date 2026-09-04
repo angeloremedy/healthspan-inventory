@@ -408,7 +408,7 @@ async function bizCopyNotion(dept){
    The little controls that used to live in the sidebar footer and the phone
    menu — theme, light/dark, password, manual — in one page, plus the AI
    provider switch (super admin) with a live connection test.                  */
-const AI_CHOICES=[['gemini','Gemini Flash (Google) — free tier, default'],['mistral','Mistral Large — free tier (1B tokens/month, opt-in training), handles the full Ask HQ context'],['openrouter','OpenRouter — free community models (Llama, DeepSeek, Qwen), ~20 requests/min'],['groq','Groq — Llama 3.3 70B, free tier (short prompts only: drafts, nudges)'],['cerebras','Cerebras — Llama 3.3 70B, free 1M tokens/day (short prompts only)'],['anthropic','Claude Haiku (Anthropic) — paid per call'],['deepseek','DeepSeek — paid, cheap'],['kimi','Kimi (Moonshot) — paid, cheap']];
+const AI_CHOICES=[['gemini','Gemini Flash'],['mistral','Mistral'],['anthropic','Claude Haiku'],['groq','Groq (Llama)'],['cerebras','Cerebras (Llama)'],['openrouter','OpenRouter'],['deepseek','DeepSeek'],['kimi','Kimi']];
 async function renderSettings(){
   loadingHint();
   const who=(SBPROFILE&&SBPROFILE.name)||(SBUSER&&SBUSER.email)||'';const email=(SBUSER&&SBUSER.email)||'';
@@ -431,18 +431,19 @@ async function renderSettings(){
     let cur='',keys={};try{const r=await fetch('/.netlify/functions/ask?diag=keys',{headers:await sbAuthHeaders()});const o=await r.json();cur=o.provider||'';keys=o.keys||{};}catch(e){}
     if(currentView!=='settings')return;
     const canSet=isSuper();
-    h+='<div class="panel" style="padding:16px 18px;margin-bottom:14px"><div class="phd">AI — which model answers Ask HQ, Draft with AI, the Slack bot and the Monday nudge</div>'+
-      '<div style="display:grid;gap:6px">'+AI_CHOICES.map(([k,lbl])=>'<label style="display:flex;gap:10px;align-items:center;font-size:13px;'+(canSet?'cursor:pointer':'')+'"><input type="radio" name="aiprov" value="'+k+'"'+(cur===k?' checked':'')+(canSet?'':' disabled')+' onchange="setAiProvider(this.value)"> <span style="flex:1">'+esc(lbl)+'</span>'+(keys[k]?'<span class="pill pgr">key set</span>':'<span class="pill pgy" title="Add the API key in Netlify → Environment">no key</span>')+'</label>').join('')+'</div>'+
-      '<div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap"><a href="#" class="abtn" onclick="settingsAiTest();return false">Test connection</a><span class="mu" id="ai-test" style="font-size:11.5px">'+(canSet?'Saved for everyone the moment you pick it.':'Only the super admin changes this; you can test it.')+'</span></div>'+
-      '<div class="mu" style="font-size:11px;margin-top:8px">Whatever is chosen, a failed or rate-limited call falls back to the other providers that have keys. Gemini free tier and Groq may use prompts for training, so unit costs and payables are left out of what they see. Keys live in Netlify, never here.</div></div>';}
+    h+='<div class="panel" style="padding:16px 18px;margin-bottom:14px"><div class="phd">AI</div>'+
+      '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><select id="aiprov" '+(canSet?'onchange="setAiProvider(this.value)"':'disabled')+' style="font:inherit;padding:7px 10px;border-radius:8px;border:1px solid var(--bd);background:var(--sf);color:var(--tx);min-width:200px">'+
+      AI_CHOICES.map(([k,lbl])=>'<option value="'+k+'"'+(cur===k?' selected':'')+(keys[k]?'':' disabled')+'>'+esc(lbl)+(keys[k]?'':' — no key')+'</option>').join('')+'</select>'+
+      '<a href="#" class="abtn" onclick="settingsAiTest();return false">Test connection</a><span class="mu" id="ai-test" style="font-size:11.5px"></span></div>'+
+      '<div class="mu" style="font-size:11px;margin-top:8px">Answers Ask HQ, Draft with AI, the Slack bot and the Monday nudge. '+(canSet?'Saved for everyone the moment you pick it.':'Only the super admin changes this.')+' Providers without a key in Netlify are greyed out.</div></div>';}
   $('content').innerHTML=h;}
 async function setAiProvider(v){
   if(!isSuper())return;const st=$('ai-test');if(st)st.textContent='Saving…';
   try{const {error}=await SB.from('app_settings').upsert({key:'ai_provider',value:String(v),updated_by:(SBUSER&&SBUSER.id)||null,updated_at:new Date().toISOString()});if(error)throw error;
     audit('settings.ai_provider',{value:v});if(st)st.textContent='Saved — '+v+' answers from the next question on.';}
   catch(e){if(st)st.textContent='Could not save: '+(e.message||e);}}
-async function settingsAiTest(){
-  const st=$('ai-test');if(st)st.textContent='Testing…';
-  try{const r=await fetch('/.netlify/functions/ask?diag=1',{headers:await sbAuthHeaders()});const o=await r.json();
-    if(st)st.textContent=o.ok?'OK — '+(o.provider||'')+' · '+(o.model||'')+' answered in '+o.ms+' ms.':'Failed — '+(o.error||('HTTP '+r.status));}
+async function settingsAiTest(){ // tests the provider shown in the dropdown, on its own — no falling back
+  const st=$('ai-test');const sel=$('aiprov');const want=sel?sel.value:'';if(st)st.textContent='Testing '+want+'…';
+  try{const r=await fetch('/.netlify/functions/ask?diag=1&provider='+encodeURIComponent(want),{headers:await sbAuthHeaders()});const o=await r.json();
+    if(st)st.textContent=o.ok?'OK — '+(o.provider||'')+' · '+(o.model||'')+' answered in '+o.ms+' ms.':'Failed — '+(o.errors&&o.errors.length?o.errors.join(' | '):(o.error||('HTTP '+r.status)));}
   catch(e){if(st)st.textContent='Could not reach the function: '+(e.message||e);}}

@@ -302,9 +302,9 @@ async function sbLoadProfile(user){
   const who=(SBPROFILE&&SBPROFILE.name)||user.email||'';
   if(sf){const old=document.getElementById('rolebadge');if(old)old.remove();
     const d=document.createElement('div');d.id='rolebadge';
-    d.innerHTML='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><a href="#" onclick="showView(\'profile\',null);return false" style="color:var(--tx2);font-weight:600">'+esc(who)+'</a><span>· '+(ROLE==='sales'?'Sales':ROLE==='manager'?'Sales manager':ROLE==='admin'?'Admin':esc(String(ROLE).replace('_',' ')))+'</span><span style="flex:1"></span>'+
-      '<a href="#" class="abtn" onclick="showView(\'settings\',null);return false" title="Theme, password, manual, AI" style="padding:3px 9px;font-size:10.5px">Settings</a><a href="#" class="abtn t-rd" onclick="roleLogout();return false" style="padding:3px 9px;font-size:10.5px">Sign out</a></div>';
-    d.style.cssText='padding:6px 14px;border-top:1px solid var(--bd);font-size:10.5px;color:var(--tx3)';
+    d.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a href="#" onclick="showView(\'profile\',null);return false" style="color:var(--tx2);font-weight:600">'+esc(who)+'</a> · '+(ROLE==='sales'?'Sales':ROLE==='manager'?'Sales manager':ROLE==='admin'?'Admin':esc(String(ROLE).replace('_',' ')))+'</span></div>'+
+      '<div style="display:flex;gap:6px;margin-top:6px"><a href="#" class="abtn" onclick="showView(\'settings\',null);return false" title="Theme, password, manual, AI" style="flex:1;justify-content:center;margin:0;padding:5px 9px;font-size:11px">Settings</a><a href="#" class="abtn t-rd" onclick="roleLogout();return false" style="flex:1;justify-content:center;margin:0;padding:5px 9px;font-size:11px">Sign out</a></div>';
+    d.style.cssText='padding:8px 14px;border-top:1px solid var(--bd);font-size:10.5px;color:var(--tx3)';
     sf.parentNode.insertBefore(d,sf);}
   buildMobileNav();
   try{if(typeof navSync==='function')navSync();}catch(e){} // sidebar = exactly what viewAllowed() permits
