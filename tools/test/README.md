@@ -65,3 +65,23 @@ slides, a specialist's deck has 11–16, the HTML renderer produces slide-sized
 pages, the Reports page shows input status per person and hides other people's
 rows from a specialist, forecasts save as JSON, and Copy for Notion text carries
 brands, specialists and HQ notes.
+
+## saved-reports.test.js
+
+```
+node tools/test/saved-reports.test.js
+```
+The report engine as CommonJS (filters, dates in Manila, grouping, own-rows,
+cost stripping, CSV, schedules), the server runner against a fake Supabase and an
+in-memory Blobs store (runs as the owner, notifies, fails a manager's PO report),
+the wiring (scripts, sidebar, T map, viewAllowed) and the builder view in jsdom.
+
+## security-guard.test.mjs
+
+```
+node tools/test/security-guard.test.mjs
+```
+`lib/guard.mjs` live (fail closed without JOB_KEY / Supabase env, constant-time
+compare, Slack host pin, session lookup) plus source checks that every worker,
+the question log, uploads, user admin, deck sharing, backups, headers and the SQL
+hardening block are in place.

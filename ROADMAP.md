@@ -25,6 +25,15 @@ at cutover; the accounting export CSV remains the fallback); it does not replace
 
 ## ✅ Shipped so far (everything, from the start)
 
+**Saved reports, warranties & service history, review checkpoints, receipts while filing, security audit (Sep 8)**
+- ✅ **Saved reports** (Sales analytics → Saved reports): the reporting layer — pick a source (stock, batches, sales lines, HQ orders and lines, accounts, visits, quotations, payments, POs with costs, finance forms, serials, loaners), tick columns, filters (text / number / date incl. last N days, this month, last month), group + count/sum/avg/min/max, sort, cap; live preview; save, export CSV, share. **Schedules** (daily / weekly / monthly incl. last day) run at 6am Manila on the server with the same engine (`js/15-report-engine.js` runs in both places), CSV into Blobs, `report_runs` row, bell notification; "Run on the server now" proves a schedule. Every source gates by role; specialists get own rows; cost columns stripped for non-cost roles — preview and file alike
+- ✅ **Serial numbers**: warranty end date (green / amber ≤60d / red lapsed, a Warranty due tab), where the unit is (follows loans, sales, returns), and a per-unit **service & repair history** (service / repair / calibration / inspection, vendor, cost — cost only for admin, finance, warehouse — next due). Nightly rule 12 pings the warehouse 30 days before a warranty lapses, when it has, and when a service falls due
+- ✅ **Business review checkpoints**: the mid-month (on/after the 15th) and month-end snapshots freeze themselves the first time an admin or manager opens HQ; unique per (month, checkpoint); nightly rule 10b reminds them on those days. "Since last report" no longer depends on the button
+- ✅ **Finance forms — receipts while filing**: Add receipt / Add file in the form itself (phone camera or PDF), uploaded the moment the request is created; expense reimbursement and expense report cannot be filed without at least one. The chooser row above the forms is gone — the sidebar already lists them
+- ✅ Sync button moved under the Synced timestamp at the foot of the sidebar ("Sync now"), the top of the sidebar is navigation only
+- ✅ **Security audit (app-wide)** — closed: unauthenticated Ask / Slack workers (JOB_KEY now required and fail-closed everywhere; Slack worker posts only to hooks.slack.com); question log open to the internet; stored-JS injection through notification links (validated route + `esc` escapes `'`); PO costs painted for sales managers; deep links bypassing `viewAllowed`; `accounts` / `opportunities` / `account_contacts` writable by any login (role-scoped RLS via `hs_role()`); `audit_log` readable by managers/finance in RLS; attachment downloads by mere existence (now RLS as the caller); admin-resets-admin password; deck sharing to any mailbox; sixteen tables outside the backup; UTC "today" in the browser (Manila everywhere); month-arithmetic overflow; N+1 in wave pick; NaN% in Data health; security headers (CSP report-only first)
+- ✅ Manuals: headings keep with the first two paragraphs, no widows or orphans; `pagecheck.py` lint is part of the build; all nine rebuilt with the new sections
+
 **QuickBooks Online connector (Sep 6)**
 - ✅ HQ → QuickBooks direct, no CSV in between: a fulfilled order (the DR moment) becomes an Invoice — DocNumber = HS number, DueDate from terms, VAT 12% inclusive (`GlobalTaxCalculation: TaxInclusive`, one tax code per line), per-SKU items matched by SKU and created on the chosen income account, deal +1 / FOC lines at ₱0, Class = specialist and Location = team when tracking is on in QBO
 - ✅ Each HQ payment → Payment applied to the invoice (deposit account configurable); negative correction payments are skipped and listed. Credit memo (return) → CreditMemo, applied to the invoice it names
@@ -182,7 +191,8 @@ at cutover; the accounting export CSV remains the fallback); it does not replace
 - ✅ Presenting order per specialist (Order on the account; seed SQL for the sales manager's list); test/disabled accounts never appear; deck charts exported as pictures so Keynote / Google Slides show them
 - ✅ AI on the free tier: one provider door (`lib/llm.mjs`) — Gemini Flash by default for Ask AI, the Slack bot, the Monday nudge and Draft with AI; retry → Flash-Lite → Claude fallback; costs/payables scrubbed from free-tier prompts
 - 🔒 UI mirrors RLS on the specialist box (raw tag, not alias) — a profile tagged Kristine must be re-tagged Tin in Team & access to edit its box
-- ⏭ Next: schedule the snapshot nightly on the 15th and month-end so the "since last report" comparison never depends on someone clicking; Notion/Drive drop of the exported deck; per-territory grouping once accounts carry a territory field
+- ✅ Checkpoints on the 15th and month-end freeze themselves (Sep 8)
+- ⏭ Next: Notion/Drive drop of the exported deck; per-territory grouping once accounts carry a territory field
 
 **Splash, serials, loaners, waves, CRM activity, faster boot (Sep 2)**
 - ✅ Expense reports (ER-): the eighth finance form — revolving-fund liquidation with itemised receipt lines, routed like every form via Approval routes (set the step to Tal in-app)
@@ -359,8 +369,8 @@ at cutover; the accounting export CSV remains the fallback); it does not replace
 - ✅ **PO approvals** — shipped (over-threshold POs stay drafts, land in Approvals as a purchase hold, ping admin; approve → ordered, reject → cancelled)
 
 ### Devices & after-sales (scoped 2026-08-28)
-- ▢ **Serial-number tracking** — serialized machines (which clinic has which unit), warranty end dates, service/repair history per serial
-- ▢ **Demo / loaner unit tracking** — machines in the field for demos: neither sold nor in the warehouse, currently invisible
+- ✅ **Serial-number tracking** — shipped (Logistics → Serial numbers: one row per equipment unit from receiving through loan, sale or disposal). Warranty end dates + service/repair history per serial shipped Sep 8
+- ✅ **Demo / loaner unit tracking** — shipped (Logistics → Demo / loaners: check-out with due-back, return or convert to sale, overdue ping)
 
 ### Compliance (pharma)
 - ✅ **Batch recall trace** — shipped (OUT-sheet history + ledger picks; survives sheet retirement)
@@ -382,7 +392,7 @@ at cutover; the accounting export CSV remains the fallback); it does not replace
 - ✅ **Account ownership** — shipped (account pages + Accounts list inline assign); territories still open
 - ✅ **Lead pipeline** — shipped (Pipeline view: stages from behavior + audited moves, lost reasons)
 - ✅ **Activity cadences** — shipped (dormancy alerts tiered by A/B/C: 30/45/60 days; owner pinged inside the window, monthly dedup)
-- ✅ **Attachments** — shipped (2026-08-28): Google Drive Shared Drive via a service-account function; file ids in Supabase, reads streamed back through HQ so the app's permissions decide access. Live on pull-outs and all six finance forms; still to add on visits and account profiles
+- ✅ **Attachments** — shipped (2026-08-28): Google Drive Shared Drive via a service-account function; file ids in Supabase, reads streamed back through HQ so the app's permissions decide access. Live on pull-outs, all seven finance forms (receipts can now be added while filing — required on expense reimbursement and expense report), visit log entries and account profiles
 - 🔨 **Account tiers & segmentation** — tier field (A/B/C) shipped on accounts; tier-based service levels/cadences still open
 - ✅ **Quote chase** — shipped (a quote left at 'sent' for 7+ days pings the specialist who raised it; flags a lapsed validity date)
 - ✅ **Birthday / clinic anniversary pings** — shipped (owner pinged 3 days ahead, once per year, from the dates already on the account)
@@ -429,7 +439,7 @@ at cutover; the accounting export CSV remains the fallback); it does not replace
 - ✅ **Backorder management** — shipped (ATP overrides recorded as backorders; panel on the fulfillment queue; auto-release + pings when a PO receive covers the shortfall)
 - ✅ **Short-dated stock queue** — shipped (lots inside 6 months with ₱ at risk; plan + owner + target date per lot; unplanned value called out; closing records the outcome)
 - ✅ **Receiving discrepancies & supplier scorecard** — shipped (fill rate, on-time vs ETA, real vs quoted lead time; closed-PO lines where received ≠ ordered, valued at cost)
-- ▢ **Wave picking** — batch several orders into one FEFO warehouse pass
+- ✅ **Wave picking** — shipped (tick orders in the fulfillment queue → one WV-numbered FEFO pick list merged per SKU, sorted by bin)
 - ✅ **QA hold on receipt** — shipped (receiving offers sellable vs QA hold; held units release into the ledger as receives)
 - ▢ **Courier tracking auto-pull** — LBC/Lalamove status APIs update dispatched/delivered automatically
 - ✅ **Warehouse KPIs** — shipped (median/avg cycle time from the new fulfilled_at stamp, ≤48h share, fill rate vs backorders, queue age, units picked)
@@ -446,9 +456,10 @@ at cutover; the accounting export CSV remains the fallback); it does not replace
 - ✅ **Access levels** — superseded and shipped as the eight-role rollout (super admin / admin / manager / sales / supply_chain / finance / marketing / viewer) + scoped PS-account admin for IT (Justine)
 - ✅ Scheduled jobs — shipped (nightly 2am Manila: backfill sync + sales-cache rebuild)
 - ✅ Notifications (in-app): bell + badge; held orders ping managers, decisions ping the specialist, approved orders ping the warehouse, fulfillments ping the order owner. Email later if needed
-- ▢ Reporting layer: saved report definitions + scheduled exports (the NetSuite "saved search" equivalent)
+- ✅ **Reporting layer** — shipped (Saved reports: definitions, live preview, CSV, sharing, daily/weekly/monthly schedules run server-side with the same engine; Sep 8)
 - ✅ **Forecast accuracy tracking (MAPE)** — shipped (Planning → Forecast accuracy; monthly freeze + self-grading)
 - ▢ Disable legacy Supabase JWT keys (after confirming new keys) · rotate service keys on a schedule
+- ▢ Flip the CSP from report-only to enforced after a week of clean consoles (netlify.toml) · replace the remaining `prompt()`/`alert()` multi-field flows with drawers · table-driven role×view matrix test · tests for admin-users.mjs / upload.mjs
 
 ---
 

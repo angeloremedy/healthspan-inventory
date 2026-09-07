@@ -3,6 +3,7 @@
 // safety net until Supabase Pro backups take over at cutover.
 // Guarded by JOB_KEY (triggered from nightly.mjs). Download via backup.mjs.
 import { connectLambda, getStore } from '@netlify/blobs';
+import { requireJobKey } from './lib/guard.mjs';
 
 const SB_URL = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SVC = process.env.SUPABASE_SERVICE_KEY || '';
@@ -22,7 +23,14 @@ const TABLES = {
   attachments: 'id', pullouts: 'id', pullout_lines: 'id', fund_sources: 'class',
   doc_formats: 'kind', archive_bin: 'id',
   backorders: 'id', quarantine: 'id', complaints: 'id', suppliers: 'id',
-  transfers: 'id', transfer_lines: 'id', notifications: 'id', doc_series: 'kind'
+  transfers: 'id', transfer_lines: 'id', notifications: 'id', doc_series: 'kind',
+  // 2026-09-08 audit: sixteen tables had grown up outside the backup — the finance
+  // forms ledger, the equipment register, saved chats and preferences among them.
+  // qbo_tokens is deliberately NOT here: secrets never leave the database.
+  approval_routes: 'id', code_lists: 'id', fin_requests: 'id', fin_lines: 'id',
+  serials: 'id', loans: 'id', waves: 'id', auto_log: 'id',
+  review_notes: 'spec', review_commentary: 'month', review_snapshots: 'id',
+  ask_chats: 'id', user_prefs: 'user_id', qbo_map: 'kind', qbo_sync: 'id'
 };
 
 async function dump(table, orderCol) {
@@ -41,9 +49,7 @@ async function dump(table, orderCol) {
 }
 
 export const handler = async (event) => {
-  if ((event.headers['x-job-key'] || '') !== (process.env.JOB_KEY || 'x')) {
-    return { statusCode: 403, body: 'nope' };
-  }
+  { const gate = requireJobKey(event); if (gate) return gate; } // fail closed: no JOB_KEY = no job
   connectLambda(event);
   const store = getStore('backups');
   const out = { exported_at: new Date().toISOString(), tables: {} };

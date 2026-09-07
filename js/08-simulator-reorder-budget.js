@@ -390,7 +390,7 @@ function downloadCSV(name,headers,rows){
   const csv=[headers.map(esc).join(','),...rows.map(r=>r.map(esc).join(','))].join('\n');
   const a=document.createElement('a');
   a.href='data:text/csv;charset=utf-8,﻿'+encodeURIComponent(csv);
-  a.download='healthspan_'+name+'_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.download='healthspan_'+name+'_'+todayISO()+'.csv';
   a.click();
 }
 function exportCurrentView(){
@@ -449,7 +449,7 @@ function exportSalesFree(){
 }
 function exportSalesTarget(){
   if(!(TARGETS||[]).length)return;
-  const ym=window._tgMonth||new Date().toISOString().slice(0,7);
+  const ym=window._tgMonth||monthISO();
   const specs=specMerged();
   let actTotal={u:0,v:0};const actLine={};
   // forced everywhere below, exactly like renderSalesTarget: a target is set on
@@ -644,7 +644,7 @@ async function copyForAI(){
   if(!copied){
     const a=document.createElement('a');
     a.href='data:text/plain;charset=utf-8,﻿'+encodeURIComponent(t);
-    a.download='healthspan_ai_export_'+new Date().toISOString().slice(0,10)+'.txt';
+    a.download='healthspan_ai_export_'+todayISO()+'.txt';
     a.click();
   }
   if(btn){const old=btn.innerHTML;btn.innerHTML=copied?'✓ Copied '+rows.length+' SKUs':'✓ Downloaded';setTimeout(()=>{btn.innerHTML=old;},1800);}

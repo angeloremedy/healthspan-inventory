@@ -28,7 +28,7 @@ function renderDataHealth(){
   $('content').innerHTML=
     '<div class="metrics" style="margin-bottom:14px">'+
     '<div class="met '+scoreC+'"><div class="met-lbl">Data health score</div><div class="met-val">'+score+'%</div><div class="met-sub">completeness of active SKUs</div><div class="met-bar"></div></div>'+
-    '<div class="met rd"><div class="met-lbl">Missing price</div><div class="met-val">'+missPrice.length+'</div><div class="met-sub">'+Math.round(missPrice.length/n*100)+'% of active SKUs</div><div class="met-bar"></div></div>'+
+    '<div class="met rd"><div class="met-lbl">Missing price</div><div class="met-val">'+missPrice.length+'</div><div class="met-sub">'+(n?Math.round(missPrice.length/n*100):0)+'% of active SKUs</div><div class="met-bar"></div></div>'+
     '<div class="met am"><div class="met-lbl">Missing expiry</div><div class="met-val">'+missExp.length+'</div><div class="met-sub">in-stock SKUs, no date</div><div class="met-bar"></div></div>'+
     '<div class="met bl"><div class="met-lbl">Other flags</div><div class="met-val">'+(negStk.length+lowHist.length)+'</div><div class="met-sub">'+negStk.length+' negative · '+lowHist.length+' low history</div><div class="met-bar"></div></div>'+
     '</div>'+
@@ -115,7 +115,7 @@ function exportProspectsCSV(){
   const rows=(window._PROSPECTS||[]).map(r=>[r.name,r.src==='prospect'?'visit log only':'shopify only',r.booked||0,r.v90||0,r.last||'',r.m||''].map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','));
   const a=document.createElement('a');
   a.href='data:text/csv;charset=utf-8,﻿'+encodeURIComponent(['"Account","Source","Booked 13mo","Booked 90d","Last activity","Possible existing account"',...rows].join('\n'));
-  a.download='healthspan_prospects_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.download='healthspan_prospects_'+todayISO()+'.csv';
   a.click();
 }
 function renderCustShopifyRecon(all){
@@ -488,14 +488,14 @@ function renderValue(){
     '</div>'+
     '<div class="panel" style="margin-bottom:14px"><div class="phd"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Value by product line</div>'+
     entries.map(([l,v],i)=>{
-      const pct=Math.round(v/total*100);
+      const pct=total?Math.round(v/total*100):0;
       return '<div class="vrow"><div class="vlbl">'+esc(l)+'</div>'+
         '<div class="vbar-wrap"><div class="vbar-track"><div class="vbar-fill" style="width:'+Math.round(v/max*100)+'%;background:'+COLORS[i%COLORS.length]+'"></div></div></div>'+
         '<div class="vval">₱'+Math.round(v).toLocaleString()+' <span style="color:var(--tx3);font-size:10px">'+pct+'%</span></div></div>';
     }).join('')+'</div>'+
     '<div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button class="btn" onclick="exportValueCSV()"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export value report</button></div>'+
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Product line</th><th style="text-align:right">Stock value (₱)</th><th style="text-align:right">% of total</th></tr></thead><tbody>'+
-    entries.map(([l,v])=>'<tr><td>'+esc(l)+'</td><td class="r" style="font-weight:600">₱'+Math.round(v).toLocaleString()+'</td><td class="r mu">'+Math.round(v/total*100)+'%</td></tr>').join('')+
+    entries.map(([l,v])=>'<tr><td>'+esc(l)+'</td><td class="r" style="font-weight:600">₱'+Math.round(v).toLocaleString()+'</td><td class="r mu">'+(total?Math.round(v/total*100):0)+'%</td></tr>').join('')+
     '<tr style="font-weight:700;background:var(--sf2)"><td>TOTAL</td><td class="r">₱'+Math.round(total).toLocaleString()+'</td><td class="r">100%</td></tr>'+
     '</tbody></table></div></div>';
 }
@@ -503,11 +503,11 @@ function exportValueCSV(){
   const entries=Object.entries(VALUE_BY_LINE).sort((a,b)=>b[1]-a[1]);
   const total=entries.reduce((a,[,v])=>a+v,0);
   const h=['Product Line','Stock Value (PHP VATex)','% of Total'];
-  const rows=entries.map(([l,v])=>'"'+esc(l)+'",'+Math.round(v)+','+Math.round(v/total*100)+'%');
+  const rows=entries.map(([l,v])=>'"'+esc(l)+'",'+Math.round(v)+','+(total?Math.round(v/total*100):0)+'%');
   rows.push('"TOTAL",'+Math.round(total)+',100%');
   const a=document.createElement('a');
   a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent([h.join(','),...rows].join('\n'));
-  a.download='healthspan_value_by_line_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.download='healthspan_value_by_line_'+todayISO()+'.csv';
   a.click();
 }
 

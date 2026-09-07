@@ -5,6 +5,7 @@
 import crypto from 'node:crypto';
 import { connectLambda, getStore } from '@netlify/blobs';
 import { llm, provider, hasKey, keysPresent, setProviderPref } from './lib/llm.mjs';
+import { sessionUser } from './lib/guard.mjs';
 const ASK_PICK = ['gemini', 'anthropic']; // the two models the Ask Healthspan dropdown offers; anything else falls back to Settings → AI
 
 const HDRS = {
@@ -15,23 +16,11 @@ const HDRS = {
 };
 
 
-// ── AUTH: only signed-in Healthspan accounts (session token verified with Supabase)
+// ── AUTH: only signed-in Healthspan accounts (session verified with Supabase; fails closed)
 async function requireUser(event){
-  const SB_URL=(process.env.SUPABASE_URL||'').replace(/\/$/,'');
-  const SVC=process.env.SUPABASE_SERVICE_KEY||'';
-  if(!SB_URL||!SVC)return null; // lockdown env missing — don't brick the app
-  const token=((event.headers&&(event.headers.authorization||event.headers.Authorization))||'').replace(/^Bearer\s+/i,'');
-  if(!token)return{code:401,error:'Sign in required'};
-  try{
-    const r=await fetch(SB_URL+'/auth/v1/user',{headers:{apikey:SVC,Authorization:'Bearer '+token}});
-    if(!r.ok)return{code:401,error:'Session invalid — sign in again'};
-    const u=await r.json();
-    try{
-      const pr=await fetch(SB_URL+'/rest/v1/profiles?id=eq.'+u.id+'&select=role,specialist_tag,is_super',{headers:{apikey:SVC,Authorization:'Bearer '+SVC}});
-      const prof=(await pr.json())[0]||{};
-      return{ok:true,role:prof.is_super?'super':(prof.role||'viewer'),tag:prof.specialist_tag||''};
-    }catch(e){return{ok:true,role:'viewer',tag:''};}
-  }catch(e){return{code:401,error:'Could not verify the session'};}
+  const u=await sessionUser(event);
+  if(u.code)return u;
+  return{ok:true,id:u.id,role:u.super?'super':(u.role||'viewer'),tag:u.tag||''};
 }
 
 export const handler = async (event) => {
@@ -42,7 +31,7 @@ export const handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: HDRS, body: '' };
   const auth=await requireUser(event);
   if(auth&&auth.code)return{statusCode:auth.code,headers:HDRS,body:JSON.stringify({error:auth.error})};
-  const who=auth&&auth.ok?{role:auth.role,tag:auth.tag}:{role:'viewer',tag:''}; // server-derived — the client can't spoof it
+  const who={role:auth.role,tag:auth.tag}; // server-derived — the client can't spoof it
 
   // ── Diagnostic: is the model door open? (manager/admin only) — one tiny call, timed
   if (event.httpMethod === 'GET' && event.queryStringParameters && event.queryStringParameters.diag) {
@@ -64,7 +53,10 @@ export const handler = async (event) => {
     try {
       const store = getStore('ask');
       const res = await store.get('res-' + id, { type: 'json' });
-      if (res) return { statusCode: 200, headers: HDRS, body: JSON.stringify(res) };
+      if (res) {
+        if (res.uid && res.uid !== auth.id) return { statusCode: 403, headers: HDRS, body: JSON.stringify({ error: 'Not your question' }) };
+        const { uid, ...pub } = res; return { statusCode: 200, headers: HDRS, body: JSON.stringify(pub) };
+      }
     } catch (e) {
       return { statusCode: 503, headers: HDRS, body: JSON.stringify({ error: 'Result storage unavailable: ' + e.message }) };
     }
@@ -87,8 +79,8 @@ export const handler = async (event) => {
     // Background functions ack with 202 immediately; the await is quick.
     const t = await fetch(base + '/.netlify/functions/ask-work-background', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, question, catalog, history: payload.history || [], who, mode: String(payload.mode || '').slice(0, 20), provider: ASK_PICK.includes(String(payload.provider || '')) ? String(payload.provider) : '' })
+      headers: { 'Content-Type': 'application/json', 'x-job-key': process.env.JOB_KEY || '' },
+      body: JSON.stringify({ id, question, catalog, history: payload.history || [], who: { ...who, uid: auth.id || '' }, mode: String(payload.mode || '').slice(0, 20), provider: ASK_PICK.includes(String(payload.provider || '')) ? String(payload.provider) : '' })
     });
     // a 404/5xx here means the worker never started — say so now instead of letting the UI poll into a timeout
     if (!t.ok && t.status !== 202) return { statusCode: 502, headers: HDRS, body: JSON.stringify({ error: 'The answer job did not start (worker returned ' + t.status + '). Check the ask-work-background function deploy.' }) };

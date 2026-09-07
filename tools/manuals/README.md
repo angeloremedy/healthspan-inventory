@@ -10,7 +10,8 @@ redesign anything.
 |---|---|
 | `extract.py` | Reads the shipped PDFs back into `content/*.json` — headings, paragraphs, numbered steps, tables, callouts, deliberate spacers. |
 | `fw.py` | The layout: page, frame, styles, cover, running head, footer, tables, callouts. |
-| `compose.py` | Renders `content/*.json` into PDFs. |
+| `compose.py` | Renders `content/*.json` into PDFs. Headings keep with the first two paragraphs after them; no widows or orphans (fw.py styles). |
+| `pagecheck.py` | Pagination lint on the built PDFs: orphan headings, widowed lines. Run after compose; exit 1 on any finding. |
 | `diffcheck.py` | Compares old against new — geometry, styles, text, and rendered pixels. |
 
 ## Editing a manual
@@ -20,6 +21,7 @@ Edit the JSON in `content/`, not the PDF:
 ```bash
 cd tools/manuals
 python3 compose.py ../../manuals-new      # build to a scratch folder
+python3 pagecheck.py ../../manuals-new    # must print: pagecheck: clean
 python3 diffcheck.py ../../manuals ../../manuals-new --pixels
 ```
 

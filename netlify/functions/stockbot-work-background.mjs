@@ -2,6 +2,7 @@
 // Fetches the live inventory feed, asks the configured model (lib/llm.mjs) to
 // answer from the full dataset, and posts the answer back to Slack.
 import { llm, hasKey, isHardQuestion, provider, setProviderPref } from './lib/llm.mjs';
+import { requireJobKey, isSlackHook } from './lib/guard.mjs';
 
 function serialDate(ds) {
   if (!ds || typeof ds !== 'number') return '';
@@ -112,10 +113,12 @@ const SYSTEM = [
 ].join('\n');
 
 export const handler = async (event) => {
+  { const gate = requireJobKey(event); if (gate) return gate; } // only stockbot.mjs (Slack-signature-checked) may start this
   let payload = {};
   try { payload = JSON.parse(event.body || '{}'); } catch (e) {}
   const { text, response_url } = payload;
   if (!text || !response_url) return { statusCode: 400, body: 'missing fields' };
+  if (!isSlackHook(response_url)) return { statusCode: 400, body: 'response_url must be a Slack hook' };
 
   const post = (msg) => fetch(response_url, {
     method: 'POST',
@@ -155,7 +158,7 @@ export const handler = async (event) => {
 
   try {
     await fetch((process.env.URL || '') + '/api/asklog', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'x-job-key': process.env.JOB_KEY || '' },
       body: JSON.stringify({ src: 'slack', q: text, ok, model: usedModel, ms: Date.now() - t0 })
     });
   } catch (e) {}

@@ -202,7 +202,7 @@ function mergeShopify(){
 function sumPeriod(S,mode){
   const out={u:0,f:0,v:0,d:0,dv:0};
   const add=c=>{out.u+=c.u||0;out.f+=c.f||0;out.v+=c.v||0;out.d+=c.d||0;out.dv+=c.dv||0;};
-  const today=new Date().toISOString().slice(0,10);
+  const today=todayISO();
   const cutoff=d=>new Date(Date.now()-d*864e5).toISOString().slice(0,10);
   const ymNow=today.slice(0,7);
   if(mode==='today'){const c=(S.daily||{})[today];if(c)add(c);}
@@ -210,7 +210,7 @@ function sumPeriod(S,mode){
   else if(mode==='custom'){for(const d in (S.daily||{}))if((!SFROM||d>=SFROM)&&(!STO||d<=STO))add((S.daily||{})[d]);}
   else if(mode==='7d'||mode==='30d'){const lim=cutoff(mode==='7d'?7:30);for(const d in (S.daily||{}))if(d>=lim)add((S.daily||{})[d]);}
   else if(mode==='mtd'){const c=(S.monthly||{})[ymNow];if(c)add(c);}
-  else if(mode==='3m'){const lim=new Date();lim.setMonth(lim.getMonth()-2);const l=lim.toISOString().slice(0,7);for(const m in (S.monthly||{}))if(m>=l)add((S.monthly||{})[m]);}
+  else if(mode==='3m'){const [yy,mm]=monthISO().split('-').map(Number);const lim=new Date(Date.UTC(yy,mm-1-2,1));const l=lim.toISOString().slice(0,7);for(const m in (S.monthly||{}))if(m>=l)add((S.monthly||{})[m]);}
   else {for(const m in (S.monthly||{}))add((S.monthly||{})[m]);} // all (13 months)
   return out;
 }
@@ -253,7 +253,8 @@ function sextLbl(){return (SEXT&&hasIntSplit())?'external only':'incl. Remedy & 
 const ABTN_NAV=/^(showAccountPage|openAccountDrawer|showOrderPage|showView|homeGo|openDrawer|showSpecPage|openSalesDrawer|openCustDrawer|showPickSlip|showDeliveryReceipt|showStatement|attOpen|navBack|mmGo)\b/;
 function upgradeButtons(root){
   root=root||document;
-  const as=root.querySelectorAll('a[href="#"][onclick]:not(.abtn):not(.lnk)');
+  const SEL='a[href="#"][onclick]:not(.abtn):not(.lnk)';
+  const as=[...root.querySelectorAll(SEL)];if(root.matches&&root.matches(SEL))as.push(root);
   for(const a of as){
     const oc=a.getAttribute('onclick')||'';
     if(ABTN_NAV.test(oc.trim()))continue;                       // it opens something: a link
@@ -273,9 +274,11 @@ function upgradeButtons(root){
   }
 }
 (function(){
-  let t=null;
-  const run=()=>{t=null;try{upgradeButtons(document);}catch(e){}};
-  const kick=()=>{if(!t)t=setTimeout(run,0);};       // coalesce a render's many mutations into one pass
+  let t=null,roots=new Set();
+  // only the subtrees that actually changed are scanned — a document-wide pass after
+  // every paint was a full walk of the 500-row SKU table for a one-cell change
+  const run=()=>{t=null;const rs=[...roots];roots.clear();try{if(!rs.length||rs.includes(document.documentElement))upgradeButtons(document);else rs.forEach(r=>{if(r.isConnected)upgradeButtons(r);});}catch(e){}};
+  const kick=(muts)=>{if(muts&&muts.length){for(const m of muts)for(const n of m.addedNodes)if(n.nodeType===1)roots.add(n);if(!roots.size)return;}else roots.add(document.documentElement);if(!t)t=setTimeout(run,0);};
   try{
     new MutationObserver(kick).observe(document.documentElement,{childList:true,subtree:true});
   }catch(e){}
@@ -381,6 +384,7 @@ const DESC={
   ask:'Ask Healthspan as a full page: your saved chats on the left, the conversation on the right. Same brain as the side chat — stock, sales, accounts, targets, in plain language.',
   qbo:'HQ → QuickBooks Online: fulfilled orders become invoices, payments and credit memos follow, and payments recorded in QuickBooks come back. Preview until enabled at cutover.',
   settings:'Theme and light/dark mode, your password and manual, favourites and the bottom bar — and, for the super admin, which AI model answers Ask Healthspan and Draft with AI, with a one-click connection test.',
+  savedreports:'Your own reports, the way NetSuite people mean it: pick a source (stock, batches, sales lines, HQ orders, accounts, visits, quotes, payments, POs, finance forms, serials, loaners), tick columns, add filters, group and total, sort — and save it. Run it any time, export the CSV, or schedule it daily / weekly / monthly: at 6am Manila the server runs it as you and drops the CSV in HQ with a bell notification. Specialists see their own rows; cost columns only appear for roles that see costs elsewhere.',
   reports:'Every review deck for the month, built from live figures the moment you click: the team deck for the sales manager, one deck per specialist, PowerPoint or PDF. The Inputs column says whose commentary is in before anyone downloads. Copy for Notion hands the weekly-meeting numbers to the clipboard as Notion-ready text.',
   bizreview:'The monthly sales performance report, built from HQ instead of typed into slides: brands, products, machines, accounts, buying behaviour and each specialist, with what HQ noticed in the numbers. People add only the commentary — the sales manager owns the wins / challenges / plan boxes, each specialist owns their own — and every box shows what it said last time. Save snapshot freezes the figures so the next report can say what moved; Export PowerPoint builds the deck.',
   crmstats:'The field effort itself, per specialist: visits, calls, demos, accounts touched, and how often a contact ends in an order — from the in-app visit log. Sales activity is the input; the Sales views measure the output.',
@@ -649,8 +653,13 @@ function keepScroll(){ // remember .main's scroll, restore it WHEN the repaint l
    was wrong — the browser decodes &#39; back to an apostrophe BEFORE the
    handler is compiled, so a name like "St. Luke's" broke the handler and a
    crafted filename could run code. Escape for JavaScript first, then for HTML. */
+/* "Today" is Manila's today, everywhere. A phone in UTC land — or a laptop between
+   midnight and 8am Manila — used to file today's visit as yesterday's, and MTD skipped
+   the current day. The server jobs already reckon in Manila; now the browser does too. */
+function todayISO(){return new Date(Date.now()+8*3600e3).toISOString().slice(0,10);}
+function monthISO(){return todayISO().slice(0,7);}
 function jsq(s){return esc(String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"));}
-function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function esc(s){return String(s==null||s===false?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function isReorderAlert(p){
   const t=REORDER[p.sku];
   if(t && typeof t==='number') return stk(p)!==null && stk(p)<t; // manual threshold overrides
@@ -732,6 +741,7 @@ function applySync(data){
   TARGETS=data.targets||[];
   try{mergeSpecTargets();}catch(e){} // in-app targets override sheet targets
   try{maybeSnapshotForecast();}catch(e){} // monthly forecast freeze for MAPE scoring
+  try{if(typeof maybeSnapshotReview==='function')setTimeout(maybeSnapshotReview,1500);}catch(e){} // review checkpoints, once the sales cache has merged
   try{applyCatalog();}catch(e){} // item-master pricing override when independent
   ACCT=data.acctBooked||null;
   if(SHOPIFY)mergeShopify(); else loadShopify();
@@ -901,7 +911,7 @@ async function syncNow(force){
     $('sf-foot').innerHTML='<span style="color:var(--gr);font-weight:600">Live</span> &middot; Synced '+ts;
     if(btn) btn.className='sync-btn ok';
     // the timestamp lives in the footer only — the button just says what it does
-    if(lbl) lbl.textContent='Sync from Google Sheets';
+    if(lbl) lbl.textContent='Sync now';
     updateMobileSync('ok','Sync');
     hideProgress();
   }catch(e){

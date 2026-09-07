@@ -17,7 +17,7 @@ ok('splash uses the real app icon', /id="splash"[^]*?icon-512\.png/.test(html));
 ok('splash is standalone-only', /display-mode: standalone/.test(html) && /id="splash" style="display:none/.test(html));
 ok('browser tab never shows it', (()=>{ // jsdom is not standalone, so the gate must leave it hidden
   const el=d.getElementById('splash'); return el&&el.style.display==='none';})());
-ok('all app scripts defer', (html.match(/<script defer src="js\//g)||[]).length===14, (html.match(/<script defer src="js\//g)||[]).length);
+ok('all app scripts defer', (html.match(/<script defer src="js\//g)||[]).length===16, (html.match(/<script defer src="js\//g)||[]).length);
 ok('CDN libs defer too', (html.match(/<script defer src="https:/g)||[]).length===2);
 ok('no blocking external script left', !/<script src=/.test(html));
 ok('preconnects present', /rel="preconnect" href="https:\/\/lesjigujcajxurmsmwwc/.test(html));
@@ -86,8 +86,10 @@ VISITS=[{id:1,spec:'Rhas',account:'Dr. Cruz Clinic',type:'Clinic visit',outcome:
 NORDERS=[];loadVisits=async()=>VISITS;loadNativeOrders=async()=>NORDERS;
 
 // a Supabase stub with just enough shape, plus canned rows per table
-const DB={serials:[{id:1,sku:'INVESTA',serial:'INV-001',batch:null,status:'in_stock',created_at:'2026-09-01'},
-                   {id:2,sku:'INVESTA',serial:'INV-002',batch:null,status:'on_loan',created_at:'2026-09-01'}],
+const soon=new Date(Date.now()+8*3600e3+20*864e5).toISOString().slice(0,10), far=new Date(Date.now()+8*3600e3+400*864e5).toISOString().slice(0,10);
+const DB={serials:[{id:1,sku:'INVESTA',serial:'INV-001',batch:null,status:'in_stock',created_at:'2026-09-01',warranty_end:soon,warranty_note:'Supplier 2y'},
+                   {id:2,sku:'INVESTA',serial:'INV-002',batch:null,status:'on_loan',created_at:'2026-09-01',holder:'Dr. Cruz Clinic',warranty_end:far}],
+          serial_service:[{id:7,serial_id:1,sku:'INVESTA',serial:'INV-001',svc_date:'2026-08-20',kind:'calibration',description:'Annual calibration',vendor:'Lumenis PH',cost:12500,next_due:'2027-08-20',created_at:'2026-08-20',created_name:'Verna'}],
           loans:[{id:1,serial_id:2,sku:'INVESTA',serial:'INV-002',account:'Dr. Cruz Clinic',out_date:'2026-08-01',due_date:'2026-08-20',status:'out',out_name:'Verna'}],
           waves:[{id:1,order_ids:['a','b'],created_at:'2026-09-02T00:00:00Z',created_name:'Verna'}],
           orders:[{id:'a',status:'pending',account:'Dr. Cruz Clinic',date:today,total:100,order_lines:[{sku:'TD040',name:'FACE NADE',qty:3}]},
@@ -125,9 +127,24 @@ currentView='serials';await renderSerials();
 const t1=$('content').textContent;
 ok('serials render', /INV-001/.test(t1)&&/in stock/.test(t1)&&/on loan/.test(t1));
 ok('warehouse sees the add panel', /Add serials/.test(t1));
+// warranty + service history (2026-09-08)
+ok('warranty column: soon = amber, far = green; holder shown', $('content').innerHTML.indexOf('class="pill pam" title="warranty ends in')>=0&&$('content').innerHTML.indexOf('class="pill pgr" title="in warranty')>=0&&/Dr\. Cruz Clinic/.test(t1)&&/warehouse/.test(t1));
+ok('a Warranty due tab counts the unit ending soon', t1.indexOf('Warranty due (1)')>=0, t1.slice(0,200));
+window._serF='warranty';await renderSerials();
+ok('warranty tab filters to that unit', /INV-001/.test($('content').textContent)&&!/INV-002/.test($('content').textContent));
+window._serF='all';window._serOpen=1;await renderSerials();
+const t1b=$('content').textContent;
+ok('history panel opens: warranty text, holder, next service due, the calibration row with vendor and cost (warehouse sees cost)', /Service & repair history/.test(t1b)&&/Annual calibration/.test(t1b)&&/Lumenis PH/.test(t1b)&&/₱12,500/.test(t1b)&&/2027-08-20/.test(t1b)&&/Supplier 2y/.test(t1b));
+ok('warehouse gets the log form', $('svc-date')&&$('svc-kind')&&$('svc-desc')&&$('svc-cost')&&$('svc-next'));
+ROLE='manager';await renderSerials();
+ok('manager sees the history but never the cost', /Annual calibration/.test($('content').textContent)&&!/₱12,500/.test($('content').textContent)&&!$('svc-cost'));
+window._serOpen=null;
 ROLE='viewer';await renderSerials();
 ok('viewer gets no add panel', !/Add serials/.test($('content').textContent));
 ROLE='supply_chain';
+ok('serWarrState: none / out / soon / ok', serWarrState({}).tone==='none'&&serWarrState({warranty_end:'2020-01-01'}).tone==='out'&&serWarrState({warranty_end:soon}).tone==='soon'&&serWarrState({warranty_end:far}).tone==='ok');
+ok('loans move the holder with the unit (source)', __src.indexOf("update({status:'on_loan',holder:account,")>=0&&__src.indexOf("update({status:'in_stock',holder:null,")>=0&&__src.indexOf("holder:l.account||null,")>=0);
+ok('review checkpoints: auto-freeze on/after the 15th and for the closed month, deduped by (month, checkpoint)', typeof maybeSnapshotReview==='function'&&__src.indexOf("eq('month',x.month).eq('checkpoint',x.cp)")>=0&&__src.indexOf("if(day>=15)due.push({month:ym,cp:'mid'})")>=0&&__src.indexOf("{month:bizPrevYm(ym),cp:'end'}")>=0);
 
 // ── loaners ──
 currentView='loans';await renderLoans();
@@ -158,7 +175,13 @@ ok('expreport has itemised lines', !!(FIN_SPEC.expreport&&FIN_SPEC.expreport.lin
 ok('ER- numbering', docNo('expreport',5)==='ER-105', docNo('expreport',5));
 currentView='expreport';
 try{await renderFinForm('expreport');}catch(e){}
-ok('router renders the form', /Expense report \\(revolving fund\\)|Expense report/.test($('content').textContent), $('content').textContent.slice(0,80).replace(/\\s+/g,' '));
+ok('router renders the form', /new expense report/i.test($('content').textContent), $('content').textContent.slice(0,80).replace(/\\s+/g,' '));
+ok('no chooser row: the other forms live in the sidebar', !/Voucher for approval/.test($('content').textContent)&&!/Request to order/.test($('content').textContent));
+ok('receipts are staged in the form itself, required for expense reports', /Receipts/.test($('content').textContent)&&/Add receipt/.test($('content').textContent)&&FIN_ATT_REQUIRED.expreport===1&&FIN_ATT_REQUIRED.reimburse===1&&!FIN_ATT_REQUIRED.voucher);
+ok('file input accepts photos and PDFs', $('content').innerHTML.indexOf('accept="image/*,.pdf')>=0);
+window._finFiles=[{name:'receipt.jpg',size:1200,type:'image/jpeg'}];finPaint('expreport',window._FINROWS||[],window._FINLINES||{},window._FINATT||{});
+ok('a staged receipt shows as a chip with a remove control', $('content').textContent.indexOf('receipt.jpg')>=0&&$('content').innerHTML.indexOf('finFileDrop(0)')>=0);
+window._finFiles=[];
 
 // my profile: renders for a non-sales role with the stub data
 ROLE='finance'; SBPROFILE={name:'Tal'};currentView='profile';
@@ -256,7 +279,7 @@ ROLE='admin';SBPROFILE={name:'Angelo',role:'admin',is_super:true};navSync();
 {const rail=document.getElementById('rail');const vis=()=>[...document.querySelectorAll('.nav .ni')].filter(x=>!x.classList.contains('offarea')&&x.dataset.deny!=='1'&&!x.closest('#fav-sec')).length;
  ok('rail lists six areas', rail&&rail.querySelectorAll('.rl').length===6&&[...rail.querySelectorAll('.rl')].map(x=>x.dataset.area).join()==='home,sales,warehouse,finance,planning,admin');
  navAreaSelect('sales',true);
- ok('Sales area shows only Sales & CRM + Sales analytics', vis()===23&&[...document.querySelectorAll('.nav .nlbl')].filter(x=>!x.classList.contains('offarea')).map(x=>x.textContent.trim()).join('|')==='Sales & CRM|Sales analytics', vis());
+ ok('Sales area shows only Sales & CRM + Sales analytics', vis()===24&&[...document.querySelectorAll('.nav .nlbl')].filter(x=>!x.classList.contains('offarea')).map(x=>x.textContent.trim()).join('|')==='Sales & CRM|Sales analytics', vis());
  ok('rail marks the chosen area', rail.querySelector('.rl.active').dataset.area==='sales');
  const before=vis();showView('po',null);
  ok('opening a Warehouse page moves the rail and highlights the row', rail.querySelector('.rl.active').dataset.area==='warehouse'&&(document.querySelector('.nav .ni.active')||{}).textContent.trim()==='Purchase orders', (document.querySelector('.nav .ni.active')||{}).textContent);
@@ -324,9 +347,28 @@ ROLE='sales';
 ok('sales can open CRM activity', viewAllowed('crmstats'));
 ok('sales cannot open serials', !viewAllowed('serials'));
 ok('sales cannot open loaners', !viewAllowed('loans'));
+
+// ── 2026-09-08 audit: permissions close instead of opening ──
+ok('sales: sales* pages are an explicit list — the reconciliation page is not theirs', viewAllowed('salesoverview')&&viewAllowed('salestarget')&&!viewAllowed('salesrecon')&&!viewAllowed('salesbogus'));
+ROLE='viewer';
+ok('viewer cannot reach AR statements, delivery receipts, pick slips or wave picks by URL', !viewAllowed('statement')&&!viewAllowed('delivery')&&!viewAllowed('pickslip')&&!viewAllowed('wavepick')&&!viewAllowed('creditmemo'));
+ROLE='marketing';
+ok('marketing: same document pages closed', !viewAllowed('statement')&&!viewAllowed('salesrecon'));
+ROLE='';
+ok('no role yet = landing pages only', viewAllowed('home')&&viewAllowed('settings')&&!viewAllowed('valuation')&&!viewAllowed('orders'));
+ROLE='manager';
+ok('esc() now escapes the single quote and keeps a numeric zero', esc("St. Luke's")==='St. Luke&#39;s'&&esc(0)==='0'&&esc(null)===''&&esc('<b>')==='&lt;b&gt;');
+ok('deep links run through viewAllowed and sanitise the view name', __src.indexOf("const gate=(view)=>{if(viewAllowed(view))return true;showView('home');return false;}")>=0&&__src.indexOf("gate('statement')")>=0&&__src.indexOf("gate('spec')")>=0&&__src.indexOf("h.slice(4).replace(/[^A-Za-z0-9_-]/g,'')")>=0);
+ok('a specialist may only deep-link their own specialist page', __src.indexOf("ROLE==='sales'&&SBPROFILE&&SBPROFILE.specialist_tag&&typeof specCanon==='function'&&specCanon(n)!==specCanon(SBPROFILE.specialist_tag)")>=0);
+ok('notification links are validated as in-app routes and JS-quoted', __src.indexOf("const lk=/^#\\/[a-z]\\/[A-Za-z0-9_%.~:-]{1,160}$/.test(String(x.link||''))?String(x.link):''")>=0&&__src.indexOf("location.hash=\\''+jsq(lk)+'\\';")>=0);
+ok('supplier AP block and open-payables metric are behind SHOWCOST', __src.indexOf("(SHOWCOST?apBlock(p):'')")>=0&&__src.indexOf("(SHOWCOST?'<div class=\\"met\\" style=\\"border-left:3px solid var(--rd)\\"><div class=\\"met-lbl\\">Open payables")>=0);
+ok('missing profile defaults to viewer, not sales', __src.indexOf("ROLE=(SBPROFILE&&SBPROFILE.role)||'viewer'")>=0);
+ok('the browser reckons "today" in Manila everywhere', typeof todayISO==='function'&&todayISO().length===10&&__src.split('new Date().toISOString().slice(0,10)').length===2);
+ok('wave pick loads its orders in one query', __src.indexOf("SB.from('orders').select('*,order_lines(*)').in('id',ids)")>=0);
 window.__done=true;
 })().catch(e=>{window.__err=(e&&e.stack)||String(e);window.__done=true;});
 `;
+w.__src=app;
 w.eval(app+'\n;\n'+test);
 setTimeout(()=>{
   if(w.__err){console.error(w.__err);process.exit(1);}

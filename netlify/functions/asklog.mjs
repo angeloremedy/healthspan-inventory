@@ -2,17 +2,20 @@
 // POST /api/asklog  { src, q, ok, model, ms }  — appends to today's log
 // GET  /api/asklog?days=7                      — returns recent logs as JSON
 import { getStore } from '@netlify/blobs';
+import { requireJobKeyReq, sessionUser } from './lib/guard.mjs';
 
 export default async (req) => {
   let store;
   try { store = getStore('asklog'); }
   catch (e) { return Response.json({ error: 'Log storage unavailable: ' + e.message }, { status: 503 }); }
 
-  // Optional read protection: set ASKLOG_KEY in Netlify env, then GET /api/asklog?key=...
-  const viewKey = process.env.ASKLOG_KEY || '';
-  if (req.method !== 'POST' && viewKey) {
-    const url0 = new URL(req.url);
-    if (url0.searchParams.get('key') !== viewKey) return Response.json({ error: 'Forbidden' }, { status: 403 });
+  // Writers are the two answer workers (they carry the JOB_KEY). Readers must be a
+  // signed-in admin — the log holds every question staff asked.
+  if (req.method === 'POST') { const gate = requireJobKeyReq(req); if (gate) return gate; }
+  else {
+    const u = await sessionUser({ headers: { authorization: req.headers.get('authorization') || '' } });
+    if (u.code) return Response.json({ error: u.error }, { status: u.code });
+    if (!(u.super || u.role === 'admin')) return Response.json({ error: 'Admin only' }, { status: 403 });
   }
 
   if (req.method === 'POST') {

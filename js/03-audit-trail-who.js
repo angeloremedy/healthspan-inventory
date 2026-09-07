@@ -27,7 +27,7 @@ async function maybeSnapshotForecast(){
   try{
     if(window._fsnapDone||!SB||!SBUSER||!roleIn('admin','manager','supply_chain')||!(DATA&&DATA.length))return;
     window._fsnapDone=true;
-    const ym=new Date().toISOString().slice(0,7);
+    const ym=monthISO();
     const {count}=await SB.from('forecast_snapshots').select('sku',{count:'exact',head:true}).eq('month',ym);
     if(count>0)return;
     const rows=DATA.filter(p=>((p.velAdj||0)>0||(p.velocity||0)>0)&&p.sku).map(p=>({
@@ -57,7 +57,7 @@ async function renderFcastAcc(){
   const scored=rows.filter(r=>r.actual_units!=null);
   const months=[...new Set(scored.map(r=>r.month))].sort().reverse();
   if(!months.length){
-    const ym=new Date().toISOString().slice(0,7);
+    const ym=monthISO();
     const captured=rows.filter(r=>r.month===ym).length;
     $('content').innerHTML='<div class="empty" style="margin-top:40px">No scored months yet.<br><br>'+
       (captured?'This month’s forecast ('+captured+' SKUs) is frozen — the first accuracy scores appear after next month’s snapshot.':'The first snapshot is captured automatically when an admin or manager opens the app each month.')+'</div>';
@@ -104,7 +104,7 @@ async function renderCampaigns(){
   if(!canManage()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only.</div>';return;}
   loadingHint();
   await loadCampaigns(true);
-  const today=new Date().toISOString().slice(0,10);
+  const today=todayISO();
   const inp='style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;font-size:12.5px"';
   const state=c=>c.to_date<today?'<span class="pill pgy">done</span>':c.from_date>today?'<span class="pill pbl">upcoming</span>':'<span class="pill pgr">running</span>';
   $('content').innerHTML=(typeof roBanner==='function'?roBanner('campaigns'):'')+
@@ -172,7 +172,7 @@ async function runPlanReview(){
         acc='\n\nRecent forecast accuracy (worst misses — forecast vs actual units):\n'+worst.map(r=>r.month+' '+r.name+': F'+r.forecast_units+' vs A'+r.actual_units+' ('+r.err.toFixed(0)+'% off)').join('\n');
       }
     }catch(e){}
-    const today=new Date().toISOString().slice(0,10);
+    const today=todayISO();
     const camps=(CAMPAIGNS||[]).filter(c=>c.to_date>=today);
     const campTxt=camps.length?'\n\nPlanned/running campaigns (expect demand uplift on these):\n'+camps.map(c=>c.name+' ('+c.from_date+' to '+c.to_date+', '+(c.skus||'all products')+(c.uplift_pct?', ~+'+c.uplift_pct+'%':'')+')').join('\n'):'\n\nNo campaigns planned.';
     const q='You are Healthspan\'s demand planner doing the monthly planning review. Using the live catalog data you have (stock, velocity, months of stock, days to stockout, expiry, batches), plus the notes below, give a decisive exception report: 1) SKUs at real stockout risk in the next 60 days (consider campaign uplift — flag any campaign SKU that cannot support the promo), 2) overstock and expiry money at risk worth acting on, 3) what last month\'s worst forecast misses suggest (one-off event vs trend change), 4) exactly 5 prioritized actions for the buyer with quantities where possible. FORMAT STRICTLY as markdown with these four headings, in this order, each followed by "- " bullets (one SKU or one action per bullet, product names in **bold**, numbers exact): "## Stockout risks (next 60 days)", "## Money at risk (overstock & expiry)", "## What the forecast misses say", "## Five actions". No preamble, no closing paragraph; under 450 words.'+campTxt+acc;
@@ -598,7 +598,7 @@ async function renderReturns(){
     '<input id="rt-amt" type="number" placeholder="CM amount ₱" '+inp+' style="width:120px;'+inp.slice(7,-1)+'">'+
     '<select id="rt-act" '+inp+'><option value="restock">Back to stock (sellable)</option><option value="writeoff">Write off (damaged/expired)</option></select>'+
     '<input id="rt-why" placeholder="Reason" '+inp+' style="width:140px;'+inp.slice(7,-1)+'">'+
-    '<input id="rt-date" type="date" value="'+new Date().toISOString().slice(0,10)+'" title="Which month this credit memo belongs to" '+inp+' style="width:150px;'+inp.slice(7,-1)+'">'+
+    '<input id="rt-date" type="date" value="'+todayISO()+'" title="Which month this credit memo belongs to" '+inp+' style="width:150px;'+inp.slice(7,-1)+'">'+
     '<input id="rt-spec" list="rt-specs" placeholder="Specialist (nets their month)" '+inp+' style="width:170px;'+inp.slice(7,-1)+'"><datalist id="rt-specs">'+(typeof specNames==='function'?specNames():[]).map(x=>'<option value="'+esc(x)+'">').join('')+'</datalist>'+
     '<label style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--tx3)" title="During the parallel run a return refunded in Shopify is ALREADY out of booked sales — tick this so it is not deducted twice"><input type="checkbox" id="rt-shop"> already refunded in Shopify</label>'+
     '<button onclick="returnAdd()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer">Record</button></div></div>'+
@@ -619,7 +619,7 @@ async function returnAdd(){
   if(!canManage())return;
   const g=id=>($(id)&&$(id).value||'').trim();
   if(!g('rt-acct')||!g('rt-amt'))return alert('Need at least the account and the CM amount.');
-  const cmDate=g('rt-date')||new Date().toISOString().slice(0,10);
+  const cmDate=g('rt-date')||todayISO();
   if(typeof blockIfClosed==='function'&&blockIfClosed(cmDate,'Credit memo not recorded'))return;
   try{
     const {data,error}=await SB.from('returns').insert({account:g('rt-acct'),order_ref:g('rt-ref')||null,items:g('rt-items')||null,amount:Math.round(parseFloat(g('rt-amt'))),action:($('rt-act')||{}).value||'restock',reason:g('rt-why')||null,date:cmDate,spec:g('rt-spec')||null,shopify_refunded:!!($('rt-shop')&&$('rt-shop').checked),created_by:(SBUSER&&SBUSER.id)||null}).select().single();
@@ -1199,7 +1199,7 @@ async function renderPDC(){
   let rows=[];
   try{const {data}=await SB.from('pdcs').select('*').order('maturity');rows=data||[];}
   catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Could not load — has the pdcs table been created? (SUPABASE-SETUP.md)</div>';return;}
-  const today=new Date().toISOString().slice(0,10);
+  const today=todayISO();
   const wk=new Date(Date.now()+7*864e5).toISOString().slice(0,10);
   const d30=new Date(Date.now()+30*864e5).toISOString().slice(0,10);
   const open=rows.filter(r=>r.status==='on_hand'||r.status==='deposited');

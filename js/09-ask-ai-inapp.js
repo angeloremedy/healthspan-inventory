@@ -41,7 +41,7 @@ function askHqSections(){
   if(!SHOPIFY||!SALESIDX||typeof bizCompute!=='function'||typeof hasIntSplit!=='function'||!hasIntSplit())return '';
   const P=v=>Math.round(v||0).toLocaleString('en-PH');
   // today in Manila, not UTC: before 8 am the ISO date is still yesterday, and the model would place "this week" wrong
-  let today;try{today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Manila',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());}catch(e){today=new Date().toISOString().slice(0,10);}
+  let today;try{today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Manila',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());}catch(e){today=todayISO();}
   const S=[];const sec=(h,lines)=>{if(lines&&lines.length)S.push(h+'\n'+lines.join('\n'));};
   /* week calendar for this year (ISO weeks, Monday start) */
   {const y=+today.slice(0,4);const rows=[];const d=new Date(Date.UTC(y,0,4));d.setUTCDate(d.getUTCDate()-((d.getUTCDay()||7)-1));
@@ -240,7 +240,7 @@ function exportCSV(){
   const rows=DATA.map(p=>{const s=stk(p);return[p.sku,p.name,p.supplier||'',p.line,p.category,p.bin,p.batch,p.expiry,p.price??'',p.velocity??'',p.monthsOfStock??'',p.received,p.sold,s??'',statusOf(s).l].map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',');});
   const a=document.createElement('a');
   a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent([h.join(','),...rows].join('\n'));
-  a.download='healthspan_inventory_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.download='healthspan_inventory_'+todayISO()+'.csv';
   a.click();
 }
 
@@ -314,7 +314,7 @@ function buildMobileNav(){
     return el?el.outerHTML.replace('<svg ','<svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" '):'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>';
   };
   const mLabel=v=>{
-    const SHORT={bizreview:'Review',reports:'Reports',qbo:'QuickBooks',ask:'Ask',settings:'Settings',neworder:'Order',logvisit:'Visit',followups:'To-dos',salesdue:'Reorder',approvals:'Approve',orders:'Orders',salespace:'Pace',customers:'Accounts',fulfillq:'Fulfill',scan:'Scan',cyclecount:'Count',po:'POs',ar:'AR',pdc:'PDCs',cashflow:'Cash',returns:'Returns',campaigns:'Campaigns',promos:'Promos',salesoverview:'Sales',pipeline:'Pipeline',dashboard:'Inventory',quotes:'Quotes',complaints:'Complaints',salesevents:'Events',transfers:'Transfers',quarantine:'Quarantine',whkpi:'KPIs',suppliers:'Suppliers',valuation:'Costs',catalog:'Items',recall:'Recall',targets:'Targets',scorecards:'Reviews',users:'Team',audit:'Log',commissions:'Commis.',regs:'Regs',salestarget:'Vs target',salesfield:'Coverage',crmstats:'Activity',serials:'Serials',loans:'Loaners',expreport:'Exp. report',profile:'Profile',all:'SKUs',forecast:'Stockout',health:'Data'};
+    const SHORT={bizreview:'Review',reports:'Reports',savedreports:'Saved',qbo:'QuickBooks',ask:'Ask',settings:'Settings',neworder:'Order',logvisit:'Visit',followups:'To-dos',salesdue:'Reorder',approvals:'Approve',orders:'Orders',salespace:'Pace',customers:'Accounts',fulfillq:'Fulfill',scan:'Scan',cyclecount:'Count',po:'POs',ar:'AR',pdc:'PDCs',cashflow:'Cash',returns:'Returns',campaigns:'Campaigns',promos:'Promos',salesoverview:'Sales',pipeline:'Pipeline',dashboard:'Inventory',quotes:'Quotes',complaints:'Complaints',salesevents:'Events',transfers:'Transfers',quarantine:'Quarantine',whkpi:'KPIs',suppliers:'Suppliers',valuation:'Costs',catalog:'Items',recall:'Recall',targets:'Targets',scorecards:'Reviews',users:'Team',audit:'Log',commissions:'Commis.',regs:'Regs',salestarget:'Vs target',salesfield:'Coverage',crmstats:'Activity',serials:'Serials',loans:'Loaners',expreport:'Exp. report',profile:'Profile',all:'SKUs',forecast:'Stockout',health:'Data'};
     if(SHORT[v])return SHORT[v];
     const el=document.querySelector('.nav .ni[onclick*="\''+v+'\'"]');
     if(!el)return v;
@@ -375,7 +375,7 @@ async function sbLoadProfile(user){
   SBUSER=user;
   try{const {data}=await SB.from('profiles').select('name,role,specialist_tag,is_super,can_manage_ps').eq('id',user.id).single();SBPROFILE=data||null;}
   catch(e){try{const {data}=await SB.from('profiles').select('name,role,specialist_tag').eq('id',user.id).single();SBPROFILE=data||null;}catch(e2){SBPROFILE=null;}}
-  ROLE=(SBPROFILE&&SBPROFILE.role)||'sales';
+  ROLE=(SBPROFILE&&SBPROFILE.role)||'viewer'; // no profile = least access, never a guess at 'sales'
   try{localStorage.setItem('hs_role_cache',ROLE);localStorage.setItem('hs_name_cache',(SBPROFILE&&SBPROFILE.name)||'');}catch(e){}
   const g=$('rolegate');if(g)g.style.display='none';
   document.body.classList.add('authed'); // mobile bars render only when signed in
@@ -389,6 +389,7 @@ async function sbLoadProfile(user){
   try{await prefsPull();}catch(e){}         // favourites, bottom bar, Ask preference — from the account, not the device
   try{await loadFlags(true);if(flagOn('use_catalog_pricing')){await loadItems(true);applyCatalog();}}catch(e){} // cutover switches
   try{maybeSnapshotForecast();}catch(e){}   // monthly forecast freeze (runs if data is ready)
+  try{if(typeof maybeSnapshotReview==='function')maybeSnapshotReview();}catch(e){} // 15th / month-end review checkpoints (runs if data is ready)
   // endpoints are session-locked: pull anything that failed before sign-in
   try{syncNow();}catch(e){}
   try{if(!SHOPIFY)loadShopify();}catch(e){}

@@ -44,7 +44,7 @@ function bizYtdMonths(ym){const m=+ym.slice(5,7);const out=[];for(let k=1;k<=m;k
 function bizDaysIn(ym){return new Date(Date.UTC(+ym.slice(0,4),+ym.slice(5,7),0)).getUTCDate();}
 function bizMonthLbl(ym){return new Date(Date.UTC(+ym.slice(0,4),+ym.slice(5,7)-1,1)).toLocaleDateString('en-PH',{month:'long',year:'numeric',timeZone:'UTC'});}
 function bizShortLbl(ym){return new Date(Date.UTC(+ym.slice(0,4),+ym.slice(5,7)-1,1)).toLocaleDateString('en-PH',{month:'short',timeZone:'UTC'});}
-function bizToday(){return new Date().toISOString().slice(0,10);} // UTC, like the cache's month keys and sumPeriod
+function bizToday(){return todayISO();} // UTC, like the cache's month keys and sumPeriod
 function bizPct(a,b){return (b>0)?a/b*100:null;}
 function bizFmtPct(p){return p==null?'—':Math.round(p)+'%';}
 function bizCompact(v){v=Math.round(v||0);const a=Math.abs(v);if(a>=1e6)return (v<0?'-':'')+'₱'+(a/1e6).toFixed(a>=1e7?1:2).replace(/\.?0+$/,'')+'M';if(a>=1e3)return (v<0?'-':'')+'₱'+(a/1e3).toFixed(0)+'K';return '₱'+v.toLocaleString('en-PH');}
@@ -409,6 +409,35 @@ async function bizSnapshot(){
       created_by:(SBUSER&&SBUSER.id)||null,created_name:(SBPROFILE&&SBPROFILE.name)||''});
     if(error)throw error;audit('review.snapshot',{month:BIZ.ym,asOf:BIZ.R.asOf});await loadBizSnaps();renderBizReview();}
   catch(e){alert('Could not save the snapshot: '+(e.message||e)+(String(e.message||'').includes('review_snapshots')?' — run the review_snapshots SQL from SUPABASE-SETUP.md first.':''));if(b){b.disabled=false;b.textContent='Save snapshot';}}}
+/* ── automatic checkpoints: the 15th and the month-end ─────────────────────────
+   "Since last report" used to depend on somebody remembering to press Save
+   snapshot. Now the first admin or manager whose app opens on or after the 15th
+   freezes the mid-month checkpoint, and the first one in a new month freezes the
+   closed month (its numbers are final by then, so that one is exact). One row per
+   month per checkpoint — a unique index makes a second attempt a no-op. The nightly
+   job pings admins/managers on those days so the app does get opened. Hand-saved
+   snapshots are unaffected (checkpoint null). */
+async function maybeSnapshotReview(){
+  try{
+    if(window._rsnapDone||!SB||!SBUSER||!roleIn('admin','manager'))return;
+    if(!(SHOPIFY&&SHOPIFY.recent&&SHOPIFY.recent.length)||!hasIntSplit())return; // sales cache not ready yet — try on the next boot
+    window._rsnapDone=true;
+    const today=bizToday(),ym=today.slice(0,7),day=+today.slice(8,10);
+    const due=[{month:bizPrevYm(ym),cp:'end'}];
+    if(day>=15)due.push({month:ym,cp:'mid'});
+    const from=bizOrdersFrom();
+    for(const x of due){
+      if(from&&(x.month+'-01')<from)continue; // the order index does not reach back that far — nothing honest to freeze
+      const {data,error}=await SB.from('review_snapshots').select('id').eq('month',x.month).eq('checkpoint',x.cp).limit(1);
+      if(error||(data&&data.length))continue;
+      try{await Promise.all([loadVisits(),typeof loadOwners==='function'?(OWNERS?null:loadOwners()):null,typeof loadSerials==='function'?(SERIALS?null:loadSerials()):null,typeof loadLoans==='function'?(LOANS?null:loadLoans()):null]);}catch(e){}
+      const R=bizCompute(x.month);
+      const {error:e2}=await SB.from('review_snapshots').insert({month:x.month,as_of:R.asOf,data:bizSnapSlim(R),notes:{},checkpoint:x.cp,
+        created_by:(SBUSER&&SBUSER.id)||null,created_name:'Automatic checkpoint ('+(x.cp==='mid'?'mid-month':'month-end')+')'});
+      if(!e2)audit('review.snapshot.auto',{month:x.month,checkpoint:x.cp,asOf:R.asOf});
+    }
+  }catch(e){}
+}
 async function bizAiDraft(section){
   // asks the same /ask job the chat uses, with the report figures as the live data
   if(!bizCanEdit(section)||!BIZ.R)return;const id=section.replace(/[^a-z0-9]/gi,'_');const ta=$('bz-'+id),st=$('bzs-'+id);if(!ta)return;

@@ -76,8 +76,16 @@ export const handler = async (event) => {
     }
     if (act === 'share') {
       const id = String(body.id || ''); if (!/^[A-Za-z0-9_-]{10,}$/.test(id)) return out(400, { error: 'Bad file id' });
-      const emails = [...new Set((Array.isArray(body.emails) ? body.emails : []).concat([who.email]).map(e => String(e || '').trim().toLowerCase()).filter(e => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)))].slice(0, 25);
-      const shared = [], failed = [];
+      const asked = [...new Set((Array.isArray(body.emails) ? body.emails : []).concat([who.email]).map(e => String(e || '').trim().toLowerCase()).filter(e => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)))].slice(0, 25);
+      // company decks go to company people: only addresses that hold an HQ login
+      // (or share the caller's own domain) — never an arbitrary outside mailbox
+      let hq = new Set();
+      try { const us = await fetch(SB_URL + '/auth/v1/admin/users?per_page=500', { headers: { apikey: SVC, Authorization: 'Bearer ' + SVC } }).then(r => r.json());
+        for (const u of (us.users || [])) if (u.email) hq.add(String(u.email).toLowerCase()); } catch (e) {}
+      const myDom = String(who.email || '').split('@')[1] || '';
+      const emails = asked.filter(e => hq.has(e) || (myDom && e.endsWith('@' + myDom)));
+      const refused = asked.filter(e => !emails.includes(e));
+      const shared = [], failed = [].concat(refused);
       for (const em of emails) {
         const r = await fetch('https://www.googleapis.com/drive/v3/files/' + id + '/permissions?supportsAllDrives=true&sendNotificationEmail=false', {
           method: 'POST', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' },

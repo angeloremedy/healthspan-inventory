@@ -57,22 +57,25 @@ RIGHT_INSET = 5.845
 # Text is inset 6pt on BOTH sides of the 493pt frame (measured: body runs 57→538),
 # but the tinted panels and tables bleed to the full frame width from x=51 — which is
 # why the inset lives on the styles and the frame itself carries zero padding.
+# Pagination rules (2026-09-08): a heading never sits alone at the foot of a page
+# (keepWithNext — Platypus glues it to the flowable after it), and a paragraph never
+# leaves a single line behind or carries a single line over (no widows, no orphans).
 S_H1    = ParagraphStyle('h1', fontName='DVB', fontSize=17, leading=21, textColor=BLUE,
-                         spaceBefore=14, spaceAfter=6, leftIndent=6, rightIndent=RIGHT_INSET)
+                         spaceBefore=14, spaceAfter=6, leftIndent=6, rightIndent=RIGHT_INSET, keepWithNext=1)
 S_H2    = ParagraphStyle('h2', fontName='DVB', fontSize=12.5, leading=16, textColor=BLUE,
-                         spaceBefore=10, spaceAfter=4, leftIndent=6, rightIndent=RIGHT_INSET)
+                         spaceBefore=10, spaceAfter=4, leftIndent=6, rightIndent=RIGHT_INSET, keepWithNext=1)
 S_BODY  = ParagraphStyle('p',  fontName='DVS', fontSize=9.5, leading=14, textColor=INK,
-                         spaceAfter=5, leftIndent=6, rightIndent=RIGHT_INSET)
+                         spaceAfter=5, leftIndent=6, rightIndent=RIGHT_INSET, allowWidows=0, allowOrphans=0)
 # The originals do not use reportlab bullets: the number is literal text and the
 # continuation lines sit flush under it (both at x=77), so there is no hanging indent.
 S_STEP  = ParagraphStyle('li', fontName='DVS', fontSize=9.5, leading=14, textColor=INK,
-                         spaceAfter=3, leftIndent=26, rightIndent=RIGHT_INSET)
+                         spaceAfter=3, leftIndent=26, rightIndent=RIGHT_INSET, allowWidows=0, allowOrphans=0)
 S_SMALL = ParagraphStyle('sm', fontName='DVS', fontSize=8, leading=11.5, textColor=MUT,
-                         spaceAfter=5, leftIndent=6, rightIndent=RIGHT_INSET)
+                         spaceAfter=5, leftIndent=6, rightIndent=RIGHT_INSET, allowWidows=0, allowOrphans=0)
 S_TH    = ParagraphStyle('th', fontName='DVB', fontSize=8.5, leading=11, textColor=HexColor('#FFFFFF'))
 S_TD    = ParagraphStyle('td', fontName='DVS', fontSize=8.5, leading=12, textColor=INK)
 
-S_CALL  = ParagraphStyle('call', fontName='DVS', fontSize=9, leading=13, textColor=INK)
+S_CALL  = ParagraphStyle('call', fontName='DVS', fontSize=9, leading=13, textColor=INK, allowWidows=0, allowOrphans=0)
 
 def gap(h):  return Spacer(1, h)
 def h1(t):   return Paragraph(t, S_H1)

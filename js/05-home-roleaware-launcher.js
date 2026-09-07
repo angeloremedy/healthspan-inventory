@@ -384,7 +384,7 @@ async function renderAR(){
     '<div class="met" style="border-left:3px solid var(--rd)"><div class="met-lbl">Over 90 days</div><div class="met-val" style="font-size:15px;color:var(--rd)">'+fmtPeso(T2.d90)+'</div><div class="met-sub">collection risk</div><div class="met-bar"></div></div>'+
     '</div>'+
     '<div style="font-size:11.5px;color:var(--tx3);margin-bottom:12px">Collection rate all-time: <b>'+(booked?(collected/booked*100).toFixed(1):0)+'%</b> ('+fmtPeso(collected)+' of '+fmtPeso(booked)+' booked) · payment statuses sync from Shopify via the backfill; ages count from order date + terms days where noted (e.g. “PDC 30 days”)</div>'+
-    (canManage()?(function(){const m0=new Date();const from=new Date(m0.getFullYear(),m0.getMonth(),1).toISOString().slice(0,10);const to=new Date().toISOString().slice(0,10);
+    (canManage()?(function(){const m0=new Date();const from=new Date(m0.getFullYear(),m0.getMonth(),1).toISOString().slice(0,10);const to=todayISO();
       const di='style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:7px 9px;font-size:12px"';
       return '<div class="panel" style="padding:10px 14px;margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:12px">Accounting export</b>'+
       '<input type="date" id="ax-from" value="'+from+'" '+di+'> <span style="font-size:12px;color:var(--tx3)">to</span> <input type="date" id="ax-to" value="'+to+'" '+di+'>'+
@@ -407,7 +407,7 @@ async function recordPayment(id){
   if(!amt||amt<=0)return;
   if(o.source==='shopify'&&!confirm('This is a migrated Shopify order — the payment sync will overwrite this next backfill run. Record here anyway? (Better: mark it paid in Shopify.)'))return;
   // cash needs its own date: a July invoice paid today is TODAY's collection
-  const today=new Date().toISOString().slice(0,10);
+  const today=todayISO();
   const pdate=(prompt('Date received (YYYY-MM-DD):',today)||'').trim();
   if(!pdate)return;
   if(!/^\d{4}-\d{2}-\d{2}$/.test(pdate))return alert('Use the form 2026-08-28 — nothing recorded.');
@@ -477,15 +477,15 @@ function showSpecPage(name){
   renderSpecPage();
   injectDesc('spec');
 }
-function calShift(d){const [y,m]=(CAL_YM||new Date().toISOString().slice(0,7)).split('-').map(Number);const nd=new Date(y,m-1+d,1);CAL_YM=nd.getFullYear()+'-'+String(nd.getMonth()+1).padStart(2,'0');CAL_SEL=null;renderSpecPage();}
+function calShift(d){const [y,m]=(CAL_YM||monthISO()).split('-').map(Number);const nd=new Date(y,m-1+d,1);CAL_YM=nd.getFullYear()+'-'+String(nd.getMonth()+1).padStart(2,'0');CAL_SEL=null;renderSpecPage();}
 function calPick(day){CAL_SEL=day;renderSpecPage();}
 async function renderSpecPage(){
   const name=CUR_SPEC;if(!name){showView(SPEC_BACK);return;}
   await Promise.all([loadVisits(),loadNativeOrders()]);
   const specs=specMerged();const sp=specs[name]||specs[Object.keys(specs).find(k=>k.toLowerCase()===name.toLowerCase())]||{monthly:{},daily:{},skus:{}};
   const isMine=v=>specCanon(v).toLowerCase()===name.toLowerCase();
-  const ymNow=new Date().toISOString().slice(0,10).slice(0,7);
-  const today=new Date().toISOString().slice(0,10);
+  const ymNow=todayISO().slice(0,7);
+  const today=todayISO();
   const myVisits=(VISITS||[]).filter(v=>isMine(v.spec||''));
   const myOrders=(NORDERS||[]).filter(o=>isMine(o.spec||'')&&!o.deleted_at&&o.status!=='cancelled');
   // forced: this is the quota figure, and a quota never counts Remedy or internal
@@ -586,7 +586,7 @@ async function renderFulfillQ(){
   loadingHint();
   const boQ=SB?SB.from('backorders').select('*').eq('status','open').order('id'):Promise.resolve({data:[]});
   await loadNativeOrders(true);
-  const today=new Date().toISOString().slice(0,10);
+  const today=todayISO();
   const held=(NORDERS||[]).filter(o=>o.status==='pending'&&!o.deleted_at&&o.approved===false).length;
   const pend=(NORDERS||[]).filter(o=>o.status==='pending'&&!o.deleted_at&&o.approved!==false).sort((a,b)=>a.date<b.date?-1:1);
   const age=d=>Math.max(0,Math.round((Date.now()-new Date(d))/864e5));
@@ -651,7 +651,7 @@ async function showPickSlip(ref){
     '<button onclick="window.print()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer">🖨 Print</button></div>'+
     '<div class="printdoc">'+
     '<div style="display:flex;justify-content:space-between;align-items:flex-start"><div>'+hsLogo(34,'#00168F')+'<div style="font-size:19px;font-weight:800;margin-top:5px">HEALTHSPAN GLOBAL, INC.</div><div style="font-size:12px;color:#555">Pick List & Packing Slip</div></div>'+
-    '<div style="text-align:right;font-size:12px"><b style="font-size:15px">'+esc(ordLabel(o))+'</b><br>Date: '+esc(o.date)+'<br>Printed: '+new Date().toISOString().slice(0,10)+'</div></div>'+
+    '<div style="text-align:right;font-size:12px"><b style="font-size:15px">'+esc(ordLabel(o))+'</b><br>Date: '+esc(o.date)+'<br>Printed: '+todayISO()+'</div></div>'+
     '<div style="display:flex;gap:30px;margin:14px 0;font-size:12.5px"><div><b>Deliver to</b><br>'+esc(o.account||'—')+'</div><div><b>Specialist</b><br>'+esc(o.spec||'—')+'</div><div><b>Status</b><br>'+esc(o.status)+'</div></div>'+
     '<table><thead><tr><th>Product</th><th>SKU</th><th>Qty</th><th>Bin</th><th>Batch (FEFO)</th><th>Expiry</th><th>Pull</th><th>✓</th></tr></thead><tbody>'+rows+'</tbody></table>'+
     '<div style="text-align:right;font-weight:700;font-size:14px">Total: '+fmtPeso(o.total)+'</div>'+
@@ -666,7 +666,7 @@ async function showPickSlip(ref){
 
 /* ── FIELD COVERAGE — Veeva-style specialist activity, computed from bookings ── */
 function fieldPeriodRange(){
-  const today=new Date().toISOString().slice(0,10);
+  const today=todayISO();
   const back=d=>new Date(Date.now()-d*864e5).toISOString().slice(0,10);
   if(SPERIOD==='today')return[today,today];
   if(SPERIOD==='yest'){const y=back(1);return[y,y];}

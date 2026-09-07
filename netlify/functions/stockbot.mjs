@@ -38,7 +38,7 @@ export const handler = async (event) => {
   const base = process.env.URL || ('https://' + event.headers.host);
   await fetch(base + '/.netlify/functions/stockbot-work-background', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-job-key': process.env.JOB_KEY || '' },
     body: JSON.stringify({ text, response_url: responseUrl })
   });
 

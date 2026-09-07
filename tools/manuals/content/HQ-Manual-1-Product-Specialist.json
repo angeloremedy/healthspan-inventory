@@ -191,7 +191,7 @@
   },
   {
    "t": "step",
-   "v": "Fast open: HQ paints from the copy saved on your device and refreshes quietly behind it, so a second visit is near-instant even on clinic wifi. The Sync button forces a live read of the sheet when you need the number right now.",
+   "v": "Fast open: HQ paints from the copy saved on your device and refreshes quietly behind it, so a second visit is near-instant even on clinic wifi. <b>Sync now</b>, at the bottom of the sidebar under the Synced timestamp (Sync in the phone bar), forces a live read of the sheet when you need the number right now; otherwise the data refreshes itself every 15 minutes.",
    "n": "2"
   },
   {
@@ -635,8 +635,13 @@
   },
   {
    "t": "step",
-   "v": "Anyone with a login can file one. Fill it in, submit, then attach the supporting documents to the row that appears in the register underneath — quotations, receipts, bank approvals, BIR forms.",
+   "v": "Anyone with a login can file one. Fill it in and <b>add the supporting documents before you submit</b> — the form has an Add file / Add receipt control that takes photos straight from a phone camera, or PDFs. They upload the moment the request is filed; you can still add more from the row in the register afterwards.",
    "n": "1"
+  },
+  {
+   "t": "step",
+   "n": 2,
+   "v": "<b>Expense reimbursement</b> and <b>Expense report (revolving fund)</b> will not submit without at least one receipt — finance cannot process a line without one, so the form does not let it leave without one either."
   },
   {
    "t": "step",
@@ -819,6 +824,61 @@
    "t": "step",
    "n": "8",
    "v": "<b>Settings</b> (footer or phone menu) holds theme and light/dark mode, Change password, Sign out, favourites, the bottom bar and your manual. My profile is your sales page — chips, calendar, chart, orders, visits — with \"Your month in numbers\" (booked vs target, pace, rank, accounts, new, quiet, contacts) and your finance forms and loaners underneath."
+  },
+  {
+   "t": "h1",
+   "v": "<b>Saved reports — your own reports, on a schedule</b>"
+  },
+  {
+   "t": "p",
+   "v": "Sales analytics → <b>Saved reports</b> is the report builder: pick a source, tick the columns you want, add filters, group and total, sort by clicking a header, and save it under a name. Run it whenever, export the CSV, or put it on a schedule and let HQ run it for you."
+  },
+  {
+   "t": "h2",
+   "v": "<b>Building one</b>"
+  },
+  {
+   "t": "step",
+   "n": 1,
+   "v": "<b>+ New report</b>, name it, choose a <b>source</b>. Yours are: stock on hand, batches &amp; expiry, your sales lines, your HQ orders, your accounts, your visits, your quotations, and loaners."
+  },
+  {
+   "t": "step",
+   "n": 2,
+   "v": "Tick the <b>columns</b> (none ticked = the first eight). Add <b>filters</b> — text (equals, contains, in a list), numbers (greater / less than), dates (on, after, before, last N days, this month, last month, this year). All filters must match."
+  },
+  {
+   "t": "step",
+   "n": 3,
+   "v": "<b>Group by</b> a column to get one row per value with a count and any totals you add (sum, average, min, max of a number column). Click a header in the preview to sort; the row cap keeps very large results sane."
+  },
+  {
+   "t": "step",
+   "n": 4,
+   "v": "The <b>preview</b> updates as you build (first 200 rows on screen; the export has everything). <b>Save</b>, then <b>Export CSV</b> opens in Excel or Sheets."
+  },
+  {
+   "t": "h2",
+   "v": "<b>Scheduling and sharing</b>"
+  },
+  {
+   "t": "step",
+   "n": 1,
+   "v": "Set the schedule to <b>every day, every week</b> (pick the weekday) <b>or every month</b> (pick the day, or the last day). At <b>6am Manila</b> the server runs the report as you and files the CSV under <b>Runs on the server</b>; the bell tells you it is ready. Nothing is e-mailed — the file stays inside HQ."
+  },
+  {
+   "t": "step",
+   "n": 2,
+   "v": "<b>Run on the server now</b> proves a schedule before waiting for the morning. Each run keeps its own CSV, so last week’s numbers stay downloadable next to this week’s."
+  },
+  {
+   "t": "step",
+   "n": 3,
+   "v": "Tick <b>Shared</b> to let everyone who may read that source open the report; they can run and export it, only you (or an admin) can change or delete it."
+  },
+  {
+   "t": "callout",
+   "v": "THE SAME RULES AS EVERY PAGE — a report you build only ever contains your own accounts, orders, visits and sales lines; cost figures appear only for the roles that see costs elsewhere, in the preview and in the scheduled file alike. A schedule can never show more than the person who saved it could see."
   },
   {
    "t": "h1",

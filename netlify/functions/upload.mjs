@@ -61,11 +61,11 @@ async function driveToken() {
 
 async function caller(event) {
   const token = (event.headers.authorization || event.headers.Authorization || '').replace(/^Bearer\s+/i, '');
-  if (!token) return null;
+  if (!token || !SB_URL || !SVC) return null; // fail closed when the server is not configured
   try {
     const r = await fetch(SB_URL + '/auth/v1/user', { headers: { apikey: SVC, Authorization: 'Bearer ' + token } });
     if (!r.ok) return null;
-    return await r.json();
+    const u = await r.json(); u._token = token; return u;
   } catch (e) { return null; }
 }
 const out = (code, body, headers) => ({ statusCode: code, headers: { 'Content-Type': 'application/json', ...(headers || {}) }, body: typeof body === 'string' ? body : JSON.stringify(body) });
@@ -79,13 +79,15 @@ export const handler = async (event) => {
   if (event.httpMethod === 'GET') {
     const id = (event.queryStringParameters || {}).id || '';
     if (!/^[A-Za-z0-9_-]{10,}$/.test(id)) return out(400, { error: 'Bad file id' });
-    // only serve files HQ has a record of — the robot can reach the whole
-    // folder, so without this a guessed id would be readable
+    // only serve files HQ has a record of — AND only ones this person may see.
+    // The lookup runs AS THE CALLER (their JWT, not the service key), so the
+    // attachments RLS policy decides: a finance receipt is invisible to anyone
+    // who is not its requester, an approver on its route, finance or admin.
     try {
       const chk = await fetch(SB_URL + '/rest/v1/attachments?select=id&limit=1&file_id=eq.' + encodeURIComponent(id),
-        { headers: { apikey: SVC, Authorization: 'Bearer ' + SVC } });
+        { headers: { apikey: SVC, Authorization: 'Bearer ' + who._token } });
       const rows = await chk.json();
-      if (!Array.isArray(rows) || !rows.length) return out(404, { error: 'Not an HQ attachment' });
+      if (!Array.isArray(rows) || !rows.length) return out(404, { error: 'Not an HQ attachment you can open' });
     } catch (e) { return out(500, { error: 'Could not verify the file' }); }
     try {
       const tok = await driveToken();

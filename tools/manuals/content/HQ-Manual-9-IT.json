@@ -334,8 +334,13 @@
   },
   {
    "t": "step",
-   "v": "Anyone with a login can file one. Fill it in, submit, then attach the supporting documents to the row that appears in the register underneath — quotations, receipts, bank approvals, BIR forms.",
+   "v": "Anyone with a login can file one. Fill it in and <b>add the supporting documents before you submit</b> — the form has an Add file / Add receipt control that takes photos straight from a phone camera, or PDFs. They upload the moment the request is filed; you can still add more from the row in the register afterwards.",
    "n": "1"
+  },
+  {
+   "t": "step",
+   "n": 2,
+   "v": "<b>Expense reimbursement</b> and <b>Expense report (revolving fund)</b> will not submit without at least one receipt — finance cannot process a line without one, so the form does not let it leave without one either."
   },
   {
    "t": "step",

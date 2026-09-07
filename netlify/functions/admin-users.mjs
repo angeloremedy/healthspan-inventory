@@ -133,6 +133,13 @@ export const handler = async (event) => {
     if (act === 'password') {
       const { id, password } = p;
       if (!id || !password || password.length < 8) return out(400, { error: 'Need id and an 8+ character password' });
+      // an admin may reset staff passwords, never another admin's — that would be
+      // a quiet account takeover. Only the super admin resets an admin.
+      if (id !== caller.id && !callerSuper) {
+        try { const t = await svc('/rest/v1/profiles?id=eq.' + id + '&select=role,is_super');
+          if (t && t[0] && (t[0].role === 'admin' || t[0].is_super)) { await log('user.PROTECTED', { attempted: 'password', target: id.slice(0, 8) }); return out(403, { error: 'Only the super admin can reset another admin’s password.' }); }
+        } catch (e) { return out(403, { error: 'Target check failed' }); }
+      }
       await svc('/auth/v1/admin/users/' + id, 'PUT', { password });
       await log('user.password', { id: id.slice(0, 8) });
       return out(200, { ok: true });

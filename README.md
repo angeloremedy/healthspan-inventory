@@ -182,9 +182,10 @@ every tab once, every 15 minutes, and keeps the result as a snapshot; a page
 load fetches that snapshot in about a tenth of a second instead of waiting on a
 dozen Sheets calls. The snapshot is at most 15 minutes old — the same promise
 the sidebar footer already made. When you need the sheet *right now* (Verna
-just posted a receipt, a count was corrected), press **Sync from Google
-Sheets** in the sidebar (or Sync on the phone bar): that button, and only that
-button, reads the sheet live and replaces the snapshot for everyone else too.
+just posted a receipt, a count was corrected), press **Sync now** at the bottom
+of the sidebar, under the Synced timestamp (or **Sync** on the phone bar): that
+button, and only that button, reads the sheet live and replaces the snapshot for
+everyone else too.
 
 ## 9.1 Quotations
 
@@ -376,6 +377,15 @@ Pull-out requests carry attachments today; the finance forms will use the same
 control. The super admin can verify the wiring at any time from Cutover →
 Attachments → Test the connection.
 
+**Receipts go in while you file.** Every form has an *Add file* / *Add receipt*
+control (a phone offers the camera; PDFs work too). The files are staged in the
+form and uploaded the moment the request row exists, so the approver sees them
+with the request rather than a promise of them. Expense reimbursement and the
+expense report (revolving fund) refuse to submit without at least one receipt —
+finance cannot process a line without one, so the form does not let it leave
+without one either. The row of form buttons above the forms is gone: the
+Finance area of the sidebar already lists all seven.
+
 ## 9.12 Favourites
 
 Star any page — the star sits next to the bell in the top bar — and it pins to
@@ -437,6 +447,18 @@ lent twice. Overdue loans ping whoever checked the unit out, nightly, once per
 loan. Return puts the serial back in stock with a condition note; a demo that
 closes converts to a sale against the order you name, and the serial is marked
 sold. Loans carry LN- numbers.
+
+Every unit also carries a **warranty end date** and a **service & repair
+history**. The Warranty column is green while the warranty holds, amber inside
+60 days and red once lapsed; a *Warranty due* tab lists the units to act on, and
+the warehouse is pinged 30 days before a lapse and again when it has happened.
+*history* on any row opens the unit's panel: where it is (warehouse, the clinic
+that has it on loan, or the account it was sold to — the holder follows loans,
+returns and sales automatically), the warranty, and every service, repair,
+calibration or inspection logged against it with the vendor, what was done,
+what it cost and when the next one is due. A "next due" date pings the warehouse
+when it arrives. Service costs are costs: admin, finance and the warehouse see
+them; a sales manager sees the event without the figure.
 
 Wave picking lives in the fulfillment queue: tick two or more pending orders and
 release them as one WV-numbered pick list — lines merged per SKU, sorted by bin,
@@ -633,6 +655,14 @@ Windows to know: revenue and targets go back 13 months; orders, accounts and
 buying behaviour go back as far as the order index (about six months — the page
 says so and blanks those sections for older months); the visit log covers 120
 days. In the first three days of a month the page will not project the month.
+
+**Two snapshots take themselves.** On or after the 15th the first admin or
+manager to open HQ freezes the *mid-month checkpoint*; in the first days of a
+new month the same happens for the month that just closed (its numbers are final
+by then, so that one is exact). One row per month per checkpoint — a second
+attempt is a no-op — and the nightly job reminds admins and managers on those
+days so the app does get opened. Save snapshot is still there for any extra
+point you want to mark; "since last report" simply no longer depends on it.
 
 ## 9.17e Settings
 
@@ -989,6 +1019,35 @@ puts it straight back to preview. The SQL for the three tables and the Intuit
 app setup (client id, secret, redirect URI, `QBO_ENV`) are in SUPABASE-SETUP.md
 under "QuickBooks Online connector".
 
+## 9.23 Saved reports — the reporting layer
+
+Sales analytics → **Saved reports** is what people who came from NetSuite mean by
+a *saved search*: pick a source, tick the columns, add filters, group and total,
+sort, and save it under a name. The preview updates as you build (first 200 rows
+on screen; the export has everything); **Export CSV** opens in Excel or Sheets.
+
+Sources are the datasets HQ already holds — stock on hand and batches from the
+master sheet, sales lines from Shopify, HQ orders and order lines, accounts,
+visits, quotations, payments, purchase orders, the finance-forms register,
+equipment serials and loaners. Each source lists which roles may read it; a
+specialist's report only ever contains their own rows on the sources that carry
+a specialist; and cost columns (PO invoice totals, FX, landed cost) are stripped
+for anyone who is not admin, finance or the warehouse. Filters understand text
+(equals, contains, in a list), numbers, and dates (on / after / before, last N
+days, this month, last month, this year); grouping gives one row per value with
+a count and any sum / average / min / max you add.
+
+**Schedules.** Set a report to run every day, every week (pick the weekday) or
+every month (pick the day, or the last day). At 6am Manila a Netlify function
+runs it *as you* — your role and specialist tag looked up fresh — with the very
+same engine the browser used for the preview (`js/15-report-engine.js` is
+loaded by both), writes the CSV into HQ's own storage, records the run, and
+rings your bell. Nothing is e-mailed; the file never leaves HQ. *Run on the
+server now* proves a schedule before waiting for the morning; every run keeps
+its own CSV so last week's numbers stay downloadable next to this week's.
+**Shared** lets everyone who may read the source open the report (run and
+export only — the owner and admins edit or delete). Viewers do not see the page.
+
 ## 9.85 Rhythm, nudges & transfers
 
 Dormancy alerts follow the account's tier — an A-clinic going 30 days quiet
@@ -1017,6 +1076,24 @@ yourself, nobody can touch the super admin account, and only the super admin
 can permanently delete a login. IT (`can_manage_ps`) sees this page too, but
 only to create and disable/enable product-specialist accounts. Send starter
 passwords privately; people change them in-app.
+
+## 10.5 The 2026-09-08 security audit, in one paragraph
+
+An app-wide audit was run and its findings closed the same day. Every background
+job now refuses to run without `JOB_KEY` (before, an unset key meant open); the
+Ask and Slack workers require it and the Slack worker only posts to Slack; the
+question log is written by the workers and read by admins only; the sync,
+Shopify and visits endpoints fail closed when the Supabase env is missing; an
+admin can no longer reset another admin's password; attachment downloads are
+authorised by the attachments RLS as the caller; deck sharing reaches HQ
+accounts or the company domain only; the CRM master, pipeline and contacts are
+writable by the roles that own the relationship rather than by any login; the
+activity log is admin-only in the database as well as the UI; notification links
+must be in-app routes; every deep link runs through the same permission check as
+the sidebar; the browser reckons "today" in Manila; sixteen tables joined the
+nightly backup; and the site ships security headers with a Content-Security-Policy
+in report-only mode for a week before it is enforced. PERMISSIONS.md has the
+detail; SUPABASE-SETUP.md has the SQL.
 
 ## 11. Odds and ends
 

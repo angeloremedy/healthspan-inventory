@@ -278,7 +278,7 @@ function renderForecast(){
   // campaign banner: promos that will bend these numbers (async, non-blocking)
   (async()=>{try{
     await loadCampaigns();
-    const today=new Date().toISOString().slice(0,10);
+    const today=todayISO();
     const live=(CAMPAIGNS||[]).filter(c=>c.to_date>=today);
     const host=$('content');
     if(live.length&&host&&currentView==='forecast'){
@@ -352,7 +352,7 @@ function exportReorderCSV(){
   const meta='"Healthspan Global Inc. - Draft reorder plan","Generated '+new Date().toLocaleString('en-PH',{timeZone:'Asia/Manila'})+'","Lead time: '+PLAN.lead+'d","Coverage: '+PLAN.cover+'mo","Safety: '+PLAN.safety+'d"';
   const a=document.createElement('a');
   a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent([meta,h.join(','),...csv].join('\n'));
-  a.download='healthspan_reorder_plan_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.download='healthspan_reorder_plan_'+todayISO()+'.csv';
   a.click();
 }
 
@@ -413,7 +413,7 @@ function exportROPCSV(){
   const meta='"Healthspan Global Inc. - Reorder points & safety stock","Generated '+new Date().toLocaleString('en-PH',{timeZone:'Asia/Manila'})+'","Service level: '+PLAN.service+'% (z='+zFor(PLAN.service).toFixed(2)+')"';
   const a=document.createElement('a');
   a.href='data:text/csv;charset=utf-8,﻿'+encodeURIComponent([meta,h.join(','),...csv].join('\n'));
-  a.download='healthspan_reorder_points_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.download='healthspan_reorder_points_'+todayISO()+'.csv';
   a.click();
 }
 

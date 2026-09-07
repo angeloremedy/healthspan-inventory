@@ -24,7 +24,7 @@ const now=new Date(); const ym=now.getFullYear()+'-'+pad(now.getMonth()+1);
 const prevD=new Date(Date.UTC(now.getFullYear(),now.getMonth()-1,1)); const pym=prevD.toISOString().slice(0,7);
 const nextD=new Date(Date.UTC(now.getFullYear(),now.getMonth()+1,1)); const nym=nextD.toISOString().slice(0,7);
 const today=ym+'-'+pad(now.getDate());
-const ago=n=>new Date(Date.now()-n*864e5).toISOString().slice(0,10);
+const ago=n=>new Date(Date.now()+8*3600e3-n*864e5).toISOString().slice(0,10); // Manila days, like the app
 const FIX={ym,pym,nym,today,d70:ago(70),d200:ago(200)};
 
 const test=`

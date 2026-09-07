@@ -114,7 +114,7 @@ async function homeLive(){
   try{if(!SHOPIFY)loadShopify();}catch(e){}
   try{if(!VISITS)loadVisits().then(()=>{if(currentView==='home')homeLive();});}catch(e){}
   try{if(!NORDERS&&ROLE!=='sales')loadNativeOrders().then(()=>{if(currentView==='home')homeLive();});}catch(e){}
-  const ym=new Date().toISOString().slice(0,7);
+  const ym=monthISO();
   const myTag=(ROLE==='sales'&&SBPROFILE&&SBPROFILE.specialist_tag)||'';
   const chip=(v,label,sub,color,go)=>'<div onclick="homeGo(\''+go+'\')" style="cursor:pointer;flex:1;min-width:150px;background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:10px 14px">'+
     '<div style="font-size:19px;font-weight:800;color:'+color+'">'+v+'</div><div style="font-size:10.5px;color:var(--tx3)">'+label+(sub?' · '+sub:'')+'</div></div>';
@@ -144,7 +144,7 @@ async function homeLive(){
   if(VISITS){
     const mine=v=>!myTag||specCanon(v.spec||'').toLowerCase()===specCanon(myTag).toLowerCase();
     const fu=(VISITS||[]).filter(v=>v.status!=='planned'&&v.outcome==='Follow-up needed'&&!v.fu_done&&mine(v)).length;
-    const today=new Date().toISOString().slice(0,10);
+    const today=todayISO();
     const wk=new Date(Date.now()+7*864e5).toISOString().slice(0,10);
     const plans=(VISITS||[]).filter(v=>v.status==='planned'&&mine(v)&&v.date>=today&&v.date<=wk).length;
     chips.push(chip(String(fu),'open follow-up'+(fu===1?'':'s'),plans?plans+' visits planned this week':'','var(--am)','followups'));
@@ -463,7 +463,7 @@ async function renderPipeline(){
     .filter(r=>!r.e.isRemedy)
     .filter(r=>!myTag||specCanon(r.owner).toLowerCase()===specCanon(myTag).toLowerCase());
   const open=(OPPS||[]).filter(o=>o.stage==='open').filter(o=>!myTag||specCanon(o.owner_tag||'').toLowerCase()===specCanon(myTag).toLowerCase());
-  const ym=new Date().toISOString().slice(0,7);
+  const ym=monthISO();
   const stageByKey=k=>{const r=rows.find(x=>custNorm(acctDedup(x.name))===k);return r?r.stage:'active';};
   const wVal=open.reduce((a,o)=>a+Math.round((o.est_value||0)*(PIPE_W[stageByKey(custNorm(acctDedup(o.account)))]||0.5)),0);
   const mVal=open.filter(o=>o.expected_month===ym).reduce((a,o)=>a+(o.est_value||0),0);
@@ -553,7 +553,7 @@ async function renderPOs(){
     '<div class="metrics" style="margin-bottom:12px">'+
     '<div class="met bl"><div class="met-lbl">Open POs</div><div class="met-val">'+openArr.length+'</div><div class="met-sub">ordered, awaiting stock</div><div class="met-bar"></div></div>'+
     '<div class="met am"><div class="met-lbl">Units incoming</div><div class="met-val">'+openArr.reduce((a,p)=>a+((byPo[p.id]||[]).reduce((x,l)=>x+Math.max(0,(l.qty||0)-(l.received||0)),0)),0).toLocaleString()+'</div><div class="met-sub">still to receive</div><div class="met-bar"></div></div>'+
-    '<div class="met" style="border-left:3px solid var(--rd)"><div class="met-lbl">Open payables (est ₱)</div><div class="met-val" style="font-size:15px">'+fmtPeso(pos.filter(p=>p.status!=='cancelled').reduce((a,p)=>a+(p.peso_value||0),0))+'</div><div class="met-sub">from the AP blocks below</div><div class="met-bar"></div></div>'+
+    (SHOWCOST?'<div class="met" style="border-left:3px solid var(--rd)"><div class="met-lbl">Open payables (est ₱)</div><div class="met-val" style="font-size:15px">'+fmtPeso(pos.filter(p=>p.status!=='cancelled').reduce((a,p)=>a+(p.peso_value||0),0))+'</div><div class="met-sub">from the AP blocks below</div><div class="met-bar"></div></div>':'')+
     '<div class="met gr"><div class="met-lbl">Next arrival</div><div class="met-val" style="font-size:15px">'+((openArr.filter(p=>p.eta).sort((a,b)=>a.eta<b.eta?-1:1)[0]||{}).eta||'—')+'</div><div class="met-sub">earliest ETA</div><div class="met-bar"></div></div>'+
     '</div>'+
     (canWarehouse()?'<div class="panel" style="padding:12px 14px;margin-bottom:12px"><div class="phd">New purchase order</div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+
@@ -573,7 +573,7 @@ async function renderPOs(){
         (ls.length?'<div class="tscroll"><table><thead><tr><th>SKU</th><th>Product</th><th style="text-align:right">Ordered</th><th style="text-align:right">Received</th>'+(SHOWCOST?'<th style="text-align:right">Unit cost</th>':'')+'<th></th></tr></thead><tbody>'+
         ls.map(l=>'<tr><td>'+esc(l.sku)+'</td><td style="max-width:220px;overflow:hidden;text-overflow:ellipsis">'+esc(l.name||'')+'</td><td class="r">'+l.qty+'</td><td class="r" style="font-weight:700;color:'+((l.received||0)>=l.qty?'var(--gr)':'var(--tx)')+'">'+(l.received||0)+'</td>'+(SHOWCOST?'<td class="r mu">'+(l.unit_cost?fmtPeso(l.unit_cost):'—')+'</td>':'')+
         '<td>'+((p.status==='ordered'||p.status==='partial')&&(l.received||0)<l.qty?'<a href="#" onclick="poReceive('+p.id+','+l.id+',\''+esc(l.sku)+'\','+l.qty+','+(l.received||0)+');return false" style="color:var(--gr);font-size:11.5px;font-weight:700">receive…</a>':'')+'</td></tr>').join('')+'</tbody></table></div>':'<div class="mu" style="font-size:12px">No lines yet.</div>')+
-        apBlock(p)+
+        (SHOWCOST?apBlock(p):'')+
         '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">'+
         (p.status==='draft'?'<input id="pl-sku-'+p.id+'" list="pl-skus" placeholder="SKU" '+inp+' style="width:150px;'+inp.slice(7,-1)+'"><datalist id="pl-skus">'+skuOpts+'</datalist>'+
           '<input id="pl-qty-'+p.id+'" type="number" placeholder="Qty" '+inp+' style="width:90px;'+inp.slice(7,-1)+'">'+
@@ -885,7 +885,7 @@ function commExport(){
 async function renderEvents(){
   await loadCampaigns();
   if(!VISITS){loadVisits().then(()=>{if(currentView==='salesevents')renderEvents();});}
-  const ym=window._evYm||new Date().toISOString().slice(0,7);window._evYm=ym;
+  const ym=window._evYm||monthISO();window._evYm=ym;
   const [Y,M]=ym.split('-').map(Number);
   const first=new Date(Y,M-1,1),dim=new Date(Y,M,0).getDate(),startDow=first.getDay();
   const myTag=(ROLE==='sales'&&SBPROFILE&&SBPROFILE.specialist_tag)||'';
@@ -909,7 +909,7 @@ async function renderEvents(){
     else if(demo)add(d,'🎓 '+v.account,'var(--pu)',(v.type||'Demo')+' — '+v.account+' ('+v.spec+')');
   }
   const nav=dlt=>{const nd=new Date(Y,M-1+dlt,1);return nd.toISOString().slice(0,7);};
-  const today=new Date().toISOString().slice(0,10);
+  const today=todayISO();
   let cells='';
   for(let i=0;i<startDow;i++)cells+='<div></div>';
   for(let d=1;d<=dim;d++){
@@ -1008,7 +1008,7 @@ async function renderQuotes(){
   const rows=QUOTES.filter(qtMine);
   const open=rows.filter(q=>['draft','sent'].includes(q.status));
   const acc=rows.filter(q=>q.status==='accepted').length,lost=rows.filter(q=>q.status==='lost').length;
-  const today=new Date().toISOString().slice(0,10);
+  const today=todayISO();
   const stPill=q=>{
     if(q.status==='accepted')return'<span class="pill pgr">accepted</span>';
     if(q.status==='lost')return'<span class="pill prd">lost</span>'+(q.lost_reason?' <span class="mu" style="font-size:10.5px">'+esc(q.lost_reason)+'</span>':'');
@@ -1125,7 +1125,7 @@ async function qtSave(){
   if(!QCART.length){if(msg){msg.style.color='var(--rd)';msg.textContent='Add at least one item.';}return;}
   const total=QCART.reduce((a,l)=>a+l.amount,0);
   try{
-    const {data:q,error}=await SB.from('quotes').insert({account,spec,date:new Date().toISOString().slice(0,10),expiry:($('qt-exp')&&$('qt-exp').value)||null,status:'draft',total,notes:($('qt-notes')&&$('qt-notes').value||'').trim()||null,created_by:SBUSER.id}).select().single();
+    const {data:q,error}=await SB.from('quotes').insert({account,spec,date:todayISO(),expiry:($('qt-exp')&&$('qt-exp').value)||null,status:'draft',total,notes:($('qt-notes')&&$('qt-notes').value||'').trim()||null,created_by:SBUSER.id}).select().single();
     if(error)throw error;
     const {error:e2}=await SB.from('quote_lines').insert(QCART.map(l=>({quote_id:q.id,sku:l.sku,name:l.name,qty:l.qty,price:l.price,amount:l.amount,is_free:l.is_free,deal:l.deal})));
     if(e2)throw e2;
@@ -1198,7 +1198,7 @@ async function loadPromos(force){
   return PROMOS;
 }
 function promoFor(sku){ // first live promo covering this SKU (today inside window, active)
-  const today=new Date().toISOString().slice(0,10);
+  const today=todayISO();
   return (PROMOS||[]).find(p=>p.active&&p.start_date<=today&&p.end_date>=today&&
     (String(p.skus||'').trim()==='*'||String(p.skus||'').toLowerCase().split(/[,\n]/).map(x=>x.trim()).includes(String(sku).toLowerCase())))||null;
 }
@@ -1207,7 +1207,7 @@ async function renderPromos(){
   loadingHint();
   await loadPromos(true);
   const canW=roleIn('admin','marketing');
-  const today=new Date().toISOString().slice(0,10);
+  const today=todayISO();
   const live=PROMOS.filter(p=>p.active&&p.start_date<=today&&p.end_date>=today);
   const inp='style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:9px 10px;font-size:13px"';
   const lbl='style="font-size:10.5px;color:var(--tx3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin:8px 0 3px"';
@@ -1353,11 +1353,14 @@ async function toggleNotifs(){
   $('dbody').innerHTML=
     '<div class="dsku">NOTIFICATIONS</div><div class="dname">What needs you</div>'+
     '<div class="dsec">'+
-    ((NOTIFS||[]).length?(NOTIFS||[]).map(x=>
-      '<div class="drow" onclick="'+(x.link?'closeDrawer&&closeDrawer();$(\'overlay\').classList.remove(\'open\');$(\'drawer\').classList.remove(\'open\');location.hash=\''+esc(x.link)+'\';':'')+'" style="align-items:flex-start;border-bottom:1px solid var(--bd);padding:10px 0;'+(x.link?'cursor:pointer':'')+'">'+
+    ((NOTIFS||[]).length?(NOTIFS||[]).map(x=>{
+      // a link is only ever an in-app route. Anything else in that column is ignored —
+      // notifications can be inserted by any signed-in account, so the text is untrusted.
+      const lk=/^#\/[a-z]\/[A-Za-z0-9_%.~:-]{1,160}$/.test(String(x.link||''))?String(x.link):'';
+      return '<div class="drow" onclick="'+(lk?'closeDrawer&&closeDrawer();$(\'overlay\').classList.remove(\'open\');$(\'drawer\').classList.remove(\'open\');location.hash=\''+jsq(lk)+'\';':'')+'" style="align-items:flex-start;border-bottom:1px solid var(--bd);padding:10px 0;'+(x.link?'cursor:pointer':'')+'">'+
       '<span class="dlbl" style="max-width:85%">'+icon(x.kind)+' <b'+(x.created_at>seen?' style="color:var(--ac)"':'')+'>'+esc(x.title)+'</b>'+
       (x.body?'<br><span style="color:var(--tx3);font-size:11.5px">'+esc(x.body)+'</span>':'')+'</span>'+
-      '<span class="dval" style="color:var(--tx3);font-size:10.5px">'+nAgo(x.created_at)+'</span></div>').join(''):
+      '<span class="dval" style="color:var(--tx3);font-size:10.5px">'+nAgo(x.created_at)+'</span></div>';}).join(''):
       '<div style="font-size:12.5px;color:var(--tx3);padding:14px 0">Nothing yet — approvals, new orders, and fulfillments land here the moment they happen.</div>')+
     '</div>'+
     '<div style="font-size:10.5px;color:var(--tx3);margin-top:10px">Held orders ping managers · decisions ping the specialist · approved orders ping the warehouse · fulfillments ping the order owner. Checked every 90 seconds.</div>';
@@ -1684,7 +1687,7 @@ async function commLog(account,kind){
   const note=prompt(kind+' with '+account+' — what happened? (optional)','');
   if(note===null)return;
   try{
-    const {error}=await SB.from('visits').insert({user_id:SBUSER.id,spec:(SBPROFILE&&SBPROFILE.specialist_tag)||(SBPROFILE&&SBPROFILE.name)||'',account,date:new Date().toISOString().slice(0,10),type:kind,outcome:'Contacted',notes:(note||'').trim()||null,status:'done'});
+    const {error}=await SB.from('visits').insert({user_id:SBUSER.id,spec:(SBPROFILE&&SBPROFILE.specialist_tag)||(SBPROFILE&&SBPROFILE.name)||'',account,date:todayISO(),type:kind,outcome:'Contacted',notes:(note||'').trim()||null,status:'done'});
     if(error)throw error;
     audit('comm.log',{account,kind});
     alert(kind+' logged ✓ — it counts as a touch (timeline, coverage, dormancy).');
@@ -2504,7 +2507,7 @@ function plPaint(rows,byPl){
     '</tbody></table></div><div class="tfooter"><span>Requesting reserves · the fund source approves · the warehouse releases (that is when stock actually moves, FEFO batch-stamped against '+esc(PL_NO(0).replace('1000','n'))+') · during the parallel run the specialist still books it in Shopify and ticks “mark booked” here. Pull-outs are internal issues — they never count as sales.</span></div></div>'+
     // ── fund-source spend: what finance needs for the class charge ──
     ((roleIn('admin','finance'))?(function(){
-      const ym=window._plYm||new Date().toISOString().slice(0,7);
+      const ym=window._plYm||monthISO();
       const inRange=r=>String(r.date_requested||'').slice(0,7)===ym;
       const yms=[];{const d=new Date();for(let i=0;i<13;i++){yms.push(d.toISOString().slice(0,7));d.setMonth(d.getMonth()-1);}}
       const costOf=sku=>{const it=(ITEMS||{})[sku];return (it&&it.cost!=null)?it.cost:null;};
@@ -2562,7 +2565,7 @@ function plPaint(rows,byPl){
 }
 function plSpendCSV(){
   if(!roleIn('admin','finance'))return;
-  const ym=window._plYm||new Date().toISOString().slice(0,7);
+  const ym=window._plYm||monthISO();
   const rows=window._PLROWS||[],byPl=window._PLLINES||{};
   const costOf=sku=>{const it=(ITEMS||{})[sku];return (it&&it.cost!=null)?it.cost:null;};
   const out=[];
@@ -3397,6 +3400,43 @@ function finLinesTable(spec){
     (spec.cols.some(c=>c.k==='amount')?'<span class="mu" style="font-size:12px;margin-left:10px">Rows total: <b>'+fmtPeso(rows.reduce((a,r)=>a+(parseFloat(r.amount)||0),0))+'</b></span>':'')+
     '</div>';
 }
+/* receipts and supporting documents chosen WHILE filling the form. They are staged
+   in memory and uploaded right after the request row exists, so a person on a
+   phone photographs the receipt in the same motion as filing the claim. Expense
+   reimbursements and revolving-fund reports cannot be filed without at least one. */
+const FIN_ATT_REQUIRED={reimburse:1,expreport:1};
+function finFilesBlock(S,kind){
+  const files=window._finFiles||[];
+  const need=!!FIN_ATT_REQUIRED[kind];
+  return '<div class="panel" style="padding:12px 14px;margin-bottom:12px">'+
+    '<div class="phd" style="margin-bottom:2px">'+(need?'Receipts':'Supporting documents')+(need?' <span style="color:var(--rd)">*</span>':'')+'</div>'+
+    '<div class="mu" style="font-size:11.5px;margin-bottom:8px">'+esc(S.attach||'')+(need?' — a photo or PDF of every receipt; finance cannot process a line without one.':' — optional now, you can also attach to the row after submitting.')+'</div>'+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">'+
+    files.map((f,i)=>'<span class="attchip" title="'+esc(f.name)+'">'+attIcon(f.type)+' '+esc(f.name.length>28?f.name.slice(0,26)+'…':f.name)+' <span class="mu" style="font-size:10px">'+attSize(f.size)+'</span> <a href="#" onclick="finFileDrop('+i+');return false" style="color:var(--rd);font-size:10px" title="Remove">✕</a></span>').join('')+
+    '<label class="attadd" style="cursor:pointer">+ Add '+(need?'receipt':'file')+'<input type="file" multiple accept="image/*,.pdf,.heic,.heif" style="display:none" onchange="finFilePick(this)"></label>'+
+    '<span class="mu" id="fin-att-msg" style="font-size:11px"></span></div></div>';
+}
+function finFilePick(input){
+  const L=(window._finFiles=window._finFiles||[]);let bad='';
+  for(const f of [...(input.files||[])]){if(f.size>ATT_MAX){bad=f.name+' is over 20 MB — put it in Drive and paste the link instead.';continue;}L.push(f);}
+  input.value='';renderFinForm(window._finKind,true);
+  const m=document.getElementById('fin-att-msg');if(m&&bad){m.textContent=bad;m.style.color='var(--rd)';}
+}
+function finFileDrop(i){(window._finFiles||[]).splice(i,1);renderFinForm(window._finKind,true);}
+async function finUploadStaged(kind,recId){ // after the row exists: every staged file → Drive → attachments
+  const L=window._finFiles||[];let failed=[];
+  for(const f of L){
+    try{
+      const meta=await attUpload(f);
+      const {error}=await SB.from('attachments').insert({rec_type:kind,rec_id:String(recId),file_id:meta.id,
+        name:f.name,mime:f.type||null,size:f.size,uploaded_by:(SBUSER&&SBUSER.id)||null,uploaded_name:(SBPROFILE&&SBPROFILE.name)||''});
+      if(error)throw new Error(error.message);
+      audit('attachment.add',{rec:kind+' '+recId,name:f.name,size:f.size});
+    }catch(e){failed.push(f.name);}
+  }
+  window._finFiles=[];
+  return failed;
+}
 function finSet(k,v,repaint){window._finVals=window._finVals||{};window._finVals[k]=v;if(repaint)renderFinForm(window._finKind,true);}
 function finLineAdd(){(window._finLines=window._finLines||[]).push({});renderFinForm(window._finKind,true);}
 function finLineDrop(i){(window._finLines||[]).splice(i,1);renderFinForm(window._finKind,true);}
@@ -3406,7 +3446,7 @@ function finLineSet(i,k,v){const L=window._finLines||[];if(L[i])L[i][k]=v;}
 async function renderFinForm(kind,cheap){
   kind=kind||window._finKind||'voucher';
   if(!FIN_SPEC[kind])return;
-  if(window._finKind!==kind){window._finVals={};window._finLines=[];window._finKind=kind;cheap=false;}
+  if(window._finKind!==kind){window._finVals={};window._finLines=[];window._finFiles=[];window._finKind=kind;cheap=false;}
   if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
   if(cheap&&window._FINROWS)return finPaint(kind,window._FINROWS,window._FINLINES,window._FINATT);
   loadingHint();
@@ -3433,7 +3473,7 @@ async function renderFinForm(kind,cheap){
 function finPaint(kind,rows,lines,att){
   const S=FIN_SPEC[kind];
   const vals=window._finVals=window._finVals||{};
-  if(!vals.date_requested)vals.date_requested=new Date().toISOString().slice(0,10);
+  if(!vals.date_requested)vals.date_requested=todayISO();
   const me=(SBUSER&&SBUSER.id)||'';
   const mine=rows.filter(r=>r.requester_id===me);
   const toDecide=rows.filter(r=>canDecideFin(r));
@@ -3442,10 +3482,8 @@ function finPaint(kind,rows,lines,att){
     :r.status==='approved'?'<span class="pill pgr">approved</span>'
     :r.status==='rejected'?'<span class="pill prd">rejected</span>'
     :r.status==='settled'?'<span class="pill pbl">settled</span>':'<span class="pill" style="background:var(--sf2);color:var(--tx3)">cancelled</span>';
-  const tabs=FIN_KINDS.map(k=>'<button onclick="showView(\''+k+'\')" style="background:'+(k===kind?'var(--ac)':'var(--sf)')+';color:'+(k===kind?'#fff':'var(--tx)')+
-    ';border:1px solid '+(k===kind?'var(--ac)':'var(--bd)')+';border-radius:999px;padding:6px 13px;font-size:12px;font-weight:600;cursor:pointer">'+esc(FIN_SPEC[k].title)+'</button>').join(' ');
+  // the other forms are one tap away in the Finance area of the sidebar, so no chooser row here
   $('content').innerHTML=
-    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">'+tabs+'</div>'+
     '<div class="panel" style="padding:12px 16px;margin-bottom:12px;font-size:12px;color:var(--tx2)">'+esc(S.blurb)+
       ' <b style="color:var(--tx)">Route:</b> '+(steps.length?steps.map(r=>esc(r.label||('step '+r.step))).join(' → '):'<span style="color:var(--rd)">no approval route set — an admin needs to configure one</span>')+'.</div>'+
     '<div class="metrics" style="margin-bottom:12px">'+
@@ -3458,7 +3496,7 @@ function finPaint(kind,rows,lines,att){
       '<div class="phd" style="margin-bottom:10px">New '+esc(S.title.toLowerCase())+'</div>'+
       '<div style="display:flex;gap:10px;flex-wrap:wrap">'+S.fields.filter(f=>finVisible(f,vals)).map(f=>finField(f,vals)).join('')+'</div>'+
       (S.lines&&finVisible(S.lines,vals)?finLinesTable(S.lines):'')+
-      '<div style="font-size:11px;color:var(--tx3);margin:6px 0 10px">'+(S.attach?'<b>Attach after submitting:</b> '+esc(S.attach)+' — the request appears in the register below with a + Attach button.':'')+'</div>'+
+      finFilesBlock(S,kind)+
       '<button onclick="finSubmit()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer">Submit request</button>'+
     '</div>'+
     // ── the register ──
@@ -3499,6 +3537,8 @@ async function finSubmit(){
     const sum=lines.reduce((a,l)=>a+(parseFloat(l.amount)||0),0);
     if(Math.abs(sum-parseFloat(vals.amount||0))>1&&!confirm('The rows add up to '+fmtPeso(sum)+' but the total says '+fmtPeso(parseFloat(vals.amount)||0)+'.\n\nSubmit anyway?'))return;
   }
+  const staged=window._finFiles||[];
+  if(FIN_ATT_REQUIRED[kind]&&!staged.length)return alert('Add at least one receipt (photo or PDF) — finance cannot process a '+S.title.toLowerCase()+' without one.');
   const st=finSteps(kind,Math.round(parseFloat(vals.amount||0)));
   if(!st.length&&!confirm('No approval route is set for this form, so nobody will be notified. Submit anyway and ask an admin to configure one?'))return;
   const row={kind,requester_id:SBUSER.id,requester_name:(SBPROFILE&&SBPROFILE.name)||'',requester_email:(SBUSER&&SBUSER.email)||'',
@@ -3509,7 +3549,7 @@ async function finSubmit(){
     if(f.col)row[f.col]=(f.t==='money'||f.t==='num')?Math.round(parseFloat(v)||0):v;
     else row.data[f.k]=v;
   }
-  if(!row.date_requested)row.date_requested=new Date().toISOString().slice(0,10);
+  if(!row.date_requested)row.date_requested=todayISO();
   if(typeof blockIfClosed==='function'&&blockIfClosed(row.date_requested,'Request not filed'))return;
   try{
     const {data,error}=await SB.from('fin_requests').insert(row).select().single();
@@ -3524,10 +3564,16 @@ async function finSubmit(){
         throw new Error('The lines could not be saved, so the request was cancelled: '+(eL.message||eL));
       }
     }
-    audit('fin.'+kind+'.file',{no:FIN_NO(kind,data.num),amount:row.amount||0,fund:row.fund_class||''});
+    audit('fin.'+kind+'.file',{no:FIN_NO(kind,data.num),amount:row.amount||0,fund:row.fund_class||'',files:staged.length});
+    let failed=[];
+    if(staged.length){
+      const m=document.getElementById('fin-att-msg');if(m)m.textContent='Uploading '+staged.length+' file'+(staged.length>1?'s':'')+'…';
+      failed=await finUploadStaged(kind,data.id);
+    }
     await finNotifyStep(data,st[0]);
-    window._finVals={};window._finLines=[];
-    alert(FIN_NO(kind,data.num)+' submitted.'+(st[0]?' Sent to '+finStepWho(st[0],data)+'.':''));
+    window._finVals={};window._finLines=[];window._finFiles=[];
+    alert(FIN_NO(kind,data.num)+' submitted.'+(st[0]?' Sent to '+finStepWho(st[0],data)+'.':'')+
+      (failed.length?'\n\nCould not upload: '+failed.join(', ')+'. Use + Attach on the row in the register to add them.':''));
     renderFinForm(kind);
   }catch(e){alert('Could not submit: '+(e.message||e));}
 }

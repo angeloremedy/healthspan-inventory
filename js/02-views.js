@@ -1,16 +1,23 @@
 /* ── VIEWS ── */
 /* ── ONE permission truth for views: showView redirects with it, the sidebar and
    mobile menu hide with it — they can never drift apart again. ── */
-const SALES_VIEWS=['home','ask','logvisit','followups','account','neworder','orders','order','spec','pickslip','pipeline','quotes','salesevents','complaints','pullouts','manual','crmstats','expreport','profile','bizreview','reports','settings'].concat(['voucher','orderpay','proofpay','replenish','reimburse','cashadvance']);
+const SALES_VIEWS=['home','ask','logvisit','followups','account','neworder','orders','order','spec','pickslip','pipeline','quotes','salesevents','complaints','pullouts','manual','crmstats','expreport','profile','bizreview','reports','savedreports','settings'].concat(['voucher','orderpay','proofpay','replenish','reimburse','cashadvance']);
 const CIRCLE_BLOCK_COMMON=['neworder','logvisit','targets','scorecards'];
-const CIRCLE_BLOCK={finance:['scan','scanpick','fulfillq','recall','cyclecount','transfers'],marketing:['scan','scanpick','po','fulfillq','pdc','returns','commissions','cyclecount','quarantine','suppliers','transfers','approvals','poscore'],viewer:['scan','scanpick','po','fulfillq','pdc','returns','recall','commissions','cyclecount','quarantine','suppliers','transfers','approvals','poscore'],supply_chain:['pdc','commissions','approvals']};
+const CIRCLE_BLOCK={finance:['scan','scanpick','fulfillq','recall','cyclecount','transfers','wavepick'],marketing:['scan','scanpick','po','fulfillq','pdc','returns','commissions','cyclecount','quarantine','suppliers','transfers','approvals','poscore','statement','delivery','pickslip','wavepick','creditmemo','salesrecon'],viewer:['scan','scanpick','po','fulfillq','pdc','returns','recall','commissions','cyclecount','quarantine','suppliers','transfers','approvals','poscore','statement','delivery','pickslip','wavepick','creditmemo','salesrecon'],supply_chain:['pdc','commissions','approvals','statement','salesrecon']};
+// pages a product specialist may open that happen to start with "sales" — an explicit
+// list, so a future sales* page is not granted to specialists by its name alone
+const SALES_PREFIX_OK=['salesoverview','salesspec','salesbrand','salesaccounts','salesweekly','salesmonthly','salespace','salesevents','salesdeals','salesdue','salesfield','salesfree','salestarget']; // not salesrecon — that is accounting's reconciliation
 function viewAllowed(v){
-  if(typeof ROLE==='undefined'||!ROLE)return true;
+  // before the profile has resolved nobody is anybody: only the landing pages open.
+  // (The last-known role is cached on the device purely to avoid a repaint flicker;
+  // every data read is still decided by the database, not by this function.)
+  if(typeof ROLE==='undefined'||!ROLE)return ['home','settings','profile','manual'].includes(v);
   // Pull-outs are company-wide: anyone may file one, and anyone named as a fund-source
   // approver must be able to decide regardless of their access level elsewhere — several
   // approvers are viewers. Stated as a rule so no future CIRCLE_BLOCK edit can revoke it.
   // FIN_KINDS lives in js/10; viewAllowed can run before that file has loaded
   if(v==='pullouts'||(typeof FIN_KINDS!=='undefined'&&FIN_KINDS.indexOf(v)>=0))return true; // anyone may file a finance form; the approval route is the control
+  if(v==='savedreports')return ROLE!=='viewer';                 // every source inside gates itself by role
   if(v==='routes')return ROLE==='admin';
   if(v==='codelists')return ROLE==='admin'||ROLE==='finance';
   if(v==='qbo')return ROLE==='admin'||ROLE==='finance';        // QuickBooks sync: books, so finance + admin
@@ -20,7 +27,7 @@ function viewAllowed(v){
   if(v==='valuation')return ROLE==='admin'||ROLE==='finance'; // THE costs page
   // supplier scorecard shows PO costs — same cost rule as valuation, plus the warehouse who receives
   if(v==='poscore')return ['admin','finance','supply_chain'].includes(ROLE);
-  if(ROLE==='sales')return String(v).startsWith('sales')||SALES_VIEWS.includes(v);
+  if(ROLE==='sales')return SALES_PREFIX_OK.includes(v)||SALES_VIEWS.includes(v);
   if(['supply_chain','finance','marketing','viewer'].includes(ROLE))
     return !(CIRCLE_BLOCK_COMMON.includes(v)||(CIRCLE_BLOCK[ROLE]||[]).includes(v));
   if(ROLE==='manager')return v!=='scan'; // raw scan/ledger writes are warehouse-only
@@ -41,7 +48,7 @@ function showView(v,el){
   document.querySelectorAll('.ni').forEach(x=>x.classList.remove('active'));
   if(el) el.classList.add('active');
   try{if(typeof navAreaFollow==='function')navAreaFollow(v);}catch(e){} // the rail moves to this page's area
-  const T={bizreview:'Business review',reports:'Reports',qbo:'QuickBooks sync',ask:'Ask Healthspan',settings:'Settings',dashboard:'Dashboard',action:'Action center',customers:'Accounts (CRM)',health:'Data health',all:'All SKUs',oos:'Out of stock',low:'Low stock',neg:'Negative stock',
+  const T={bizreview:'Business review',reports:'Reports',savedreports:'Saved reports',qbo:'QuickBooks sync',ask:'Ask Healthspan',settings:'Settings',dashboard:'Dashboard',action:'Action center',customers:'Accounts (CRM)',health:'Data health',all:'All SKUs',oos:'Out of stock',low:'Low stock',neg:'Negative stock',
            expiry:'Expiry tracker',value:'Inventory value',dealvalue:'Deal scenarios',movement:'Monthly movement',reorder:'Reorder alerts',batches:'Batch view',
            forecast:'Stockout forecast',coverage:'Stock coverage',reorderplan:'Reorder plan',ropoint:'Reorder point',variability:'Demand variability',abc:'ABC analysis',writeoff:'Write-off forecast',whatif:'What-if simulator',
            simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator',
@@ -151,6 +158,7 @@ function showView(v,el){
   else if(v==='planreview') renderPlanReview();
   else if(v==='bizreview') renderBizReview();
   else if(v==='reports') renderReports();
+  else if(v==='savedreports') renderSavedReports();
   else if(v==='settings') renderSettings();
   else if(v==='qbo') renderQbo();
   else if(v==='ask') renderAskPage();
@@ -212,7 +220,7 @@ function salesRows(){
       paid:Math.max(0,t.u-t.f)});}
   out.sort((a,b)=>(b.v-a.v)||(b.u-a.u));return out;}
 function salesGuard(){
-  if(!DATA.length){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sync from Google Sheets first — product names come from the master sheet.</div>';return false;}
+  if(!DATA.length){$('content').innerHTML='<div class="empty" style="margin-top:40px">Press <b>Sync now</b> at the bottom of the sidebar first — product names come from the master sheet.</div>';return false;}
   if(!SHOPIFY||!SALESIDX||!Object.keys(SALESIDX).length){
     $('content').innerHTML=SHOPIFY_ERR?
       '<div class="viewdesc" style="border-left-color:var(--rd);margin-top:20px"><svg class="vd-i" viewBox="0 0 24 24" style="stroke:var(--rd)"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg>'+
@@ -279,7 +287,7 @@ function renderSalesOverview(){
       '<tr><td colspan="10"><div class="empty">No booked sales for this period'+(line?' in '+esc(line):'')+'</div></td></tr>')+
     '</tbody></table></div><div class="tfooter"><span>Booked sales from Shopify (specialists’ POS) · via deals = units in orders with a deal line (deals counted as a whole, +1s included) · free = ₱0 giveaways outside any deal · SHOPIFY ONLY line = package SKUs not in the master sheet (units are sets) · '+(SEXT&&hasIntSplit()?'EXTERNAL ONLY — Remedy branches and Healthspan staff/academy orders excluded, matching accounting':'INCLUDES internal orders (Remedy branches, staff, academy)')+' · TEST orders and marketing/executive pull-outs excluded (pull-outs remain in the finance & logistics views) · accounting’s Sales Booked may exclude internal orders and book by invoice date, so small differences vs accounting are expected</span></div></div>';
   // ── charts: 13-month revenue trend + top products sold vs current stock
-  const ymNow=new Date().toISOString().slice(0,7);
+  const ymNow=monthISO();
   const revM={};
   for(const sku in SALESIDX){const S=SALESIDX[sku];if(line&&S.line!==line)continue;
     const nm=netMonthly(S,''),nb=netMonthly(S,'b');
@@ -382,9 +390,9 @@ function renderSalesTarget(){
       '<tr><td>2026-08</td><td>PRODUCT</td><td>Cosmelan 2 <span class="mu">(or the SKU)</span></td><td>600000</td><td>50</td></tr>'+
       '<tr><td>2026-08</td><td>SPECIALIST</td><td>Rhas</td><td>500000</td><td></td></tr>'+
       '</tbody></table></div><div class="tfooter"><span>MONTH must be YYYY-MM · SCOPE is TOTAL, LINE, PRODUCT or SPECIALIST · NAME matches a line, product/SKU, or specialist tag · leave a value blank if you only target the other one</span></div></div>'+
-      '<div style="font-size:12px;color:var(--tx2)">Once the tab exists, hit <b>Sync from Google Sheets</b> and this view lights up automatically. Verna can add or change targets any time.</div>';
+      '<div style="font-size:12px;color:var(--tx2)">Once the tab exists, press <b>Sync now</b> (bottom of the sidebar) and this view lights up automatically. Verna can add or change targets any time.</div>';
     return;}
-  const months=tgMonths();const ymNow=new Date().toISOString().slice(0,7);
+  const months=tgMonths();const ymNow=monthISO();
   const ym=window._tgMonth&&months.includes(window._tgMonth)?window._tgMonth:(months.includes(ymNow)?ymNow:months[0]);
   window._tgMonth=ym;
   const rowsT=TARGETS.filter(t=>t.month===ym);
@@ -474,7 +482,7 @@ function openSpecDrawer(name){
   if(!sp){alert('No Shopify sales recorded under "'+name+'" yet — only visit-log activity.');return;}
   const hideInt=SEXT&&hasIntSplit();
   const t=netPeriod(sp,SPERIOD,'');
-  const ymNow=new Date().toISOString().slice(0,7);
+  const ymNow=monthISO();
   const mcTg=netMonthly(sp,'',true)[ymNow]||{u:0,v:0};   // vs target: always external
   const nmSp=netMonthly(sp,'');                          // the trend follows the toggle
   const mc=nmSp[ymNow]||{u:0,v:0};
@@ -538,7 +546,7 @@ function renderSalesSpec(){
   const specs=specMerged();
   const names=Object.keys(specs);
   if(!names.length){$('content').innerHTML=salesToolbar('renderSalesSpec')+'<div class="empty" style="margin-top:30px">No specialist tags found on Shopify orders yet. Specialists are read from each order’s first tag (e.g. Rhas, Frank, Ruth, Charmaine) — make sure orders are tagged at the POS.</div>';return;}
-  const ymNow=new Date().toISOString().slice(0,7);
+  const ymNow=monthISO();
   const rows=names.map(n=>{const t=netPeriod(specs[n],SPERIOD,'');
     const tg=(TARGETS||[]).find(x=>x.month===ymNow&&x.scope==='SPECIALIST'&&(x.name||'').toLowerCase()===n.toLowerCase());
     const mc=netMonthly(specs[n],'',true)[ymNow]||{u:0,v:0};   // vs target: always external
@@ -633,7 +641,7 @@ function renderLogVisit(){
   if(!SHOPIFY)try{loadShopify().then(()=>{if(currentView==='logvisit')renderLogVisit();});}catch(e){}
   const specs=specNames();
   const accounts=[...new Set([...Object.keys((SHOPIFY&&SHOPIFY.customers)||{}),...(CUSTOMERS||[]).map(c=>c.name)])].filter(a=>a&&!/pull\s*-?\s*out/i.test(a)).sort();
-  const today=new Date().toISOString().slice(0,10);
+  const today=todayISO();
   const preAcct=window._lvAccount||'';window._lvAccount='';
   const preDate=window._lvDate||'';setTimeout(()=>{window._lvDate='';},0);
   const myTag=(SBPROFILE&&SBPROFILE.specialist_tag)||'';
@@ -724,8 +732,8 @@ async function submitVisit(){
   if(btn){btn.disabled=true;btn.textContent='Saving…';}
   try{
     if(SB&&SBUSER){
-      const dt=g('lv-date')||new Date().toISOString().slice(0,10);
-      const planned=dt>new Date().toISOString().slice(0,10); // future date = planned visit
+      const dt=g('lv-date')||todayISO();
+      const planned=dt>todayISO(); // future date = planned visit
       const prods=(window._lvProds||[]).join(', ')||null;
       const {data:vrow,error}=await SB.from('visits').insert({spec,account,type:g('lv-type'),outcome:planned?'Planned':g('lv-out'),date:dt,notes:g('lv-notes'),products:prods,user_id:SBUSER.id,status:planned?'planned':'done'}).select().single();
       if(error)throw new Error(error.message);
@@ -815,7 +823,7 @@ function renderNewOrder(){
     '<div class="g2" style="gap:10px"><div><label '+lbl+'>Specialist</label>'+
     (myTag&&ROLE==='sales'?'<input id="no-spec" value="'+esc(myTag)+'" readonly '+inp.slice(0,-1)+';opacity:.75">':
     '<select id="no-spec" '+inp+'>'+specs.map(s=>'<option>'+esc(s)+'</option>').join('')+'</select>')+
-    '</div><div><label '+lbl+'>Date</label><input id="no-date" type="date" value="'+esc((E&&E.date)||new Date().toISOString().slice(0,10))+'" '+inp+'></div></div>'+
+    '</div><div><label '+lbl+'>Date</label><input id="no-date" type="date" value="'+esc((E&&E.date)||todayISO())+'" '+inp+'></div></div>'+
     '</div>'+
     '<div class="panel" style="padding:18px;margin-bottom:14px"><div class="phd">Add products</div>'+
     '<label '+lbl+'>Product</label><input id="no-prod" oninput="noProdChanged()" placeholder="Start typing or select…" '+inp+'>'+

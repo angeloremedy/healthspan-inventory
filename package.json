@@ -1,7 +1,7 @@
 {
   "scripts": {
     "build": "node tools/build.mjs",
-    "test": "node tools/test/business-review.test.js && node tools/test/serials-loans-waves.test.js && node tools/test/sales-internal-split.test.js && node tools/test/llm-provider.test.mjs && node tools/test/qbo-connector.test.mjs"
+    "test": "node tools/test/business-review.test.js && node tools/test/serials-loans-waves.test.js && node tools/test/sales-internal-split.test.js && node tools/test/llm-provider.test.mjs && node tools/test/qbo-connector.test.mjs && node tools/test/saved-reports.test.js && node tools/test/security-guard.test.mjs"
   },
   "dependencies": {
     "@netlify/blobs": "^8.1.0",

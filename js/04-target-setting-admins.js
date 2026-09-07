@@ -18,7 +18,7 @@ async function renderTargets(){
   if(!canManage()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only.</div>';return;}
   await loadSpecTargets();
   await loadSpecRoster();
-  const ym=window._tgSetYm||new Date().toISOString().slice(0,7);window._tgSetYm=ym;
+  const ym=window._tgSetYm||monthISO();window._tgSetYm=ym;
   const prev=(function(){const d=new Date(ym+'-15');d.setMonth(d.getMonth()-1);return d.toISOString().slice(0,7);})();
   const specs=specNames();
   const mine=s=>(SPEC_TGT||[]).find(x=>x.month===ym&&specCanon(x.spec).toLowerCase()===specCanon(s).toLowerCase());
@@ -98,7 +98,7 @@ async function shipMark(id,field){
   const label=field==='dispatched_at'?'dispatched':'delivered';
   if(!confirm('Mark this order '+label+' today?'))return;
   try{
-    const patch={};patch[field]=new Date().toISOString().slice(0,10);
+    const patch={};patch[field]=todayISO();
     const {error}=await SB.from('orders').update(patch).eq('id',id);
     if(error)throw error;
     audit('shipment.'+label,{order:id.slice(0,8)});
@@ -142,7 +142,7 @@ async function showDeliveryReceipt(ref){
     '<button onclick="window.print()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer">🖨 Print / Save PDF</button></div>'+
     '<div class="printdoc">'+
     '<div style="display:flex;justify-content:space-between;align-items:flex-start"><div>'+hsLogo(34,'#00168F')+'<div style="font-size:19px;font-weight:800;margin-top:5px">HEALTHSPAN GLOBAL, INC.</div><div style="font-size:12px;color:#555">Delivery Receipt</div></div>'+
-    '<div style="text-align:right;font-size:12px"><b style="font-size:15px">DR '+esc(o.dr_no||ordLabel(o))+'</b>'+(o.dr_no?'<br>Order: '+esc(ordLabel(o)):'')+'<br>Order date: '+esc(o.date)+'<br>Printed: '+new Date().toISOString().slice(0,10)+'</div></div>'+
+    '<div style="text-align:right;font-size:12px"><b style="font-size:15px">DR '+esc(o.dr_no||ordLabel(o))+'</b>'+(o.dr_no?'<br>Order: '+esc(ordLabel(o)):'')+'<br>Order date: '+esc(o.date)+'<br>Printed: '+todayISO()+'</div></div>'+
     '<div style="display:flex;gap:30px;margin:14px 0;font-size:12.5px">'+
     '<div style="flex:1"><b>Deliver to</b><br>'+esc(o.account||'—')+
       (acct&&acct.address?'<br>'+esc(acct.address):'')+(acct&&acct.phone?'<br>'+esc(acct.phone):'')+
@@ -196,7 +196,7 @@ async function showStatement(name){
     '<button onclick="window.print()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer">🖨 Print / Save PDF</button></div>'+
     '<div class="printdoc">'+
     '<div style="display:flex;justify-content:space-between;align-items:flex-start"><div>'+hsLogo(34,'#00168F')+'<div style="font-size:19px;font-weight:800;margin-top:5px">HEALTHSPAN GLOBAL, INC.</div><div style="font-size:12px;color:#555">Statement of Account</div></div>'+
-    '<div style="text-align:right;font-size:12px">As of <b>'+new Date().toISOString().slice(0,10)+'</b></div></div>'+
+    '<div style="text-align:right;font-size:12px">As of <b>'+todayISO()+'</b></div></div>'+
     '<div style="margin:14px 0;font-size:12.5px"><b>'+esc(e.name)+'</b>'+(e.children&&e.children.length?' (incl. '+e.children.length+' branches)':'')+
     (acct&&acct.address?'<br>'+esc(acct.address):'')+(acct&&acct.phone?'<br>'+esc(acct.phone):'')+'</div>'+
     '<table><thead><tr><th>Date</th><th>Order</th><th>Status</th><th style="text-align:center">Terms</th><th style="text-align:right">Amount</th><th style="text-align:right">Paid</th><th style="text-align:right">Balance</th></tr></thead><tbody>'+
@@ -464,16 +464,24 @@ function backPaint(){
 function applyRoute(){
   const h=location.hash||'';
   ROUTING=true;
+  // every deep link runs through the same permission truth as the sidebar. A page
+  // the role may not open lands on Home instead of rendering because a URL said so.
+  const gate=(view)=>{if(viewAllowed(view))return true;showView('home');return false;};
+  const dec=()=>{try{return decodeURIComponent(h.slice(4));}catch(e){return '';}};
   try{
-    if(h.startsWith('#/a/')){const n=decodeURIComponent(h.slice(4));if(n){showAccountPage(n);return;}}
-    if(h.startsWith('#/o/')){const n=decodeURIComponent(h.slice(4));if(n){showOrderPage(n);return;}}
-    if(h.startsWith('#/s/')){const n=decodeURIComponent(h.slice(4));if(n){showSpecPage(n);return;}}
-    if(h.startsWith('#/p/')){const n=decodeURIComponent(h.slice(4));if(n){showPickSlip(n);return;}}
-    if(h.startsWith('#/d/')){const n=decodeURIComponent(h.slice(4));if(n){showDeliveryReceipt(n);return;}}
-    if(h.startsWith('#/m/')){const n=decodeURIComponent(h.slice(4));if(n){showStatement(n);return;}}
-    if(h.startsWith('#/w/')){const n=decodeURIComponent(h.slice(4));if(n&&typeof showWavePick==='function'){showWavePick(n);return;}}
-    if(h.startsWith('#/v/')){const v=h.slice(4);if(v){showView(v,document.querySelector('.ni[onclick*="\''+v+'\'"]'));return;}}
-  }finally{ROUTING=false;}
+    if(h.startsWith('#/a/')){const n=dec();if(n&&gate('account')){showAccountPage(n);return;}}
+    if(h.startsWith('#/o/')){const n=dec();if(n&&gate('order')){showOrderPage(n);return;}}
+    if(h.startsWith('#/s/')){const n=dec();if(n&&gate('spec')){
+      // a specialist opens their own page only; everyone else's is a manager's view
+      if(ROLE==='sales'&&SBPROFILE&&SBPROFILE.specialist_tag&&typeof specCanon==='function'&&specCanon(n)!==specCanon(SBPROFILE.specialist_tag)){showView('home');return;}
+      showSpecPage(n);return;}}
+    if(h.startsWith('#/p/')){const n=dec();if(n&&gate('pickslip')){showPickSlip(n);return;}}
+    if(h.startsWith('#/d/')){const n=dec();if(n&&gate('delivery')){showDeliveryReceipt(n);return;}}
+    if(h.startsWith('#/m/')){const n=dec();if(n&&gate('statement')){showStatement(n);return;}}
+    if(h.startsWith('#/w/')){const n=dec();if(n&&typeof showWavePick==='function'&&gate('wavepick')){showWavePick(n);return;}}
+    if(h.startsWith('#/v/')){const v=h.slice(4).replace(/[^A-Za-z0-9_-]/g,'');if(v){showView(v,document.querySelector('.ni[onclick*="\''+v+'\'"]'));return;}}
+  }catch(e){try{showView('home');}catch(e2){}}
+  finally{ROUTING=false;}
 }
 window.addEventListener('popstate',applyRoute);
 function showAccountPage(name){
@@ -734,7 +742,7 @@ async function renderFollowups(){
   await loadVisits(true);
   const myTag=(SBPROFILE&&SBPROFILE.specialist_tag)||'';
   const mine=v=>!myTag||specCanon(v.spec).toLowerCase()===specCanon(myTag).toLowerCase();
-  const today=new Date().toISOString().slice(0,10);
+  const today=todayISO();
   const fus=(VISITS||[]).filter(v=>v.status!=='planned'&&v.outcome==='Follow-up needed'&&!v.fu_done&&mine(v));
   const plans=(VISITS||[]).filter(v=>v.status==='planned'&&mine(v)).sort((a,b)=>a.dt<b.dt?-1:1);
   const row=(v,btnLabel,field)=>'<div class="drow" style="align-items:flex-start;border-bottom:1px solid var(--bd);padding:10px 0">'+

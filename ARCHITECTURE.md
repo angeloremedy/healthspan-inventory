@@ -367,11 +367,28 @@ writing notifications and planned visits, deduped via `auto_log`). Dedup keys
 are per-entity: `quotechase` fires once per quote id; `occasion` uses
 `field:account@year` so a greeting reminder recurs annually but never twice.
 
+### 3.5a Manila "today" in the browser
+
+`todayISO()` / `monthISO()` (js/01) are the only way the browser asks for the
+date: `Date.now()+8h` in ISO, matching the server jobs. Before this, ~60 sites
+used `new Date().toISOString().slice(0,10)` and between midnight and 08:00 Manila
+"today" was yesterday — MTD missed the day, a visit filed at 7am was planned, not
+done.
+
 ### 3.6 One permission truth for views
 `viewAllowed(v)` (js/02) is the single rule set: `showView` redirects with it,
 `navSync()` hides sidebar items and whole sections with it, and the mobile menu
 filters with it. Changing a view's access = one edit. Activity log is admin +
 super admin only (tightened 2026-08-28).
+
+Since 2026-09-08 `applyRoute` (js/04) runs every deep link — account, order,
+specialist, pick slip, delivery receipt, statement, wave — through the same
+`viewAllowed`, sanitises the view name, and lets a specialist deep-link only their
+own specialist page. `viewAllowed` answers `false` for everything but the landing
+pages until `ROLE` is known (a cached role only prevents flicker; the data layer
+is RLS), a missing profile means `viewer`, the specialist's `sales*` pages are an
+explicit list, and the document pages (`statement`, `delivery`, `pickslip`,
+`wavepick`, `creditmemo`) are blocked for viewer and marketing.
 
 ### 3.7 View-writers map & the generated home
 `VIEW_WRITERS` (js/10) records which roles write in each view: it renders the
@@ -527,6 +544,48 @@ candidate list into `qbo_map`), else create; with `qbo_require_confirm` on
 Supabase). The page is `js/14-qbo-sync.js`; it talks only to `qbo-admin.mjs` and
 `qbo-auth.mjs`, never to Intuit.
 
+### 4.8 Saved reports — one engine, two runtimes
+
+`js/15-report-engine.js` is a classic script with a CommonJS tail
+(`if(typeof module!=='undefined')module.exports=…`). The browser gets it as
+globals (`RPT_SOURCES`, `rptRun`, `rptCSV`, `rptDue`…); `lib/report-runner.mjs`
+loads the same file through `createRequire` so the 6am schedule and "Run on the
+server now" compute exactly what the preview showed. The engine is pure: a
+definition + rows + role → `{cols, rows, total, truncated}`. `RPT_SOURCES` is the
+schema and the permission table in one — per source: column types, allowed roles,
+the column that identifies a specialist (own-rows filter for `sales`), and the
+cost columns (stripped unless the role is in `RPT_COST_ROLES`). Row loading is the
+only side that differs: the browser reads what it already holds (`DATA`, `BATCHES`,
+`SHOPIFY.recent`) or one Supabase select; the server reads the sync snapshot blob,
+the Shopify blob, or PostgREST with the service key — then runs the engine **as the
+owner** (`profiles` looked up fresh). Results: Blobs store `reports`, key
+`run-<id>-<ts>`, plus a `report_runs` row; downloads go through `report-run.mjs`
+(session-checked: owner, admin, or a role that may read a shared report's source).
+`reports-schedule.mjs` is a v2 scheduled function (22:00 UTC) — no public URL.
+
+### 4.9 Guarding the functions — `lib/guard.mjs`
+
+Two rules, one file: **fail closed** and **constant-time compare**.
+`requireJobKey(event)` / `requireJobKeyReq(req)` return a 503 when `JOB_KEY` is
+unset and a 403 when it does not match — every background worker starts with it,
+and the dispatchers (`ask.mjs`, `stockbot.mjs`, `nightly.mjs`, `qbo-*`) send the
+header. `sessionUser(event)` verifies the Supabase JWT and returns
+`{id,email,name,role,tag,super}` or `{code,error}` — 503 (not "allow") when the
+Supabase env is missing. `isSlackHook(url)` pins the Slack worker's `response_url`
+to `hooks.slack.com`. Ask answers are stamped with the asker's uid and only
+returned to them.
+
+### 4.10 Automatic checkpoints & equipment rules (nightly 10b / 12)
+
+The Business review's mid-month and month-end checkpoints are taken by the
+**browser** (`maybeSnapshotReview`, js/12) the first time an admin or manager
+opens HQ on or after the 15th / in a new month — `bizCompute` needs the merged
+sales cache, which lives client-side. A unique partial index on
+`(month, checkpoint)` makes a second attempt a harmless failure; nightly rule 10b
+pings admins/managers on those days while the row is still missing. Rule 12 reads
+`serials.warranty_end` and `serial_service.next_due` and pings the warehouse,
+deduped per unit per date through `auto_log`.
+
 ## 5. Supabase schema (see SUPABASE-SETUP.md for exact SQL)
 
 | Table | Purpose | Key columns |
@@ -580,6 +639,14 @@ Supabase GoTrue, email+password. New-format API keys (publishable in the page,
 secret in Netlify env); legacy JWT keys pending disable. Remember-me toggles the
 client between localStorage and sessionStorage session persistence. Roles load
 from `profiles` at sign-in and drive everything (`ROLE`, `SBPROFILE`).
+
+### Added 2026-09-08
+
+`serial_service` (per-unit service log; `serials` gained `warranty_end`,
+`warranty_note`, `holder`), `saved_reports` + `report_runs` (reporting layer),
+`review_snapshots.checkpoint` (+ unique partial index), `public.hs_role()` (the
+policy helper), `notifications_link_route` check. Backups cover every table but
+`qbo_tokens`.
 
 ## 6. Numbers & conventions (business logic contracts)
 

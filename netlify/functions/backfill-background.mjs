@@ -5,6 +5,7 @@
 // Requires Netlify env: SUPABASE_URL, SUPABASE_SERVICE_KEY (+ existing Shopify creds).
 import crypto from 'node:crypto';
 import { connectLambda, getStore } from '@netlify/blobs';
+import { requireJobKey } from './lib/guard.mjs';
 
 const STORE_HANDLE = process.env.SHOPIFY_STORE || 'healthspan-global';
 const API = 'https://' + STORE_HANDLE + '.myshopify.com/admin/api/2025-01/graphql.json';
@@ -56,14 +57,8 @@ const refUuid = ref => {
 const sleep = ms => new Promise(res => setTimeout(res, ms));
 
 export const handler = async (event) => {
-  // ── AUTH: background jobs require the JOB_KEY (set it in Netlify env), passed as
-  // ?key=... in the URL or an x-job-key header. Unset key = open (pre-lockdown behavior).
-  const _jk=process.env.JOB_KEY||'';
-  if(_jk){
-    const _q=(event.queryStringParameters&&event.queryStringParameters.key)||'';
-    const _h=(event.headers&&(event.headers['x-job-key']||event.headers['X-Job-Key']))||'';
-    if(_q!==_jk&&_h!==_jk)return{statusCode:403,body:'Forbidden — missing or wrong job key'};
-  }
+  // ── AUTH: JOB_KEY (x-job-key header or ?key=). Fail closed when it is unset.
+  { const gate=requireJobKey(event); if(gate) return gate; }
 
   try { connectLambda(event); } catch (e) {}
   let store = null; try { store = getStore('shopify'); } catch (e) {}

@@ -1,4 +1,5 @@
 import { llm, hasKey } from './lib/llm.mjs';
+import { requireJobKey } from './lib/guard.mjs';
 // WORKFLOW AUTOMATION RULES — the nightly sweep (triggered from nightly.mjs).
 // Eleven rules, each deduped via auto_log (unique rule+entity, insert-ignore):
 //  1. fulfilled order (~14d ago)      → follow-up task + ping for the owner
@@ -45,9 +46,7 @@ async function fresh(rule, entity) {
 }
 
 export const handler = async (event) => {
-  if ((event.headers['x-job-key'] || '') !== (process.env.JOB_KEY || 'x')) {
-    return { statusCode: 403, body: 'nope' };
-  }
+  { const gate = requireJobKey(event); if (gate) return gate; } // fail closed: no JOB_KEY = no job
   const today = iso(manila());
   const ym = today.slice(0, 7);
   const fired = { followup: 0, welcome: 0, collection: 0, dormant: 0, campaign: 0, digest: 0, nba: 0, quotechase: 0, occasion: 0, closenudge: 0 };
@@ -283,6 +282,29 @@ export const handler = async (event) => {
     }
   } catch (e) { errors.push('closenudge: ' + e.message); }
 
+  // 10b · review checkpoints: on the 15th, and on the 1st–3rd for the month that just
+  //       closed, the Business review freezes itself the moment an admin or manager
+  //       opens the app. This ping is what makes sure one of them does. Once per
+  //       month per checkpoint, and only while the snapshot is still missing.
+  try {
+    const dayN = +today.slice(8, 10), ymNow = today.slice(0, 7);
+    const pm = new Date(Date.UTC(+ymNow.slice(0, 4), +ymNow.slice(5, 7) - 2, 1)).toISOString().slice(0, 7);
+    const want = [];
+    if (dayN === 15) want.push({ month: ymNow, cp: 'mid', label: 'mid-month' });
+    if (dayN >= 1 && dayN <= 3) want.push({ month: pm, cp: 'end', label: 'month-end' });
+    for (const w of want) {
+      const have = await q('review_snapshots?select=id&month=eq.' + w.month + '&checkpoint=eq.' + w.cp + '&limit=1');
+      if (have.length) continue;
+      if (!await fresh('reviewcp', w.month + ':' + w.cp)) continue;
+      for (const role of ['admin', 'manager']) {
+        await notif({ role }, 'auto', 'Business review: ' + w.label + ' checkpoint for ' + w.month,
+          'Open the Business review once today — the ' + w.label + ' snapshot freezes itself when the page loads, so "since last report" stays honest.',
+          '#/v/bizreview');
+      }
+      fired.reviewcp = (fired.reviewcp || 0) + 1;
+    }
+  } catch (e) { errors.push('reviewcp: ' + e.message); }
+
   // 11 · overdue loaners: a demo unit past its due-back date pings whoever
   //      checked it out — once per loan per due date, so a renegotiated due date
   //      pings again but nobody gets nagged nightly for the same lapse
@@ -298,6 +320,30 @@ export const handler = async (event) => {
       fired.loanover = (fired.loanover || 0) + 1; // eslint-disable-line
     }
   } catch (e) { errors.push('loanover: ' + e.message); }
+
+  // 12 · equipment warranties and scheduled service: the warehouse hears 30 days
+  //      before a warranty lapses, once more when it has lapsed, and when a
+  //      logged "next due" service date arrives — each once per unit per date.
+  try {
+    const in30 = daysAgo(-30);
+    const ws = await q('serials?select=id,sku,serial,holder,warranty_end&status=neq.disposed&warranty_end=not.is.null&warranty_end=lte.' + in30);
+    for (const s of ws) {
+      const lapsed = s.warranty_end < today;
+      if (!await fresh('warranty', s.id + ':' + s.warranty_end + ':' + (lapsed ? 'out' : 'soon'))) continue;
+      await notif({ role: 'supply_chain' }, 'auto', (lapsed ? 'Warranty lapsed: ' : 'Warranty ending soon: ') + s.serial,
+        s.serial + ' (' + s.sku + ')' + (s.holder ? ' at ' + s.holder : '') + (lapsed ? ' went out of warranty on ' : ' is in warranty until ') + s.warranty_end + '. Check the service history and decide on an extension or a service visit.',
+        '#/v/serials');
+      fired.warranty = (fired.warranty || 0) + 1;
+    }
+    const due = await q('serial_service?select=id,serial_id,sku,serial,kind,next_due&next_due=not.is.null&next_due=lte.' + daysAgo(-7));
+    for (const d of due) {
+      if (!await fresh('svcdue', d.id + ':' + d.next_due)) continue;
+      await notif({ role: 'supply_chain' }, 'auto', 'Service due: ' + d.serial,
+        d.serial + ' (' + d.sku + ') has a ' + d.kind + ' due on ' + d.next_due + '. Book it, then log the visit on the unit\'s history.',
+        '#/v/serials');
+      fired.svcdue = (fired.svcdue || 0) + 1;
+    }
+  } catch (e) { errors.push('warranty: ' + e.message); }
 
   console.log('automations', today, JSON.stringify(fired), errors.length ? 'errors: ' + JSON.stringify(errors) : 'clean');
   return { statusCode: 200, body: JSON.stringify({ ok: true, fired, errors }) };

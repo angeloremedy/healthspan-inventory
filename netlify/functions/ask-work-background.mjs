@@ -4,6 +4,7 @@
 // the result to Blobs for ask.mjs to serve.
 import { connectLambda, getStore } from '@netlify/blobs';
 import { llm, hasKey, isHardQuestion, isFreeTier, provider, setProviderPref } from './lib/llm.mjs';
+import { requireJobKey } from './lib/guard.mjs';
 
 const SYSTEM = [
   'You are Healthspan HQ\'s assistant — HQ is Healthspan Global\'s ERP/CRM/warehouse system — answering inside the app for staff who know the business.',
@@ -13,7 +14,7 @@ const SYSTEM = [
   'Dates: TODAY is given in the WEEK CALENDAR header. "Week 7" means ISO week 7 of the current year — look it up in WEEK CALENDAR, then read WEEKLY EXTERNAL SALES for that week (if the week is older than the weekly section covers, say so and offer the month from the 13-month series instead). "This month" = MONTH TO DATE; "last month" = prev_month columns; a named month = the 13-month series.',
   'When the question is about revenue, targets, attainment, accounts or specialists, use the SALES sections (external, pesos). When it is about units moved, stock or reorder, use the warehouse sections. SHOPIFY UNIT DEMAND is gross units INCLUDING internal — never present it as sales revenue and say which basis you are using.',
   'Specialists appear under their HQ account names; short first names in the question (Frank, Tin, Rhas, Lady, Pinky) map to those names.',
-  'Reason first, briefly and privately: find the right section, check the date range, do the arithmetic, then answer. Show the key figures you used so the reader can verify.',
+  'Reason first, briefly and privately: find the right section, check the date range, do the arithmetic, then answer. Do NOT write a "Reason:" or "Answer:" label — start with the answer itself, then the key figures you used so the reader can verify, then (when it helps) what the pace implies.',
   'When SHOPIFY UNIT DEMAND is present, prefer it as the demand signal for ordering questions - it is physical units booked at the store; deal bundles count as a whole (their +1 units are deal units, not freebies); MONTHLY UNITS OUT is warehouse outflow and runs longer historically.',
   'SALES PER SPECIALIST, when present, shows each product specialist\'s booked units and revenue per month (from Shopify order tags).',
   '',
@@ -131,6 +132,9 @@ export function trimCatalog(cat, question, budget) {
 }
 
 export const handler = async (event) => {
+  // Only ask.mjs may start this worker — it carries the JOB_KEY and has already
+  // verified the session, so the `who` in the payload is server-derived.
+  { const gate = requireJobKey(event); if (gate) return gate; }
   try { connectLambda(event); } catch (e) {} // wire Blobs context into this handler-style function
 
   let payload = {};
@@ -147,7 +151,7 @@ export const handler = async (event) => {
 
   let store = null;
   try { store = getStore('ask'); } catch (e) {}
-  const finish = async (obj) => { if (store) { try { await store.setJSON('res-' + id, { ...obj, at: new Date().toISOString() }); } catch (e) {} } };
+  const finish = async (obj) => { if (store) { try { await store.setJSON('res-' + id, { ...obj, uid: String(who.uid || ''), at: new Date().toISOString() }); } catch (e) {} } };
   // a progress marker, so a poll can tell "the worker is on it" from "nothing ever started"
   const stage = async (s) => { if (store) { try { await store.setJSON('res-' + id, { pending: true, stage: s, provider: provider(), at: new Date().toISOString() }); } catch (e) {} } };
   await stage('started');
@@ -192,7 +196,7 @@ export const handler = async (event) => {
   // Question log (fire-and-forget)
   try {
     await fetch((process.env.URL || '') + '/api/asklog', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'x-job-key': process.env.JOB_KEY || '' },
       body: JSON.stringify({ src: 'web', q: question, ok: !!res.answer, model: usedModel, ms: Date.now() - t0 })
     });
   } catch (e) {}

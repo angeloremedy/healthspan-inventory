@@ -41,9 +41,9 @@ all of them. **Writes stay strictly role-scoped** per the matrix below.
 
 Exceptions to circle read (stay restricted regardless):
 - **Costs & margins** (item master cost column, margin %): admin + finance only.
-  Note: the weekly AP table already exposes supplier invoice totals to the room —
-  per-SKU cost/margin stays out of HQ's circle read regardless; meeting-side
-  sharing is Paul's call.
+  Supplier invoice totals, FX and landed cost on purchase orders follow the
+  same rule (admin, finance, supply_chain) — the PO page no longer paints the
+  AP block or the open-payables total for a sales manager (audit, 2026-09-08).
 - **Review scorecard comments**: admin + manager only (DB-enforced).
 - **Payments recording, user management, cutover**: per matrix / super admin.
 
@@ -81,11 +81,11 @@ therefore a floor — implementation grants the full circle read to all three.
 | Campaign calendar | ✅ | ✅ | 👁 | 👁 | 👁 | ✅ |
 | Forecasting suite, MAPE, AI planning review | ✅ | ✅ | ✖ | ✅ | 👁 | 👁 |
 | Ask Healthspan (drawer and full page; saved chats are owner-only — no role, not even super admin, can read another person's) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Activity log (audit) | ✅ (admin + super ONLY — tightened 2026-08-28) | ✖ | ✖ | ✖ | ✖ | ✖ |
+| Activity log (audit) | ✅ (admin + super ONLY — tightened 2026-08-28; RLS matched to it 2026-09-08) | ✖ | ✖ | ✖ | ✖ | ✖ |
 | Approvals queue (credit/threshold holds) | ✅ decide | ✅ decide | auto-request | ✖ | 👁 | ✖ |
 | Credit limits (set per account) | ✅ | 👁 | 👁 own accts | ✖ | ✅ | ✖ |
 | Commissions (tiers, monthly compute, CSV) | ✅ | ✖ | ✖ | ✖ | ✅ | ✖ |
-| Supplier bills / AP (terms, proforma, FX, payments on POs) | ✅ | 👁 | ✖ | 👁 | ✅ | ✖ |
+| Supplier bills / AP (terms, proforma, FX, payments on POs) | ✅ | ✖ (2026-09-08: the AP block and open-payables total were still painted for managers — closed) | ✖ | 👁 | ✅ | ✖ |
 | Events calendar | ✅ | ✅ | ✅ own | ✅ | ✅ | ✅ |
 | Quotations (create, send, convert to order) | ✅ | ✅ | ✅ own | 👁 | 👁 | 👁 |
 | Promotions engine (configure promos) | ✅ | 👁 | auto-applied | 👁 | 👁 | ✅ |
@@ -110,6 +110,11 @@ therefore a floor — implementation grants the full circle read to all three.
 | Remove an attachment | own uploads | own uploads | ✅ | ✅ | ✅ | enforced server-side in upload.mjs, not by the browser |
 | Serial numbers (view) | ✖ | ✅ | ✅ | ✅ | ✅ | sales work from accounts, not the equipment register |
 | Serial numbers (add / mark sold / dispose) | ✖ | ✖ | ✅ | ✅ (supply chain) | ✅ | physical units are the warehouse's |
+| Serial numbers — warranty end, holder, service / repair history (log, remove) | ✅ | 👁 history, no cost | ✅ | ✖ | ✅ | ✖ — RLS: supply_chain, admin, super write; everyone with the page reads. The `cost` on a service event is a cost: admin, finance, supply_chain see it; a manager sees the event without the figure |
+| Saved reports (build, save, run, export CSV, schedule) | ✅ | ✅ | ✅ own rows only | ✅ | ✅ | ✅ — viewers ✖. Every source gates itself: stock/batches/sales/accounts/visits all six; HQ orders & lines not marketing; quotations admin/manager/sales/finance; payments + finance forms admin/finance; purchase orders (costs) admin/finance/supply_chain; serials admin/manager/supply_chain; loaners + sales. Cost columns stripped for non-cost roles in the preview AND the scheduled file; a schedule runs as its owner |
+| Saved reports — edit / delete someone else's | ✅ | ✖ | ✖ | ✖ | ✖ | ✖ — shared reports are run/export-only for everyone but the owner and admin |
+| Business review — automatic checkpoints (15th, month-end) | ✅ (taken by the app on open) | ✅ (same) | ✖ | ✖ | ✖ | ✖ — same RLS as Save snapshot; one row per month per checkpoint |
+| Finance forms — receipts while filing (Add receipt / Add file) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ — anyone who can file; expense reimbursement and expense report require ≥ 1 receipt |
 | Demo / loaners (view) | ✖ | ✅ | ✅ | ✅ | ✅ | |
 | Demo / loaners (check out / return / convert) | ✖ | ✅ | ✅ | ✅ (supply chain) | ✅ | RLS: supply_chain, admin, manager, super |
 | Release a pick wave | ✖ | ✅ | ✅ | ✅ (supply chain) | ✅ | same gate as fulfilment |
@@ -222,3 +227,28 @@ Events + sales' own visit plans in one grid).
 Bank/treasury balances, disbursement approvals (RTPs), supplier bill payments,
 BIR filings, payroll → QBO + bank portals (finance reports these from there).
 Website/social analytics → GA/Meta (Maria's tools).
+
+
+## 2026-09-08 audit — what changed in the enforcement
+
+- **Deep links** (`#/a/`, `#/o/`, `#/s/`, `#/p/`, `#/d/`, `#/m/`, `#/w/`) now run
+  through `viewAllowed` like the sidebar; a specialist may deep-link only their own
+  specialist page. Viewer and marketing can no longer reach AR statements, delivery
+  receipts, pick slips, wave picks or credit memos by URL; supply chain not the
+  statements or the reconciliation page. A specialist's `sales*` pages are an
+  explicit list (no `salesrecon`).
+- **Before the profile resolves** nobody is anybody: only Home, Settings, My
+  profile and the manual open. A failed profile read means `viewer`, not `sales`.
+- **Tables** `accounts`, `opportunities`, `account_contacts`: writes were open to
+  every authenticated account (day-one policies); now role-scoped via
+  `public.hs_role()`. `audit_log` read: admin + super only in RLS, not just the UI.
+- **Functions**: every background job refuses to run without `JOB_KEY` (was
+  "unset = open"); Ask and Slack workers require it; the Slack worker only posts to
+  `hooks.slack.com`; the question log is worker-write / admin-read; sync, Shopify
+  and visits fail closed when the Supabase env is missing; an admin cannot reset
+  another admin's password (super admin only); attachment downloads are authorised
+  by RLS as the caller; deck sharing reaches HQ accounts or the company domain only.
+- **Notifications**: `link` must be an in-app route (DB check + validated and
+  JS-quoted in the renderer). `esc()` escapes the single quote.
+- **Backups** now include the sixteen tables that had grown up outside them
+  (never `qbo_tokens`).

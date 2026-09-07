@@ -2853,3 +2853,194 @@ create policy "prefs own" on public.user_prefs for all to authenticated
 
 Saved chats (`ask_chats`, above) are already per account, so they appear on
 every device without further work.
+
+## Security hardening (2026-09-08 audit)
+
+An app-wide audit found four tables whose write policies were still the day-one
+`auth.role() = 'authenticated'` — any signed-in account, viewers included, could
+rewrite the CRM master (owner, credit limit, tier), the pipeline and contacts —
+plus an activity-log read policy looser than the app and the docs (managers and
+finance could read it straight from PostgREST), and a notifications link column
+that accepted anything. Run this once.
+
+```sql
+-- one helper: the caller's role, or 'super' — used by every policy below
+create or replace function public.hs_role() returns text
+language sql stable security definer set search_path = public as $$
+  select case when p.is_super then 'super' else coalesce(p.role,'viewer') end
+  from public.profiles p where p.id = auth.uid()
+$$;
+revoke all on function public.hs_role() from public;
+grant execute on function public.hs_role() to authenticated;
+
+-- accounts: read stays company-wide; writes by the people who own the relationship
+drop policy if exists "insert accounts" on public.accounts;
+drop policy if exists "update accounts" on public.accounts;
+create policy "insert accounts" on public.accounts for insert to authenticated
+  with check (public.hs_role() in ('super','admin','manager','sales','finance','supply_chain'));
+create policy "update accounts" on public.accounts for update to authenticated
+  using (public.hs_role() in ('super','admin','manager','sales','finance','supply_chain'))
+  with check (public.hs_role() in ('super','admin','manager','sales','finance','supply_chain'));
+
+-- pipeline
+drop policy if exists "insert opps" on public.opportunities;
+drop policy if exists "update opps" on public.opportunities;
+create policy "insert opps" on public.opportunities for insert to authenticated
+  with check (public.hs_role() in ('super','admin','manager','sales','marketing'));
+create policy "update opps" on public.opportunities for update to authenticated
+  using (public.hs_role() in ('super','admin','manager','sales','marketing'))
+  with check (public.hs_role() in ('super','admin','manager','sales','marketing'));
+
+-- contacts: add by the relationship owners; remove by management
+drop policy if exists "insert contacts" on public.account_contacts;
+drop policy if exists "delete contacts" on public.account_contacts;
+create policy "insert contacts" on public.account_contacts for insert to authenticated
+  with check (public.hs_role() in ('super','admin','manager','sales','finance','supply_chain'));
+create policy "delete contacts" on public.account_contacts for delete to authenticated
+  using (public.hs_role() in ('super','admin','manager'));
+
+-- activity log: admin + super only, as the app and PERMISSIONS.md have said since 2026-08-28
+drop policy if exists "read audit (mgmt+finance)" on public.audit_log;
+drop policy if exists "read audit (admin/manager)" on public.audit_log;
+drop policy if exists "read audit" on public.audit_log;
+create policy "read audit" on public.audit_log for select to authenticated
+  using (public.hs_role() in ('super','admin'));
+
+-- notifications: a link is an in-app route or nothing
+alter table public.notifications drop constraint if exists notifications_link_route;
+update public.notifications set link = null where link is not null and link !~ '^#/[a-z]/[A-Za-z0-9_%.~:-]{1,160}$';
+alter table public.notifications add constraint notifications_link_route
+  check (link is null or link ~ '^#/[a-z]/[A-Za-z0-9_%.~:-]{1,160}$');
+```
+
+Server side, the same audit closed: every background worker now refuses to run
+when `JOB_KEY` is unset (previously "unset = open"); the Ask and Slack workers
+require the key and the Slack worker only posts to `hooks.slack.com`; the
+question log accepts writes from the workers only and reads from admins only;
+the sync, Shopify and visit endpoints fail closed when the Supabase env is
+missing; an admin can no longer reset another admin's password (super admin
+only); attachment downloads are checked as the caller (RLS decides, not "does
+the row exist"); deck sharing only reaches HQ accounts or the company domain.
+
+## Review checkpoints — the 15th and the month-end freeze themselves
+
+```sql
+alter table public.review_snapshots add column if not exists checkpoint text
+  check (checkpoint in ('mid','end'));
+create unique index if not exists review_snapshots_checkpoint
+  on public.review_snapshots (month, checkpoint) where checkpoint is not null;
+```
+
+`checkpoint` is null on hand-saved snapshots. The app inserts one `mid` row per
+month on or after the 15th and one `end` row for the month that just closed, the
+first time an admin or manager opens it; the unique index makes any second
+attempt a harmless failure. Nightly rule 10b pings admins and managers on those
+days while the row is still missing.
+
+## Serial numbers — warranty end dates and service / repair history
+
+Every machine carries a warranty end date, where it currently sits (clinic or
+warehouse — set automatically by loans, sales and returns), and a log of service,
+repair, calibration and inspection events with vendor, cost and next due date.
+Nightly rule 12 pings the warehouse 30 days before a warranty lapses (and again
+when it has lapsed) and when a scheduled service falls due.
+
+```sql
+alter table public.serials add column if not exists warranty_end date;
+alter table public.serials add column if not exists warranty_note text;
+alter table public.serials add column if not exists holder text;   -- clinic / account that has the unit now (null = warehouse)
+
+create table if not exists public.serial_service (
+  id bigint generated always as identity primary key,
+  serial_id bigint not null references public.serials(id) on delete cascade,
+  sku text not null,
+  serial text not null,
+  svc_date date not null default (now() at time zone 'Asia/Manila')::date,
+  kind text not null default 'service' check (kind in ('service','repair','calibration','inspection','other')),
+  description text,
+  vendor text,
+  cost numeric(12,2),
+  next_due date,
+  created_by uuid references auth.users,
+  created_name text,
+  created_at timestamptz not null default now()
+);
+create index if not exists serial_service_serial on public.serial_service (serial_id, svc_date desc);
+create index if not exists serial_service_next on public.serial_service (next_due) where next_due is not null;
+alter table public.serial_service enable row level security;
+drop policy if exists "svc read" on public.serial_service;
+create policy "svc read" on public.serial_service for select to authenticated using (true);
+drop policy if exists "svc write" on public.serial_service;
+create policy "svc write" on public.serial_service for insert to authenticated
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid()
+              and (p.role in ('supply_chain','admin') or p.is_super)));
+drop policy if exists "svc delete" on public.serial_service;
+create policy "svc delete" on public.serial_service for delete to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid()
+         and (p.role in ('supply_chain','admin') or p.is_super)));
+```
+
+The `cost` column is a cost: the app shows it to admin, finance and the warehouse
+only; a sales manager sees the event without the peso figure.
+
+## Saved reports — definitions, schedules and server runs
+
+The reporting layer (Sales analytics → Saved reports). A report is a JSON
+definition (source, columns, filters, group, sort, cap) plus an optional
+schedule. Everyone but viewers may build; a specialist's report only ever
+contains their own rows; cost columns are stripped for roles that do not see
+costs elsewhere — in the browser and in the scheduled run alike (the run is made
+as the owner, role looked up fresh). Scheduled runs happen at 6am Manila
+(`reports-schedule.mjs`); the CSV lives in Netlify Blobs (store `reports`), the
+`report_runs` row points at it, and the owner gets a bell notification.
+
+```sql
+create table if not exists public.saved_reports (
+  id bigint generated always as identity primary key,
+  name text not null,
+  owner_id uuid not null references auth.users on delete cascade,
+  owner_name text,
+  def jsonb not null default '{}'::jsonb,
+  shared boolean not null default false,
+  schedule jsonb,                 -- {freq:'daily'|'weekly'|'monthly', dow:1..7, dom:1..28|'last'} or null
+  recipients jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists saved_reports_owner on public.saved_reports (owner_id, updated_at desc);
+alter table public.saved_reports enable row level security;
+drop policy if exists "reports read" on public.saved_reports;
+create policy "reports read" on public.saved_reports for select to authenticated
+  using (owner_id = auth.uid() or shared or public.hs_role() in ('super','admin'));
+drop policy if exists "reports insert" on public.saved_reports;
+create policy "reports insert" on public.saved_reports for insert to authenticated
+  with check (owner_id = auth.uid() and public.hs_role() <> 'viewer');
+drop policy if exists "reports update" on public.saved_reports;
+create policy "reports update" on public.saved_reports for update to authenticated
+  using (owner_id = auth.uid() or public.hs_role() in ('super','admin'))
+  with check (owner_id = auth.uid() or public.hs_role() in ('super','admin'));
+drop policy if exists "reports delete" on public.saved_reports;
+create policy "reports delete" on public.saved_reports for delete to authenticated
+  using (owner_id = auth.uid() or public.hs_role() in ('super','admin'));
+
+create table if not exists public.report_runs (
+  id bigint generated always as identity primary key,
+  report_id bigint not null references public.saved_reports(id) on delete cascade,
+  ran_at timestamptz not null default now(),
+  by_user uuid,
+  by_name text,
+  rows integer,
+  blob_key text,
+  status text not null default 'ok' check (status in ('ok','error')),
+  error text
+);
+create index if not exists report_runs_report on public.report_runs (report_id, id desc);
+alter table public.report_runs enable row level security;
+drop policy if exists "runs read" on public.report_runs;
+create policy "runs read" on public.report_runs for select to authenticated
+  using (exists (select 1 from public.saved_reports r where r.id = report_runs.report_id
+                 and (r.owner_id = auth.uid() or r.shared or public.hs_role() in ('super','admin'))));
+-- runs are written by the server (service key) only
+```
+
+`public.hs_role()` comes from the security-hardening block above — run that first.

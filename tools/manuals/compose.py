@@ -12,6 +12,7 @@ import fw
 def story_of(doc):
     out = []
     for b in doc['blocks']:
+        b = dict(b)
         t = b['t']
         if t == 'table':                     # tables carry head/rows, not a value
             out.append(fw.table(b['head'], b['rows'], b.get('w')))
@@ -26,6 +27,31 @@ def story_of(doc):
         elif t == 'small': out.append(fw.small(v))
         elif t == 'step':  out.append(fw.steps([(b.get('n', 1), v)])[0])
         elif t == 'callout': out.append(fw.callout(v, b.get('c')))
+    return glue(out)
+
+def glue(flow):
+    """Headings carry keepWithNext, which Platypus honours for the next flowable. A
+    heading followed by a numbered list still looked wrong when only the first step
+    made the page, so every heading is bound to the first TWO flowables after it
+    (or one, when the second is another heading). Tables and callouts are left to
+    split on their own — a KeepTogether around a long table would push the whole
+    section to a fresh page."""
+    from reportlab.platypus import KeepTogether, Paragraph
+    out, i = [], 0
+    def is_head(f):
+        return isinstance(f, Paragraph) and f.style.name in ('h1', 'h2')
+    while i < len(flow):
+        f = flow[i]
+        if is_head(f):
+            grp = [f]; j = i + 1; body = 0
+            # an h1 straight into an h2 travels with it; then two body paragraphs
+            while j < len(flow) and body < 2 and isinstance(flow[j], Paragraph):
+                if not is_head(flow[j]): body += 1
+                grp.append(flow[j]); j += 1
+            if len(grp) > 1:
+                for g in grp: g.keepWithNext = 0   # the group does the keeping now
+                out.append(KeepTogether(grp)); i = j; continue
+        out.append(f); i += 1
     return out
 
 def run(out_dir):

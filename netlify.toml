@@ -1,5 +1,5 @@
 [build]
-  # tools/build.mjs concatenates js/01…13 in index.html order, minifies (identifiers
+  # tools/build.mjs concatenates js/01…14 in index.html order, minifies (identifiers
   # untouched) and writes dist/: index.html + one hashed app.<hash>.js + static assets.
   # Source stays in js/ — drag-drop uploads to GitHub still work; Netlify runs this.
   command = "npm run build"
@@ -59,3 +59,18 @@
   for = "/manifest.webmanifest"
   [headers.values]
     cache-control = "public, max-age=86400"
+
+# ── security headers (2026-09-08 audit). The app is built from inline handlers, so
+# script-src must allow 'unsafe-inline'; the protection that matters is connect-src —
+# a script that somehow ran could still not send anything anywhere but Supabase,
+# our own functions, Google's upload endpoint and the two CDNs. The CSP ships
+# REPORT-ONLY first: watch the browser console for a week, then rename the header
+# to Content-Security-Policy to enforce it.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(self), microphone=(), geolocation=(), payment=()"
+    Content-Security-Policy-Report-Only = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://lesjigujcajxurmsmwwc.supabase.co wss://lesjigujcajxurmsmwwc.supabase.co https://www.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"

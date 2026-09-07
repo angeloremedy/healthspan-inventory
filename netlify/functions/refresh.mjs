@@ -83,7 +83,7 @@ async function fetchAcctBooked(KEY){
 async function requireUser(event){
   const SB_URL=(process.env.SUPABASE_URL||'').replace(/\/$/,'');
   const SVC=process.env.SUPABASE_SERVICE_KEY||'';
-  if(!SB_URL||!SVC)return null; // lockdown env missing — don't brick the app
+  if(!SB_URL||!SVC)return{code:503,error:'Auth is not configured on the server'}; // fail closed
   const token=((event.headers&&(event.headers.authorization||event.headers.Authorization))||'').replace(/^Bearer\s+/i,'');
   if(!token)return{code:401,error:'Sign in required'};
   try{

@@ -81,10 +81,13 @@ async function renderSerials(){
   loadingHint();
   await loadSerials(true);
   const f=window._serF||'all';
-  const rows=(SERIALS||[]).filter(s=>f==='all'||s.status===f);
+  const rows=(SERIALS||[]).filter(s=>f==='all'||(f==='warranty'?(s.status!=='disposed'&&s.warranty_end&&serWarrState(s).tone!=='ok'):s.status===f));
+  if(window._serOpen&&!(SERIALS||[]).some(s=>s.id===window._serOpen))window._serOpen=null;
+  let SVC=[];if(window._serOpen){try{const {data}=await SB.from('serial_service').select('*').eq('serial_id',window._serOpen).order('svc_date',{ascending:false}).limit(200);SVC=data||[];}catch(e){}}
   const n=st=>(SERIALS||[]).filter(s=>s.status===st).length;
   const pill=st=>st==='in_stock'?'<span class="pill pgr">in stock</span>':st==='on_loan'?'<span class="pill pam">on loan</span>':st==='sold'?'<span class="pill pbl">sold</span>':'<span class="pill prd">disposed</span>';
-  const tabs=[['all','All ('+(SERIALS||[]).length+')'],['in_stock','In stock ('+n('in_stock')+')'],['on_loan','On loan ('+n('on_loan')+')'],['sold','Sold ('+n('sold')+')'],['disposed','Disposed ('+n('disposed')+')']];
+  const wSoon=(SERIALS||[]).filter(s=>s.status!=='disposed'&&serWarrState(s).tone!=='ok'&&s.warranty_end).length;
+  const tabs=[['all','All ('+(SERIALS||[]).length+')'],['in_stock','In stock ('+n('in_stock')+')'],['on_loan','On loan ('+n('on_loan')+')'],['sold','Sold ('+n('sold')+')'],['disposed','Disposed ('+n('disposed')+')'],['warranty','Warranty due ('+wSoon+')']];
   const fld='style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:16px"';
   const flbl='style="font-size:11px;color:var(--tx3);font-weight:600"';
   $('content').innerHTML=
@@ -96,19 +99,105 @@ async function renderSerials(){
       '<label '+flbl.replace('style="','style="display:block;margin-top:8px;')+'>SERIAL NUMBERS — one per line</label>'+
       '<textarea id="ser-list" rows="3" placeholder="SN-2026-0001&#10;SN-2026-0002" '+fld+'></textarea>'+
       '<div style="display:flex;gap:10px;align-items:center;margin-top:8px"><button onclick="serAdd()" style="background:var(--ac);color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer">Add serials</button><span id="ser-msg" class="mu" style="font-size:12px"></span></div></div>':'')+
-    (rows.length?'<div class="tcard"><div class="tscroll"><table><thead><tr><th>Serial</th><th>SKU</th><th>Product</th><th>Batch</th><th>Status</th><th>Ref / note</th><th>Added</th>'+(canSerials()?'<th></th>':'')+'</tr></thead><tbody>'+
-      rows.map(s=>{const p=DATA.find(x=>x.sku===s.sku);
-        return '<tr><td style="font-weight:700">'+esc(s.serial)+'</td><td class="mu" style="font-size:11px">'+esc(s.sku)+'</td>'+
+    (rows.length?'<div class="tcard"><div class="tscroll"><table><thead><tr><th>Serial</th><th>SKU</th><th>Product</th><th>Batch</th><th>Status</th><th>Where it is</th><th>Warranty</th><th>Ref / note</th><th>Added</th><th></th></tr></thead><tbody>'+
+      rows.map(s=>{const p=DATA.find(x=>x.sku===s.sku);const W=serWarrState(s);const open=window._serOpen===s.id;
+        return '<tr'+(open?' style="background:var(--sf2)"':'')+'><td style="font-weight:700">'+esc(s.serial)+'</td><td class="mu" style="font-size:11px">'+esc(s.sku)+'</td>'+
         '<td style="max-width:220px;overflow:hidden;text-overflow:ellipsis">'+esc((p&&p.name)||'—')+'</td><td class="mu">'+esc(s.batch||'—')+'</td>'+
-        '<td>'+pill(s.status)+'</td><td class="mu" style="font-size:11.5px;max-width:200px;overflow:hidden;text-overflow:ellipsis">'+esc(s.sold_ref||s.note||'')+'</td>'+
+        '<td>'+pill(s.status)+'</td><td class="mu" style="font-size:11.5px;max-width:160px;overflow:hidden;text-overflow:ellipsis">'+esc(s.holder||(s.status==='in_stock'?'warehouse':'—'))+'</td>'+
+        '<td>'+(s.warranty_end?'<span class="pill '+(W.tone==='ok'?'pgr':W.tone==='soon'?'pam':'prd')+'" title="'+esc(W.text)+'">'+esc(s.warranty_end)+'</span>':'<span class="mu" style="font-size:11px">—</span>')+
+          (canSerials()?' <a href="#" class="lnk" onclick="serWarranty('+s.id+');return false" style="color:var(--ac);font-size:10px" title="Set the warranty end date">✎</a>':'')+'</td>'+
+        '<td class="mu" style="font-size:11.5px;max-width:200px;overflow:hidden;text-overflow:ellipsis">'+esc(s.sold_ref||s.note||'')+'</td>'+
         '<td class="mu" style="font-size:11px">'+esc((s.created_at||'').slice(0,10))+(s.created_name?' · '+esc(s.created_name):'')+'</td>'+
-        (canSerials()?'<td style="white-space:nowrap">'+
+        '<td style="white-space:nowrap"><a href="#" class="lnk" onclick="window._serOpen='+(open?'null':s.id)+';keepScroll();renderSerials();return false" style="color:var(--ac);font-size:11.5px">'+(open?'close':'history')+'</a>'+(canSerials()?' · ':'')+
+        (canSerials()?
           (s.status==='in_stock'?'<a href="#" onclick="serMark('+s.id+',\'sold\');return false" style="color:var(--bl);font-size:11.5px">sold</a> · <a href="#" onclick="serMark('+s.id+',\'disposed\');return false" style="color:var(--rd);font-size:11.5px">dispose</a>':'')+
-          (s.status==='sold'||s.status==='disposed'?'<a href="#" onclick="serMark('+s.id+',\'in_stock\');return false" style="color:var(--gr);font-size:11.5px">back to stock</a>':'')+
-          '</td>':'')+'</tr>';}).join('')+
+          (s.status==='sold'||s.status==='disposed'?'<a href="#" onclick="serMark('+s.id+',\'in_stock\');return false" style="color:var(--gr);font-size:11.5px">back to stock</a>':'')
+          :'')+'</td></tr>'+(open?'<tr><td colspan="10" style="padding:0 10px 12px">'+serHistoryPanel(s,SVC)+'</td></tr>':'');}).join('')+
       '</tbody></table></div><div class="tfooter"><span>One row per physical unit. Consumables stay batch-tracked — serials are for equipment (lasers, devices). On-loan units are managed from Demo / loaners; a check-out and a return move the status here automatically.</span></div></div>'
       :'<div class="empty" style="margin-top:30px">'+(window._serErr?'Could not load serials — '+esc(window._serErr)+'. If the table does not exist yet, run the SQL block from SUPABASE-SETUP.md.':'No serials'+(f==='all'?' yet — add the equipment units above':' with this status')+'.')+'</div>');
   attachTypeahead($('ser-sku'),()=>DATA.map(p=>p.sku+' — '+p.name));
+}
+/* ── warranty + service history per unit ──────────────────────────────────────
+   Every machine carries a warranty end date and a log of what was done to it —
+   service, repair, calibration, inspection — with who did it, what it cost and
+   when the next one is due. Costs follow the company rule: admin, finance and the
+   warehouse see them; managers see the event without the peso figure. The nightly
+   job (rule 12) pings the warehouse 30 days before a warranty lapses and when a
+   scheduled service falls due. */
+const SVC_KINDS=['service','repair','calibration','inspection','other'];
+function serWarrState(s){
+  if(!s||!s.warranty_end)return {tone:'none',text:'no warranty on record'};
+  const days=Math.round((new Date(s.warranty_end+'T00:00:00Z')-new Date(todayISO()+'T00:00:00Z'))/864e5);
+  if(days<0)return {tone:'out',days,text:'warranty expired '+(-days)+' day'+(days===-1?'':'s')+' ago'};
+  if(days<=60)return {tone:'soon',days,text:'warranty ends in '+days+' day'+(days===1?'':'s')};
+  return {tone:'ok',days,text:'in warranty · '+days+' days left'};
+}
+function serCostOK(){return roleIn('admin','finance','supply_chain')||(typeof isSuper==='function'&&isSuper());}
+function serHistoryPanel(s,svc){
+  const W=serWarrState(s);const can=canSerials();const cost=serCostOK();
+  const fld='style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;font-size:13px"';
+  const next=(svc||[]).map(x=>x.next_due).filter(Boolean).sort()[0];
+  return '<div class="panel" style="padding:12px 14px">'+
+    '<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:8px">'+
+      '<div><div class="mu" style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px">Warranty</div><div style="font-size:13px">'+esc(W.text)+(s.warranty_note?' <span class="mu">· '+esc(s.warranty_note)+'</span>':'')+
+        (can?' <a href="#" class="lnk" onclick="serWarranty('+s.id+');return false" style="color:var(--ac);font-size:11px">edit</a>':'')+'</div></div>'+
+      '<div><div class="mu" style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px">Where it is</div><div style="font-size:13px">'+esc(s.holder||(s.status==='in_stock'?'Warehouse':'—'))+
+        (can?' <a href="#" class="lnk" onclick="serHolder('+s.id+');return false" style="color:var(--ac);font-size:11px">edit</a>':'')+'</div></div>'+
+      '<div><div class="mu" style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px">Next service due</div><div style="font-size:13px">'+(next?esc(next):'<span class="mu">none scheduled</span>')+'</div></div>'+
+    '</div>'+
+    '<div class="phd" style="margin:6px 0 4px">Service &amp; repair history</div>'+
+    ((svc||[]).length?'<div class="tscroll"><table><thead><tr><th>Date</th><th>What</th><th>Details</th><th>By (vendor / tech)</th>'+(cost?'<th class="r">Cost</th>':'')+'<th>Next due</th><th>Logged</th>'+(can?'<th></th>':'')+'</tr></thead><tbody>'+
+      svc.map(x=>'<tr><td class="mu" style="font-size:11.5px;white-space:nowrap">'+esc(x.svc_date||'')+'</td><td><span class="pill '+(x.kind==='repair'?'prd':x.kind==='calibration'?'pbl':x.kind==='inspection'?'pgy':'pgr')+'">'+esc(x.kind)+'</span></td>'+
+        '<td style="font-size:12px;max-width:320px">'+esc(x.description||'')+'</td><td class="mu" style="font-size:11.5px">'+esc(x.vendor||'—')+'</td>'+
+        (cost?'<td class="r mu" style="font-size:11.5px">'+(x.cost!=null?fmtPeso(x.cost):'—')+'</td>':'')+
+        '<td class="mu" style="font-size:11.5px">'+esc(x.next_due||'—')+'</td><td class="mu" style="font-size:10.5px">'+esc((x.created_at||'').slice(0,10))+(x.created_name?' · '+esc(x.created_name):'')+'</td>'+
+        (can?'<td><a href="#" onclick="svcRemove('+x.id+','+s.id+');return false" style="color:var(--rd);font-size:11px">remove</a></td>':'')+'</tr>').join('')+
+      '</tbody></table></div>':'<div class="mu" style="font-size:12px;margin-bottom:6px">Nothing logged yet for this unit.</div>')+
+    (can?'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-top:10px">'+
+      '<div><div class="mu" style="font-size:10.5px">Date</div><input id="svc-date" type="date" value="'+esc(todayISO())+'" '+fld+'></div>'+
+      '<div><div class="mu" style="font-size:10.5px">What</div><select id="svc-kind" '+fld+'>'+SVC_KINDS.map(k=>'<option>'+k+'</option>').join('')+'</select></div>'+
+      '<div style="flex:1;min-width:200px"><div class="mu" style="font-size:10.5px">Details</div><input id="svc-desc" placeholder="What was done, findings, parts" '+fld.replace('style="','style="width:100%;box-sizing:border-box;')+'></div>'+
+      '<div><div class="mu" style="font-size:10.5px">Vendor / technician</div><input id="svc-vendor" '+fld+'></div>'+
+      (cost?'<div><div class="mu" style="font-size:10.5px">Cost ₱</div><input id="svc-cost" type="number" step="0.01" style="width:110px" '+fld.slice(7)+'></div>':'')+
+      '<div><div class="mu" style="font-size:10.5px">Next due</div><input id="svc-next" type="date" '+fld+'></div>'+
+      '<button onclick="svcAdd('+s.id+')" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer">Log it</button>'+
+      '<span id="svc-msg" class="mu" style="font-size:11.5px"></span></div>':'')+
+    '</div>';
+}
+async function serWarranty(id){
+  const s=(SERIALS||[]).find(x=>x.id===id);if(!s||!canSerials())return;
+  const d=prompt('Warranty end date for '+s.serial+' (YYYY-MM-DD, blank to clear):',s.warranty_end||'');if(d===null)return;
+  const v=d.trim();if(v&&!/^\d{4}-\d{2}-\d{2}$/.test(v))return alert('Use YYYY-MM-DD.');
+  const note=prompt('Warranty note (supplier, terms, claim contact) — optional:',s.warranty_note||'');if(note===null)return;
+  try{const {data:up,error}=await SB.from('serials').update({warranty_end:v||null,warranty_note:note.trim()||null,updated_at:new Date().toISOString()}).eq('id',id).select('id');
+    if(error)throw new Error(error.message);if(!up||!up.length)throw new Error('No change saved — permissions?');
+    audit('serial.warranty',{serial:s.serial,end:v||null});keepScroll();renderSerials();
+  }catch(e){alert('Could not save: '+(e.message||e)+(/warranty_end/.test(String(e.message))?' — run the serial warranty SQL from SUPABASE-SETUP.md.':''));}
+}
+async function serHolder(id){
+  const s=(SERIALS||[]).find(x=>x.id===id);if(!s||!canSerials())return;
+  const h=prompt('Which clinic / account has '+s.serial+' now? (blank = warehouse)',s.holder||'');if(h===null)return;
+  try{const {data:up,error}=await SB.from('serials').update({holder:h.trim()||null,updated_at:new Date().toISOString()}).eq('id',id).select('id');
+    if(error)throw new Error(error.message);if(!up||!up.length)throw new Error('No change saved — permissions?');
+    audit('serial.holder',{serial:s.serial,holder:h.trim()||null});keepScroll();renderSerials();
+  }catch(e){alert('Could not save: '+(e.message||e));}
+}
+async function svcAdd(serialId){
+  const s=(SERIALS||[]).find(x=>x.id===serialId);const msg=$('svc-msg');if(!s||!canSerials())return;
+  const row={serial_id:serialId,sku:s.sku,serial:s.serial,svc_date:($('svc-date')&&$('svc-date').value)||todayISO(),kind:($('svc-kind')&&$('svc-kind').value)||'service',
+    description:($('svc-desc')&&$('svc-desc').value||'').trim()||null,vendor:($('svc-vendor')&&$('svc-vendor').value||'').trim()||null,
+    cost:($('svc-cost')&&$('svc-cost').value)?Math.round(parseFloat($('svc-cost').value)*100)/100:null,next_due:($('svc-next')&&$('svc-next').value)||null,
+    created_by:(SBUSER&&SBUSER.id)||null,created_name:(SBPROFILE&&SBPROFILE.name)||''};
+  if(!row.description){if(msg){msg.style.color='var(--rd)';msg.textContent='Say what was done.';}return;}
+  try{const {error}=await SB.from('serial_service').insert(row);if(error)throw new Error(error.message);
+    audit('serial.service',{serial:s.serial,kind:row.kind,next:row.next_due});keepScroll();renderSerials();
+  }catch(e){if(msg){msg.style.color='var(--rd)';msg.textContent='Could not log: '+(e.message||e)+(/serial_service/.test(String(e.message))?' — run the serial service SQL from SUPABASE-SETUP.md.':'');}}
+}
+async function svcRemove(id,serialId){
+  if(!canSerials()||!confirm('Remove this history entry?'))return;
+  try{const {data:up,error}=await SB.from('serial_service').delete().eq('id',id).select('id');if(error)throw new Error(error.message);
+    if(!up||!up.length)throw new Error('Not removed — only the warehouse, admin or super admin can.');
+    audit('serial.service.remove',{id});keepScroll();renderSerials();}catch(e){alert('Could not remove: '+(e.message||e));}
 }
 async function serAdd(){
   const msg=$('ser-msg');
@@ -130,13 +219,15 @@ async function serAdd(){
 async function serMark(id,status){
   const s=(SERIALS||[]).find(x=>x.id===id);if(!s)return;
   let ref=null;
-  if(status==='sold'){ref=prompt('Order / DR reference for the sale of '+s.serial+':');if(ref===null)return;}
+  let holder=null;
+  if(status==='sold'){ref=prompt('Order / DR reference for the sale of '+s.serial+':');if(ref===null)return;
+    holder=prompt('Which clinic / account has '+s.serial+' now? (for warranty and service calls)',s.holder||'');if(holder===null)return;holder=holder.trim()||null;}
   if(status==='disposed'&&!confirm('Mark '+s.serial+' disposed?'))return;
   try{
     // guard on the CURRENT status so a console call cannot stomp an open loan,
     // and check the row count — RLS answers a refused update with 0 rows, no error
     const expect=status==='in_stock'?['sold','disposed']:['in_stock'];
-    const {data:up,error}=await SB.from('serials').update({status,sold_ref:status==='sold'?(ref||'').trim()||null:null,updated_at:new Date().toISOString()})
+    const {data:up,error}=await SB.from('serials').update({status,sold_ref:status==='sold'?(ref||'').trim()||null:null,holder:status==='sold'?holder:null,updated_at:new Date().toISOString()})
       .eq('id',id).in('status',expect).select('id');
     if(error)throw new Error(error.message);
     if(!up||!up.length)throw new Error('No change — the unit is not in a state that allows this (refresh the page).');
@@ -158,7 +249,7 @@ const loanNo=id=>docNo('loan',id);
 async function renderLoans(){
   loadingHint();
   await Promise.all([loadLoans(true),loadSerials(true)]);
-  const today=new Date().toISOString().slice(0,10);
+  const today=todayISO();
   const out=(LOANS||[]).filter(l=>l.status==='out');
   const past=(LOANS||[]).filter(l=>l.status!=='out').slice(0,60);
   const overdue=out.filter(l=>l.due_date&&l.due_date<today);
@@ -214,7 +305,7 @@ async function loanOut(){
   if(!s||!account){if(msg){msg.style.color='var(--rd)';msg.textContent='Pick the unit and the account.';}return;}
   try{
     // the serial leaves stock first; a 0-row update means someone beat us to it
-    const {data:up,error:e1}=await SB.from('serials').update({status:'on_loan',updated_at:new Date().toISOString()}).eq('id',sid).eq('status','in_stock').select('id');
+    const {data:up,error:e1}=await SB.from('serials').update({status:'on_loan',holder:account,updated_at:new Date().toISOString()}).eq('id',sid).eq('status','in_stock').select('id');
     if(e1)throw new Error(e1.message);
     if(!up||!up.length)throw new Error('That unit is no longer in stock — refresh and pick another.');
     const {data:ln,error:e2}=await SB.from('loans').insert({serial_id:sid,sku:s.sku,serial:s.serial,account,due_date:due,cond_out:cond,
@@ -233,11 +324,11 @@ async function loanReturn(id){
   const cond=prompt('Condition at return of '+l.serial+' (from '+l.account+'):','complete, good condition');
   if(cond===null)return;
   try{
-    const today=new Date().toISOString().slice(0,10);
+    const today=todayISO();
     const {data:up,error}=await SB.from('loans').update({status:'returned',returned_at:today,cond_in:(cond||'').trim()||null,updated_at:new Date().toISOString()}).eq('id',id).eq('status','out').select('id');
     if(error)throw new Error(error.message);
     if(!up||!up.length)throw new Error('This loan is already closed — refresh.');
-    const {data:sr}=await SB.from('serials').update({status:'in_stock',updated_at:new Date().toISOString()}).eq('id',l.serial_id).eq('status','on_loan').select('id');
+    const {data:sr}=await SB.from('serials').update({status:'in_stock',holder:null,updated_at:new Date().toISOString()}).eq('id',l.serial_id).eq('status','on_loan').select('id');
     if(!sr||!sr.length)alert('The loan is closed, but the serial did not move back to stock (permissions or state). Tell the warehouse or an admin to check '+l.serial+'.');
     audit('loan.return',{loan:loanNo(id),serial:l.serial,cond});
     keepScroll();renderLoans();
@@ -248,11 +339,11 @@ async function loanConvert(id){
   const ref=prompt('The demo closed — order / DR reference for the sale of '+l.serial+' to '+l.account+':');
   if(ref===null)return;
   try{
-    const today=new Date().toISOString().slice(0,10);
+    const today=todayISO();
     const {data:up,error}=await SB.from('loans').update({status:'converted',returned_at:today,converted_ref:(ref||'').trim()||null,updated_at:new Date().toISOString()}).eq('id',id).eq('status','out').select('id');
     if(error)throw new Error(error.message);
     if(!up||!up.length)throw new Error('This loan is already closed — refresh.');
-    const {data:sr}=await SB.from('serials').update({status:'sold',sold_ref:(ref||'').trim()||null,updated_at:new Date().toISOString()}).eq('id',l.serial_id).eq('status','on_loan').select('id');
+    const {data:sr}=await SB.from('serials').update({status:'sold',sold_ref:(ref||'').trim()||null,holder:l.account||null,updated_at:new Date().toISOString()}).eq('id',l.serial_id).eq('status','on_loan').select('id');
     if(!sr||!sr.length)alert('The loan is converted, but the serial did not move to sold (permissions or state). Tell the warehouse or an admin to check '+l.serial+'.');
     audit('loan.convert',{loan:loanNo(id),serial:l.serial,account:l.account,ref});
     keepScroll();renderLoans();
@@ -278,11 +369,8 @@ async function showWavePick(waveId){
   let w=null;try{const {data}=await SB.from('waves').select('*').eq('id',waveId).maybeSingle();w=data;}catch(e){}
   if(!w){$('content').innerHTML='<div class="empty" style="margin-top:40px">Wave not found.</div>';return;}
   const ids=(w.order_ids||[]).map(String);
-  const orders=[];
-  for(const id of ids){
-    let o=null;try{const {data}=await SB.from('orders').select('*,order_lines(*)').eq('id',id).maybeSingle();o=data;}catch(e){}
-    if(o)orders.push(o);
-  }
+  let orders=[]; // one query for the whole wave, kept in the wave's order
+  try{const {data}=await SB.from('orders').select('*,order_lines(*)').in('id',ids);const by={};(data||[]).forEach(o=>by[String(o.id)]=o);orders=ids.map(i=>by[i]).filter(Boolean);}catch(e){}
   if(!orders.length){$('content').innerHTML='<div class="empty" style="margin-top:40px">None of this wave\'s orders could be loaded.</div>';return;}
   const binOf={},nameOf={};DATA.forEach(p=>{binOf[p.sku]=p.bin||'';nameOf[p.sku]=p.name;});
   // merge lines across the wave: one pull per SKU, tagged per order
@@ -337,7 +425,7 @@ async function renderCrmStats(){
   await loadVisits(true);
   const periods=[['7d','7 days'],['mtd','This month'],['30d','30 days'],['3m','3 months'],['all','All (≈4 months)']];
   const per=window._crmP||'mtd';
-  const today=new Date().toISOString().slice(0,10);
+  const today=todayISO();
   const from=per==='7d'?new Date(Date.now()-7*864e5).toISOString().slice(0,10)
     :per==='mtd'?today.slice(0,8)+'01'
     :per==='30d'?new Date(Date.now()-30*864e5).toISOString().slice(0,10)
@@ -414,7 +502,7 @@ async function profileDecorate(){
     loadVisits()
   ]).catch(()=>[{},{}]);
   if(currentView!=='profile')return;
-  const reqs=(qr&&qr.data)||[],myLoans=(ql&&ql.data)||[];const today=new Date().toISOString().slice(0,10);
+  const reqs=(qr&&qr.data)||[],myLoans=(ql&&ql.data)||[];const today=todayISO();
   const btn=(fn,lbl,primary)=>'<a href="#" class="abtn'+(primary?' t-ac':'')+'" onclick="'+fn+';return false">'+lbl+'</a>';
   const head='<div class="panel" style="padding:16px 18px;margin-bottom:14px;display:flex;gap:16px;align-items:center;flex-wrap:wrap">'+
       '<div style="width:52px;height:52px;border-radius:50%;background:var(--ac);color:#fff;display:flex;align-items:center;justify-content:center;font-size:21px;font-weight:800">'+esc((who||'?').trim().charAt(0).toUpperCase())+'</div>'+
@@ -426,7 +514,7 @@ async function profileDecorate(){
   if(tag&&typeof bizCompute==='function'&&typeof hasIntSplit==='function'&&hasIntSplit()){
     try{await Promise.all([typeof loadOwners==='function'?(OWNERS?null:loadOwners()):null,typeof loadSerials==='function'?(SERIALS?null:loadSerials()):null,typeof loadLoans==='function'?(LOANS?null:loadLoans()):null]);}catch(e){}
     if(currentView!=='profile')return;
-    let R=null;try{R=bizCompute(new Date().toISOString().slice(0,7));}catch(e){}
+    let R=null;try{R=bizCompute(monthISO());}catch(e){}
     const s=R&&R.specs.find(x=>x.name.toLowerCase()===specCanon(tag).toLowerCase());
     if(R&&s){const P=fmtPeso;const tone=s.att==null?'bl':s.att>=100?'gr':s.att>=70?'bl':s.att>=40?'am':'rd';
       const rank=[...R.specs].sort((a,b)=>b.mtd-a.mtd).findIndex(x=>x.name===s.name)+1;
