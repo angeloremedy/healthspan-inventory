@@ -11,6 +11,8 @@ redesign anything.
 | `extract.py` | Reads the shipped PDFs back into `content/*.json` — headings, paragraphs, numbered steps, tables, callouts, deliberate spacers. |
 | `fw.py` | The layout: page, frame, styles, cover, running head, footer, tables, callouts. |
 | `compose.py` | Renders `content/*.json` into PDFs. Headings keep with the first two paragraphs after them; no widows or orphans (fw.py styles). |
+| `directory.js` | Reads the live app (jsdom): every sidebar page each role may open + its DESC → `content/_directory.json`. compose.py appends it to each manual as *Your pages — the complete directory*. Run after adding a page. |
+| `coverage.js` | Fails when a role can open a page its manual never mentions (prose + directory). |
 | `pagecheck.py` | Pagination lint on the built PDFs: orphan headings, widowed lines. Run after compose; exit 1 on any finding. |
 | `diffcheck.py` | Compares old against new — geometry, styles, text, and rendered pixels. |
 
@@ -20,8 +22,10 @@ Edit the JSON in `content/`, not the PDF:
 
 ```bash
 cd tools/manuals
-python3 compose.py ../../manuals-new      # build to a scratch folder
+node tools/manuals/directory.js           # from the repo root: refresh the per-role page directory
+python3 compose.py ../../manuals-new      # build to a scratch folder (Contents page + directory appendix are automatic)
 python3 pagecheck.py ../../manuals-new    # must print: pagecheck: clean
+node tools/manuals/coverage.js            # from the repo root: every allowed page is documented
 python3 diffcheck.py ../../manuals ../../manuals-new --pixels
 ```
 

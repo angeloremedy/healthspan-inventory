@@ -188,9 +188,19 @@ def build(path, role_title, audience, story, foot_note, kicker='User Manual',
         canv.drawString(M, 22.7, foot_note)
         canv.drawRightString(W - M, 22.7, 'Page ' + str(canv.getPageNumber() - 1))
         canv.restoreState()
-    doc = BaseDocTemplate(path, pagesize=A4, leftMargin=M, rightMargin=M,
-                          topMargin=44, bottomMargin=44, title='Healthspan HQ — ' + role_title + ' Manual',
-                          author='Healthspan Global, Inc.')
+    class ManualDoc(BaseDocTemplate):
+        """Feeds every h1 / h2 to the table of contents (reportlab's TOC needs a
+        second pass to know the page numbers — hence multiBuild below)."""
+        def afterFlowable(self, fl):
+            if isinstance(fl, Paragraph) and fl.style.name in ('h1', 'h2'):
+                text = fl.getPlainText()
+                level = 0 if fl.style.name == 'h1' else 1
+                key = 'toc-%d' % id(fl)
+                self.canv.bookmarkPage(key)
+                self.notify('TOCEntry', (level, text, self.page - 1, key))
+    doc = ManualDoc(path, pagesize=A4, leftMargin=M, rightMargin=M,
+                    topMargin=44, bottomMargin=44, title='Healthspan HQ — ' + role_title + ' Manual',
+                    author='Healthspan Global, Inc.')
     # zero padding: reportlab defaults to 6pt all round, which shifted every
     # measured x by +6 (body 63 instead of 57, steps 83 instead of 77)
     # 4.5pt top inset: measured, the first heading of a body page sits at top=52.6
@@ -200,5 +210,19 @@ def build(path, role_title, audience, story, foot_note, kicker='User Manual',
     doc.addPageTemplates([PageTemplate(id='cover', frames=[fcover], onPage=cover),
                           PageTemplate(id='body',  frames=[fbody],  onPage=later)])
     from reportlab.platypus import NextPageTemplate, PageBreak
-    flow = [NextPageTemplate('body'), PageBreak()] + list(story)
-    doc.build(flow)
+    flow = [NextPageTemplate('body'), PageBreak()] + toc_block() + [PageBreak()] + list(story)
+    doc.multiBuild(flow)
+
+def toc_block():
+    """The Contents page: sections (h1) in bold blue, sub-sections (h2) indented,
+    dotted leaders to the page number (body pages are numbered from 1)."""
+    from reportlab.platypus.tableofcontents import TableOfContents
+    toc = TableOfContents()
+    toc.dotsMinLevel = 0
+    toc.levelStyles = [
+        ParagraphStyle('toc1', fontName='DVB', fontSize=10.5, leading=16, textColor=BLUE, leftIndent=6, rightIndent=RIGHT_INSET, spaceBefore=4),
+        ParagraphStyle('toc2', fontName='DVS', fontSize=9, leading=13, textColor=INK, leftIndent=22, rightIndent=RIGHT_INSET),
+    ]
+    head = Paragraph('Contents', ParagraphStyle('toch', fontName='DVB', fontSize=17, leading=21, textColor=BLUE, leftIndent=6, spaceAfter=8))
+    note = Paragraph('Page numbers count from the first page after the cover. Every page you can open in HQ is listed in the last section, <b>Your pages — the complete directory</b>.', S_SMALL)
+    return [head, note, Spacer(1, 6), toc]

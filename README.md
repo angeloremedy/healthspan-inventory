@@ -932,6 +932,13 @@ Served through a session check, so each person gets exactly their own book.
 Read-only pages say so: a banner names who actually edits them, and view-only
 cards on Home carry a 👁 badge.
 
+Every manual opens with a **Contents** page (sections and sub-sections with
+page numbers) and closes with **Your pages — the complete directory**: every
+page that role can open in HQ, in sidebar order, with what each is for. The
+directory is generated from the app itself (`tools/manuals/directory.js` reads
+the sidebar and the permission rules), so a manual cannot miss a page its
+reader can reach; `coverage.js` fails the build if one ever did.
+
 ## 9.22 QuickBooks Online — the books, fed from HQ
 
 QuickBooks stays the ledger; HQ now feeds it directly instead of through a CSV.

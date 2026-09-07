@@ -36,7 +36,7 @@ def glue(flow):
     (or one, when the second is another heading). Tables and callouts are left to
     split on their own — a KeepTogether around a long table would push the whole
     section to a fresh page."""
-    from reportlab.platypus import KeepTogether, Paragraph
+    from reportlab.platypus import KeepTogether, Paragraph, CondPageBreak
     out, i = [], 0
     def is_head(f):
         return isinstance(f, Paragraph) and f.style.name in ('h1', 'h2')
@@ -48,18 +48,47 @@ def glue(flow):
             while j < len(flow) and body < 2 and isinstance(flow[j], Paragraph):
                 if not is_head(flow[j]): body += 1
                 grp.append(flow[j]); j += 1
+            while len(grp) > 1 and is_head(grp[-1]):   # never end a group on a heading —
+                grp.pop(); j -= 1                        # it gets its own keep with what follows it
             if len(grp) > 1:
                 for g in grp: g.keepWithNext = 0   # the group does the keeping now
                 out.append(KeepTogether(grp)); i = j; continue
+            # heading straight into a table or callout: ask for room for the heading
+            # plus a few rows instead of wrapping a possibly page-long table
+            f.keepWithNext = 0
+            out.append(CondPageBreak(120)); out.append(f); i += 1; continue
         out.append(f); i += 1
+    return out
+
+def directory_blocks(n):
+    """The appendix every manual ends with: each page the role can open, under the
+    sidebar's own headings, with its one-line description — generated from the app by
+    directory.js, so it is complete by construction (run `node tools/manuals/directory.js`
+    after adding a page)."""
+    src = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'content', '_directory.json')
+    if not os.path.exists(src): return []
+    rows = json.load(open(src)).get(str(n), [])
+    if not rows: return []
+    out = [{'t': 'h1', 'v': '<b>Your pages — the complete directory</b>'},
+           {'t': 'p', 'v': 'Every page this manual\'s role can open in HQ, in sidebar order, with what each one is for. If a page is not listed here, your role does not have it. Where a page shows a view-only banner, the editing role is named on the page itself.'}]
+    secs = []
+    for r in rows:
+        if r['sec'] not in secs: secs.append(r['sec'])
+    for sname in secs:
+        out.append({'t': 'h2', 'v': '<b>' + sname + '</b>'})
+        out.append({'t': 'table', 'head': ['Page', 'What it is for'],
+                    'rows': [[r['title'], r['desc'] or '—'] for r in rows if r['sec'] == sname], 'w': [140, 353]})
     return out
 
 def run(out_dir):
     os.makedirs(out_dir, exist_ok=True)
     month = datetime.date.today().strftime('%B %Y')
     for f in sorted(glob.glob('content/*.json')):
+        if os.path.basename(f).startswith('_'): continue
         doc = json.load(open(f))
         c = doc['cover']
+        n = os.path.basename(f).split('-')[2]
+        doc = dict(doc, blocks=list(doc['blocks']) + directory_blocks(n))
         path = os.path.join(out_dir, doc['file'])
         fw.build(path, c['role'], c['audience'], story_of(doc),
                  doc.get('foot') or '', kicker=c.get('kicker') or 'User Manual',

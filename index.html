@@ -120,13 +120,14 @@ body.sbhidden .sb{margin-left:-277px} /* slides out (width+border) — internal 
 .bicon{width:30px;height:30px;background:var(--ac);border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .bicon svg{width:15px;height:15px;stroke:#fff;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
 .bname{font-size:14px;font-weight:700}
-.sf-sync{display:flex;align-items:center;gap:8px;padding:0 14px 10px}
-.sync-btn{margin:0;padding:5px 9px;border-radius:var(--rs);background:var(--bl-bg);border:1px solid var(--bd);font-size:11px;color:var(--bl);display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;transition:opacity .15s}
-.sync-btn:hover{opacity:.8}
-.sync-btn svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.sf-sync{display:flex;align-items:center;gap:6px;padding:0 14px 10px;font-size:10.5px;color:var(--tx3);white-space:nowrap;overflow:hidden}
+/* one quiet line under the Synced timestamp: "↻ Sync now · auto every 15 min" — a text link, not a block */
+.sync-btn{margin:0;padding:0;background:none;border:none;font-size:10.5px;font-weight:600;white-space:nowrap;color:var(--bl);display:inline-flex;align-items:center;gap:4px;cursor:pointer;user-select:none;transition:opacity .15s}
+.sync-btn:hover{opacity:.8;text-decoration:underline}
+.sync-btn svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
 .sync-btn.spin svg{animation:spin 1s linear infinite}
-.sync-btn.ok{background:var(--gr-bg);color:var(--gr)}
-.sync-btn.err{background:var(--rd-bg);color:var(--rd)}
+.sync-btn.ok{color:var(--gr)}
+.sync-btn.err{color:var(--rd)}
 @keyframes spin{to{transform:rotate(360deg)}}
 .nav{padding:8px 8px;flex:1;overflow-y:auto}
 .nlbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.09em;color:var(--tx3);padding:8px 8px 3px}
@@ -676,7 +677,7 @@ button:active{transform:scale(.97)}
   <div class="sf-sync"><div class="sync-btn" id="syncBtn" onclick="syncNow(true)" title="Read Google Sheets live now (data otherwise refreshes on its own every 15 minutes)">
     <svg id="sicon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
     <span id="slbl">Sync now</span>
-  </div><span class="mu" style="font-size:10px;color:var(--tx3)">auto every 15 min</span></div>
+  </div><span>· auto every 15 min</span></div>
   </div>
 </aside>
 <div class="main">
