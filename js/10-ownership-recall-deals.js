@@ -2328,11 +2328,13 @@ function mbarToggle(btn){
 }
 function mbarSave(){
   try{localStorage.setItem(mbarKey(),JSON.stringify(window._mbarSel.slice(0,4)));}catch(e){}
+  try{prefsPush({bottom_bar:window._mbarSel.slice(0,4)});}catch(e){}
   mbarClose();buildMobileNav();
   audit('mbar.customize',{picks:window._mbarSel.join(',')});
 }
 function mbarReset(){
   try{localStorage.removeItem(mbarKey());}catch(e){}
+  try{prefsPush({bottom_bar:null});}catch(e){}
   mbarClose();buildMobileNav();
 }
 function mbarClose(){const ov=document.getElementById('mbar-ov');if(ov)ov.remove();}
@@ -3735,7 +3737,24 @@ function favGet(){
 }
 function favSet(list){
   try{localStorage.setItem(favKey(),JSON.stringify((list||[]).slice(0,FAV_MAX)));}catch(e){}
+  try{prefsPush({favourites:(list||[]).slice(0,FAV_MAX)});}catch(e){} // follows the account to every device
 }
+/* ── PERSONAL PREFERENCES THAT FOLLOW THE ACCOUNT ─────────────────────────────
+   Favourites, the bottom-bar picks and how Ask Healthspan opens used to live only in
+   this device's localStorage. They are mirrored in public.user_prefs (one row per
+   person, owner-only RLS): pulled at sign-in (the account wins over the device),
+   pushed on every change. localStorage stays the fast path for painting. */
+async function prefsPull(){
+  if(!SB||!SBUSER)return;
+  try{const {data}=await SB.from('user_prefs').select('favourites,bottom_bar,ask_open').eq('user_id',SBUSER.id).maybeSingle();if(!data)return;
+    if(Array.isArray(data.favourites))localStorage.setItem(favKey(),JSON.stringify(data.favourites.filter(x=>typeof x==='string').slice(0,FAV_MAX)));
+    if(Array.isArray(data.bottom_bar))localStorage.setItem(mbarKey(),JSON.stringify(data.bottom_bar.slice(0,4)));else if(data.bottom_bar===null&&data.favourites!==undefined){}
+    if(data.ask_open==='page'||data.ask_open==='drawer')localStorage.setItem('hs_ask_open',data.ask_open);
+    try{favPaint();}catch(e){}try{if(typeof buildMobileNav==='function')buildMobileNav();}catch(e){}
+  }catch(e){}}
+async function prefsPush(patch){
+  if(!SB||!SBUSER||!patch)return;
+  try{await SB.from('user_prefs').upsert(Object.assign({user_id:SBUSER.id,updated_at:new Date().toISOString()},patch),{onConflict:'user_id'});}catch(e){}}
 function favHas(v){return favGet().indexOf(v)>=0;}
 /* every page this role can actually open, read from the sidebar */
 function favOptions(){

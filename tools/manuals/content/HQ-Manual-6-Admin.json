@@ -62,7 +62,7 @@
   },
   {
    "t": "step",
-   "v": "Star any page from the ☆ in the top bar. It pins to the top of the sidebar, directly under Home, and to the top of your home page — one list, both places, so there is nothing to keep in sync.",
+   "v": "Star any page from the ☆ in the top bar. It pins to the top of the sidebar, directly under Home, and to the top of your home page — one list, both places — and it follows your account, so the iPad, the phone and the laptop show the same favourites.",
    "n": "1"
   },
   {
@@ -153,7 +153,7 @@
   },
   {
    "t": "p",
-   "v": "The Ask Healthspan button (top bar) answers plain-language questions over everything HQ knows — inventory, sales, receivables, cheques, approvals, backorders, quotes, pipeline — and its knowledge is automatically scoped to YOUR role: specialists get their own numbers, costs and margins only answer for finance and admin. Any hour, in the app or on Slack (/stock). A small dropdown in the drawer header lets you choose which model answers — Gemini Flash (default) or Claude Haiku — and remembers your pick on this device."
+   "v": "The Ask Healthspan button (top bar) answers plain-language questions over everything HQ knows — inventory, sales, receivables, cheques, approvals, backorders, quotes, pipeline — and its knowledge is automatically scoped to YOUR role: specialists get their own numbers, costs and margins only answer for finance and admin. Any hour, in the app or on Slack (/stock). A small dropdown in the drawer header lets you choose which model answers — Gemini Flash (default) or Claude Haiku — and remembers your pick on this device. It is also a full page — Home → Ask Healthspan, or ⤢ in the drawer — that keeps every conversation: your chats on the left (search, rename, delete), the thread on the right. Chats are yours alone; nobody else can open them. Settings → Shortcuts chooses which one the top-bar button opens."
   },
   {
    "t": "h2",

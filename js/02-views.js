@@ -1,7 +1,7 @@
 /* ── VIEWS ── */
 /* ── ONE permission truth for views: showView redirects with it, the sidebar and
    mobile menu hide with it — they can never drift apart again. ── */
-const SALES_VIEWS=['home','logvisit','followups','account','neworder','orders','order','spec','pickslip','pipeline','quotes','salesevents','complaints','pullouts','manual','crmstats','expreport','profile','bizreview','reports','settings'].concat(['voucher','orderpay','proofpay','replenish','reimburse','cashadvance']);
+const SALES_VIEWS=['home','ask','logvisit','followups','account','neworder','orders','order','spec','pickslip','pipeline','quotes','salesevents','complaints','pullouts','manual','crmstats','expreport','profile','bizreview','reports','settings'].concat(['voucher','orderpay','proofpay','replenish','reimburse','cashadvance']);
 const CIRCLE_BLOCK_COMMON=['neworder','logvisit','targets','scorecards'];
 const CIRCLE_BLOCK={finance:['scan','scanpick','fulfillq','recall','cyclecount','transfers'],marketing:['scan','scanpick','po','fulfillq','pdc','returns','commissions','cyclecount','quarantine','suppliers','transfers','approvals','poscore'],viewer:['scan','scanpick','po','fulfillq','pdc','returns','recall','commissions','cyclecount','quarantine','suppliers','transfers','approvals','poscore'],supply_chain:['pdc','commissions','approvals']};
 function viewAllowed(v){
@@ -41,7 +41,7 @@ function showView(v,el){
   document.querySelectorAll('.ni').forEach(x=>x.classList.remove('active'));
   if(el) el.classList.add('active');
   try{if(typeof navAreaFollow==='function')navAreaFollow(v);}catch(e){} // the rail moves to this page's area
-  const T={bizreview:'Business review',reports:'Reports',qbo:'QuickBooks sync',settings:'Settings',dashboard:'Dashboard',action:'Action center',customers:'Accounts (CRM)',health:'Data health',all:'All SKUs',oos:'Out of stock',low:'Low stock',neg:'Negative stock',
+  const T={bizreview:'Business review',reports:'Reports',qbo:'QuickBooks sync',ask:'Ask Healthspan',settings:'Settings',dashboard:'Dashboard',action:'Action center',customers:'Accounts (CRM)',health:'Data health',all:'All SKUs',oos:'Out of stock',low:'Low stock',neg:'Negative stock',
            expiry:'Expiry tracker',value:'Inventory value',dealvalue:'Deal scenarios',movement:'Monthly movement',reorder:'Reorder alerts',batches:'Batch view',
            forecast:'Stockout forecast',coverage:'Stock coverage',reorderplan:'Reorder plan',ropoint:'Reorder point',variability:'Demand variability',abc:'ABC analysis',writeoff:'Write-off forecast',whatif:'What-if simulator',
            simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator',
@@ -153,6 +153,7 @@ function showView(v,el){
   else if(v==='reports') renderReports();
   else if(v==='settings') renderSettings();
   else if(v==='qbo') renderQbo();
+  else if(v==='ask') renderAskPage();
   else renderTable(v);
   injectDesc(v);
   injectCalc(v);

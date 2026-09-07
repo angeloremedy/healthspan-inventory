@@ -655,6 +655,22 @@ the drawer header — Gemini Flash / Claude Haiku — chooses which model answer
 one person's preference never changes the company default in Settings → AI. With
 no pick made, the dropdown shows the company default.
 
+**Ask Healthspan as a full page.** Home → Ask Healthspan (or ⤢ in the drawer)
+opens the chat ChatGPT-style: your conversations on the left — grouped Today /
+Yesterday / This week, searchable, rename and delete on hover — and the thread on
+the right with the model dropdown and the same input. Every conversation is saved
+per person in `ask_chats` (RLS: owner only, so not even an admin can read
+someone else's), titled from its first question. The drawer and the page are two
+windows on the same current conversation: start in the drawer, press ⤢, and the
+thread is already on the page. Settings → Shortcuts decides which one the top-bar
+button opens; the other is always one tap away (▤ on the page). Example
+questions appear as chips on an empty chat.
+
+**Your preferences follow you.** Favourites, the four bottom-bar picks and how
+Ask Healthspan opens are mirrored per account (`user_prefs`, owner-only): pulled
+at sign-in — the account wins over the device — and pushed on every change, so
+the iPad, the phone and the laptop agree. Saved chats were already per account.
+
 ## 9.17i Finding your way: the two-level sidebar
 
 The sidebar is two columns: a narrow **rail** of areas — Home, Sales, Warehouse,

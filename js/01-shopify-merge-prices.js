@@ -378,6 +378,7 @@ const DESC={
   profile:'Your own page — who you are signed in as, the finance forms you have filed and where each one stands, your open follow-ups, loaners you checked out, and the quick actions (password, manual, favourites) without digging through menus.',
   serials:'One row per physical equipment unit — lasers, devices, handpieces — tracked by serial number from receiving through loan, sale or disposal. Consumables stay batch-tracked; serials are for the units where <b>which exact machine</b> matters.',
   loans:'Demo and loaner equipment out with clinics: who has which serial, since when, due back when. Overdue loans ping whoever checked the unit out. A returned unit goes back to stock; a demo that closes converts to a sale against the order you name.',
+  ask:'Ask Healthspan as a full page: your saved chats on the left, the conversation on the right. Same brain as the side chat — stock, sales, accounts, targets, in plain language.',
   qbo:'HQ → QuickBooks Online: fulfilled orders become invoices, payments and credit memos follow, and payments recorded in QuickBooks come back. Preview until enabled at cutover.',
   settings:'Theme and light/dark mode, your password and manual, favourites and the bottom bar — and, for the super admin, which AI model answers Ask Healthspan and Draft with AI, with a one-click connection test.',
   reports:'Every review deck for the month, built from live figures the moment you click: the team deck for the sales manager, one deck per specialist, PowerPoint or PDF. The Inputs column says whose commentary is in before anyone downloads. Copy for Notion hands the weekly-meeting numbers to the clipboard as Notion-ready text.',
@@ -899,8 +900,9 @@ async function syncNow(force){
     const ts=new Date(data.synced).toLocaleString('en-PH',{timeZone:'Asia/Manila',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
     $('sf-foot').innerHTML='<span style="color:var(--gr);font-weight:600">Live</span> &middot; Synced '+ts;
     if(btn) btn.className='sync-btn ok';
-    if(lbl) lbl.textContent='Synced '+ts;
-    updateMobileSync('ok','Synced '+ts);
+    // the timestamp lives in the footer only — the button just says what it does
+    if(lbl) lbl.textContent='Sync from Google Sheets';
+    updateMobileSync('ok','Sync');
     hideProgress();
   }catch(e){
     const msg=e.name==='AbortError'?'Timed out after 45s':(e.message||'Unknown error');

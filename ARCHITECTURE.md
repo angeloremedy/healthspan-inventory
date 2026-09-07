@@ -399,7 +399,19 @@ collapse use inline `display`, area uses a class. `buildMobileMenu` renders the
 same areas as chips and filters by `data-area` unless searching. The chosen area
 lives in `localStorage.hs_nav_area`.
 
-### 3.9 Ask Healthspan model pick
+### 3.9 Ask Healthspan — one engine, two surfaces, saved chats
+`ASK_CUR` (js/09) is the current conversation `{id,title,messages:[{r,t,m,ok,at}]}`;
+`askAsk(inputId,logId,btnId)` is the only sender — the drawer (`sendAsk`) and the
+page (`askPageSend`) pass their own element ids. `askRenderLog` paints the same
+messages into whichever log exists; a pending bubble is a message with
+`pending:true` that the answer replaces in place. `askHistoryPairs()` gives the
+worker the last three Q/A pairs. After an answer `askSaveCur()` upserts the whole
+conversation into `public.ask_chats` (owner-only RLS, JSON messages, title from
+the first question); `renderAskPage()` builds the two-column page (`.askpg`) and
+`askPaintList()` the grouped chat list. `askPref()` (`hs_ask_open`) decides what
+the top-bar button opens. No database → the chat works, unsaved.
+
+### 3.10 Ask Healthspan model pick
 `askGetModel()/askSetModel()` (js/09) keep the person's choice in
 `localStorage.hs_ask_model` and `sendAsk` sends it as `provider`; `ask.mjs`
 forwards it to the worker only when it is `gemini` or `anthropic` (`ASK_PICK`),

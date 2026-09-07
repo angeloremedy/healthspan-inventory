@@ -3,9 +3,9 @@ function toggleAsk(){
   try{askPaintModel();}catch(e){}
   const d=document.getElementById('askdrawer'); if(!d)return;
   d.classList.toggle('open');
+  if(d.classList.contains('open')){const log=document.getElementById('asklog');if(log&&(ASK_CUR.messages.length||!log.firstChild))askRenderLog(log,ASK_EMPTY_DRAWER);}
   if(d.classList.contains('open')){const i=document.getElementById('askinput'); if(i)setTimeout(()=>i.focus(),150);}
 }
-let ASKHIST=[];
 function askCatalog(){
   const prods=DATA.map(p=>[p.sku,p.name,p.line||'',(typeof p.stock==='number'?p.stock:''),
     (p.price!=null?p.price:''),(p.velAdj!=null?p.velAdj:(p.velocity!=null?p.velocity:'')),
@@ -107,51 +107,132 @@ function askFmt(t){return mdLite(t);}
 const ASK_MODELS=['gemini','anthropic'];
 function askGetModel(){try{const v=localStorage.getItem('hs_ask_model')||'';return ASK_MODELS.includes(v)?v:'';}catch(e){return '';}}
 function askSetModel(v){v=ASK_MODELS.includes(v)?v:'';try{if(v)localStorage.setItem('hs_ask_model',v);else localStorage.removeItem('hs_ask_model');}catch(e){}askPaintModel();}
-function askPaintModel(){const s=document.getElementById('askmodel');if(!s)return;
-  const paint=()=>{const v=askGetModel()||(ASK_MODELS.includes(window.AI_DEFAULT)?window.AI_DEFAULT:'gemini');if(s.value!==v)s.value=v;};
+function askPaintModel(){const sels=[...document.querySelectorAll('select.askmodel')];if(!sels.length)return;
+  const paint=()=>{const v=askGetModel()||(ASK_MODELS.includes(window.AI_DEFAULT)?window.AI_DEFAULT:'gemini');sels.forEach(s=>{if(s.value!==v)s.value=v;});};
   paint();
   // no personal pick yet → show the company default (Settings → AI), read once per session
   if(!askGetModel()&&window.AI_DEFAULT===undefined&&SB){window.AI_DEFAULT='';try{SB.from('app_settings').select('value').eq('key','ai_provider').maybeSingle().then(({data})=>{window.AI_DEFAULT=(data&&data.value)||'';paint();});}catch(e){}}}
-async function sendAsk(){
-  const inp=document.getElementById('askinput'), log=document.getElementById('asklog'), btn=document.getElementById('askbtn');
-  if(!inp||!log)return;
-  if(btn&&btn.disabled)return; // a question is already in flight (guards Enter-key double submit)
+/* ── ONE CHAT ENGINE, TWO SURFACES ────────────────────────────────────────────
+   The side drawer and the full page (view "ask") both show ASK_CUR, the current
+   conversation, and both call askAsk(). Every conversation is saved per person in
+   public.ask_chats (RLS: only its owner reads it) — messages as JSON, title from the
+   first question — so the full page can list them ChatGPT-style and reopen any one.
+   Without a database session the chat still works; it just isn't kept. */
+let ASK_CUR={id:null,title:'',messages:[]}, ASK_CHATS=null, ASK_BUSY=false;
+function askUuid(){try{return crypto.randomUUID();}catch(e){return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return (c==='x'?r:(r&3|8)).toString(16);});}}
+function askHistoryPairs(){const out=[];const m=ASK_CUR.messages;for(let i=0;i<m.length-1;i++)if(m[i].r==='u'&&m[i+1].r==='a'&&m[i+1].ok!==false)out.push({q:m[i].t,a:m[i+1].t});return out.slice(-3);}
+async function askLoadChats(force){
+  if(ASK_CHATS&&!force)return ASK_CHATS;
+  ASK_CHATS=[];if(!SB||!SBUSER)return ASK_CHATS;
+  try{const {data}=await SB.from('ask_chats').select('id,title,model,updated_at').order('updated_at',{ascending:false}).limit(200);ASK_CHATS=data||[];}catch(e){}
+  return ASK_CHATS;}
+async function askSaveCur(){
+  if(!SB||!SBUSER||!ASK_CUR.messages.length)return;
+  if(!ASK_CUR.id)ASK_CUR.id=askUuid();
+  if(!ASK_CUR.title){const q=(ASK_CUR.messages.find(m=>m.r==='u')||{}).t||'';ASK_CUR.title=q.replace(/\s+/g,' ').trim().slice(0,70);}
+  const row={id:ASK_CUR.id,user_id:SBUSER.id,title:ASK_CUR.title,model:askGetModel()||null,messages:ASK_CUR.messages,updated_at:new Date().toISOString()};
+  try{await SB.from('ask_chats').upsert(row);}catch(e){}
+  ASK_CHATS=null; // list is stale
+  if(currentView==='ask')askPaintList();}
+async function askOpenChat(id){
+  if(!SB)return;
+  try{const {data}=await SB.from('ask_chats').select('id,title,model,messages').eq('id',id).maybeSingle();if(data){ASK_CUR={id:data.id,title:data.title||'',messages:Array.isArray(data.messages)?data.messages:[]};}}catch(e){}
+  askPaintAll();}
+function askNewChat(){ASK_CUR={id:null,title:'',messages:[]};askPaintAll();const i=document.getElementById(currentView==='ask'?'askpg-input':'askinput');if(i)setTimeout(()=>i.focus(),50);}
+async function askRenameChat(id){
+  const cur=(ASK_CHATS||[]).find(c=>c.id===id);const t=prompt('Rename this chat:',cur?cur.title:'');if(t==null)return;
+  try{await SB.from('ask_chats').update({title:t.trim().slice(0,70)}).eq('id',id);}catch(e){}
+  if(ASK_CUR.id===id)ASK_CUR.title=t.trim().slice(0,70);ASK_CHATS=null;askPaintAll();}
+async function askDeleteChat(id){
+  if(!confirm('Delete this chat? This cannot be undone.'))return;
+  try{await SB.from('ask_chats').delete().eq('id',id);}catch(e){}
+  if(ASK_CUR.id===id)ASK_CUR={id:null,title:'',messages:[]};ASK_CHATS=null;askPaintAll();}
+/* render the current conversation into a log element (drawer or page) */
+function askRenderLog(log,emptyHtml){
+  if(!log)return;
+  if(!ASK_CUR.messages.length){log.innerHTML=emptyHtml||'';return;}
+  log.innerHTML=ASK_CUR.messages.map((m,i)=>m.r==='u'?'<div class="askq">'+esc(m.t)+'</div>':'<div class="aska"'+(m.pending?' id="ask-pending"':'')+'>'+(m.pending?esc(m.t):(m.ok===false?'<span style="color:var(--rd)">'+esc(m.t)+'</span>':askFmt(m.t)))+'</div>').join('');
+  log.scrollTop=log.scrollHeight;}
+function askPaintAll(){
+  const d=document.getElementById('asklog');if(d)askRenderLog(d,ASK_EMPTY_DRAWER);
+  if(currentView==='ask'){const p=document.getElementById('askpg-log');if(p)askRenderLog(p,askEmptyPage());const t=document.getElementById('askpg-title');if(t)t.textContent=ASK_CUR.title||'New chat';askPaintList();}
+}
+const ASK_EMPTY_DRAWER='<div class="askempty">Ask anything about stock, sales, accounts or targets, in plain language.<br><br>e.g. “How many HA Densimatrix do we have?”<br>“Best-selling product in week 7?”<br>“Which of Rhas’s accounts went quiet?”<br>“How far is Mesoestetic from its target this month?”<br><br><a href="#" class="lnk" onclick="askDiag();return false" style="font-size:11px">AI connection test</a></div>';
+function askEmptyPage(){return '<div class="askempty" style="margin-top:60px;font-size:13px"><div style="font-size:22px;font-weight:700;color:var(--tx);margin-bottom:8px">Ask Healthspan</div>Everything HQ knows — stock, sales by week and month, brands vs target, specialists, accounts, machines, loaners — in plain language.<br><br>'+
+  ['How many HA Densimatrix do we have?','Best-selling product in week 7?','Which of Rhas’s accounts went quiet?','How far is Mesoestetic from its target this month?','Which clinics bought Face Nade in the last 30 days?','What should we reorder this week?'].map(q=>'<a href="#" class="askchip" onclick="askUse(\''+esc(q).replace(/'/g,'&#39;')+'\');return false">'+esc(q)+'</a>').join('')+'</div>';}
+function askUse(q){const i=document.getElementById(currentView==='ask'?'askpg-input':'askinput');if(i){i.value=q;i.focus();}}
+/* the shared send — surface passes its own input/log/button ids */
+async function askAsk(inputId,logId,btnId){
+  const inp=document.getElementById(inputId), btn=document.getElementById(btnId);
+  if(!inp||ASK_BUSY)return; // a question is already in flight (guards Enter-key double submit)
   const q=inp.value.trim(); if(!q)return;
-  const empty=log.querySelector('.askempty'); if(empty)empty.remove();
-  inp.value='';
-  log.insertAdjacentHTML('beforeend','<div class="askq">'+esc(q)+'</div>');
-  log.insertAdjacentHTML('beforeend','<div class="aska" id="ask-pending">Checking the live inventory…</div>');
-  log.scrollTop=log.scrollHeight;
-  btn.disabled=true;
+  inp.value='';ASK_BUSY=true;if(btn)btn.disabled=true;
+  ASK_CUR.messages.push({r:'u',t:q,at:new Date().toISOString()});
+  const pend={r:'a',t:'Checking the live inventory…',pending:true};ASK_CUR.messages.push(pend);askPaintAll();
+  const setPend=t=>{pend.t=t;const el=document.getElementById('ask-pending');if(el)el.textContent=t;};
+  let out=null,last=null;
   try{
     const r=await fetch('/.netlify/functions/ask',{method:'POST',headers:await sbAuthHeaders({'Content-Type':'application/json'}),
-      body:JSON.stringify({question:q,catalog:askCatalog(),history:ASKHIST.slice(-3),provider:askGetModel()||undefined})});
+      body:JSON.stringify({question:q,catalog:askCatalog(),history:askHistoryPairs(),provider:askGetModel()||undefined})});
     const job=await r.json();
     if(!job.id)throw new Error(job.error||'could not start');
     // Poll for the answer — deep questions can take 30s+ on the smart model.
-    let out=null,last=null;
-    const pendEl=()=>document.getElementById('ask-pending');
     for(let i=0;i<60;i++){
       await new Promise(res=>setTimeout(res,2500));
-      const pe=pendEl();
-      if(pe&&i===4)pe.textContent='Thinking it through…';
-      if(pe&&i===12)pe.textContent='Still working — deep analysis takes a little longer…';
-      try{
-        const rr=await fetch('/.netlify/functions/ask?id='+job.id,{headers:await sbAuthHeaders()});
-        const o=await rr.json();last=o;
-        if(!o.pending){out=o;break;}
-      }catch(e){}
+      if(i===4)setPend('Thinking it through…');
+      if(i===12)setPend('Still working — deep analysis takes a little longer…');
+      try{const rr=await fetch('/.netlify/functions/ask?id='+job.id,{headers:await sbAuthHeaders()});const o=await rr.json();last=o;if(!o.pending){out=o;break;}}catch(e){}
     }
-    const p=pendEl();
-    if(!out)out={error:'Timed out waiting for the answer'+(last&&last.stage?' — the job was still at "'+last.stage+'" on '+(last.provider||'the model')+'. Try again; if it repeats, run the AI connection test.':' — the answer job never started. Check the ask-work-background function.')};
-    if(p){p.removeAttribute('id');p.innerHTML=out.answer?askFmt(out.answer):'<span style="color:var(--rd)">'+esc(out.error||'No answer')+'</span>';}
-    if(out.answer){ASKHIST.push({q:q,a:out.answer});if(ASKHIST.length>10)ASKHIST.shift();}
-  }catch(err){
-    const p=document.getElementById('ask-pending');
-    if(p){p.removeAttribute('id');p.innerHTML='<span style="color:var(--rd)">Could not reach the AI: '+esc(err.message)+'</span>';}
-  }
-  btn.disabled=false;
-  log.scrollTop=log.scrollHeight;
+    if(!out)out={error:'Timed out waiting for the answer'+(last&&last.stage?' — the job was still at "'+last.stage+'" on '+(last.provider||'the model')+'. Try again; if it repeats, run the AI connection test.':' — the answer job never started. Check the ask-work-background function logs.')};
+  }catch(err){out={error:'Could not reach the AI: '+err.message};}
+  const i=ASK_CUR.messages.indexOf(pend);
+  const ans=out.answer?{r:'a',t:out.answer,m:out.model||'',at:new Date().toISOString()}:{r:'a',t:out.error||'No answer',ok:false,at:new Date().toISOString()};
+  if(i>=0)ASK_CUR.messages[i]=ans;else ASK_CUR.messages.push(ans);
+  ASK_BUSY=false;if(btn)btn.disabled=false;
+  askPaintAll();
+  if(out.answer)askSaveCur();
+}
+function sendAsk(){return askAsk('askinput','asklog','askbtn');}          // the drawer
+function askPageSend(){return askAsk('askpg-input','askpg-log','askpg-btn');} // the page
+/* which surface the top-bar button opens — a personal preference (Settings) */
+function askPref(){try{return localStorage.getItem('hs_ask_open')==='page'?'page':'drawer';}catch(e){return 'drawer';}}
+function askSetPref(v){try{localStorage.setItem('hs_ask_open',v==='page'?'page':'drawer');}catch(e){}try{if(typeof prefsPush==='function')prefsPush({ask_open:v==='page'?'page':'drawer'});}catch(e){}}
+function askOpen(){if(askPref()==='page'){const d=document.getElementById('askdrawer');if(d)d.classList.remove('open');showView('ask',null);}else toggleAsk();}
+function askToPage(){const d=document.getElementById('askdrawer');if(d)d.classList.remove('open');showView('ask',null);}
+
+/* ── the full page: chats on the left, the conversation on the right ── */
+function askPaintList(){
+  const el=document.getElementById('askpg-list');if(!el)return;
+  const q=((document.getElementById('askpg-q')||{}).value||'').trim().toLowerCase();
+  askLoadChats().then(list=>{
+    if(!document.getElementById('askpg-list'))return;
+    if(!SB||!SBUSER){el.innerHTML='<div class="mu" style="padding:10px 12px;font-size:12px">Sign in to keep your chats.</div>';return;}
+    const rows=(list||[]).filter(c=>!q||String(c.title||'').toLowerCase().includes(q));
+    if(!rows.length){el.innerHTML='<div class="mu" style="padding:10px 12px;font-size:12px">'+(q?'No chats match.':'No chats yet — ask something.')+'</div>';return;}
+    const day=iso=>{const d=new Date(iso),n=new Date();const dd=Math.floor((Date.UTC(n.getFullYear(),n.getMonth(),n.getDate())-Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()))/864e5);return dd<=0?'Today':dd===1?'Yesterday':dd<7?'This week':dd<30?'This month':'Earlier';};
+    let h='',grp='';
+    for(const c of rows){const g=day(c.updated_at);if(g!==grp){grp=g;h+='<div class="askgrp">'+g+'</div>';}
+      h+='<div class="askitem'+(c.id===ASK_CUR.id?' on':'')+'" onclick="askOpenChat(\''+c.id+'\')"><span class="askit">'+esc(c.title||'Untitled')+'</span><span class="askops"><a href="#" title="Rename" onclick="event.stopPropagation();askRenameChat(\''+c.id+'\');return false">✎</a><a href="#" title="Delete" onclick="event.stopPropagation();askDeleteChat(\''+c.id+'\');return false">×</a></span></div>';}
+    el.innerHTML=h;});}
+function askToggleList(){const p=document.querySelector('.askpg');if(p)p.classList.toggle('listopen');}
+async function renderAskPage(){
+  loadingHint();
+  const c=$('content');
+  c.innerHTML='<div class="askpg">'+
+    '<aside class="askside"><div style="display:flex;gap:6px;padding:10px 10px 6px"><a href="#" class="abtn t-gr" style="flex:1;justify-content:center;margin:0" onclick="askNewChat();return false">+ New chat</a><a href="#" class="abtn" style="margin:0" title="Side chat" onclick="askSetPref(\'drawer\');toggleAsk();return false">▤</a></div>'+
+    '<div style="padding:0 10px 8px"><input id="askpg-q" placeholder="Search chats…" oninput="askPaintList()" style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:7px 10px;font-size:12.5px"></div>'+
+    '<div id="askpg-list" class="asklist"></div>'+
+    '<div class="mu" style="padding:8px 12px;font-size:10.5px;border-top:1px solid var(--bd)">Chats are yours alone — nobody else can open them.</div></aside>'+
+    '<section class="askmain">'+
+      '<div class="askpg-hd"><a href="#" class="abtn askpg-menu" onclick="askToggleList();return false" title="Chats">☰</a><span id="askpg-title" style="font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(ASK_CUR.title||'New chat')+'</span>'+
+        '<select id="askmodel-pg" class="askmodel" onchange="askSetModel(this.value)" title="Which model answers"><option value="gemini">Gemini Flash</option><option value="anthropic">Claude Haiku</option></select></div>'+
+      '<div id="askpg-log" class="asklog askpg-log"></div>'+
+      '<div class="askbar askpg-bar"><textarea id="askpg-input" placeholder="Ask Healthspan…" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();askPageSend();}"></textarea><button id="askpg-btn" onclick="askPageSend()">Ask</button></div>'+
+      '<div class="askfoot" style="padding-bottom:8px">Answers come from live HQ data — warehouse, Shopify sales (external only unless you ask), accounts, targets, visits · stock is warehouse-level, not per-branch</div>'+
+    '</section></div>';
+  try{askPaintModel();}catch(e){}
+  askPaintAll();
+  const i=document.getElementById('askpg-input');if(i&&window.innerWidth>760)setTimeout(()=>i.focus(),100);
 }
 
 function exportCSV(){
@@ -233,7 +314,7 @@ function buildMobileNav(){
     return el?el.outerHTML.replace('<svg ','<svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" '):'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>';
   };
   const mLabel=v=>{
-    const SHORT={bizreview:'Review',reports:'Reports',qbo:'QuickBooks',settings:'Settings',neworder:'Order',logvisit:'Visit',followups:'To-dos',salesdue:'Reorder',approvals:'Approve',orders:'Orders',salespace:'Pace',customers:'Accounts',fulfillq:'Fulfill',scan:'Scan',cyclecount:'Count',po:'POs',ar:'AR',pdc:'PDCs',cashflow:'Cash',returns:'Returns',campaigns:'Campaigns',promos:'Promos',salesoverview:'Sales',pipeline:'Pipeline',dashboard:'Inventory',quotes:'Quotes',complaints:'Complaints',salesevents:'Events',transfers:'Transfers',quarantine:'Quarantine',whkpi:'KPIs',suppliers:'Suppliers',valuation:'Costs',catalog:'Items',recall:'Recall',targets:'Targets',scorecards:'Reviews',users:'Team',audit:'Log',commissions:'Commis.',regs:'Regs',salestarget:'Vs target',salesfield:'Coverage',crmstats:'Activity',serials:'Serials',loans:'Loaners',expreport:'Exp. report',profile:'Profile',all:'SKUs',forecast:'Stockout',health:'Data'};
+    const SHORT={bizreview:'Review',reports:'Reports',qbo:'QuickBooks',ask:'Ask',settings:'Settings',neworder:'Order',logvisit:'Visit',followups:'To-dos',salesdue:'Reorder',approvals:'Approve',orders:'Orders',salespace:'Pace',customers:'Accounts',fulfillq:'Fulfill',scan:'Scan',cyclecount:'Count',po:'POs',ar:'AR',pdc:'PDCs',cashflow:'Cash',returns:'Returns',campaigns:'Campaigns',promos:'Promos',salesoverview:'Sales',pipeline:'Pipeline',dashboard:'Inventory',quotes:'Quotes',complaints:'Complaints',salesevents:'Events',transfers:'Transfers',quarantine:'Quarantine',whkpi:'KPIs',suppliers:'Suppliers',valuation:'Costs',catalog:'Items',recall:'Recall',targets:'Targets',scorecards:'Reviews',users:'Team',audit:'Log',commissions:'Commis.',regs:'Regs',salestarget:'Vs target',salesfield:'Coverage',crmstats:'Activity',serials:'Serials',loans:'Loaners',expreport:'Exp. report',profile:'Profile',all:'SKUs',forecast:'Stockout',health:'Data'};
     if(SHORT[v])return SHORT[v];
     const el=document.querySelector('.nav .ni[onclick*="\''+v+'\'"]');
     if(!el)return v;
@@ -305,6 +386,7 @@ async function sbLoadProfile(user){
   try{loadSpecRoster(true);}catch(e){}
   try{loadSpecDir(true);}catch(e){}         // account names for every specialist tag      // added/deactivated specialists for pickers
   try{await loadDocFormats(true);}catch(e){} // document numbers before anything paints one
+  try{await prefsPull();}catch(e){}         // favourites, bottom bar, Ask preference — from the account, not the device
   try{await loadFlags(true);if(flagOn('use_catalog_pricing')){await loadItems(true);applyCatalog();}}catch(e){} // cutover switches
   try{maybeSnapshotForecast();}catch(e){}   // monthly forecast freeze (runs if data is ready)
   // endpoints are session-locked: pull anything that failed before sign-in

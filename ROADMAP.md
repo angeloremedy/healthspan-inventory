@@ -124,6 +124,11 @@ at cutover; the accounting export CSV remains the fallback); it does not replace
 - ✅ Product specialists removed from the fund-source approver picker
 - ✅ New **Finance forms** sidebar section (pull-out requests today; the five finance forms as they land)
 
+**Ask Healthspan as a page with history (Sep 7)**
+- ✅ Home → Ask Healthspan: ChatGPT-style page — chats on the left (search, rename, delete, grouped by day), thread on the right, model dropdown, example-question chips; every conversation saved per person (`ask_chats`, owner-only RLS). Drawer and page share the current conversation (⤢ / ▤); Settings → Shortcuts picks which the top-bar button opens
+- ✅ Favourites, bottom-bar picks and the Ask preference follow the account (`user_prefs`, owner-only): same on every device once signed in
+- ✅ Rail labels never bleed (68px rail, 9px, ellipsis); Home after sign-in has no ←; phone area chips keep their scroll; sync timestamp shown in the footer only
+
 **Two-level sidebar, fast boot, Ask Healthspan (Sep 5)**
 - ✅ Sidebar is two levels: a rail of six areas (Home, Sales, Warehouse, Finance, Planning, Admin) and the chosen area's pages under their familiar headings. 101 pages, none retired, none moved; deep links, favourites and cards switch the rail; search spans every area; the phone Menu shows the same areas as chips
 - ✅ Shopify blob cached on the device (IndexedDB) and painted before the network; `?since=` handshake downloads it only when it changed

@@ -180,7 +180,7 @@ body.sbhidden .sb{margin-left:-277px} /* slides out (width+border) — internal 
 .askdrawer.open{right:0}
 .askhd{display:flex;align-items:center;gap:8px;padding:13px 16px;border-bottom:1px solid var(--bd);font-weight:700;font-size:14px}
 .askhd svg{width:16px;height:16px;stroke:var(--ac);fill:none;stroke-width:2}
-.askmodel{margin-left:auto;font:inherit;font-size:11px;font-weight:600;color:var(--tx2);background:var(--sf2);border:1px solid var(--bd);border-radius:7px;padding:3px 6px;max-width:130px}
+.askmodel{font:inherit;font-size:11px;font-weight:600;color:var(--tx2);background:var(--sf2);border:1px solid var(--bd);border-radius:7px;padding:3px 6px;max-width:130px}
 .askhd .ax{background:none;border:none;color:var(--tx3);font-size:19px;cursor:pointer;line-height:1}
 .asklog{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
 .askq{align-self:flex-end;background:var(--ac);color:#fff;border-radius:12px 12px 3px 12px;padding:8px 12px;font-size:12.5px;max-width:85%;white-space:pre-wrap}
@@ -192,6 +192,33 @@ body.sbhidden .sb{margin-left:-277px} /* slides out (width+border) — internal 
 .askbar button{flex-shrink:0;padding:0 16px;border:none;border-radius:9px;background:var(--ac);color:#fff;font-weight:600;font-size:12.5px;cursor:pointer}
 .askbar button:disabled{opacity:.5;cursor:default}
 .askfoot{padding:0 16px 10px;font-size:10px;color:var(--tx3)}
+/* Ask Healthspan as a full page: chats on the left, the conversation on the right */
+.askpg{display:grid;grid-template-columns:250px minmax(0,1fr);height:calc(100dvh - 128px);min-height:420px;border:1px solid var(--bd);border-radius:var(--rs);background:var(--sf);overflow:hidden}
+.askside{border-right:1px solid var(--bd);display:flex;flex-direction:column;min-height:0;background:var(--sf2)}
+.asklist{flex:1;overflow-y:auto;padding:0 6px 8px}
+.askgrp{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--tx3);padding:10px 8px 4px}
+.askitem{display:flex;align-items:center;gap:6px;padding:7px 8px;border-radius:8px;cursor:pointer;font-size:12.5px;color:var(--tx2)}
+.askitem:hover{background:var(--sf)}.askitem.on{background:var(--gr-bg);color:var(--gr);font-weight:600}
+.askit{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.askops{display:none;gap:6px}.askitem:hover .askops,.askitem.on .askops{display:flex}.askops a{color:var(--tx3);text-decoration:none;font-size:13px;padding:0 2px}.askops a:hover{color:var(--rd)}
+.askmain{display:flex;flex-direction:column;min-width:0;min-height:0}
+.askpg-hd{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--bd)}
+.askpg-hd .askmodel{margin-left:auto}
+.askpg-menu{display:none;margin:0;padding:5px 9px}
+.askpg-log{padding:18px 8%}
+.askpg-log .askq,.askpg-log .aska{font-size:13.5px;max-width:78%}
+.askpg-bar{padding:12px 8% 6px}
+.askpg-bar textarea{height:52px;font-size:13.5px}
+.askchip{display:inline-block;margin:4px;padding:7px 11px;border:1px solid var(--bd);border-radius:999px;background:var(--sf2);color:var(--tx2);font-size:12px;text-decoration:none}
+.askchip:hover{background:var(--gr-bg);color:var(--gr)}
+@media(max-width:760px){
+  .askpg{grid-template-columns:minmax(0,1fr);height:calc(100dvh - 200px);position:relative}
+  .askside{position:absolute;inset:0 30% 0 0;z-index:5;display:none;box-shadow:8px 0 24px rgba(0,0,0,.15)}
+  .askpg.listopen .askside{display:flex}
+  .askpg-menu{display:inline-flex}
+  .askpg-log{padding:12px}.askpg-log .askq,.askpg-log .aska{max-width:92%}
+  .askpg-bar{padding:10px 12px 4px}
+}
 .topbar{position:sticky;top:0;z-index:260;background:var(--bg);background:var(--sf);border-bottom:1px solid var(--bd);padding:10px 22px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:12px}
 .ptitle{font-size:15px;font-weight:700;letter-spacing:-.01em}.psub{font-size:11px;color:var(--tx3);margin-top:1px}
 .tbr{display:flex;gap:7px;align-items:center;flex-shrink:0}
@@ -532,6 +559,7 @@ button:active{transform:scale(.97)}
   <nav class="nav">
     <div class="ni nv-sales active" onclick="showView('home',this)"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Home</div>
     <div class="ni nv-sales" onclick="showView('profile',this)"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>My profile</div>
+    <div class="ni nv-sales" onclick="showView('ask',this)"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>Ask Healthspan</div>
     <div class="nlbl nv-sales" onclick="navToggle(this)" title="Click to collapse/expand">Sales &amp; CRM</div>
     <div class="ni nv-sales" onclick="showView('neworder',this)"><svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1" fill="currentColor"/><circle cx="20" cy="21" r="1" fill="currentColor"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>New order</div>
     <div class="ni nv-sales" onclick="showView('orders',this)"><svg viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>Orders</div>
@@ -659,7 +687,7 @@ button:active{transform:scale(.97)}
     <div class="tbr">
       <button class="btn" id="fav-btn" onclick="favToggleCurrent()" title="Add this page to your favourites" style="display:none;font-size:16px;line-height:1;padding:7px 11px;color:var(--tx3)">☆</button>
       <button class="btn" id="nbell" onclick="toggleNotifs()" title="Notifications" style="position:relative"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span id="nbadge" style="display:none;position:absolute;top:2px;right:2px;background:var(--rd);color:#fff;font-size:9.5px;font-weight:700;border-radius:8px;min-width:15px;height:15px;line-height:15px;text-align:center;padding:0 3px"></span></button>
-      <button class="btn" onclick="toggleAsk()" title="Ask Healthspan anything — stock, sales, accounts, targets — in plain language"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>Ask Healthspan</button>
+      <button class="btn" onclick="askOpen()" title="Ask Healthspan anything — stock, sales, accounts, targets — in plain language"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>Ask Healthspan</button>
       <button class="btn" id="tipsBtn" onclick="toggleTips()" title="Show or hide the plain-language explanation on each tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><circle cx="12" cy="8" r="1" fill="currentColor"/></svg>Tips</button>
       <button class="btn" onclick="exportCurrentView()" title="Export the data on the current tab as a CSV"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV</button>
     </div>
@@ -705,7 +733,7 @@ button:active{transform:scale(.97)}
 <script defer src="js/14-qbo-sync.js"></script>
 
 <div class="askdrawer" id="askdrawer">
-  <div class="askhd"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>Ask Healthspan<select id="askmodel" class="askmodel" onchange="askSetModel(this.value)" title="Which model answers — Gemini Flash (default) or Claude Haiku"><option value="gemini">Gemini Flash</option><option value="anthropic">Claude Haiku</option></select><button class="ax" onclick="toggleAsk()">×</button></div>
+  <div class="askhd"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>Ask Healthspan<button class="ax" onclick="askToPage()" title="Open as a full page with your chat history" style="font-size:14px;margin-left:auto;margin-right:2px">⤢</button><select id="askmodel" class="askmodel" onchange="askSetModel(this.value)" title="Which model answers — Gemini Flash (default) or Claude Haiku"><option value="gemini">Gemini Flash</option><option value="anthropic">Claude Haiku</option></select><button class="ax" onclick="toggleAsk()">×</button></div>
   <div class="asklog" id="asklog"><div class="askempty">Ask anything about stock, sales, accounts or targets, in plain language.<br><br>e.g. “How many HA Densimatrix do we have?”<br>“Best-selling product in week 7?”<br>“Which of Rhas’s accounts went quiet?”<br>“How far is Mesoestetic from its target this month?”<br><br><a href="#" class="lnk" onclick="askDiag();return false" style="font-size:11px">AI connection test</a></div></div>
   <div class="askbar"><textarea id="askinput" placeholder="Ask Healthspan…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAsk();}"></textarea><button id="askbtn" onclick="sendAsk()">Ask</button></div>
   <div class="askfoot">Answers come from live HQ data — warehouse, Shopify sales (external only unless you ask), accounts, targets, visits · stock is warehouse-level, not per-branch</div>

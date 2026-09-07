@@ -27,7 +27,7 @@ ok('QuickBooks tokens never reach the browser: qbo-admin status omits token fiel
 ok('sidebar item and SHORT label for the QuickBooks page', /showView\('qbo',this\)"[^>]*>(?:<svg[^]*?<\/svg>)?QuickBooks sync<\/div>/.test(html)&&/qbo:'QuickBooks'/.test(fs.readFileSync('js/09-ask-ai-inapp.js','utf8')));
 ok('font files shipped', ['400','500','600','700'].every(w=>fs.existsSync('fonts/montserrat-latin-'+w+'-normal.woff2')));
 ok('two-level sidebar markup: rail + panel', /<div class="rail" id="rail"/.test(html)&&/<div class="sbp">/.test(html)&&/\.nav \.offarea\{display:none!important\}/.test(html));
-ok('Ask Healthspan: drawer title, placeholder, model dropdown; no "Ask HQ" left', /<\/svg>Ask Healthspan<select id="askmodel"/.test(html)&&/placeholder="Ask Healthspan…"/.test(html)&&/<option value="gemini">Gemini Flash<\/option><option value="anthropic">Claude Haiku<\/option>/.test(html)&&!/Ask HQ/.test(html)&&!fs.readdirSync('js').some(f=>/Ask HQ/.test(fs.readFileSync('js/'+f,'utf8'))));
+ok('Ask Healthspan: drawer title, placeholder, model dropdown; no "Ask HQ" left', /<\/svg>Ask Healthspan<button class="ax" onclick="askToPage\(\)"[^>]*>⤢<\/button><select id="askmodel"/.test(html)&&/placeholder="Ask Healthspan…"/.test(html)&&/<option value="gemini">Gemini Flash<\/option><option value="anthropic">Claude Haiku<\/option>/.test(html)&&!/Ask HQ/.test(html)&&!fs.readdirSync('js').some(f=>/Ask HQ/.test(fs.readFileSync('js/'+f,'utf8'))));
 {const ask=fs.readFileSync('netlify/functions/ask.mjs','utf8'),wk=fs.readFileSync('netlify/functions/ask-work-background.mjs','utf8');
  ok('ask.mjs forwards only gemini|anthropic as the per-question provider', /ASK_PICK = \['gemini', 'anthropic'\]/.test(ask)&&/provider: ASK_PICK\.includes\(String\(payload\.provider/.test(ask));
  ok('worker: the personal pick overrides the company default', /setProviderPref\(payload\.provider\)/.test(wk)&&wk.indexOf("key=eq.ai_provider")<wk.indexOf("setProviderPref(payload.provider)"));}
@@ -289,6 +289,36 @@ ROLE='admin';SBPROFILE={name:'Angelo',role:'admin',is_super:true};navSync();
  window._navDepth=0;history.replaceState(null,'',location.pathname);pushRoute('#/v/home');
  ok('landing on Home after sign-in does not create a back step', (window._navDepth||0)===0&&location.hash==='#/v/home');
  pushRoute('#/v/orders');ok('a real navigation still does', window._navDepth===1);}
+// Ask Healthspan as a page: list + thread + input; the drawer shares the conversation; preference decides the top-bar button
+{ROLE='sales';ok('everyone may open the Ask page', viewAllowed('ask')&&(ROLE='viewer',viewAllowed('ask')));ROLE='admin';
+ // a fake job: start → one poll → answer
+ window.fetch=async(u,o)=>{if(/functions\\/ask\\?id=/.test(u))return {ok:true,json:async()=>({answer:'**Face Nade**: 1,384 in stock.',model:'gemini-3.6-flash'})};if(/functions\\/ask$/.test(u))return {ok:true,json:async()=>({id:'abcdef1234'})};return {ok:true,json:async()=>({})};};
+ SB=null;ASK_CUR={id:null,title:'',messages:[]};currentView='ask';await renderAskPage();
+ const pg=$('content');
+ ok('page renders list, header, log, input and a model dropdown', document.getElementById('askpg-list')&&document.getElementById('askpg-log')&&document.getElementById('askpg-input')&&document.getElementById('askmodel-pg')&&/New chat/.test(pg.innerHTML));
+ ok('empty state offers example questions as chips', document.querySelectorAll('#askpg-log .askchip').length>=4);
+ document.getElementById('askpg-input').value='How many Face Nade do we have?';
+ const p=askPageSend();await new Promise(r=>setTimeout(r,30));
+ ok('question appears at once with a pending answer', ASK_CUR.messages.length===2&&ASK_CUR.messages[1].pending===true&&document.getElementById('ask-pending'));
+ // fast-forward the 2.5 s poll wait
+ const _st=window.setTimeout;window.setTimeout=(f,ms)=>_st(f,ms>=2000?1:ms);await p;window.setTimeout=_st;
+ ok('answer replaces the pending bubble, rendered as markdown-lite, and is kept in the conversation', ASK_CUR.messages.length===2&&ASK_CUR.messages[1].ok!==false&&/<b>Face Nade<\\/b>/.test(document.getElementById('askpg-log').innerHTML)&&!document.getElementById('ask-pending'));
+ ok('history pairs feed the next question', askHistoryPairs().length===1&&askHistoryPairs()[0].q.startsWith('How many'));
+ // the drawer shows the same conversation
+ toggleAsk();ok('drawer shows the same thread', /Face Nade/.test(document.getElementById('asklog').innerHTML));toggleAsk();
+ askSetPref('page');ok('preference: page', askPref()==='page');askSetPref('drawer');ok('preference: drawer (default)', askPref()==='drawer');
+ ok('top-bar button honours the preference; drawer has a jump to the page; sidebar lists the page', /onclick="askOpen\\(\\)"/.test(html)&&/askToPage\\(\\)/.test(html)&&/showView\\('ask',this\\)/.test(html));
+ askNewChat();ok('new chat clears the thread', ASK_CUR.messages.length===0&&!ASK_CUR.id);}
+// preferences follow the account: pull writes localStorage from the row; changes push
+{SBUSER={id:'u1'};const calls=[];
+ SB={from:(t)=>({select:()=>({eq:()=>({maybeSingle:async()=>({data:t==='user_prefs'?{favourites:['orders','bizreview'],bottom_bar:['orders','ar','pdc','po'],ask_open:'page'}:null})})}),upsert:async(row,o)=>{calls.push({t,row,o});return {error:null};}})};
+ await prefsPull();
+ ok('sign-in pull: favourites, bottom bar and Ask preference come from the account', JSON.stringify(favGet())==='["orders","bizreview"]'&&askPref()==='page'&&JSON.parse(localStorage.getItem(mbarKey()))[1]==='ar');
+ favSet(['orders']);await new Promise(r=>setTimeout(r,5));
+ ok('changing favourites pushes to user_prefs keyed by user', calls.some(c=>c.t==='user_prefs'&&JSON.stringify(c.row.favourites)==='["orders"]'&&c.row.user_id==='u1'&&c.o&&c.o.onConflict==='user_id'));
+ askSetPref('drawer');await new Promise(r=>setTimeout(r,5));
+ ok('changing the Ask preference pushes too', calls.some(c=>c.row.ask_open==='drawer'));
+ SB=null;}
 // sales role may open crmstats but not serials/loans
 ROLE='sales';
 ok('sales can open CRM activity', viewAllowed('crmstats'));

@@ -2800,3 +2800,56 @@ alter table public.payments add column if not exists qbo_id text unique;
    now* on the page runs it on demand. Refresh tokens rotate on every refresh
    and expire after 100 days of silence — the sync refreshes them, so an
    enabled connection never lapses; a disabled one may need reconnecting.
+
+## Ask Healthspan — saved chats (Sep 7)
+
+Ask Healthspan is now also a full page (Home → Ask Healthspan, or ⤢ in the side
+drawer) that keeps every conversation, ChatGPT-style: chats on the left, the
+thread on the right, rename / delete / search. One table, owner-only:
+
+```sql
+create table if not exists public.ask_chats (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users on delete cascade,
+  title text not null default '',
+  model text,
+  messages jsonb not null default '[]'::jsonb,   -- [{r:'u'|'a', t:text, m?:model, ok?:false, at:iso}]
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists ask_chats_user on public.ask_chats (user_id, updated_at desc);
+alter table public.ask_chats enable row level security;
+drop policy if exists "ask chats own" on public.ask_chats;
+create policy "ask chats own" on public.ask_chats for all to authenticated
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+```
+
+Nobody — not admins, not the super admin — can read another person's chats
+through the app; the row belongs to `auth.uid()` alone. Without this table the
+chat still answers, it just is not kept. The side drawer and the page show the
+same current conversation; Settings → Shortcuts chooses which one the top-bar
+button opens.
+
+## Personal preferences follow the account (Sep 7)
+
+Favourites, the bottom-bar picks and how Ask Healthspan opens are mirrored per
+person so they are the same on the iPad, the phone and the laptop. Pulled at
+sign-in (the account wins over the device), pushed on every change; localStorage
+stays the fast path for painting.
+
+```sql
+create table if not exists public.user_prefs (
+  user_id uuid primary key references auth.users on delete cascade,
+  favourites jsonb,          -- ["orders","bizreview",…] view keys, max 8
+  bottom_bar jsonb,          -- the four phone-bar picks; null = role default
+  ask_open text check (ask_open in ('drawer','page')),
+  updated_at timestamptz not null default now()
+);
+alter table public.user_prefs enable row level security;
+drop policy if exists "prefs own" on public.user_prefs;
+create policy "prefs own" on public.user_prefs for all to authenticated
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+```
+
+Saved chats (`ask_chats`, above) are already per account, so they appear on
+every device without further work.

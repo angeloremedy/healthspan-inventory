@@ -28,7 +28,7 @@ data visibility and operational control, not system administration.
 
 **Viewer** (Maria, Justine, Ivy, Agnes): they attend the weekly meeting, so
 they get the circle read — sales analytics, inventory suite, AR aging, accounts,
-pipeline, campaigns, forecasts, Ask AI. No writes of any kind; no PDC/returns/
+pipeline, campaigns, forecasts, Ask Healthspan. No writes of any kind; no PDC/returns/
 POs/scan/audit; no costs or margins.
 
 ## The design: circle read, role write (decided 2026-08-27)
@@ -80,7 +80,7 @@ therefore a floor — implementation grants the full circle read to all three.
 | Item master (prices, deals) — costs/margins hidden outside admin+finance | ✅ | 👁* no costs | ✖ | 👁 no costs | ✅ incl. costs | 👁 no costs |
 | Campaign calendar | ✅ | ✅ | 👁 | 👁 | 👁 | ✅ |
 | Forecasting suite, MAPE, AI planning review | ✅ | ✅ | ✖ | ✅ | 👁 | 👁 |
-| Ask AI | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Ask Healthspan (drawer and full page; saved chats are owner-only — no role, not even super admin, can read another person's) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Activity log (audit) | ✅ (admin + super ONLY — tightened 2026-08-28) | ✖ | ✖ | ✖ | ✖ | ✖ |
 | Approvals queue (credit/threshold holds) | ✅ decide | ✅ decide | auto-request | ✖ | 👁 | ✖ |
 | Credit limits (set per account) | ✅ | 👁 | 👁 own accts | ✖ | ✅ | ✖ |
@@ -166,7 +166,7 @@ therefore a floor — implementation grants the full circle read to all three.
 | Suppliers & imports | ✅ | 👁 | ✖ | ✅ | ✅ | ✖ |
 | Transfer orders | ✅ | ✅ | ✖ | ✅ | 👁 | ✖ |
 | Landed cost & valuation (COSTS page) | ✅ | ✖ | ✖ | ✖ | ✅ | ✖ |
-| Ask AI (context auto-scoped to role) | ✅ full | ✅ no costs | ✅ own scope | ✅ ops scope | ✅ incl. costs | ✅ circle scope |
+| Ask Healthspan (context auto-scoped to role) | ✅ full | ✅ no costs | ✅ own scope | ✅ ops scope | ✅ incl. costs | ✅ circle scope |
 | QuickBooks sync page (view, confirm matches, retry, sync now) | ✅ | ✖ | ✖ | ✖ | ✅ | ✖ — view key `qbo`; viewer has no access either. `viewAllowed` and `qbo-admin.mjs` agree |
 | QuickBooks connect / settings / enable | super admin only | ✖ | ✖ | ✖ | 👁 settings | ✖ — Connect, Disconnect, Save settings and Enable/Disable are refused server-side in `qbo-auth.mjs` and `qbo-admin.mjs` (`settings`) for anyone else; admin and finance see the settings read-only |
 
