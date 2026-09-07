@@ -1,4 +1,4 @@
-// Background worker for the dashboard's Ask AI box (up to 15 min runtime — no timeouts).
+// Background worker for the dashboard's Ask Healthspan box (up to 15 min runtime — no timeouts).
 // Receives { id, question, catalog, history }, asks the configured model
 // (lib/llm.mjs — Gemini Flash by default, Claude as the safety net), and writes
 // the result to Blobs for ask.mjs to serve.
@@ -141,7 +141,8 @@ export const handler = async (event) => {
   const history = Array.isArray(payload.history) ? payload.history.slice(-4) : [];
   const who = payload.who || { role: 'viewer', tag: '' };
   const mode = String(payload.mode || '');   // 'draft' = Draft with AI: short prompt, wants depth
-  try { const r = await sbq('app_settings?select=value&key=eq.ai_provider'); setProviderPref((r[0] || {}).value || ''); } catch (e) {} // Settings → AI
+  try { const r = await sbq('app_settings?select=value&key=eq.ai_provider'); setProviderPref((r[0] || {}).value || ''); } catch (e) {} // Settings → AI (company default)
+  if (['gemini', 'anthropic'].includes(String(payload.provider || ''))) setProviderPref(payload.provider); // the person's own pick in the Ask Healthspan dropdown wins for this question
   if (!id) return { statusCode: 400, body: 'no id' };
 
   let store = null;

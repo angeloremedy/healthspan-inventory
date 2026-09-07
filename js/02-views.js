@@ -13,6 +13,7 @@ function viewAllowed(v){
   if(v==='pullouts'||(typeof FIN_KINDS!=='undefined'&&FIN_KINDS.indexOf(v)>=0))return true; // anyone may file a finance form; the approval route is the control
   if(v==='routes')return ROLE==='admin';
   if(v==='codelists')return ROLE==='admin'||ROLE==='finance';
+  if(v==='qbo')return ROLE==='admin'||ROLE==='finance';        // QuickBooks sync: books, so finance + admin
   if(v==='cutover'||v==='archive'||v==='numbering')return typeof isSuper==='function'&&isSuper();
   if(v==='users')return ROLE==='admin'||(typeof canUserAdmin==='function'&&canUserAdmin());
   if(v==='audit')return ROLE==='admin';                    // admin + super only (2026-08-28)
@@ -39,7 +40,8 @@ function showView(v,el){
   try{if(window._animReady&&window._lastAnimView!==v){window._lastAnimView=v;const _c=$('content');_c.style.animation='none';void _c.offsetHeight;_c.style.animation='viewin .18s ease';}}catch(e){}fLine='';fSearch='';fTab='all';fBin='';fSup='';
   document.querySelectorAll('.ni').forEach(x=>x.classList.remove('active'));
   if(el) el.classList.add('active');
-  const T={bizreview:'Business review',reports:'Reports',settings:'Settings',dashboard:'Dashboard',action:'Action center',customers:'Accounts (CRM)',health:'Data health',all:'All SKUs',oos:'Out of stock',low:'Low stock',neg:'Negative stock',
+  try{if(typeof navAreaFollow==='function')navAreaFollow(v);}catch(e){} // the rail moves to this page's area
+  const T={bizreview:'Business review',reports:'Reports',qbo:'QuickBooks sync',settings:'Settings',dashboard:'Dashboard',action:'Action center',customers:'Accounts (CRM)',health:'Data health',all:'All SKUs',oos:'Out of stock',low:'Low stock',neg:'Negative stock',
            expiry:'Expiry tracker',value:'Inventory value',dealvalue:'Deal scenarios',movement:'Monthly movement',reorder:'Reorder alerts',batches:'Batch view',
            forecast:'Stockout forecast',coverage:'Stock coverage',reorderplan:'Reorder plan',ropoint:'Reorder point',variability:'Demand variability',abc:'ABC analysis',writeoff:'Write-off forecast',whatif:'What-if simulator',
            simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator',
@@ -150,6 +152,7 @@ function showView(v,el){
   else if(v==='bizreview') renderBizReview();
   else if(v==='reports') renderReports();
   else if(v==='settings') renderSettings();
+  else if(v==='qbo') renderQbo();
   else renderTable(v);
   injectDesc(v);
   injectCalc(v);

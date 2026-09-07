@@ -29,7 +29,7 @@
   },
   {
    "t": "step",
-   "v": "Forgot your password? Ask an admin — they can set a new one in seconds. You can change it anytime via the password link at the bottom of the sidebar.",
+   "v": "Forgot your password? Ask an admin — they can set a new one in seconds. You can change it anytime from Settings (footer button; phone: Menu → Settings).",
    "n": "3"
   },
   {
@@ -55,6 +55,18 @@
    "t": "step",
    "v": "Make the bottom bar yours: Menu → ☆ Customize bar — pick the pages you use most for one-tap access. Home and Menu are always there (specialists also keep Log visit and New order fixed, with 2 free slots; everyone else picks 4).",
    "n": "4"
+  },
+  {
+   "t": "h2",
+   "v": "<b>Finding your way</b>"
+  },
+  {
+   "t": "p",
+   "v": "The sidebar has two levels: a narrow rail of areas on the left — Home, Sales, Warehouse, Finance, Planning, Admin — and, beside it, the pages of the area you picked, under their usual section headings. Every page is still there; the rail only chooses which slice you see, and opening a page from a card or a favourite switches the rail for you. On a phone the Menu shows the same areas as a row of chips. The search box above the list finds any page by name across every area."
+  },
+  {
+   "t": "p",
+   "v": "HQ paints from the copy saved on your device and refreshes quietly behind it, so a second visit is near-instant even on clinic wifi."
   },
   {
    "t": "h2",
@@ -129,11 +141,11 @@
   },
   {
    "t": "h2",
-   "v": "<b>Ask HQ</b>"
+   "v": "<b>Ask Healthspan</b>"
   },
   {
    "t": "p",
-   "v": "The Ask HQ button (top bar) answers plain-language questions over everything HQ knows — inventory, sales, receivables, cheques, approvals, backorders, quotes, pipeline — and its knowledge is automatically scoped to YOUR role: specialists get their own numbers, costs and margins only answer for finance and admin. Any hour, in the app or on Slack (/stock)."
+   "v": "The Ask Healthspan button (top bar) answers plain-language questions over everything HQ knows — inventory, sales, receivables, cheques, approvals, backorders, quotes, pipeline — and its knowledge is automatically scoped to YOUR role: specialists get their own numbers, costs and margins only answer for finance and admin. Any hour, in the app or on Slack (/stock). A small dropdown in the drawer header lets you choose which model answers — Gemini Flash (default) or Claude Haiku — and remembers your pick on this device."
   },
   {
    "t": "h2",
@@ -204,7 +216,7 @@
   },
   {
    "t": "step",
-   "v": "Ask HQ answers plain-language questions — use it freely.",
+   "v": "Ask Healthspan answers plain-language questions — use it freely.",
    "n": "2"
   },
   {

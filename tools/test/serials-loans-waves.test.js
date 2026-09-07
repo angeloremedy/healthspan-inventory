@@ -17,13 +17,53 @@ ok('splash uses the real app icon', /id="splash"[^]*?icon-512\.png/.test(html));
 ok('splash is standalone-only', /display-mode: standalone/.test(html) && /id="splash" style="display:none/.test(html));
 ok('browser tab never shows it', (()=>{ // jsdom is not standalone, so the gate must leave it hidden
   const el=d.getElementById('splash'); return el&&el.style.display==='none';})());
-ok('all app scripts defer', (html.match(/<script defer src="js\//g)||[]).length===13, (html.match(/<script defer src="js\//g)||[]).length);
+ok('all app scripts defer', (html.match(/<script defer src="js\//g)||[]).length===14, (html.match(/<script defer src="js\//g)||[]).length);
 ok('CDN libs defer too', (html.match(/<script defer src="https:/g)||[]).length===2);
 ok('no blocking external script left', !/<script src=/.test(html));
 ok('preconnects present', /rel="preconnect" href="https:\/\/lesjigujcajxurmsmwwc/.test(html));
+ok('Montserrat self-hosted with swap, no Google Fonts CSS on the critical path', !/fonts\.googleapis\.com|fonts\.gstatic\.com/.test(html)&&(html.match(/@font-face\{font-family:'Montserrat'[^}]*font-display:swap[^}]*\/fonts\/montserrat-latin-\d00-normal\.woff2/g)||[]).length===4&&/rel="preload" href="\/fonts\/montserrat-latin-400-normal\.woff2" as="font"/.test(html));
+ok('QuickBooks connector: functions present and wired', ['netlify/functions/lib/qbo.mjs','netlify/functions/lib/qbo-sync.mjs','netlify/functions/qbo-auth.mjs','netlify/functions/qbo-admin.mjs','netlify/functions/qbo-sync-background.mjs','netlify/functions/qbo-schedule.mjs','js/14-qbo-sync.js'].every(f=>fs.existsSync(f))&&/schedule: '\*\/15 \* \* \* \*'/.test(fs.readFileSync('netlify/functions/qbo-schedule.mjs','utf8'))&&/<script defer src="js\/14-qbo-sync\.js">/.test(html)&&/showView\('qbo',this\)/.test(html));
+ok('QuickBooks tokens never reach the browser: qbo-admin status omits token fields', !/access_token|refresh_token/.test(fs.readFileSync('netlify/functions/qbo-admin.mjs','utf8').split("action === 'status'")[1].split("action === 'lists'")[0]));
+ok('sidebar item and SHORT label for the QuickBooks page', /showView\('qbo',this\)"[^>]*>(?:<svg[^]*?<\/svg>)?QuickBooks sync<\/div>/.test(html)&&/qbo:'QuickBooks'/.test(fs.readFileSync('js/09-ask-ai-inapp.js','utf8')));
+ok('font files shipped', ['400','500','600','700'].every(w=>fs.existsSync('fonts/montserrat-latin-'+w+'-normal.woff2')));
+ok('two-level sidebar markup: rail + panel', /<div class="rail" id="rail"/.test(html)&&/<div class="sbp">/.test(html)&&/\.nav \.offarea\{display:none!important\}/.test(html));
+ok('Ask Healthspan: drawer title, placeholder, model dropdown; no "Ask HQ" left', /<\/svg>Ask Healthspan<select id="askmodel"/.test(html)&&/placeholder="Ask Healthspan…"/.test(html)&&/<option value="gemini">Gemini Flash<\/option><option value="anthropic">Claude Haiku<\/option>/.test(html)&&!/Ask HQ/.test(html)&&!fs.readdirSync('js').some(f=>/Ask HQ/.test(fs.readFileSync('js/'+f,'utf8'))));
+{const ask=fs.readFileSync('netlify/functions/ask.mjs','utf8'),wk=fs.readFileSync('netlify/functions/ask-work-background.mjs','utf8');
+ ok('ask.mjs forwards only gemini|anthropic as the per-question provider', /ASK_PICK = \['gemini', 'anthropic'\]/.test(ask)&&/provider: ASK_PICK\.includes\(String\(payload\.provider/.test(ask));
+ ok('worker: the personal pick overrides the company default', /setProviderPref\(payload\.provider\)/.test(wk)&&wk.indexOf("key=eq.ai_provider")<wk.indexOf("setProviderPref(payload.provider)"));}
 ok('touch inputs are 16px', /pointer:coarse.*font-size:16px/s.test(html));
 
+// the build step ships js/01…13 as ONE hashed bundle; names must survive minification
+// (inline onclick="showView(…)" handlers and typeof fn==='function' checks are global lookups)
+const buildSrc=fs.existsSync('tools/build.mjs')?fs.readFileSync('tools/build.mjs','utf8'):'', toml=fs.readFileSync('netlify.toml','utf8'), pkg=JSON.parse(fs.readFileSync('package.json','utf8'));
+ok('build script exists and never renames identifiers', /minifyIdentifiers:\s*false/.test(buildSrc) && /minifyWhitespace:\s*true/.test(buildSrc) && /app\.\$\{hash\}\.js/.test(buildSrc) && /import\('esbuild'\)/.test(buildSrc));
+ok('netlify publishes dist with an immutable hashed-bundle header', /publish\s*=\s*"dist"/.test(toml) && /command\s*=\s*"npm run build"/.test(toml)
+  && /for\s*=\s*"\/app\.\*\.js"[^]*?cache-control\s*=\s*"public, max-age=31536000, immutable"/.test(toml) && /for\s*=\s*"\/index\.html"[^]*?cache-control\s*=\s*"no-cache"/.test(toml)
+  && /to\s*=\s*"\/\.netlify\/functions\/manual"/.test(toml));
+ok('package.json has the build script', pkg.scripts&&pkg.scripts.build==='node tools/build.mjs' && pkg.devDependencies&&!!pkg.devDependencies.esbuild && !!pkg.dependencies.jsdom);
+
 const app=fs.readdirSync('js').sort().map(f=>fs.readFileSync('js/'+f,'utf8')).join('\n;\n');
+
+// the Shopify blob's device cache + ?since= handshake (source checks; the live
+// behaviour is exercised below when the app boots in a jsdom that has no indexedDB)
+const shop01=fs.readFileSync('js/01-shopify-merge-prices.js','utf8'), shopFn=fs.readFileSync('netlify/functions/shopify.mjs','utf8');
+ok('idbGet/idbSet defined once and swallow errors', (app.match(/async function idbGet\(/g)||[]).length===1&&(app.match(/async function idbSet\(/g)||[]).length===1
+  && /async function idbGet\(key\)\{try\{[^]*?\}catch\(e\)\{return null;\}\}/.test(shop01) && /async function idbSet\(key,val\)\{try\{[^]*?\}catch\(e\)\{return null;\}\}/.test(shop01));
+ok('loadShopify paints from cache, sends since=, stores full blobs', /idbGet\('shopify'\)/.test(shop01)&&/'\?since='\+encodeURIComponent\(SHOPIFY\.synced\)/.test(shop01)
+  && /if\(d&&d\.unchanged\)return;/.test(shop01) && /if\(!d\.building\)try\{idbSet\('shopify',d\);\}catch\(e\)\{\}/.test(shop01));
+ok('shopify.mjs answers unchanged for a matching since', /searchParams\.get\('since'\)/.test(shopFn)&&/String\(data\.synced\) === since\) return Response\.json\(\{ unchanged: true, synced: data\.synced, stale: ageH > 6, status \}\)/.test(shopFn));
+
+// /api/sync is served from a Blobs snapshot (store 'sync', key 'data') that a
+// scheduled function keeps warm; only the Sync button (force=1) reads Sheets live
+const refreshFn=fs.readFileSync('netlify/functions/refresh.mjs','utf8'), warmFn=fs.readFileSync('netlify/functions/sync-warm.mjs','utf8');
+ok('refresh.mjs exports buildSnapshot and reads the sync store', /export async function buildSnapshot\(KEY\)/.test(refreshFn)&&/export const handler=/.test(refreshFn)
+  && /SNAPSHOT_STORE='sync', SNAPSHOT_KEY='data'/.test(refreshFn) && /getStore\(SNAPSHOT_STORE\)/.test(refreshFn) && /store\.get\(SNAPSHOT_KEY,\{type:'json'\}\)/.test(refreshFn)
+  && /qp\.force==='1'/.test(refreshFn) && /fromSnapshot:true/.test(refreshFn) && /store\.setJSON\(SNAPSHOT_KEY,data\)/.test(refreshFn));
+ok('sync-warm.mjs is scheduled every 15 min and reuses buildSnapshot', /export const config = \{ schedule: '\*\/15 \* \* \* \*' \}/.test(warmFn)
+  && /import \{ buildSnapshot \} from '\.\/refresh\.mjs'/.test(warmFn) && /getStore\('sync'\)\.setJSON\('data', data\)/.test(warmFn) && /export default async \(req\)/.test(warmFn));
+ok('syncNow sends force=1 only when the button asked for it', /async function syncNow\(force\)\{\s*force=force===true;/.test(shop01)
+  && /fetch\('\/\.netlify\/functions\/refresh'\+\(force\?'\?force=1':''\)/.test(shop01) && /force\?'Connecting to Google Sheets\.\.\.':'Loading latest snapshot\\u2026'/.test(shop01)
+  && /id="syncBtn" onclick="syncNow\(true\)"/.test(html) && /id="mobileSyncBtn" onclick="syncNow\(true\)"/.test(html) && /try\{syncNow\(\);\}catch\(e\)\{\}/.test(app));
 
 const test=`
 (async()=>{
@@ -33,6 +73,7 @@ const OUT=[];window.__out=OUT;
 await new Promise(r=>setTimeout(r,25));
 const ok=(n,c,x)=>OUT.push([!!c,n,x===undefined?'':String(x)]);
 const today=new Date().toISOString().slice(0,10);
+ok('idb helpers degrade to null without indexedDB (no throw)', typeof indexedDB==='undefined'&&(await idbGet('shopify'))===null&&(await idbSet('shopify',{v:9}))===null);
 ROLE='supply_chain';SBUSER={id:'u1'};SBPROFILE={name:'Verna'};isSuper=()=>false;loadShopify=()=>{};refreshSidebar=()=>{};rerenderCurrent=()=>{};
 audit=()=>{};sbAuthHeaders=async()=>({});
 DATA=[{sku:'INVESTA',name:'Q SWITCHED ND:YAG LASER SYSTEM',line:'GTG',bin:'ZA01',price:0,stock:0},
@@ -140,8 +181,8 @@ ok('PS profile IS their sales page (calendar + specialist chips) with the identi
 ROLE='admin';SBPROFILE={name:'Angelo',role:'admin',is_super:true};isSuper=()=>true;currentView='settings';
 window.fetch=async(u)=>({ok:true,json:async()=>(/diag=keys/.test(u)?{provider:'gemini',keys:{gemini:true,anthropic:false,deepseek:false,kimi:false,groq:false,mistral:false,openrouter:false,cerebras:false}}:{})});
 await renderSettings();const sc=$('content').innerHTML;
-ok('settings: appearance, account, shortcuts, AI dropdown', /Appearance/.test(sc)&&document.getElementById('themeSel')&&/Change password/.test(sc)&&/Sign out/.test(sc)&&/Favourites/.test(sc)&&document.getElementById('aiprov')&&/Gemini Flash/.test(sc)&&/Mistral/.test(sc)&&!/free tier/.test(sc));
-ok('settings: current provider selected, keyless providers greyed, super admin may change', document.getElementById('aiprov').value==='gemini'&&!document.getElementById('aiprov').disabled&&document.querySelectorAll('#aiprov option[disabled]').length===7);
+ok('settings: appearance, account, shortcuts, AI dropdown', /Appearance/.test(sc)&&document.getElementById('themeSel')&&/Change password/.test(sc)&&/Sign out/.test(sc)&&/Favourites/.test(sc)&&document.getElementById('aiprov')&&/Gemini Flash/.test(sc)&&/Claude Haiku/.test(sc)&&!/Mistral|Groq|DeepSeek|Kimi|Cerebras|OpenRouter/.test(sc)&&!/free tier/.test(sc));
+ok('settings: current provider selected, keyless providers greyed, super admin may change', document.getElementById('aiprov').value==='gemini'&&!document.getElementById('aiprov').disabled&&document.querySelectorAll('#aiprov option').length===2&&document.querySelectorAll('#aiprov option[disabled]').length===1);
 ok('sign out is a button, not a hyperlink, in the footer', /class="abtn t-rd"[^>]*onclick="roleLogout\\(\\)/.test(document.body.innerHTML)||true);
 ROUTES={voucher:[{id:1,kind:'voucher',step:1,label:'Fund source',use_fund_source:true,min_amount:0},{id:2,kind:'voucher',step:2,label:'Finance',approver_role:'finance',min_amount:50000}]};loadRoutes=async()=>ROUTES;window._PLUSERS=[{id:'u9',name:'Tal',role:'finance'}];adminUsers=async()=>({users:[]});
 currentView='routes';await renderRoutes();const rc=$('content').innerHTML;
@@ -210,6 +251,38 @@ ok('upgrader converges (idempotent)', $('content').innerHTML===before);
 currentView='serials';await renderSerials();await new Promise(r=>setTimeout(r,30));
 ok('serials row actions are buttons', $('content').querySelectorAll('a.abtn').length>=2, $('content').querySelectorAll('a.abtn').length);
 
+// two-level sidebar: rail, area filtering, follow on navigate, search spans areas, phone chips
+ROLE='admin';SBPROFILE={name:'Angelo',role:'admin',is_super:true};navSync();
+{const rail=document.getElementById('rail');const vis=()=>[...document.querySelectorAll('.nav .ni')].filter(x=>!x.classList.contains('offarea')&&x.dataset.deny!=='1'&&!x.closest('#fav-sec')).length;
+ ok('rail lists six areas', rail&&rail.querySelectorAll('.rl').length===6&&[...rail.querySelectorAll('.rl')].map(x=>x.dataset.area).join()==='home,sales,warehouse,finance,planning,admin');
+ navAreaSelect('sales',true);
+ ok('Sales area shows only Sales & CRM + Sales analytics', vis()===23&&[...document.querySelectorAll('.nav .nlbl')].filter(x=>!x.classList.contains('offarea')).map(x=>x.textContent.trim()).join('|')==='Sales & CRM|Sales analytics', vis());
+ ok('rail marks the chosen area', rail.querySelector('.rl.active').dataset.area==='sales');
+ const before=vis();showView('po',null);
+ ok('opening a Warehouse page moves the rail and highlights the row', rail.querySelector('.rl.active').dataset.area==='warehouse'&&(document.querySelector('.nav .ni.active')||{}).textContent.trim()==='Purchase orders', (document.querySelector('.nav .ni.active')||{}).textContent);
+ document.getElementById('navq').value='target';navFilter('target');
+ ok('search spans every area', [...document.querySelectorAll('.nav .ni')].filter(x=>x.style.display!=='none'&&!x.classList.contains('offarea')).map(x=>x.textContent.trim()).join('|')==='Set targets|Sales vs target');
+ document.getElementById('navq').value='';navFilter('');
+ ok('clearing the search returns to the area', rail.querySelector('.rl.active').dataset.area==='warehouse'&&vis()>before);
+ buildMobileMenu('');const mm=document.getElementById('mmenu-list');
+ ok('phone menu: area chips + only the rows of that area', mm.querySelectorAll('button[onclick^="mmArea"]').length===6&&[...mm.querySelectorAll('[onclick]')].filter(x=>/^mmGo|fltLine\\(/.test(x.getAttribute('onclick'))).length===vis(), [...mm.querySelectorAll('[onclick]')].filter(x=>/^mmGo|fltLine\\(/.test(x.getAttribute('onclick'))).length+' rows vs '+vis());
+ buildMobileMenu('order');
+ ok('phone search ignores the chips', mm.querySelectorAll('button[onclick^="mmArea"]').length===0&&mm.querySelectorAll('[onclick^="mmGo"]').length>=3);
+ ok('Ask model pick is remembered on the device', (askSetModel('anthropic'),askGetModel()==='anthropic')&&(askSetModel('nope'),askGetModel()===''));}
+// QuickBooks sync page (finance + admin), status → panels, preview badge, ledger, mappings
+{ROLE='finance';SBPROFILE={name:'Alex',role:'finance'};
+ ok('finance may open QuickBooks sync; sales, manager, viewer may not', viewAllowed('qbo')&&(ROLE='admin',viewAllowed('qbo'))&&(ROLE='manager',!viewAllowed('qbo'))&&(ROLE='sales',!viewAllowed('qbo'))&&(ROLE='viewer',!viewAllowed('qbo')));
+ ROLE='admin';SBPROFILE={name:'Angelo',role:'admin',is_super:true};isSuper=()=>true;
+ const ST={configured:true,env:'sandbox',connected:true,company:'Healthspan Sandbox',realm:'123',connectedEnv:'sandbox',refreshExpires:'2026-12-01T00:00:00Z',settings:{qbo_enabled:'0',qbo_post_from:'2026-10-01',qbo_tax_code:'5',qbo_income_account:'40',qbo_use_class:'1'},counts:{invoice:{pending:2,skipped:1}},unconfirmed:1,lastRun:{mode:'preview',started:'2026-09-06T01:00:00Z',finished:'2026-09-06T01:00:04Z',by:'schedule',invoices:{posted:0,preview:2,held:1,updated:0,voided:0},payments:{posted:0,pulled:0,skipped:0},creditmemos:{posted:0},errors:['HS-1044: customer match needs confirmation']},canEdit:true};
+ window.fetch=async(u,o)=>{const a=(String(u).match(/action=(\\w+)/)||[])[1];const body={status:ST,mappings:{rows:[{kind:'customer',hq_key:'SKIN STATION INC',qbo_id:'2',qbo_name:'Skin Station, Inc.',confirmed:false,candidates:[{id:'2',name:'Skin Station, Inc.'},{id:'9',name:'Skin Station Makati'}]}]},log:{rows:[{id:1,kind:'invoice',hq_ref:'o1',order_id:'o1',order_label:'HS-1042',status:'pending',amount:10000,last_error:'would post — enable the sync to send',updated_at:'2026-09-06T01:00:03Z'},{id:2,kind:'invoice',hq_ref:'o2',order_label:'HS-1043',status:'skipped',amount:500,last_error:'internal or test account — never a sale',updated_at:'2026-09-06T01:00:03Z'}]}}[a]||{};return {ok:true,status:200,json:async()=>body};};
+ await new Promise(r=>setTimeout(r,250)); /* let earlier views' async paints land first */
+ currentView='qbo';await renderQbo();await new Promise(r=>setTimeout(r,60));const qc=$('content').innerHTML;
+ ok('QuickBooks page: connection, preview badge, settings, last run, mappings, ledger', /Healthspan Sandbox/.test(qc)&&/Preview — posting nothing/.test(qc)&&document.getElementById('qbo-post-from').value==='2026-10-01'&&/Enable — start posting/.test(qc)&&/would post/.test(qc)&&/Sync ledger/.test(qc), qc.slice(0,300));
+ ok('mappings table offers Confirm and the other candidate', /SKIN STATION INC/.test(qc)&&/use Skin Station Makati/.test(qc)&&/qboConfirm\\('customer','SKIN STATION INC'\\)/.test(qc));
+ ok('ledger rows link the order, show status pills and Retry on pending', /showOrderPage\\('o1'\\)/.test(qc)&&/class="pill pam">pending/.test(qc)&&/class="pill pgy">skipped/.test(qc)&&(qc.match(/qboRetry\\(/g)||[]).length===1);
+ ok('DESC knows the page', /QuickBooks/.test(DESC.qbo||''));
+ ROLE='finance';SBPROFILE={name:'Alex',role:'finance'};isSuper=()=>false;await renderQbo();await new Promise(r=>setTimeout(r,40));const qf=$('content').innerHTML;
+ ok('finance sees the page read-only: no Enable/Disconnect, Sync now still there', !/Enable — start posting/.test(qf)&&!/qboDisconnect/.test(qf)&&/qboRun\\(false\\)/.test(qf)&&document.getElementById('qbo-post-from').disabled);}
 // sales role may open crmstats but not serials/loans
 ROLE='sales';
 ok('sales can open CRM activity', viewAllowed('crmstats'));

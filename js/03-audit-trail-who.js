@@ -138,7 +138,7 @@ async function campaignDel(id){
   try{const {error}=await SB.from('campaigns').delete().eq('id',id);if(error)throw error;renderCampaigns();}catch(e){alert(e.message||e);}
 }
 
-// 3) AI planning review — the existing Ask AI worker walks the whole catalog and
+// 3) AI planning review — the existing Ask Healthspan worker walks the whole catalog and
 //    reports exceptions in plain language (stock risks, misses, campaign impacts)
 async function renderPlanReview(){
   if(!canManage()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only.</div>';return;}

@@ -51,14 +51,44 @@ async function sbAuthHeaders(extra){
 
 /* ── SHOPIFY MERGE: prices & deals & demand from the store; stock stays with the sheet ── */
 let SHOPIFY_ERR=null; // last build error from /api/shopify status, if any
-async function loadShopify(){
+/* ── Device copy of the Shopify blob (IndexedDB db 'hq', store 'kv', key 'shopify') ──
+   The blob is several MB and only changes when the nightly/refresh build runs, yet
+   every page load used to download it before the Sales views could paint. Now the
+   last copy lives on the device: paint from it at once, then ask the server
+   "?since=<synced>" and only re-download when the build moved on. localStorage is
+   too small for it, hence IndexedDB. Both helpers resolve to null on ANY failure
+   (private mode, Safari's stalled-open bug, jsdom without indexedDB) so callers
+   never need their own try/catch — a broken cache just means a normal download. */
+function idbOpen(){return new Promise((res,rej)=>{try{
+  const q=indexedDB.open('hq',1);
+  q.onupgradeneeded=()=>{try{q.result.createObjectStore('kv');}catch(e){}};
+  q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error);q.onblocked=()=>rej(new Error('idb blocked'));
+  setTimeout(()=>rej(new Error('idb timeout')),1500); // Safari can leave open() hanging forever — never hold the page for it
+}catch(e){rej(e);}});}
+async function idbGet(key){try{const db=await idbOpen();return await new Promise((res,rej)=>{
+  const tx=db.transaction('kv','readonly'),q=tx.objectStore('kv').get(key);
+  q.onsuccess=()=>res(q.result===undefined?null:q.result);q.onerror=()=>rej(q.error);tx.oncomplete=()=>db.close();});}catch(e){return null;}}
+async function idbSet(key,val){try{const db=await idbOpen();return await new Promise((res,rej)=>{
+  const tx=db.transaction('kv','readwrite');tx.objectStore('kv').put(val,key);
+  tx.oncomplete=()=>{db.close();res(true);};tx.onerror=()=>rej(tx.error);tx.onabort=()=>rej(tx.error);});}catch(e){return null;}}
+let SHOPIFY_CACHE_P=null; // one cache read shared by the many views that call loadShopify() while SHOPIFY is still null
+async function loadShopify(force){
   try{
-    const r=await fetch('/api/shopify',{headers:await sbAuthHeaders()});
+    if(!SHOPIFY){ // first call: paint from the device copy before the network answers
+      SHOPIFY_CACHE_P=SHOPIFY_CACHE_P||idbGet('shopify');
+      const c=await SHOPIFY_CACHE_P;
+      if(!SHOPIFY&&c&&c.variants&&c.v>=9){SHOPIFY=c;mergeShopify();refreshSidebar();rerenderCurrent();} // re-check: a concurrent caller may have landed first
+    }
+    // `force` (a manual refresh) skips the handshake and always takes the full blob
+    const since=!force&&SHOPIFY&&SHOPIFY.synced?'?since='+encodeURIComponent(SHOPIFY.synced):'';
+    const r=await fetch('/api/shopify'+since,{headers:await sbAuthHeaders()});
     if(r.status===401){setTimeout(loadShopify,8000);return;} // not signed in yet — retry after login
     const d=await r.json();
     SHOPIFY_ERR=(d&&d.status&&d.status.state==='error')?d.status.error:null;
+    if(d&&d.unchanged)return; // the device copy IS the current build — already merged, nothing more to do
     if(d&&d.variants){
       SHOPIFY=d;mergeShopify();refreshSidebar();rerenderCurrent();
+      if(!d.building)try{idbSet('shopify',d);}catch(e){} // fire-and-forget; the next load paints from this
       if(!(d.v>=9))setTimeout(loadShopify,45000); // old format still cached: merge triggered a rebuild — keep polling until the new blob lands
     }
     else if(d&&d.building){
@@ -348,7 +378,8 @@ const DESC={
   profile:'Your own page — who you are signed in as, the finance forms you have filed and where each one stands, your open follow-ups, loaners you checked out, and the quick actions (password, manual, favourites) without digging through menus.',
   serials:'One row per physical equipment unit — lasers, devices, handpieces — tracked by serial number from receiving through loan, sale or disposal. Consumables stay batch-tracked; serials are for the units where <b>which exact machine</b> matters.',
   loans:'Demo and loaner equipment out with clinics: who has which serial, since when, due back when. Overdue loans ping whoever checked the unit out. A returned unit goes back to stock; a demo that closes converts to a sale against the order you name.',
-  settings:'Theme and light/dark mode, your password and manual, favourites and the bottom bar — and, for the super admin, which AI model answers Ask HQ and Draft with AI, with a one-click connection test.',
+  qbo:'HQ → QuickBooks Online: fulfilled orders become invoices, payments and credit memos follow, and payments recorded in QuickBooks come back. Preview until enabled at cutover.',
+  settings:'Theme and light/dark mode, your password and manual, favourites and the bottom bar — and, for the super admin, which AI model answers Ask Healthspan and Draft with AI, with a one-click connection test.',
   reports:'Every review deck for the month, built from live figures the moment you click: the team deck for the sales manager, one deck per specialist, PowerPoint or PDF. The Inputs column says whose commentary is in before anyone downloads. Copy for Notion hands the weekly-meeting numbers to the clipboard as Notion-ready text.',
   bizreview:'The monthly sales performance report, built from HQ instead of typed into slides: brands, products, machines, accounts, buying behaviour and each specialist, with what HQ noticed in the numbers. People add only the commentary — the sales manager owns the wins / challenges / plan boxes, each specialist owns their own — and every box shows what it said last time. Save snapshot freezes the figures so the next report can say what moved; Export PowerPoint builds the deck.',
   crmstats:'The field effort itself, per specialist: visits, calls, demos, accounts touched, and how often a contact ends in an order — from the in-app visit log. Sales activity is the input; the Sales views measure the output.',
@@ -805,7 +836,11 @@ function applySync(data){
   injectCalc(currentView);
 }
 
-async function syncNow(){
+// force=true only from the Sync button: /api/sync then reads Google Sheets live and
+// rewrites the shared snapshot. Boot and every other caller take the snapshot the
+// scheduled warmer keeps fresh (~100 ms instead of a dozen Sheets calls).
+async function syncNow(force){
+  force=force===true;
   // Progress helpers
   function setProgress(pct, label, activeStep){
     const prog=$('syncProgress');
@@ -831,7 +866,7 @@ async function syncNow(){
       const c = JSON.parse(cached);
       applySync(c);
       const ts = new Date(c.synced).toLocaleString('en-PH',{timeZone:'Asia/Manila',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
-      $('sf-foot').innerHTML='<span style="color:var(--tx3)">Cached</span> &middot; '+ts+' &middot; <a href="#" onclick="syncNow();return false" style="color:var(--ac)">refresh</a>';
+      $('sf-foot').innerHTML='<span style="color:var(--tx3)">Cached</span> &middot; '+ts+' &middot; <a href="#" onclick="syncNow(true);return false" style="color:var(--ac)">refresh</a>';
     }
   } catch(e) {}
   // Then fetch fresh
@@ -840,10 +875,10 @@ async function syncNow(){
     if(btn) btn.className='sync-btn spin';
     if(lbl) lbl.textContent='Syncing...';
     updateMobileSync('spin','Syncing...');
-    setProgress(70,'Retrieving pre-processed data...',4);
+    setProgress(70,force?'Connecting to Google Sheets...':'Loading latest snapshot\u2026',4);
     const ctrl=new AbortController();
     const tmo=setTimeout(()=>ctrl.abort(),45000);
-    const r=await fetch('/.netlify/functions/refresh',{method:'POST',headers:await sbAuthHeaders({'Content-Type':'application/json'}),body:'{}',signal:ctrl.signal});
+    const r=await fetch('/.netlify/functions/refresh'+(force?'?force=1':''),{method:'POST',headers:await sbAuthHeaders({'Content-Type':'application/json'}),body:'{}',signal:ctrl.signal});
     clearTimeout(tmo);
     if(r.status===401){ // not signed in yet — quiet state, sbLoadProfile will re-sync
       if(btn) btn.className='sync-btn';
@@ -875,6 +910,6 @@ async function syncNow(){
     setProgress(100,'Sync failed: '+msg.slice(0,80),6);
     hideProgress();
     const sf=$('sf-foot');
-    if(sf) sf.innerHTML='<span style="color:var(--rd)">Error:</span> '+msg.slice(0,100)+' &middot; <a href="#" onclick="syncNow();return false" style="color:var(--ac)">retry</a>';
+    if(sf) sf.innerHTML='<span style="color:var(--rd)">Error:</span> '+msg.slice(0,100)+' &middot; <a href="#" onclick="syncNow(true);return false" style="color:var(--ac)">retry</a>';
   }
 }

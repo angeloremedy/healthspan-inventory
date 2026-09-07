@@ -40,8 +40,18 @@ addEventListener('DOMContentLoaded',function(){
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- Montserrat is served from this origin (fonts/, latin subset, ~19 KB each): no Google
+     Fonts CSS → woff2 chain on the critical path, and font-display:swap paints text in the
+     system font at once and swaps when the file lands. Preload only the two weights the
+     first screen uses. -->
+<link rel="preload" href="/fonts/montserrat-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/montserrat-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+@font-face{font-family:'Montserrat';font-style:normal;font-weight:400;font-display:swap;src:url(/fonts/montserrat-latin-400-normal.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'Montserrat';font-style:normal;font-weight:500;font-display:swap;src:url(/fonts/montserrat-latin-500-normal.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'Montserrat';font-style:normal;font-weight:600;font-display:swap;src:url(/fonts/montserrat-latin-600-normal.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'Montserrat';font-style:normal;font-weight:700;font-display:swap;src:url(/fonts/montserrat-latin-700-normal.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+</style>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -87,8 +97,22 @@ body.dark[data-theme="healthspan"]{
 }
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--tx);font-size:14px;line-height:1.5;min-height:100vh}
 .shell{display:flex;height:100vh;height:100dvh;overflow:hidden}
-.sb{width:228px;flex-shrink:0;background:var(--sf);border-right:1px solid var(--bd);display:flex;flex-direction:column;overflow:hidden;transition:margin-left .18s ease}
-body.sbhidden .sb{margin-left:-229px} /* slides out (width+border) — internal layout stays intact */
+/* Two-level sidebar: a narrow RAIL of areas (Home, Sales, Warehouse, Finance, Planning,
+   Admin) and a PANEL listing only the chosen area's pages, under their familiar section
+   headings. Every page is still here — the rail just decides which slice is on screen. */
+.sb{width:268px;flex-shrink:0;background:var(--sf);border-right:1px solid var(--bd);display:flex;flex-direction:row;overflow:hidden;transition:margin-left .18s ease}
+body.sbhidden .sb{margin-left:-269px} /* slides out (width+border) — internal layout stays intact */
+.rail{width:60px;flex-shrink:0;background:var(--sf2);border-right:1px solid var(--bd);display:flex;flex-direction:column;align-items:stretch;gap:2px;padding:10px 5px;overflow-y:auto}
+.rl{display:flex;flex-direction:column;align-items:center;gap:4px;padding:9px 2px 7px;border-radius:9px;font-size:9.5px;font-weight:600;letter-spacing:.01em;color:var(--tx3);cursor:pointer;user-select:none;text-align:center;line-height:1.1;transition:background .12s,color .12s}
+.rl svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.rl:hover{background:var(--sf);color:var(--tx)}
+.rl.active{background:var(--gr-bg);color:var(--gr)}
+.rl.hidden{display:none}
+.rl .rdot{position:absolute;top:6px;right:8px;width:7px;height:7px;border-radius:50%;background:var(--rd)}
+.rl{position:relative}
+.sbp{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.nav .offarea{display:none!important}
+@media (pointer:coarse){.rl{padding:11px 2px 8px}}
 .main{flex:1;overflow-y:auto;display:flex;flex-direction:column;min-width:0}
 .brand{padding:16px 16px 12px;border-bottom:1px solid var(--bd)}
 .brand-row{display:flex;align-items:center;gap:9px}
@@ -155,7 +179,8 @@ body.sbhidden .sb{margin-left:-229px} /* slides out (width+border) — internal 
 .askdrawer.open{right:0}
 .askhd{display:flex;align-items:center;gap:8px;padding:13px 16px;border-bottom:1px solid var(--bd);font-weight:700;font-size:14px}
 .askhd svg{width:16px;height:16px;stroke:var(--ac);fill:none;stroke-width:2}
-.askhd .ax{margin-left:auto;background:none;border:none;color:var(--tx3);font-size:19px;cursor:pointer;line-height:1}
+.askmodel{margin-left:auto;font:inherit;font-size:11px;font-weight:600;color:var(--tx2);background:var(--sf2);border:1px solid var(--bd);border-radius:7px;padding:3px 6px;max-width:130px}
+.askhd .ax{background:none;border:none;color:var(--tx3);font-size:19px;cursor:pointer;line-height:1}
 .asklog{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
 .askq{align-self:flex-end;background:var(--ac);color:#fff;border-radius:12px 12px 3px 12px;padding:8px 12px;font-size:12.5px;max-width:85%;white-space:pre-wrap}
 .aska{align-self:flex-start;background:var(--sf2);border:1px solid var(--bd);border-radius:12px 12px 12px 3px;padding:9px 12px;font-size:12.5px;max-width:92%;line-height:1.55;white-space:pre-wrap}
@@ -482,7 +507,7 @@ button:active{transform:scale(.97)}
     <div class="ptitle" id="mptitle" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Dashboard</div>
     <div class="psub" id="mpsub">Healthspan Global, Inc.</div>
   </div>
-  <div class="mobile-sync" id="mobileSyncBtn" onclick="syncNow()">
+  <div class="mobile-sync" id="mobileSyncBtn" onclick="syncNow(true)">
     <svg id="msicon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
     <span id="mslbl">Sync</span>
   </div>
@@ -490,13 +515,15 @@ button:active{transform:scale(.97)}
 
 <div class="shell">
 <aside class="sb">
+  <div class="rail" id="rail" aria-label="Areas"></div>
+  <div class="sbp">
   <div class="brand">
     <div class="brand-row">
       <div class="bicon"><svg viewBox="0 0 100 100"><path fill-rule="evenodd" fill="#fff" stroke="none" d="M4 4h92v92H4zM17 17h66v66H17z"/><path fill="#fff" stroke="none" d="M31 30h11v40H31zM58 30h11v40H58zM31 45h38v10H31z"/></svg></div>
       <div><div class="bname">Healthspan HQ</div></div>
     </div>
   </div>
-  <div class="sync-btn" id="syncBtn" onclick="syncNow()">
+  <div class="sync-btn" id="syncBtn" onclick="syncNow(true)">
     <svg id="sicon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
     <span id="slbl">Sync from Google Sheets</span>
   </div>
@@ -561,6 +588,7 @@ button:active{transform:scale(.97)}
     <div class="ni" onclick="showView('cashflow',this)"><svg viewBox="0 0 24 24"><path d="M3 17l5-5 4 4 8-8"/><path d="M14 8h6v6"/></svg>Cash-flow forecast</div>
     <div class="ni" onclick="showView('valuation',this)"><svg viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Landed cost &amp; valuation</div>
     <div class="ni" onclick="showView('returns',this)"><svg viewBox="0 0 24 24"><polyline points="9 14 4 9 9 4"/><path d="M4 9h11a5 5 0 0 1 5 5v1a5 5 0 0 1-5 5H9"/></svg>Returns &amp; credit memos</div>
+    <div class="ni" onclick="showView('qbo',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/><path d="M16.5 7.5a6 6 0 0 1 0 9"/><path d="M7.5 16.5a6 6 0 0 1 0-9"/></svg>QuickBooks sync</div>
     <div class="ni" onclick="showView('commissions',this)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/><path d="M19 19l3 3"/></svg>Commissions</div>
     <div class="ni" onclick="showView('aged',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Aged inventory</div>
     <div class="ni" onclick="showView('shrinkage',this)"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r="1" fill="currentColor"/></svg>Shrinkage tracker</div>
@@ -619,6 +647,7 @@ button:active{transform:scale(.97)}
   </nav>
   <div class="sf-foot" id="sf-foot">Loading...</div>
   <div style="padding:6px 14px 10px;border-top:1px solid var(--bd);font-size:10px;color:var(--tx3)">Data refreshed automatically every 15 min</div>
+  </div>
 </aside>
 <div class="main">
   <header class="topbar">
@@ -629,7 +658,7 @@ button:active{transform:scale(.97)}
     <div class="tbr">
       <button class="btn" id="fav-btn" onclick="favToggleCurrent()" title="Add this page to your favourites" style="display:none;font-size:16px;line-height:1;padding:7px 11px;color:var(--tx3)">☆</button>
       <button class="btn" id="nbell" onclick="toggleNotifs()" title="Notifications" style="position:relative"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span id="nbadge" style="display:none;position:absolute;top:2px;right:2px;background:var(--rd);color:#fff;font-size:9.5px;font-weight:700;border-radius:8px;min-width:15px;height:15px;line-height:15px;text-align:center;padding:0 3px"></span></button>
-      <button class="btn" onclick="toggleAsk()" title="Ask HQ anything — stock, sales, accounts, targets — in plain language"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>Ask AI</button>
+      <button class="btn" onclick="toggleAsk()" title="Ask Healthspan anything — stock, sales, accounts, targets — in plain language"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>Ask Healthspan</button>
       <button class="btn" id="tipsBtn" onclick="toggleTips()" title="Show or hide the plain-language explanation on each tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><circle cx="12" cy="8" r="1" fill="currentColor"/></svg>Tips</button>
       <button class="btn" onclick="exportCurrentView()" title="Export the data on the current tab as a CSV"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV</button>
     </div>
@@ -672,11 +701,12 @@ button:active{transform:scale(.97)}
 <script defer src="js/11-serials-loans-waves.js"></script>
 <script defer src="js/12-business-review.js"></script>
 <script defer src="js/13-review-decks.js"></script>
+<script defer src="js/14-qbo-sync.js"></script>
 
 <div class="askdrawer" id="askdrawer">
-  <div class="askhd"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>Ask HQ<button class="ax" onclick="toggleAsk()">×</button></div>
+  <div class="askhd"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>Ask Healthspan<select id="askmodel" class="askmodel" onchange="askSetModel(this.value)" title="Which model answers — Gemini Flash (default) or Claude Haiku"><option value="gemini">Gemini Flash</option><option value="anthropic">Claude Haiku</option></select><button class="ax" onclick="toggleAsk()">×</button></div>
   <div class="asklog" id="asklog"><div class="askempty">Ask anything about stock, sales, accounts or targets, in plain language.<br><br>e.g. “How many HA Densimatrix do we have?”<br>“Best-selling product in week 7?”<br>“Which of Rhas’s accounts went quiet?”<br>“How far is Mesoestetic from its target this month?”<br><br><a href="#" class="lnk" onclick="askDiag();return false" style="font-size:11px">AI connection test</a></div></div>
-  <div class="askbar"><textarea id="askinput" placeholder="Ask HQ…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAsk();}"></textarea><button id="askbtn" onclick="sendAsk()">Ask</button></div>
+  <div class="askbar"><textarea id="askinput" placeholder="Ask Healthspan…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAsk();}"></textarea><button id="askbtn" onclick="sendAsk()">Ask</button></div>
   <div class="askfoot">Answers come from live HQ data — warehouse, Shopify sales (external only unless you ask), accounts, targets, visits · stock is warehouse-level, not per-branch</div>
 </div>
 

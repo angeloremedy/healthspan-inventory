@@ -2578,7 +2578,7 @@ review counts conversions from the order index. No new tables.
 
 ## AI provider (no SQL — Netlify env, Sep 3)
 
-Ask AI, the Slack `/stock` bot, the Monday next-best-action and **Draft with AI**
+Ask Healthspan, the Slack `/stock` bot, the Monday next-best-action and **Draft with AI**
 all go through `netlify/functions/lib/llm.mjs`. Set in Netlify → Environment:
 
 | Variable | Meaning |
@@ -2587,7 +2587,7 @@ all go through `netlify/functions/lib/llm.mjs`. Set in Netlify → Environment:
 | `AI_PROVIDER` | optional: `gemini` or `anthropic` to force one |
 | `GEMINI_MODEL` / `GEMINI_MODEL_LITE` | defaults `gemini-3.6-flash` / `gemini-3.5-flash-lite`, both with thinking set to minimal. Do not point these at `gemini-flash-latest`: it resolves to 3.8 Flash, which thinks at length over a big prompt and overran the 150 s the UI waits |
 | `DEEPSEEK_API_KEY` / `MOONSHOT_API_KEY` / `GROQ_API_KEY` / `MISTRAL_API_KEY` / `OPENROUTER_API_KEY` / `CEREBRAS_API_KEY` | optional, one per choice in Settings → AI (model overrides: `*_MODEL`). Free tiers: Mistral (1B tokens/month, opt-in training — the only free one besides Gemini that fits the full Ask HQ context), OpenRouter (free community models, ~20 req/min), Groq and Cerebras (Llama 70B, ~8–12k tokens/min — drafts and nudges, not the chat) |
-| *(setting)* `app_settings.ai_provider` | written from Settings → AI by the super admin: `gemini` (default) · `mistral` · `openrouter` · `groq` · `cerebras` · `anthropic` · `deepseek` · `kimi`. Read by the workers on every call; `AI_PROVIDER` env is the fallback |
+| *(setting)* `app_settings.ai_provider` | written from Settings → AI by the super admin: `gemini` (default) or `anthropic` — the company default. Ask Healthspan sends its own `provider` per question (same two values) which wins for that question only. The other providers below still work when set by `AI_PROVIDER` env, they are just no longer offered in the UI |
 | `GEMINI_MODEL_DEEP` | default `gemini-3.8-flash` with medium thinking — used only for short prompts that want the richest answer (Draft with AI). Falls back to `GEMINI_MODEL` if rate-limited |
 | `LLM_TIMEOUT_MS` | per-attempt ceiling, default 45000; a hung call is cut and the next model tried |
 | `GEMINI_PAID=1` | set once billing is on — lifts the free-tier scrub (unit costs and supplier payables are left out of prompts on the free tier, because free-tier prompts may be used for model improvement) |
@@ -2597,7 +2597,7 @@ Free-tier limits (Flash): ~15 requests/min, ~1,500/day, 1M-token context. A
 whole review's worth of drafts is ~25 calls. A 429 is retried once after 4–5 s,
 then Flash-Lite, then Claude if a key exists.
 
-**Checking it works:** open Ask AI → **AI connection test** (manager/admin): one
+**Checking it works:** open Ask Healthspan → **AI connection test** (manager/admin): one
 tiny call, reports provider, model and milliseconds, or the exact error. The Ask
 chat now trims the catalog to the rows that match the question (+ section heads
 and a slice of the rest, ~140 KB max) so a free-tier Flash answers in seconds; a
@@ -2628,3 +2628,175 @@ create policy "review_commentary update" on public.review_commentary for update 
 
 Rows saved under the earlier single box (`ps:<Tag>`) are still readable and stand
 in for Key wins until the specialist writes the new box.
+
+## Roster names as on the org chart + missing specialist check (Sep 4)
+
+The Reports hub and the Business review list exactly the rows `spec_directory()`
+returns — HQ accounts that carry a specialist tag, are not disabled, and are not
+test accounts. A specialist who is missing (Orland, Sep 4) has no such account,
+has an account without a tag, or is disabled. Find out which:
+
+```sql
+select p.name, p.specialist_tag, p.team, p.sort_order, u.email, u.banned_until
+from public.profiles p join auth.users u on u.id = p.id
+where lower(u.email) like 'orland%' or lower(p.name) like 'orl%' or lower(p.specialist_tag) like 'orl%';
+```
+
+No row → create the account in Team & access (role Product specialist, tag = the
+tag Shopify writes on his orders, Team 2). Row without a tag → set it (the tag
+must equal the Shopify order tag; the Business review's "sits under Shopify tags
+that are not a specialist account" line shows the tag as Shopify writes it).
+`banned_until` in the future → Team & access → Enable.
+
+Printed names come from `profiles.name`; set them once to the org-chart form:
+
+```sql
+update public.profiles set name = v.n
+  from (values
+    ('ruth','Ruth Jabonero'),('rhas','Rhas Porciuncula'),('tin','Tin Arcos'),('kristine','Tin Arcos'),
+    ('charmaine','Charmaine Demegillo'),('rechel','Rechel Villafuerte'),('joy','Joy Estabillo'),
+    ('rj','Reynold Julius Ramos'),('jonathan','Jonathan Yu'),('jon','Jonathan Yu'),
+    ('abby','Abigael Rodriguez'),('frank','Frank Villaverde'),('cyra','Kris Cyra Real'),
+    ('orland reyes','Orland Reyes'),('orlan','Orland Reyes'),('orland','Orland Reyes'),
+    ('pinky','Pinky Bravo'),('lady','Ladylane Asaytuno')) as v(tag,n)
+  where lower(specialist_tag) = v.tag;
+update public.profiles set team = 'Team 2', sort_order = 14
+  where lower(specialist_tag) in ('orland reyes','orlan','orland');
+```
+
+Sign-in is by email, so renaming an account changes nothing for the person; the
+new name shows everywhere after the next sync (or a reload).
+
+## Sync snapshot (no SQL — Netlify, Sep 5)
+
+Nothing to add to the environment: `refresh.mjs` and the new `sync-warm.mjs`
+use the `GOOGLE_API_KEY` that was already there and the Netlify Blobs store the
+Shopify cache already uses (a second store named `sync`, one key, `data`).
+
+Why: every page load was calling `/api/sync`, which read the whole Google Sheet
+live — several sequential Sheets requests plus a walk through the accounting
+workbook's tabs — before the dashboard could paint. The sidebar footer has
+promised "refreshed automatically every 15 min" all along, so the app now
+delivers exactly that. `sync-warm.mjs` runs every 15 minutes (the schedule is
+the `config.schedule` export in the file; Netlify picks it up on deploy — no
+`netlify.toml` change) and parks the built feed in the blob. `/api/sync`
+answers from the blob when it is under 15 minutes old, otherwise it builds live
+and rewrites the blob. The first deploy has no snapshot yet, so the first load
+after it is a live read as before; the schedule fills it in within 15 minutes.
+
+Forcing a live read: the **Sync from Google Sheets** button (and the phone
+bar's Sync) sends `?force=1`, which skips the snapshot, reads the sheet live and
+replaces the snapshot for everyone. Same from the command line, signed in:
+
+```
+curl -X POST -H "Authorization: Bearer <session token>" \
+  'https://<site>/.netlify/functions/refresh?force=1'
+```
+
+Checking it works: Netlify → Functions → `sync-warm` shows a run every 15 min
+with a log line like `[sync-warm] snapshot stored — 412 products, 6.2s sheets,
+6.4s total`. A response from `/api/sync` that came from the blob carries
+`fromSnapshot: true`. If Blobs is ever unavailable (local `netlify dev` without a
+linked site), `/api/sync` reads live on every request, exactly as before.
+
+## QuickBooks Online connector (Sep 6)
+
+HQ posts its own orders to QBO the way the Shopify connector does today — but it
+is built now and **switched on at cutover** (`app_settings.qbo_enabled`), so the
+books are never fed twice. An order becomes a QBO **Invoice** when it is
+fulfilled (the DR moment), each HQ payment a **Payment** applied to it, each
+credit memo a **CreditMemo**; payments that accounting records directly in QBO
+come back into HQ's `payments` table so AR aging stays true. Three tables hold
+the state; the Intuit tokens are readable by the service key only.
+
+```sql
+-- 1) OAuth tokens — one row per connected company. NO policies: only the service
+--    key (the functions) can read or write them. Never shown in the UI.
+create table if not exists public.qbo_tokens (
+  realm_id text primary key,
+  env text not null default 'production' check (env in ('sandbox','production')),
+  access_token text not null,
+  refresh_token text not null,
+  access_expires_at timestamptz not null,
+  refresh_expires_at timestamptz not null,
+  company_name text,
+  connected_by uuid,
+  updated_at timestamptz not null default now()
+);
+alter table public.qbo_tokens enable row level security;
+
+-- 2) What HQ thing is which QBO thing. kind: customer | item | class | department | term | taxcode | account | paymethod
+create table if not exists public.qbo_map (
+  kind text not null,
+  hq_key text not null,                 -- account name / SKU / specialist tag / team …
+  qbo_id text not null,
+  qbo_name text,
+  confirmed boolean not null default true,   -- false = name match that finance should eyeball
+  candidates jsonb,                      -- other plausible QBO rows when the match was not exact
+  updated_by uuid,
+  updated_at timestamptz not null default now(),
+  primary key (kind, hq_key)
+);
+create index if not exists qbo_map_unconfirmed on public.qbo_map (kind) where not confirmed;
+alter table public.qbo_map enable row level security;
+drop policy if exists "qbo map read" on public.qbo_map;
+create policy "qbo map read" on public.qbo_map for select to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','finance')));
+-- writes go through the qbo-admin function (service key), which checks the role itself
+
+-- 3) The ledger of what HQ has posted. One row per QBO document.
+create table if not exists public.qbo_sync (
+  id bigint generated always as identity primary key,
+  kind text not null check (kind in ('invoice','payment','creditmemo')),
+  hq_ref text not null,                  -- orders.id / payments.id / returns.id
+  order_id uuid,                         -- for the log: which order this belongs to
+  order_label text,
+  qbo_id text,
+  qbo_doc_no text,
+  sync_token text,                       -- QBO's optimistic-lock token for updates/voids
+  status text not null default 'pending' check (status in ('pending','posted','updated','voided','error','skipped')),
+  hash text,                             -- fingerprint of what was sent; a changed order re-posts
+  amount numeric,
+  attempts int not null default 0,
+  last_error text,
+  posted_at timestamptz,
+  updated_at timestamptz not null default now(),
+  unique (kind, hq_ref)
+);
+create index if not exists qbo_sync_status on public.qbo_sync (status);
+create index if not exists qbo_sync_order on public.qbo_sync (order_id);
+alter table public.qbo_sync enable row level security;
+drop policy if exists "qbo sync read" on public.qbo_sync;
+create policy "qbo sync read" on public.qbo_sync for select to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','finance')));
+
+-- 4) Payments that arrived FROM QuickBooks carry the QBO id, so a pull never lands twice
+alter table public.payments add column if not exists qbo_id text unique;
+
+-- 5) Settings the QuickBooks page writes (super admin; finance may confirm mappings)
+--    qbo_enabled ('1'/'0') · qbo_post_from (YYYY-MM-DD: only orders fulfilled on/after)
+--    qbo_tax_code (TaxCode id for 12% VAT) · qbo_deposit_account (Account id for payments)
+--    qbo_income_account (Account id used when creating items) · qbo_use_class / qbo_use_location ('1'/'0')
+--    qbo_last_run (json summary written by the sync) · qbo_cdc_since (cursor for pulled payments)
+```
+
+### Intuit app (Netlify env — no SQL)
+
+1. developer.intuit.com → **Create an app** → QuickBooks Online and Payments →
+   scope **Accounting**. Two sets of keys appear: *Development* (sandbox) and
+   *Production*.
+2. Redirect URI, on both: `https://hq.healthspan.ph/.netlify/functions/qbo-auth`
+   (add the new domain too when it changes).
+3. Netlify → Environment: `QBO_CLIENT_ID`, `QBO_CLIENT_SECRET`, `QBO_ENV`
+   (`sandbox` while testing, `production` at cutover). Switching `QBO_ENV`
+   requires connecting again — sandbox and live are different companies.
+4. HQ → Finance → **QuickBooks sync** → *Connect to QuickBooks* (super admin);
+   Intuit asks which company, then returns here. Pick the VAT tax code, the
+   deposit account and the income account for new items, set *Post orders
+   fulfilled from* to the cutover date, review the customer matches, then turn
+   **Enabled** on. Until then the sync runs in preview: it computes what it
+   would post and shows it, posting nothing.
+5. The scheduled function `qbo-sync-background` runs every 15 minutes; *Sync
+   now* on the page runs it on demand. Refresh tokens rotate on every refresh
+   and expire after 100 days of silence — the sync refreshes them, so an
+   enabled connection never lapses; a disabled one may need reconnecting.

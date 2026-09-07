@@ -2,7 +2,7 @@
 
 The one-page truth for who can do what. Roles marked **live** exist today;
 **planned** roles reuse the same RLS pattern and ship when their people onboard.
-Last updated: 2026-08-28.
+Last updated: 2026-09-06.
 
 ## Roles & people
 
@@ -167,6 +167,8 @@ therefore a floor — implementation grants the full circle read to all three.
 | Transfer orders | ✅ | ✅ | ✖ | ✅ | 👁 | ✖ |
 | Landed cost & valuation (COSTS page) | ✅ | ✖ | ✖ | ✖ | ✅ | ✖ |
 | Ask AI (context auto-scoped to role) | ✅ full | ✅ no costs | ✅ own scope | ✅ ops scope | ✅ incl. costs | ✅ circle scope |
+| QuickBooks sync page (view, confirm matches, retry, sync now) | ✅ | ✖ | ✖ | ✖ | ✅ | ✖ — view key `qbo`; viewer has no access either. `viewAllowed` and `qbo-admin.mjs` agree |
+| QuickBooks connect / settings / enable | super admin only | ✖ | ✖ | ✖ | 👁 settings | ✖ — Connect, Disconnect, Save settings and Enable/Disable are refused server-side in `qbo-auth.mjs` and `qbo-admin.mjs` (`settings`) for anyone else; admin and finance see the settings read-only |
 
 **View-only clarity (2026-08-28):** every read-only view shows a banner naming
 who edits it (from the VIEW_WRITERS map — admin/super never named, that's a

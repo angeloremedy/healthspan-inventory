@@ -29,7 +29,7 @@
   },
   {
    "t": "step",
-   "v": "Forgot your password? Ask an admin — they can set a new one in seconds. You can change it anytime via the password link at the bottom of the sidebar.",
+   "v": "Forgot your password? Ask an admin — they can set a new one in seconds. You can change it anytime from Settings (footer button; phone: Menu → Settings).",
    "n": "3"
   },
   {
@@ -139,11 +139,11 @@
   },
   {
    "t": "h2",
-   "v": "<b>Ask HQ</b>"
+   "v": "<b>Ask Healthspan</b>"
   },
   {
    "t": "p",
-   "v": "The Ask HQ button (top bar) answers plain-language questions over everything HQ knows — inventory, sales, receivables, cheques, approvals, backorders, quotes, pipeline — and its knowledge is automatically scoped to YOUR role: specialists get their own numbers, costs and margins only answer for finance and admin. Any hour, in the app or on Slack (/stock)."
+   "v": "The Ask Healthspan button (top bar) answers plain-language questions over everything HQ knows — inventory, sales, receivables, cheques, approvals, backorders, quotes, pipeline — and its knowledge is automatically scoped to YOUR role: specialists get their own numbers, costs and margins only answer for finance and admin. Any hour, in the app or on Slack (/stock). A small dropdown in the drawer header lets you choose which model answers — Gemini Flash (default) or Claude Haiku — and remembers your pick on this device."
   },
   {
    "t": "h2",
@@ -171,29 +171,38 @@
    "v": "Home is the command center: live stat chips (orders today, pending, open follow-ups…), a needs-attention line, and big launcher cards for your role. It updates in place while the data syncs — no flicker, no reload."
   },
   {
+   "t": "p",
+   "v": "The sidebar has two levels: a narrow rail of areas on the left — Home, Sales, Warehouse, Finance, Planning, Admin — and, beside it, the pages of the area you picked, under their usual section headings. Nothing moved out of reach: every page is still there, the rail only chooses which slice you see. Opening a page from a card, a favourite or a link switches the rail to its area for you. On a phone the Menu shows the same areas as a row of chips."
+  },
+  {
    "t": "step",
-   "v": "Sidebar search: type in the box at the top of the sidebar to filter every menu item; sections collapse and remember their state (Product lines starts collapsed).",
+   "v": "Sidebar search: type in the box above the list to find any page by name — results come from every area, not just the one you are in; clear the box to return to it. Sections collapse and remember their state (Product lines starts collapsed).",
    "n": "1"
   },
   {
    "t": "step",
-   "v": "Every page has a real URL: bookmark an account, an order, a pick list; the browser back button works; share links with teammates — they’ll see it with THEIR permissions.",
+   "v": "Fast open: HQ paints from the copy saved on your device and refreshes quietly behind it, so a second visit is near-instant even on clinic wifi. The Sync button forces a live read of the sheet when you need the number right now.",
    "n": "2"
   },
   {
    "t": "step",
-   "v": "Mobile: the bottom bar carries your essentials; the Menu button reaches every view, plus password change, sign-out, and theme.",
+   "v": "Every page has a real URL: bookmark an account, an order, a pick list; the browser back button works; share links with teammates — they’ll see it with THEIR permissions.",
    "n": "3"
   },
   {
    "t": "step",
-   "v": "Themes: Healthspan (brand blue, light/dark/system) or Classic — bottom of the sidebar.",
+   "v": "Mobile: the bottom bar carries your essentials; the Menu button reaches every view by area, plus Settings, your manual and Sign out.",
    "n": "4"
   },
   {
    "t": "step",
-   "v": "Data freshness: the sheet syncs every 15 minutes; Shopify nightly at 2am; the footer shows the last sync. “Refresh” forces one.",
+   "v": "Themes: Healthspan (brand blue, light/dark/system) or Classic — Settings (footer button; phone: Menu → Settings).",
    "n": "5"
+  },
+  {
+   "t": "step",
+   "v": "Data freshness: the sheet syncs every 15 minutes; Shopify nightly at 2am; the footer shows the last sync. “Refresh” forces one.",
+   "n": "6"
   },
   {
    "t": "h2",
@@ -907,7 +916,7 @@
   },
   {
    "t": "step",
-   "v": "Ask HQ: plain-language questions over live inventory, sales by week and month, accounts, targets and specialists, in-app or Slack (/stock), any hour.",
+   "v": "Ask Healthspan: plain-language questions over live inventory, sales by week and month, accounts, targets and specialists, in-app or Slack (/stock), any hour.",
    "n": "4"
   },
   {

@@ -184,6 +184,7 @@ function navFilter(q){
   });
   document.querySelectorAll('.nav .nlbl').forEach(el=>{el.style.display=q?'none':'';});
   if(!q)navApplyCollapse(); // restore collapse states when the search clears
+  try{navAreaPaint();}catch(e){} // a search shows hits from every area; clearing it returns to the chosen one
 }
 function navKey(el){return 'hs_nav_'+String(el.textContent||'').trim().toLowerCase().replace(/[^a-z]/g,'');}
 function navToggle(el){
@@ -235,8 +236,86 @@ function navSync(){
       lbl.style.display=any?'':'none';
     });
     navApplyCollapse();
+    navAreaPaint(); // the rail shows only areas with at least one page this role may open
   }catch(e){}
 }
+
+/* ── TWO-LEVEL SIDEBAR: areas on the rail, pages in the panel ─────────────────
+   The twelve nav sections are grouped into six areas. Sections keep their labels,
+   their order and their collapse state; the rail only decides which slice of the
+   list is on screen, so nothing was retired and every deep link still lands.
+   Search spans every area (a hit in Finance shows while you are in Sales), and
+   opening a page — from a card, a favourite, a deep link — moves the rail to its
+   area. The phone menu uses the same grouping as a row of area chips. */
+const NAV_AREAS=[
+  {id:'home',label:'Home',secs:['Favourites'],icon:'<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>'},
+  {id:'sales',label:'Sales',secs:['Sales & CRM','Sales analytics'],icon:'<svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>'},
+  {id:'warehouse',label:'Warehouse',secs:['Logistics','Inventory','Alerts','Product lines'],icon:'<svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>'},
+  {id:'finance',label:'Finance',secs:['Finance forms','Finance'],icon:'<svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>'},
+  {id:'planning',label:'Planning',secs:['Planning','Simulators','Analytics'],icon:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'},
+  {id:'admin',label:'Admin',secs:['Admin'],icon:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'}
+];
+let NAV_AREA=(function(){try{return localStorage.getItem('hs_nav_area')||'';}catch(e){return '';}})();
+function navSecLabel(el){return String(el.textContent||'').replace(/[▾▸]/g,'').trim();}
+function navAreaOfSec(label){const a=NAV_AREAS.find(x=>x.secs.includes(label));return a?a.id:'home';}
+function navAreaLabel(id){const a=NAV_AREAS.find(x=>x.id===id);return a?a.label:'';}
+// stamp every nav child with its area; the rows before the first heading (Home, My profile) are Home's
+function navAreaTag(){
+  const nav=document.querySelector('.nav');if(!nav)return;
+  let cur='home';
+  [...nav.children].forEach(el=>{
+    if(el.id==='fav-sec'){el.dataset.area='home';[...el.children].forEach(c=>c.dataset.area='home');return;}
+    if(el.classList.contains('nlbl'))cur=navAreaOfSec(navSecLabel(el));
+    el.dataset.area=cur;
+    if(el.id==='lnav')[...el.querySelectorAll('.ni')].forEach(c=>c.dataset.area=cur);
+  });
+}
+function navAreaOfView(v){
+  const el=[...document.querySelectorAll('.nav .ni')].find(x=>!x.closest('#fav-sec')&&(x.getAttribute('onclick')||'').indexOf("showView('"+v+"'")>=0);
+  return el?(el.dataset.area||'home'):'';
+}
+// an area is offered only when this role may open at least one page in it
+function navAreaVisible(id){
+  if(id==='home')return true;
+  return [...document.querySelectorAll('.nav .ni')].some(el=>el.dataset.area===id&&el.dataset.deny!=='1'&&!el.closest('#fav-sec'));
+}
+function navAreaSelect(id,fromUser){
+  if(!NAV_AREAS.some(a=>a.id===id))id='home';
+  NAV_AREA=id;
+  try{localStorage.setItem('hs_nav_area',id);}catch(e){}
+  if(fromUser){const q=$('navq');if(q&&q.value){q.value='';navFilter('');return;}} // navFilter repaints
+  navAreaPaint();
+}
+function navAreaPaint(){
+  const nav=document.querySelector('.nav');if(!nav)return;
+  navAreaTag();
+  const vis=NAV_AREAS.filter(a=>navAreaVisible(a.id));
+  if(!vis.some(a=>a.id===NAV_AREA))NAV_AREA=navAreaOfView(currentView)||'home';
+  if(!vis.some(a=>a.id===NAV_AREA))NAV_AREA='home';
+  const q=$('navq');const searching=!!(q&&String(q.value||'').trim());
+  [...nav.children].forEach(el=>{
+    const off=!searching&&el.dataset.area!==NAV_AREA;
+    el.classList.toggle('offarea',off);
+    if(el.id==='lnav')[...el.children].forEach(c=>c.classList.toggle('offarea',off));
+  });
+  const rail=$('rail');
+  if(rail)rail.innerHTML=NAV_AREAS.map(a=>'<div class="rl'+(a.id===NAV_AREA?' active':'')+(vis.some(v=>v.id===a.id)?'':' hidden')+'" data-area="'+a.id+'" onclick="navAreaSelect(\''+a.id+'\',true)" title="'+a.label+'">'+a.icon+'<span>'+a.label+'</span></div>').join('');
+  // a page opened from a card or a deep link has no highlighted row yet — give it one
+  if(currentView&&!nav.querySelector('.ni.active')){
+    const el=[...nav.querySelectorAll('.ni')].find(x=>!x.closest('#fav-sec')&&(x.getAttribute('onclick')||'').indexOf("showView('"+currentView+"'")>=0);
+    if(el)el.classList.add('active');
+  }
+}
+// showView calls this: move the rail to the page's area unless the page is already on screen
+function navAreaFollow(v){
+  const nav=document.querySelector('.nav');if(!nav)return;
+  navAreaTag();
+  const rows=[...nav.querySelectorAll('.ni')].filter(x=>(x.getAttribute('onclick')||'').indexOf("showView('"+v+"'")>=0);
+  const onScreen=rows.some(x=>x.dataset.area===NAV_AREA);
+  if(!onScreen){const a=navAreaOfView(v);if(a&&a!==NAV_AREA){NAV_AREA=a;try{localStorage.setItem('hs_nav_area',a);}catch(e){}}}
+  navAreaPaint();
+}
+function mmArea(id){navAreaSelect(id,false);const q=$('mmq');if(q)q.value='';buildMobileMenu('');}
 
 
 /* ── MOBILE FULL MENU: every view reachable on the phone ── */
@@ -268,8 +347,19 @@ function buildMobileMenu(q){
       (svg?'<span style="width:20px;height:20px;flex-shrink:0;color:var(--ac)"><svg viewBox="'+(svg.getAttribute('viewBox')||'0 0 24 24')+'" style="width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round">'+svg.innerHTML+'</svg></span>':'')+
       esc(label)+'</div>';
   };
+  // area chips: the same six areas as the desktop rail; search ignores them
+  try{navAreaTag();}catch(e){}
+  const area=q?'':(NAV_AREA||'home');
+  if(!q){
+    const vis=NAV_AREAS.filter(a=>{try{return navAreaVisible(a.id);}catch(e){return true;}});
+    if(!vis.some(a=>a.id===area)){NAV_AREA='home';}
+    html+='<div style="display:flex;gap:8px;overflow-x:auto;padding:12px 16px 6px;-webkit-overflow-scrolling:touch;scrollbar-width:none">'+vis.map(a=>'<button onclick="mmArea(\''+a.id+'\')" style="flex-shrink:0;display:flex;align-items:center;gap:6px;padding:8px 13px;border-radius:999px;border:1px solid var(--bd);font-size:13px;font-weight:600;background:'+(a.id===(NAV_AREA||'home')?'var(--gr-bg)':'var(--sf)')+';color:'+(a.id===(NAV_AREA||'home')?'var(--gr)':'var(--tx2)')+'"><span style="width:15px;height:15px;display:inline-flex">'+a.icon.replace('<svg ','<svg style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round" ')+'</span>'+esc(a.label)+'</button>').join('')+'</div>';
+  }
+  const areaNow=q?'':(NAV_AREA||'home');
   const walk=(nodes)=>{
     nodes.forEach(el=>{
+      if(areaNow&&el.dataset&&el.dataset.area&&el.dataset.area!==areaNow&&el.id!=='lnav')return; // other areas wait behind their chip
+      if(el.id==='fav-sec'){walk([...el.children]);return;}
       if(el.classList&&el.classList.contains('nlbl')){
         if(ROLE==='sales'&&!el.classList.contains('nv-sales'))return;
         if(ROLE==='manager'&&el.id==='nav-admin-lbl')return;
@@ -283,7 +373,7 @@ function buildMobileMenu(q){
         if(mv)addItem(el,"mmGo('"+mv[1]+"')");
         else if(ml)addItem(el,"closeMobileMenu();fltLine('"+ml[1].replace(/"/g,'&quot;')+"',null)");
       }else if(el.id==='lnav'){
-        walk([...el.children]);
+        if(!areaNow||el.dataset.area===areaNow)walk([...el.children]);
       }
     });
   };

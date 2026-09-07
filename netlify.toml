@@ -1,5 +1,9 @@
 [build]
-  publish = "."
+  # tools/build.mjs concatenates js/01…13 in index.html order, minifies (identifiers
+  # untouched) and writes dist/: index.html + one hashed app.<hash>.js + static assets.
+  # Source stays in js/ — drag-drop uploads to GitHub still work; Netlify runs this.
+  command = "npm run build"
+  publish = "dist"
 
 [functions]
   node_bundler = "esbuild"
@@ -20,10 +24,32 @@
   status = 200
   force = true
 
-# ── faster load: icons and the logo change ~never, so phones keep them for a week
-# instead of re-asking on every visit. JS and HTML deliberately stay on Netlify's
-# default (etag revalidation): the app ships as unhashed files, and letting one
-# script go stale against the others is how you get half-old, half-new pages.
+# ── caching. The app JS now ships as ONE bundle whose filename carries a content
+# hash (app.<hash>.js), so it can be cached forever: a new deploy means a new
+# filename, and index.html (never cached — no-cache = always revalidate) is the
+# only thing that points at it. Half-old/half-new pages are impossible because
+# there is exactly one script. Icons and the logo change ~never, so phones keep
+# them for a week instead of re-asking on every visit.
+[[headers]]
+  for = "/app.*.js"
+  [headers.values]
+    cache-control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/fonts/*"
+  [headers.values]
+    cache-control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    cache-control = "no-cache"
+
+[[headers]]
+  for = "/"
+  [headers.values]
+    cache-control = "no-cache"
+
 [[headers]]
   for = "/*.png"
   [headers.values]
@@ -33,4 +59,3 @@
   for = "/manifest.webmanifest"
   [headers.values]
     cache-control = "public, max-age=86400"
-

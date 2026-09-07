@@ -160,6 +160,14 @@ Conventions baked in everywhere: deal +1s count as deal units (not free);
 "free" = ₱0 outside a deal; pull-outs and TEST orders are excluded from sales
 (kept in finance/logistics views).
 
+All of these views read one Shopify sales blob, several MB that changes only
+when the cache rebuilds (nightly, or every six hours when stale). Your device
+keeps the last copy, so the sales pages paint from it the instant you open
+HQ; in the background the app asks the server "anything newer than the copy I
+hold?" and downloads again only when the answer is yes — the pages then
+redraw with the newer numbers. Private browsing or a browser that refuses the
+local store simply falls back to the full download, as before.
+
 ## 9. Inventory (the original dashboard)
 
 Dashboard, action center, all SKUs, alerts (out/low/negative stock, expiry,
@@ -168,6 +176,15 @@ Carlo…), simulators, batch/FEFO view, data health, finance and logistics
 views. Synced from Verna's master Google Sheet every 15 minutes; every view
 has a plain-language description, a "how is this calculated" section, and CSV
 export.
+
+Opening the app no longer reads the Google Sheet itself. A scheduled job reads
+every tab once, every 15 minutes, and keeps the result as a snapshot; a page
+load fetches that snapshot in about a tenth of a second instead of waiting on a
+dozen Sheets calls. The snapshot is at most 15 minutes old — the same promise
+the sidebar footer already made. When you need the sheet *right now* (Verna
+just posted a receipt, a count was corrected), press **Sync from Google
+Sheets** in the sidebar (or Sync on the phone bar): that button, and only that
+button, reads the sheet live and replaces the snapshot for everyone else too.
 
 ## 9.1 Quotations
 
@@ -571,7 +588,7 @@ Supply chain section (inventory value by line, out of stock, expiring batches,
 equipment) as Notion-ready text — paste under *Weekly Report/Updates* in the
 Healthspan Weekly Meeting page and Notion turns it into blocks.
 
-**Ask HQ** (the chat, renamed from "Ask the inventory") now sees the sales side
+**Ask Healthspan** (the chat, renamed from "Ask the inventory", then from "Ask HQ") now sees the sales side
 too: alongside the warehouse catalog it gets a week calendar with today's date,
 external sales by ISO week (~6 months, with top products), the month's brands
 vs target with a 13-month series, every specialist's MTD / target / accounts /
@@ -583,7 +600,7 @@ told to give the closest answer the data supports rather than "not available".
 The server trims the catalog to what the question needs (small sales sections
 are always kept whole) and gives analysis questions a little thinking time.
 
-**Draft with AI, Ask HQ, the Slack bot and the Monday nudge run on Gemini Flash
+**Draft with AI, Ask Healthspan, the Slack bot and the Monday nudge run on Gemini Flash
 (free tier)** by default — one env var, `GEMINI_API_KEY`. On the free tier unit
 costs and supplier payables are left out of prompts; Claude stays as an optional
 safety net. See "AI provider" in SUPABASE-SETUP.md.
@@ -623,12 +640,47 @@ The little controls that used to sit in the sidebar footer and the phone menu
 live on one page: **Appearance** (theme, light / dark / match device),
 **Account** (change password, **Sign out** — a button now, not a link),
 **Shortcuts & help** (favourites, bottom bar, manual) and, for managers and
-admins, **AI** — which model answers Ask HQ, Draft with AI, the Slack bot and
-the Monday nudge: Gemini Flash (free, default), Claude Haiku, DeepSeek, Kimi or
-Groq. Each shows whether its key is set in Netlify; only the super admin changes
-the choice (it is `app_settings.ai_provider`, read by the workers on every call);
-anyone can run the connection test. The footer keeps name · role · Settings ·
-Sign out.
+admins, **AI** — the company default model for Draft with AI, the planning
+review, the Slack bot and the Monday nudge: **Gemini Flash** (free, default) or
+**Claude Haiku**. Each shows whether its key is set in Netlify; only the super
+admin changes the choice (it is `app_settings.ai_provider`, read by the workers
+on every call); anyone can run the connection test. The footer keeps
+name · role · Settings · Sign out.
+
+## 9.17h Ask Healthspan, and picking the model per question
+
+The chat is **Ask Healthspan** (top-bar button and drawer). A small dropdown in
+the drawer header — Gemini Flash / Claude Haiku — chooses which model answers
+*your* questions; it is remembered on the device and sent with each question, so
+one person's preference never changes the company default in Settings → AI. With
+no pick made, the dropdown shows the company default.
+
+## 9.17i Finding your way: the two-level sidebar
+
+The sidebar is two columns: a narrow **rail** of areas — Home, Sales, Warehouse,
+Finance, Planning, Admin — and beside it the pages of the chosen area under their
+familiar section headings (Sales & CRM, Sales analytics, Logistics, Inventory,
+Alerts, Finance forms, Finance, Planning, Simulators, Analytics, Admin, Product
+lines). No page was retired or moved: the rail only decides which slice of the
+list is on screen. Opening a page from a card, a favourite or a deep link switches
+the rail to its area; the search box finds pages across every area and clearing it
+returns you to the one you were in. An area appears on the rail only when the
+role may open at least one page in it. The phone Menu shows the same areas as a
+row of chips above the list, and its search ignores them too. The chosen area is
+remembered per device.
+
+## 9.17j Faster to open
+
+Four changes, none visible except in the clock. The **Shopify sales blob is kept
+on the device** (IndexedDB) and painted before the network answers; the request
+then carries `?since=<synced>` and the server replies `unchanged` when nothing
+moved, so the multi-megabyte download happens only when there is something new.
+**`/api/sync` serves a snapshot**: a scheduled function warms it every 15 minutes
+from Google Sheets, page loads read the snapshot in ~100 ms, and only the Sync
+button (`syncNow(true)`) forces a live read. **One hashed, minified bundle**
+replaces the 13 script files at deploy time (see §12) and is cached for a year,
+while `index.html` is never cached. **Montserrat is self-hosted** (`fonts/`, latin
+subset, `font-display: swap`) so first paint no longer waits on Google Fonts.
 
 ## 9.17f Approval routes, simplified
 
@@ -642,7 +694,7 @@ form. No more numbered prompts.
 
 The review now asks the model for four headed sections and renders them as four
 cards — stockout risks, money at risk, what the forecast misses say, five
-actions — instead of one grey paragraph; Ask HQ answers render headings, bullets
+actions — instead of one grey paragraph; Ask Healthspan answers render headings, bullets
 and numbered lists too (`mdLite`).
 
 ## 9.18 With or without Remedy
@@ -834,6 +886,93 @@ Served through a session check, so each person gets exactly their own book.
 Read-only pages say so: a banner names who actually edits them, and view-only
 cards on Home carry a 👁 badge.
 
+## 9.22 QuickBooks Online — the books, fed from HQ
+
+QuickBooks stays the ledger; HQ now feeds it directly instead of through a CSV.
+Today the Shopify→QBO connector carries every Shopify order into the books. Once
+HQ is the order register that connector has nothing to carry, so HQ has to do the
+same job itself — and do it the way accounting already books things, so nothing
+in QuickBooks looks different on the day we switch.
+
+**What posts, and when.** An order becomes a QuickBooks **Invoice** the moment
+it is fulfilled — the DR moment, which is when revenue is recognised. The
+invoice carries the HS number as its DocNumber, a due date computed from the
+order's terms, and VAT 12% inclusive the way a Philippine company books it
+(`GlobalTaxCalculation: TaxInclusive`, one tax code on every line). Each line is
+a per-SKU item, matched by SKU and created on the chosen income account when
+QuickBooks has never seen it; deal "+1" and FOC lines post at ₱0 so the invoice
+still shows what left the warehouse. Class is set to the specialist and Location
+to the team — but only if class or location tracking is switched on in your
+QuickBooks company, which is why they are checkboxes in the settings. Each
+payment recorded in HQ becomes a **Payment** applied to that invoice (deposit
+account configurable; negative correction payments are skipped and listed, so
+you reverse those in QuickBooks by hand). A credit memo for a return becomes a
+**CreditMemo**, applied to the invoice it names. Cancelling an order after it
+posted voids the invoice; editing it re-posts the invoice with the current
+SyncToken, because the sync keeps a hash of exactly what it sent and knows when
+that no longer matches. Internal and test accounts — pull-outs, Remedy,
+Healthspan, anything called test — are skipped, same rule as the sales views.
+
+**Payments come back too.** When accounting records a payment straight in
+QuickBooks, the next run pulls it into HQ's `payments` table (change-data-capture
+since the last cursor) with `created_name 'QuickBooks'`, and the order's paid /
+balance / pay_status roll up as if finance had typed it here — so AR aging and
+the credit gate stay true whichever side the cash was recorded on. A payment
+deleted in QuickBooks becomes an offsetting negative row, because payments are
+append-only. Payments HQ sent are never echoed back.
+
+**Preview mode.** The connector is built now but **switched on at cutover**
+(`app_settings.qbo_enabled`). Until then every run is a preview: it does the
+whole computation and writes each row to the ledger as *pending* with the amount
+it would post, and writes nothing to QuickBooks — not a document, not a
+customer, not an item. It only looks things up: a clinic or SKU QuickBooks does
+not have yet is reported on the row ("would post — and create the customer …"),
+and every doubtful customer match surfaces on the page before the day.
+Finance can look at the first batch, line by line, before a single invoice
+reaches the books — and the Shopify connector keeps carrying Shopify orders in
+the meantime, so nothing is booked twice.
+
+**The page** (Finance → **QuickBooks sync**) has five panels. *Connection* shows
+which company is connected, in which environment, and how long the connection is
+good for; Connect and Disconnect are the super admin's, Sync now is finance's.
+*Settings* holds the post-from date (the cutover date — only orders fulfilled on
+or after it are considered), the VAT tax code, the deposit and income accounts
+read live from QuickBooks, which orders to include, the class and location
+checkboxes, and the "hold until confirmed" switch; finance sees it read-only.
+*Last run* is the summary — mode, invoices posted (or "would post"), payments
+sent and pulled, errors with Intuit's own reason text. *Customer matches to
+confirm* is the queue described next. *Sync ledger* is every document the sync
+has touched, searchable by HS number and filterable by status, with a Retry
+button on anything that errored or is pending.
+
+**Held, and how finance releases it.** Customers are matched to QuickBooks by
+exact name first, then by a normalised name (case, punctuation, "Inc", "Clinic"
+and the like ignored). An exact match posts. A normalised match is a guess, so
+the invoice is **held** — written to the ledger as pending with the reason
+"customer match needs confirmation" — until someone on finance looks at the
+match on the page and presses **Confirm**, picks one of the other candidates, or
+uses **Search QuickBooks…** to point it at a different customer entirely. No
+match at all creates the customer. Confirmed mappings live in `qbo_map`, so a
+clinic is only ever asked about once; the held invoices post on the next run.
+The switch that makes a fuzzy match hold rather than post is in Settings, on by
+default.
+
+**Runs.** The schedule fires every 15 minutes and Sync now runs one immediately.
+One run at a time (a lock), at most 150 invoices per run, and a row that has
+failed five times stops retrying until someone presses Retry — so a bad account
+cannot hammer Intuit every quarter hour forever. Tokens live in `qbo_tokens`,
+readable by the service key only, and never reach the browser; refresh tokens
+rotate on every use and the schedule keeps them warm.
+
+**Cutover-day checklist.** In the Shopify→QBO connector, turn off order posting
+for the orders HQ now owns (otherwise the same invoice lands twice). On the
+QuickBooks sync page set the post-from date to the cutover date, check the tax
+code and accounts, save, and read the preview of the first batch in the ledger.
+Then **Enable — start posting** (super admin); the next run goes live. Disable
+puts it straight back to preview. The SQL for the three tables and the Intuit
+app setup (client id, secret, redirect URI, `QBO_ENV`) are in SUPABASE-SETUP.md
+under "QuickBooks Online connector".
+
 ## 9.85 Rhythm, nudges & transfers
 
 Dormancy alerts follow the account's tier — an A-clinic going 30 days quiet
@@ -878,3 +1017,16 @@ passwords privately; people change them in-app.
   and admin).
 - **Something looks wrong?** Check **Data health** first (feed freshness and
   reconciliation), then tell Angelo.
+
+## 12. Deploy
+
+Nothing changes for whoever ships: drag-drop the changed files (`index.html`,
+`js/…`, `netlify/functions/…`) into the GitHub repo as before. Netlify then runs
+`npm run build` (`tools/build.mjs`), which concatenates `js/01…13` in the order
+`index.html` lists them, minifies without renaming anything, and publishes
+`dist/` — the page plus ONE `app.<hash>.js`. The hash is the file's own
+content, so the bundle is cached for a year and a new deploy is a new filename;
+`index.html` itself is never cached, so nobody gets a stale mix. Source stays
+in `js/` — nothing is edited in `dist/`, and the headless tests
+(`npm test`) still read `index.html` and `js/*.js` directly. If `esbuild` is
+missing the build still succeeds, un-minified, with a warning.

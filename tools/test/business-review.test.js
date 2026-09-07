@@ -4,6 +4,7 @@
      node tools/test/business-review.test.js [out.pptx]
    With an output path it also writes a sample deck from the fixture (needs
    pptxgenjs: npm i pptxgenjs, or PPTXGENJS=/path/to/node_modules/pptxgenjs). */
+process.env.TZ='Asia/Manila'; // the app dates "today" in Manila; the fixture must agree whatever machine runs this
 const {JSDOM}=require('jsdom'); const fs=require('fs');
 const dom=new JSDOM(fs.readFileSync('index.html','utf8'),{runScripts:'outside-only',url:'https://hq.healthspan.ph/'});
 const w=dom.window,d=w.document;
@@ -15,7 +16,7 @@ const ok=(n,c,x)=>out.push([!!c,n,x===undefined?'':String(x)]);
 const html=fs.readFileSync('index.html','utf8');
 ok('js/12 is loaded after js/11', html.indexOf('js/11-serials')<html.indexOf('js/12-business-review') && /<script defer src="js\/12-business-review\.js">/.test(html));
 ok('sidebar has Business review for specialists', /class="ni nv-sales" onclick="showView\('bizreview',this\)"/.test(html));
-ok('13 app scripts defer', (html.match(/<script defer src="js\//g)||[]).length===13, (html.match(/<script defer src="js\//g)||[]).length);
+ok('14 app scripts defer', (html.match(/<script defer src="js\//g)||[]).length===14, (html.match(/<script defer src="js\//g)||[]).length);
 const app=fs.readdirSync('js').sort().map(f=>fs.readFileSync('js/'+f,'utf8')).join('\n;\n');
 
 const pad=n=>String(n).padStart(2,'0');
@@ -232,9 +233,25 @@ ok('reports hub lists the team deck and every specialist for the manager', /Team
 ok('inputs status: Rhas 1/6 (forecast), Tin 1/6 (legacy wins), Abby nothing', /1\\/6 in/.test(c)&&/nothing yet/.test(c), (c.match(/<span class="pill p[a-z]+"[^>]*>[^<]*<\\/span>/g)||[]).slice(0,6).join(' '));
 ok('download all + per-row PowerPoint/PDF/Google Slides', c.includes('Download all (PowerPoint)')&&(c.match(/>PDF</g)||[]).length===5&&(c.match(/>Google Slides<\\/a>/g)||[]).length===5, (c.match(/>PDF</g)||[]).length);
 ok('new slides in the team deck data: brand monthly targets, accounts by brand, SkinPen to date, Mixexpert', R.brands[0].seriesTgt.length===13&&R.accounts.active===3&&R.accounts.byBrand.some(b=>b.name==='SkinPen'&&b.newN===1)&&R.skinpen.pensYtd===1&&R.skinpen.kitsYtd===0&&R.mixexpert.target===250&&R.mixexpert.total===0, JSON.stringify({active:R.accounts.active,byBrand:R.accounts.byBrand,sp:R.skinpen.pensYtd}));
+ /* Paul + Maricris, Sep 7: a case deal ships exactly the pieces it names (24, not 25); mis-itemised extras are ignored */
+{SALESIDX['DL0201']={name:'Buy 2 Treatment Kits - 24 pieces total (2 cases)',line:'SKINPEN'};SALESIDX['DL0205']={name:'Buy 1 Treatment Kit - 12 pieces total (1 case)',line:'SKINPEN'};SALESIDX['DL0210']={name:'Treatment kit promo -24+6',line:'SKINPEN'};SALESIDX['F5SP072']={name:'Treatment kit-3 pieces- 12/case',line:'SKINPEN'};
+ ok('kits: a 2-case deal is 24 even when 25 were itemised', bizKitCount({units:{F5SP072:25,DL0201:1}})===24&&bizKitCount({units:{F5SP072:24,DL0201:1}})===24);
+ ok('kits: a 1-case deal is 12 (13 itemised → 12); two 1-case deals → 24', bizKitCount({units:{F5SP072:13,DL0205:1}})===12&&bizKitCount({units:{F5SP072:24,DL0205:2}})===24);
+ ok('kits: à la carte kits count as itemised; a 24+6 promo is 30', bizKitCount({units:{F5SP072:5}})===5&&bizKitCount({units:{DL0210:1}})===30);
+ ok('kits: deal units are never added on top of itemised kits', bizKitCount({units:{F5SP072:26,DL0201:1}})===24);
+ const rh=R.specs.find(x=>x.name==='Rhas');const cruz=rh&&rh.accounts.find(a=>a.name==='Dr. Cruz Clinic');
+ ok('per-account YTD carried (Dr. Cruz: this month + earlier months of this year, never more than the window)', cruz&&cruz.ytd>=cruz.mtd&&cruz.ytd<=cruz.v6&&cruz.ytd>=cruz.mtd+cruz.prev*(F.pym.slice(0,4)===ym.slice(0,4)?1:0), cruz&&JSON.stringify([cruz.mtd,cruz.prev,cruz.ytd,cruz.v6]));
+ ok('plan month: null when next month has not begun', bizPlanMonth(R)===null);
+ if(typeof bizTeamSpec==='function'){const spec=bizTeamSpec(R,{forecasts:{}});const plan=spec.find(sl=>(sl.els||[]).some(e=>e.t==='title'&&String(e.text).startsWith('Sales plan — ')));
+   ok('team Sales plan slide carries result, YTD, next target, next MTD, gap, forecast', !!plan&&JSON.stringify(plan).includes('"YTD"')&&JSON.stringify(plan).includes(' MTD"')&&JSON.stringify(plan).includes('Gap to target'), plan&&JSON.stringify(plan).slice(0,300));}
+ ok('recent cap read from the blob, default 2500', typeof SHOPIFY.recentCap==='undefined');}
 ok('Copy for Notion panel with a preview table', /Copy — Sales/.test(c)&&/\| BRANDS \| SALES \| TARGET \| PERF \|/.test(c)&&/TOTAL HEALTHSPAN/.test(c));
 {const hq=askHqSections();ok('Ask HQ context: week calendar with today, weekly external sales, brands, specialists, accounts, targets', hq.includes('WEEK CALENDAR')&&hq.includes('TODAY IS '+F.today)&&hq.includes('WEEKLY EXTERNAL SALES')&&hq.includes('Rhas Porciuncula|Team 1|₱250,000|₱300,000|83%')&&hq.includes('Innoaesthetics|₱294,000')&&hq.includes('TARGETS (month|scope|name|php)')&&!hq.split('REVENUE UNDER TAGS')[0].includes('Remedy BGC') );
- const wk=hq.split('WEEKLY EXTERNAL SALES')[1].split(String.fromCharCode(10)+String.fromCharCode(10))[0];ok('weekly rows exclude internal orders and carry top products', wk.includes('FACE NADE')&&!wk.split(':').slice(1).join(':').includes('Remedy')&&wk.includes('2026-W'+String(isoWeek(new Date(F.today+'T00:00:00Z')).w).padStart(2,'0')+'|₱394,000|3|2|') );}
+ const wk=hq.split('WEEKLY EXTERNAL SALES')[1].split(String.fromCharCode(10)+String.fromCharCode(10))[0];const wkOf=d=>{const w=isoWeek(new Date(d+'T00:00:00Z'));return w.y+'-W'+String(w.w).padStart(2,'0');};const w2=wkOf(ym+'-02'),w5=wkOf(ym+'-05'),w6=wkOf(ym+'-06');
+ // orders #1 (02), #2 (05), #3 (06) = ₱394,000 over 3 orders / 2 accounts — one row when the three dates share an ISO week, otherwise the rows must add up
+ const rowAmt=w=>{const m=wk.match(new RegExp(w+'[|]₱([0-9,]+)[|]([0-9]+)[|]([0-9]+)[|]'));return m?[+m[1].replace(/,/g,''),+m[2]]:[0,0];};
+ const weeks=[...new Set([w2,w5,w6])];const tot=weeks.reduce((a,w)=>a+rowAmt(w)[0],0),ords=weeks.reduce((a,w)=>a+rowAmt(w)[1],0);
+ ok('weekly rows exclude internal orders and carry top products', wk.includes('FACE NADE')&&!wk.split(':').slice(1).join(':').includes('Remedy')&&tot===394000&&ords===3&&(weeks.length>1||wk.includes(w5+'|₱394,000|3|2|')), weeks.join(',')+' → '+tot+'/'+ords);}
 const nt=bizNotionText(R,'sales');ok('Notion text carries brands, specialists and HQ notes', nt.includes('| Innoaesthetics | ₱294,000 |')&&nt.includes('Rhas Porciuncula: ₱250,000 (83% of ₱300,000)')&&nt.includes('What HQ noticed') );
 ROLE='sales';SBPROFILE={name:'Rhas R.',role:'sales',specialist_tag:'Rhas'};await renderReports();c=document.getElementById('content').innerHTML;
 ok('specialist sees only their own row, no team deck, no download-all', /Rhas Porciuncula/.test(c)&&!/Team deck/.test(c)&&!/Tin Arcos/.test(c)&&!/Download all/.test(c)&&(c.match(/>PDF</g)||[]).length===1);

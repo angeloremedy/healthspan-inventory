@@ -1,5 +1,6 @@
 /* ── ASK AI (in-app chat over the live catalog) ── */
 function toggleAsk(){
+  try{askPaintModel();}catch(e){}
   const d=document.getElementById('askdrawer'); if(!d)return;
   d.classList.toggle('open');
   if(d.classList.contains('open')){const i=document.getElementById('askinput'); if(i)setTimeout(()=>i.focus(),150);}
@@ -38,7 +39,9 @@ function askCatalog(){
 function isoWeek(d){const x=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()));const day=x.getUTCDay()||7;x.setUTCDate(x.getUTCDate()+4-day);const y0=new Date(Date.UTC(x.getUTCFullYear(),0,1));return {y:x.getUTCFullYear(),w:Math.ceil(((x-y0)/864e5+1)/7)};}
 function askHqSections(){
   if(!SHOPIFY||!SALESIDX||typeof bizCompute!=='function'||typeof hasIntSplit!=='function'||!hasIntSplit())return '';
-  const P=v=>Math.round(v||0).toLocaleString('en-PH');const today=new Date().toISOString().slice(0,10);
+  const P=v=>Math.round(v||0).toLocaleString('en-PH');
+  // today in Manila, not UTC: before 8 am the ISO date is still yesterday, and the model would place "this week" wrong
+  let today;try{today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Manila',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());}catch(e){today=new Date().toISOString().slice(0,10);}
   const S=[];const sec=(h,lines)=>{if(lines&&lines.length)S.push(h+'\n'+lines.join('\n'));};
   /* week calendar for this year (ISO weeks, Monday start) */
   {const y=+today.slice(0,4);const rows=[];const d=new Date(Date.UTC(y,0,4));d.setUTCDate(d.getUTCDate()-((d.getUTCDay()||7)-1));
@@ -99,6 +102,16 @@ function mdLite(t){
     close();out+='<p style="margin:4px 0">'+inl(l)+'</p>';}
   close();return out;}
 function askFmt(t){return mdLite(t);}
+/* Which model answers Ask Healthspan — the person's own choice, kept on this device.
+   Settings → AI holds the company default; this dropdown overrides it for the chat only. */
+const ASK_MODELS=['gemini','anthropic'];
+function askGetModel(){try{const v=localStorage.getItem('hs_ask_model')||'';return ASK_MODELS.includes(v)?v:'';}catch(e){return '';}}
+function askSetModel(v){v=ASK_MODELS.includes(v)?v:'';try{if(v)localStorage.setItem('hs_ask_model',v);else localStorage.removeItem('hs_ask_model');}catch(e){}askPaintModel();}
+function askPaintModel(){const s=document.getElementById('askmodel');if(!s)return;
+  const paint=()=>{const v=askGetModel()||(ASK_MODELS.includes(window.AI_DEFAULT)?window.AI_DEFAULT:'gemini');if(s.value!==v)s.value=v;};
+  paint();
+  // no personal pick yet → show the company default (Settings → AI), read once per session
+  if(!askGetModel()&&window.AI_DEFAULT===undefined&&SB){window.AI_DEFAULT='';try{SB.from('app_settings').select('value').eq('key','ai_provider').maybeSingle().then(({data})=>{window.AI_DEFAULT=(data&&data.value)||'';paint();});}catch(e){}}}
 async function sendAsk(){
   const inp=document.getElementById('askinput'), log=document.getElementById('asklog'), btn=document.getElementById('askbtn');
   if(!inp||!log)return;
@@ -112,7 +125,7 @@ async function sendAsk(){
   btn.disabled=true;
   try{
     const r=await fetch('/.netlify/functions/ask',{method:'POST',headers:await sbAuthHeaders({'Content-Type':'application/json'}),
-      body:JSON.stringify({question:q,catalog:askCatalog(),history:ASKHIST.slice(-3)})});
+      body:JSON.stringify({question:q,catalog:askCatalog(),history:ASKHIST.slice(-3),provider:askGetModel()||undefined})});
     const job=await r.json();
     if(!job.id)throw new Error(job.error||'could not start');
     // Poll for the answer — deep questions can take 30s+ on the smart model.
@@ -220,7 +233,7 @@ function buildMobileNav(){
     return el?el.outerHTML.replace('<svg ','<svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" '):'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>';
   };
   const mLabel=v=>{
-    const SHORT={bizreview:'Review',reports:'Reports',settings:'Settings',neworder:'Order',logvisit:'Visit',followups:'To-dos',salesdue:'Reorder',approvals:'Approve',orders:'Orders',salespace:'Pace',customers:'Accounts',fulfillq:'Fulfill',scan:'Scan',cyclecount:'Count',po:'POs',ar:'AR',pdc:'PDCs',cashflow:'Cash',returns:'Returns',campaigns:'Campaigns',promos:'Promos',salesoverview:'Sales',pipeline:'Pipeline',dashboard:'Inventory',quotes:'Quotes',complaints:'Complaints',salesevents:'Events',transfers:'Transfers',quarantine:'Quarantine',whkpi:'KPIs',suppliers:'Suppliers',valuation:'Costs',catalog:'Items',recall:'Recall',targets:'Targets',scorecards:'Reviews',users:'Team',audit:'Log',commissions:'Commis.',regs:'Regs',salestarget:'Vs target',salesfield:'Coverage',crmstats:'Activity',serials:'Serials',loans:'Loaners',expreport:'Exp. report',profile:'Profile',all:'SKUs',forecast:'Stockout',health:'Data'};
+    const SHORT={bizreview:'Review',reports:'Reports',qbo:'QuickBooks',settings:'Settings',neworder:'Order',logvisit:'Visit',followups:'To-dos',salesdue:'Reorder',approvals:'Approve',orders:'Orders',salespace:'Pace',customers:'Accounts',fulfillq:'Fulfill',scan:'Scan',cyclecount:'Count',po:'POs',ar:'AR',pdc:'PDCs',cashflow:'Cash',returns:'Returns',campaigns:'Campaigns',promos:'Promos',salesoverview:'Sales',pipeline:'Pipeline',dashboard:'Inventory',quotes:'Quotes',complaints:'Complaints',salesevents:'Events',transfers:'Transfers',quarantine:'Quarantine',whkpi:'KPIs',suppliers:'Suppliers',valuation:'Costs',catalog:'Items',recall:'Recall',targets:'Targets',scorecards:'Reviews',users:'Team',audit:'Log',commissions:'Commis.',regs:'Regs',salestarget:'Vs target',salesfield:'Coverage',crmstats:'Activity',serials:'Serials',loans:'Loaners',expreport:'Exp. report',profile:'Profile',all:'SKUs',forecast:'Stockout',health:'Data'};
     if(SHORT[v])return SHORT[v];
     const el=document.querySelector('.nav .ni[onclick*="\''+v+'\'"]');
     if(!el)return v;

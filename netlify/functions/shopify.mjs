@@ -26,6 +26,7 @@ export default async (req) => {
 
   const url = new URL(req.url);
   const force = url.searchParams.get('refresh') === '1';
+  const since = url.searchParams.get('since'); // the `synced` stamp of the copy the device already holds
 
   let data = null, status = null;
   try { data = await store.get('data', { type: 'json' }); } catch (e) {}
@@ -37,6 +38,9 @@ export default async (req) => {
     try { await fetch(new URL('/.netlify/functions/shopify-build-background', url.origin), { method: 'POST', headers: { 'x-job-key': process.env.JOB_KEY || '' } }); } catch (e) {}
   }
 
+  // The device already holds this exact build (it keeps the blob in IndexedDB): a
+  // few bytes instead of the multi-MB blob. Stale/refresh above still fire first.
+  if (data && since !== null && String(data.synced) === since) return Response.json({ unchanged: true, synced: data.synced, stale: ageH > 6, status });
   if (data) return Response.json({ ...data, stale: ageH > 6, status });
   return Response.json({ building: true, status });
 };

@@ -101,6 +101,17 @@ function bizMonthsAvail(){
   return [...set].filter(m=>m<=cur).sort().reverse().slice(0,13);}
 function bizOrdersFrom(){return String((SHOPIFY&&SHOPIFY.recentFrom)||'').slice(0,10);} // the order index only reaches back this far
 
+/* SkinPen treatment kits in one order. The case deals ("Buy 1 Treatment Kit - 12 pieces", "Buy 2 - 24 pieces")
+   ship exactly the pieces they name — marketing confirmed a package is 24, not 25 (Sep 7). Some orders were
+   itemised with an extra kit by mistake, so when a case deal is on the order the deal's pieces are the count;
+   only à-la-carte kits (no deal line) are counted from the itemised base SKU. */
+const KIT_BASE_RE=/treatment\s*kit/i, KIT_DEAL_RE=/buy\s*\d|\bcases?\b|promo|\d+\s*\+\s*\d+/i;
+function bizKitPieces(nm){const p=String(nm||'').match(/(\d+)\s*\+\s*(\d+)/);if(p)return (+p[1])+(+p[2]);const m=String(nm||'').match(/(\d+)\s*pieces/i);if(m)return +m[1];return 0;}
+function bizKitCount(o){let base=0,deal=0;
+  for(const sku in (o.units||{})){const nm=(SALESIDX[sku]&&SALESIDX[sku].name)||sku;const u=o.units[sku]||0;if(!u)continue;
+    if(sku==='F5SP072'||(KIT_BASE_RE.test(nm)&&!KIT_DEAL_RE.test(nm)))base+=u;
+    else if(KIT_BASE_RE.test(nm)&&KIT_DEAL_RE.test(nm)){const pcs=bizKitPieces(nm);if(pcs)deal+=u*pcs;}}
+  return deal?deal:base;}
 /* ── the numbers ─────────────────────────────────────────────────────────── */
 function bizCompute(ym){
   const today=bizToday();const curYm=today.slice(0,7);
@@ -110,7 +121,7 @@ function bizCompute(ym){
   const elapsed=Math.max(1,day)/dim;
   const prev=bizPrevYm(ym),qM=bizQtrMonths(ym),yM=bizYtdMonths(ym),series=bizMonthKeys(13,ym);
   const early=(ym===curYm)&&day<4;
-  const ordersFrom=bizOrdersFrom();const ordersComplete=!ordersFrom||(ym+'-01')>=ordersFrom;const recentCapped=!!(SHOPIFY&&SHOPIFY.recent&&SHOPIFY.recent.length>=2500); // first three days: month-to-date ÷ elapsed is noise, not a projection
+  const ordersFrom=bizOrdersFrom();const ordersComplete=!ordersFrom||(ym+'-01')>=ordersFrom;const recentCapped=!!(SHOPIFY&&SHOPIFY.recent&&SHOPIFY.recent.length>=((SHOPIFY.recentCap)||2500)); // first three days: month-to-date ÷ elapsed is noise, not a projection
   const R={ym,prev,asOf,day,dim,elapsed,early,current:ym===curYm,ordersFrom,ordersComplete,recentCapped,intSplit:hasIntSplit(),series,label:bizMonthLbl(ym),generated:new Date().toISOString(),
     total:{},brands:[],products:[],specs:[],accounts:{},machines:{},activity:{},trends:[],notesAuto:{}};
 
@@ -187,11 +198,11 @@ function bizCompute(ym){
   for(const o of O){const inM=o.dt.slice(0,7)===ym,inP=o.dt.slice(0,7)===prev;const s=o.t?getSpec(o.t):null;
     if(s&&o.c){s.tagged.add(o.c);
       // the specialist's whole order window (~6 months): per-account totals, months active, last order, kits
-      const A=s.acctAll[o.c]||(s.acctAll[o.c]={v6:0,mtd:0,prev:0,orders:0,months:new Set(),last:'',first:''});
+      const A=s.acctAll[o.c]||(s.acctAll[o.c]={v6:0,ytd:0,mtd:0,prev:0,orders:0,months:new Set(),last:'',first:''});
       A.v6+=o.a;A.orders++;A.months.add(o.dt.slice(0,7));if(o.dt>A.last)A.last=o.dt;if(!A.first||o.dt<A.first)A.first=o.dt;
-      if(inM)A.mtd+=o.a;if(inP)A.prev+=o.a;
-      for(const sku in o.skus){const nm=(SALESIDX[sku]&&SALESIDX[sku].name)||sku;if(/treatment\s*kit/i.test(nm)||sku==='F5SP072'){ // SkinPen utilisation = kits per account per month
-        const K=s.kits[o.c]||(s.kits[o.c]={});K[o.dt.slice(0,7)]=(K[o.dt.slice(0,7)]||0)+(o.units[sku]||0);}}}
+      if(inM)A.mtd+=o.a;if(inP)A.prev+=o.a;if(o.dt.slice(0,4)===ym.slice(0,4)&&o.dt.slice(0,7)<=ym)A.ytd+=o.a;
+      // SkinPen utilisation = treatment kits per account per month (see bizKitCount: deal pieces rule)
+      {const kk=bizKitCount(o);if(kk){const K=s.kits[o.c]||(s.kits[o.c]={});K[o.dt.slice(0,7)]=(K[o.dt.slice(0,7)]||0)+kk;}}}
     if(inP&&o.c)acctPrev[o.c]=(acctPrev[o.c]||0)+o.a;
     if(!inM)continue;
     if(o.c){acctRev[o.c]=(acctRev[o.c]||0)+o.a;acctOrd[o.c]=(acctOrd[o.c]||0)+1;
@@ -291,7 +302,7 @@ function bizCompute(ym){
       topSkus:Object.keys(s.skus).map(k=>({sku:k,name:(SALESIDX[k]&&SALESIDX[k].name)||k,v:s.skus[k]})).sort((a,b)=>b.v-a.v).slice(0,5),
       lineRows:Object.keys(s.lines).map(l=>({name:l,mtd:s.lines[l],prevLine:null})).sort((a,b)=>b.mtd-a.mtd),
       prodByLine:Object.fromEntries(Object.keys(s.prodLine).map(L=>[L,Object.keys(s.prodLine[L]).map(k=>({sku:k,name:(SALESIDX[k]&&SALESIDX[k].name)||k,v:s.prodLine[L][k]})).sort((a,b)=>b.v-a.v).slice(0,10)])),
-      accounts:Object.keys(s.acctAll).map(c=>{const A=s.acctAll[c];return {name:c,mtd:A.mtd,prev:A.prev,v6:A.v6,orders:A.orders,months:A.months.size,avg:A.v6/Math.max(1,A.months.size),last:A.last,isNew:s.newAccts.includes(c)};}).sort((a,b)=>b.v6-a.v6),
+      accounts:Object.keys(s.acctAll).map(c=>{const A=s.acctAll[c];return {name:c,mtd:A.mtd,prev:A.prev,v6:A.v6,ytd:A.ytd,orders:A.orders,months:A.months.size,avg:A.v6/Math.max(1,A.months.size),last:A.last,isNew:s.newAccts.includes(c)};}).sort((a,b)=>b.v6-a.v6),
       declining:Object.keys(s.acctAll).map(c=>{const A=s.acctAll[c];const days=Math.round((Date.parse(asOf+'T00:00:00Z')-Date.parse(A.last+'T00:00:00Z'))/864e5);return {name:c,last:A.last,days,v6:A.v6,orders:A.orders};}).filter(a=>a.days>=60&&a.orders>=1).sort((a,b)=>b.v6-a.v6).slice(0,10),
       kits:Object.keys(s.kits).map(c=>({name:c,months:s.kits[c],total:Object.values(s.kits[c]).reduce((x,y)=>x+y,0)})).sort((a,b)=>b.total-a.total),
       events:s.events,

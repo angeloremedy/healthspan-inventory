@@ -10,7 +10,7 @@ Last updated: 2026-08-28.
 
 | Layer | Technology | Notes |
 |---|---|---|
-| Frontend | **Modular SPA, no build step** — `index.html` (shell + CSS) + 10 ordered classic scripts in `js/01…10` (vanilla JS, shared global scope, load order matters) | Deployed by uploading files to the repo; PWA-installable |
+| Frontend | **Modular SPA, one-step build** — `index.html` (shell + CSS) + 13 ordered classic scripts in `js/01…13` (vanilla JS, shared global scope, load order matters); `tools/build.mjs` ships them as ONE hashed, minified `app.<hash>.js` | Deployed by uploading files to the repo; Netlify runs `npm run build` and publishes `dist/`; PWA-installable |
 | Hosting | **Netlify** — live at **hq.healthspan.ph** (healthspan-inventory.netlify.app underneath) | Auto-deploys from the GitHub repo `angeloremedy/healthspan-inventory` |
 | Serverless | **Netlify Functions** (`netlify/functions/*.mjs`, Node ESM) | Background functions for long jobs |
 | Blob cache | **Netlify Blobs** | Shopify sales cache, job status, question logs |
@@ -34,10 +34,21 @@ Postgres = the portable exit strategy.
 
 ## 2. Deployment model
 
-No build pipeline yet. Deploys are file uploads to GitHub (`upload/main` for
-`index.html`, `upload/main/netlify/functions` for functions); Netlify builds and
-publishes automatically. A Vite restructure (split into modules, git-based
-deploys) is on the engineering track of the roadmap.
+Deploys are still file uploads to GitHub (`upload/main` for `index.html` and
+`js/`, `upload/main/netlify/functions` for functions). Netlify then runs
+`npm run build` (`tools/build.mjs`, esbuild's transform API only) and publishes
+`dist/`: `index.html` with the 13 `js/` tags replaced by one
+`<script defer src="/app.<hash>.js">`, plus the static assets (icons, manifest,
+fonts). The bundle is the 13 files concatenated in `index.html` order and
+minified with `minifyIdentifiers:false` — global names are the app's public
+surface (inline `onclick` handlers, `typeof fn==='function'` feature checks), so
+only whitespace and syntax are compacted. The hash is the first 10 hex of
+sha256 of the code, so an unchanged source yields the same filename. If esbuild
+cannot be imported the build ships the plain concatenation with a warning; a
+deploy never fails because of the minifier. Source stays in `js/` (the
+headless tests read it directly); `dist/` is gitignored and rebuilt every time.
+Vite proper (ES modules, code splitting, git-based deploys) remains on the
+engineering track.
 
 Environment variables (Netlify → Site settings → Environment):
 - `SHOPIFY_CLIENT_ID` / `SHOPIFY_CLIENT_SECRET` — custom-app client credentials
@@ -61,9 +72,10 @@ new top-level code goes in the module matching its feature area (or a new
 `10-…` before the INIT block in `09`). Everything renders by setting
 `$('content').innerHTML` from `render*()` functions.
 
-Deploys: upload the changed `js/` file(s) and/or `index.html`. A future step
-(post-cutover) may graduate this layout to Vite proper (ES modules, code
-splitting, minification) — the file boundaries are already drawn for it.
+Deploys: upload the changed `js/` file(s) and/or `index.html`; the build step
+(section 2) turns them into one hashed bundle. A future step (post-cutover) may
+graduate this layout to Vite proper (ES modules, code splitting) — the file
+boundaries are already drawn for it.
 
 ### 3.1 Views & routing
 - `showView(v, el)` is the single entry point. It enforces role guards
@@ -146,8 +158,9 @@ purge is admin-only via RLS.
 
 | Function | Purpose |
 |---|---|
-| `refresh.mjs` | Google Sheets fetch proxy for the client sync |
-| `shopify.mjs` | Serves the cached Shopify sales JSON from Blobs |
+| `refresh.mjs` | `/api/sync`. Serves the inventory feed from a Netlify Blobs snapshot (store `sync`, key `data`) when it is under 15 min old; otherwise reads Google Sheets live via the exported `buildSnapshot(KEY)` and rewrites the snapshot. `?force=1` (the Sync button) always reads live. `?trace=1&sku=&batch=` (batch recall trace) stays live. Blobs unavailable → live, silently |
+| `sync-warm.mjs` | Scheduled (`*/15 * * * *`, via `config.schedule`, nothing in netlify.toml). Imports `buildSnapshot` from `refresh.mjs`, stores the result in the same blob, logs one line with the duration. Never throws — a failed run leaves the previous snapshot in place |
+| `shopify.mjs` | Serves the cached Shopify sales JSON from Blobs. The client keeps the last blob in IndexedDB (`hq`/`kv`/`shopify`, via `idbGet`/`idbSet` in `js/01`), paints from it, then calls `?since=<synced>`; a matching stamp gets a tiny `{unchanged:true}` instead of the multi-MB blob |
 | `shopify-build-background.mjs` | Rebuilds the sales cache from Shopify GraphQL (13 months, 6-hour cadence, self-healing) |
 | `backfill-background.mjs` | Full-history Shopify → Supabase migration; **re-runnable = payment-status sync** |
 | `admin-users.mjs` | In-app account management (list/create/update/password/disable/enable) |
@@ -155,6 +168,12 @@ purge is admin-only via RLS.
 | `ask.mjs` / `ask-work-background.mjs` | Ask AI: enqueue + async worker (smart/fast model routing) |
 | `asklog.mjs` | Question log for quality monitoring |
 | `stockbot.mjs` / `stockbot-work-background.mjs` | Slack /stock bot |
+| `qbo-auth.mjs` | QuickBooks OAuth 2: `?action=start` returns the Intuit consent URL (super admin, session header); the Intuit callback (`?code&realmId&state`) exchanges the code, stores tokens in `qbo_tokens` with the service key and redirects to `/#/v/qbo`; `POST {action:'disconnect'}` revokes. `state` is an HMAC over who-started-it + expiry, so a callback we did not start is refused. Tokens never reach the browser |
+| `qbo-admin.mjs` | What the QuickBooks sync page talks to. GET `status` / `lists` (tax codes, accounts) / `mappings` / `search&q=` / `log` for admin + finance; POST `settings` (super admin only — writes the `qbo_*` app_settings incl. `qbo_enabled`), `confirm` (a customer mapping), `retry` (a ledger row back to pending), `run` (kicks the worker) for admin + finance. Role derived server-side from `profiles` |
+| `qbo-sync-background.mjs` | The 15-minute worker; JOB_KEY-guarded like every background job. Calls `runSync()` and logs one summary line |
+| `qbo-schedule.mjs` | Scheduled `*/15 * * * *`: POSTs to the worker with the JOB_KEY. Cheap when nothing is connected or enabled |
+| `lib/qbo.mjs` | One door to Intuit: token refresh (refresh tokens rotate on every use, die after 100 days idle), the query endpoint pinned to minor version 75, find-or-create for customer / item / class / department, the Invoice / Payment / CreditMemo builders (TaxInclusive, one tax code per line), CDC for payments, `fingerprint()` and `norm()`. Every Intuit error surfaces with Intuit's own Detail text |
+| `lib/qbo-sync.mjs` | `runSync()` — the four passes (invoices, credit memos, payments out, payments in), the lock, the 150-per-run cap, the 5-attempt stop, and preview mode. See 4.7 |
 
 ### 4.1 Shopify access
 The Jan-2026 retirement of `shpat_` tokens forced **client-credentials OAuth**:
@@ -272,6 +291,18 @@ account); `bizNote()` lets the pre-split `ps:<Tag>` row stand in for Key wins.
 `renderReports()` computes input status from the same rows and hands out files;
 `bizNotionText()` writes the weekly-meeting blocks as markdown for the clipboard.
 
+### js/14 — the QuickBooks sync page
+
+`renderQbo()` (view key `qbo`, Finance → QuickBooks sync; `viewAllowed` for
+admin + finance) paints five panels from one `qbo-admin?action=status` call:
+Connection, Settings, Last run, Customer matches to confirm, Sync ledger. Every
+write goes through `qboApi()` to `qbo-admin.mjs`; Connect and Disconnect call
+`qbo-auth.mjs`. The page holds no Intuit token and never talks to Intuit.
+Super-admin-only controls (Connect / Disconnect / Save settings / Enable) are
+rendered only when `isSuper()` and refused server-side regardless; the Intuit
+round-trip lands back on `#/v/qbo?connected=1` or `?error=…`, which the view
+turns into a flash and strips from the hash. Design in 4.7.
+
 ### Row actions are buttons, upgraded at render time
 
 Templates still write `<a href="#" onclick="…">` for row actions — ~120 sites
@@ -300,10 +331,15 @@ inline script turns it on when `display-mode: standalone` matches, so a browser
 tab never flashes it and a broken gate fails safe (hidden). It fades via
 `splashHide()` (js/09) once the profile loads or the login form renders; an
 inline 8s failsafe clears it even if the JS fails. Every external script carries `defer`, so first
-paint (the splash) happens before ~1.3MB of JS downloads or parses — order is
-preserved (CDN libs, then js/01…11). JS and HTML stay on Netlify's etag
-revalidation on purpose: the files are unhashed, and long caching would let one
-script go stale against the others mid-deploy. Only images cache long.
+paint (the splash) happens before ~1MB of JS downloads or parses — order is
+preserved (CDN libs, then the single `app.<hash>.js` that the build makes of
+js/01…13). Caching: the bundle's filename carries its content hash, so it is
+served `immutable, max-age=1y` — safely, because there is exactly one script
+and a new deploy is a new filename; `index.html` (and `/`) are `no-cache`, so
+every visit revalidates the one file that points at the bundle. Before the
+build step the 13 files were unhashed and had to stay on etag revalidation, or
+one script could go stale against the others mid-deploy. Icons cache a week,
+fonts a year (also hashed-safe: they never change).
 
 ### tools/manuals — where the PDFs come from
 
@@ -347,6 +383,30 @@ on Home automatically. The old `role-sales` CSS nav filter is gone; `navSync`
 drives sidebar visibility for every role, so sales get the same collapsible
 categories.
 
+### 3.8 Two-level sidebar — `NAV_AREAS` (js/10)
+The nav DOM is unchanged: the same `.nlbl` headings and `.ni` rows, in the same
+order, with the same icons and role classes. On top of it `NAV_AREAS` maps the
+twelve section labels to six areas (Home, Sales, Warehouse, Finance, Planning,
+Admin). `navAreaTag()` stamps each nav child with `data-area` by walking the
+headings; `navAreaPaint()` adds the class `.offarea` (`display:none!important`)
+to everything outside the chosen area and renders the rail (`#rail`, inside
+`.sb` next to the panel `.sbp`); `navSync()` calls it last, so an area is offered
+only when the role may open a page in it (`data-deny` from `viewAllowed`).
+`showView` → `navAreaFollow(v)` moves the rail when the opened page is not on
+screen; `navFilter` clears `.offarea` while a search is typed and repaints when it
+empties. The three visibility mechanisms never write the same property: deny and
+collapse use inline `display`, area uses a class. `buildMobileMenu` renders the
+same areas as chips and filters by `data-area` unless searching. The chosen area
+lives in `localStorage.hs_nav_area`.
+
+### 3.9 Ask Healthspan model pick
+`askGetModel()/askSetModel()` (js/09) keep the person's choice in
+`localStorage.hs_ask_model` and `sendAsk` sends it as `provider`; `ask.mjs`
+forwards it to the worker only when it is `gemini` or `anthropic` (`ASK_PICK`),
+and the worker applies `setProviderPref(payload.provider)` *after* reading the
+company default from `app_settings.ai_provider`, so the personal pick wins for
+that question only. Settings → AI offers the same two.
+
 ### 4.5a One door to the models — `lib/llm.mjs`
 
 Every model call (`ask-work-background`, `stockbot-work-background`, the
@@ -361,7 +421,7 @@ model improvement. `lib/` is a subfolder so Netlify does not deploy it as a
 function; esbuild bundles it into each caller. Tested by
 `tools/test/llm-provider.test.mjs` with a mocked fetch.
 
-### 4.5b What Ask HQ is given
+### 4.5b What Ask Healthspan is given
 
 `askCatalog()` (js/09) is the warehouse view; `askHqSections()` appends the sales
 view: ISO-week calendar (`isoWeek()`), weekly external sales folded from
@@ -388,6 +448,72 @@ to the worker, which builds an HQ context from Supabase filtered to that role:
 AR/PDC/payables/costs only for finance+admin, approvals for managers,
 warehouse queues for supply chain, own-tag orders/quotes for specialists — with
 hard system-prompt rules never to reveal costs/margins outside finance/admin.
+
+### 4.7 QuickBooks connector
+
+**Scan-based and idempotent, not event-driven.** There is no trigger on `orders`
+and no outbox queue. Every run of `runSync()` (`lib/qbo-sync.mjs`) reads what HQ
+has — fulfilled orders on or after `qbo_post_from`, returns, payments — against
+what `qbo_sync` says is already in QuickBooks, and posts only the difference.
+The ledger row is the unit of truth: `qbo_sync` is unique per `(kind, hq_ref)`
+and carries `status` (pending / posted / updated / voided / skipped / error),
+`qbo_id`, `sync_token`, `hash`, `attempts`, `last_error`. A run that dies
+halfway through a batch loses nothing; the next run finds the same rows still
+pending and finishes. Triggers were rejected because a fulfilment click would
+then be blocked on Intuit's latency and error surface; a queue was rejected
+because it is a second source of truth to keep consistent with the ledger, and
+the scan already costs one Supabase query per kind. Four passes in order:
+invoices, credit memos (applied to the invoice they name), HQ payments →
+Payment, then QuickBooks payments → HQ. Guards: a 12-minute lock in
+`app_settings.qbo_lock` so a second trigger inside a running pass is skipped,
+150 invoices per run (well inside the 15-minute background window), and rows
+that have errored `MAX_ATTEMPTS` (5) times are left alone until `retry` resets
+them — so a permanently bad account cannot re-hit Intuit every 15 minutes.
+Internal and test accounts (`INTERNAL_RE`, `TEST_RE` — same rule as the sales
+views) are written as `skipped` once and never revisited.
+
+**Update detection is a hash of what we sent.** `fingerprint()` in `lib/qbo.mjs`
+is a stable hash of the fully built Invoice body — customer ref, lines, amounts,
+dates, class, department, tax code. It is stored in `qbo_sync.hash` on post. On
+every later run the body is rebuilt and hashed; equal means nothing to do,
+different means the order changed and the invoice is re-posted as a full
+(non-sparse) update using the `SyncToken` read from QuickBooks at that moment,
+not the one we stored — QuickBooks rejects a stale token, which is exactly what
+we want if accounting edited the invoice by hand in between. A fulfilled order
+that is no longer `fulfilled` (cancelled, reopened) and has a posted invoice is
+voided, not deleted, so the number stays in the books.
+
+**Payments recorded in QuickBooks come back by change-data-capture.** Pass 4
+calls Intuit's CDC endpoint for `Payment` changed since `qbo_cdc_since`, a cursor
+set five minutes before the run started (overlap on purpose; the `payments.qbo_id`
+unique key makes a re-read harmless). Only payments linked to an invoice HQ
+posted are taken, and payments HQ itself sent (present in `qbo_sync` kind
+`payment` without the `qbo:` prefix) are ignored so nothing echoes. Each new one
+becomes an HQ `payments` row with `qbo_id`, `created_name 'QuickBooks'`, then
+`rollup()` recomputes `orders.paid / balance / pay_status` from the payments rows
+— the same rule the app uses. A CDC record marked deleted becomes an offsetting
+negative row (`qbo_id` = `<id>:void`), because `payments` is append-only. The
+first live run only sets the cursor; it does not backfill history.
+
+**Preview mode is the same code path with every write skipped.** While
+`app_settings.qbo_enabled` is not `'1'`, pass 1 resolves the customer, the items,
+class and department against QuickBooks read-only — `ensure*` look in `qbo_map`,
+then query QuickBooks, and with `{create:false}` return null instead of creating
+the missing record — so fuzzy matches surface on the page and the ledger row says
+what the live run would create. What it never does is write: it
+builds and hashes the Invoice body and writes the ledger row as `pending` with
+the amount and the reason (`would post`, `would update`, `would void`). Passes
+2–4 are not run in preview because nothing downstream exists yet to apply to.
+Flipping `qbo_enabled` changes no data model — the next run simply carries the
+pending rows through to `posted`. This is why finance can read the whole first
+batch on the page before cutover. Customer matching lives in `ensureCustomer()`:
+exact name, then `norm()`-equal name (which returns `confirmed:false` and the
+candidate list into `qbo_map`), else create; with `qbo_require_confirm` on
+(default) an unconfirmed match holds the invoice as `pending` until
+`qbo-admin` `confirm` flips the mapping. Tested by
+`tools/test/qbo-connector.test.mjs` (39 checks against a fake Intuit and a fake
+Supabase). The page is `js/14-qbo-sync.js`; it talks only to `qbo-admin.mjs` and
+`qbo-auth.mjs`, never to Intuit.
 
 ## 5. Supabase schema (see SUPABASE-SETUP.md for exact SQL)
 
@@ -483,8 +609,9 @@ from `profiles` at sign-in and drive everything (`ROLE`, `SBPROFILE`).
   server-side; background jobs gated by `JOB_KEY`.
 - ~~Custom domain~~ DONE — hq.healthspan.ph + PWA (manifest, icons, standalone,
   zoom lock, iOS fixes; deliberately no offline service worker).
-- Modular restructure Phase 1 done (10 modules, byte-identical); Phase 2 =
-  Vite proper, post-cutover.
+- Modular restructure Phase 1 done (13 modules, byte-identical); Phase 2a done
+  (single hashed, minified bundle via `tools/build.mjs`); Phase 2b = Vite
+  proper (ES modules, code splitting), post-cutover.
 - ~~Client-side pagination~~ DONE — the register queries page-by-page server-side
   (search included); AR/cash-flow computations still use the bulk load.
 - ATP note: reservations are DERIVED (pending native order lines), not a table —

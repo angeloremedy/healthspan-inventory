@@ -124,7 +124,10 @@ export const handler = async (event) => {
     const dailyFrom = new Date(Date.now() - 60 * 864e5).toISOString().slice(0, 10);
     const q = 'created_at:>=' + since.toISOString().slice(0, 10) + ' status:any';
     const specialists = {}; // tag -> { monthly: {ym:{u,v}}, daily: {d:{u,v}} }
-    const recentFrom = new Date(Date.now() - 180 * 864e5).toISOString().slice(0, 10);
+    // the per-order index reaches back 180 days OR to 1 January, whichever is earlier, so the
+    // Business review can show a true year-to-date per account (Paul, Sep 7)
+    const recentFrom = [new Date(Date.now() - 180 * 864e5).toISOString().slice(0, 10), new Date().getUTCFullYear() + '-01-01'].sort()[0];
+    const RECENT_CAP = 6000; // ~2,300 external orders a year today; the cap only guards the blob size
     const recent = []; // order-level drill-down: last ~6 months, capped
     const d90 = new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10);
     const customers = {}; // per-customer booked totals (13 months + last-90d slice)
@@ -210,7 +213,7 @@ export const handler = async (event) => {
             cc.int = false;   // int means EVERY order was internal, not the first one
           }
         }
-        if (day >= recentFrom && lis.length && recent.length < 2500) {
+        if (day >= recentFrom && lis.length && recent.length < RECENT_CAP) {
           recent.push({
             n: o.name || '',                                             // order number (e.g. #HG-10142)
             dt: day,
@@ -250,7 +253,7 @@ export const handler = async (event) => {
       specialists,
       customers,
       recent,
-      recentFrom,
+      recentFrom, recentCap: RECENT_CAP,
       orders,
       dailyFrom,
       synced: new Date().toISOString(),

@@ -1,10 +1,11 @@
-// Ask AI dispatcher for the dashboard web app.
+// Ask Healthspan dispatcher for the dashboard web app.
 // POST { question, catalog, history } → hands the job to ask-work-background
 //   (no timeout limits there) and returns { id } immediately.
 // GET ?id=... → returns the finished { answer, model } / { error }, or { pending:true }.
 import crypto from 'node:crypto';
 import { connectLambda, getStore } from '@netlify/blobs';
 import { llm, provider, hasKey, keysPresent, setProviderPref } from './lib/llm.mjs';
+const ASK_PICK = ['gemini', 'anthropic']; // the two models the Ask Healthspan dropdown offers; anything else falls back to Settings → AI
 
 const HDRS = {
   'Access-Control-Allow-Origin': '*',
@@ -87,7 +88,7 @@ export const handler = async (event) => {
     const t = await fetch(base + '/.netlify/functions/ask-work-background', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, question, catalog, history: payload.history || [], who, mode: String(payload.mode || '').slice(0, 20) })
+      body: JSON.stringify({ id, question, catalog, history: payload.history || [], who, mode: String(payload.mode || '').slice(0, 20), provider: ASK_PICK.includes(String(payload.provider || '')) ? String(payload.provider) : '' })
     });
     // a 404/5xx here means the worker never started — say so now instead of letting the UI poll into a timeout
     if (!t.ok && t.status !== 202) return { statusCode: 502, headers: HDRS, body: JSON.stringify({ error: 'The answer job did not start (worker returned ' + t.status + '). Check the ask-work-background function deploy.' }) };

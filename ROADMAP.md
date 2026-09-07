@@ -18,11 +18,24 @@ Legend: ✅ done · 🔨 in progress · ⏭ next up · ▢ planned
 | **Verna's sheet** | Warehouse truth: stock, batches, movement | WMS stock ledger (receive/pick/count in-app) | Receiving + fulfillment decrements + cycle counts live · ledger matches sheet for 2 consecutive counts · Verna signs off | 🔨 Shadow ledger recording both ways (receiving + batch-stamped picks + counts w/ variance); remaining: opening-balance snapshot + stk() switch + matching counts |
 
 **QBO stays** (general ledger, financial statements, BIR/tax, payroll). The
-platform feeds it via the accounting export; it does not replace it.
+platform feeds it directly through the QuickBooks Online connector (switched on
+at cutover; the accounting export CSV remains the fallback); it does not replace it.
 
 ---
 
 ## ✅ Shipped so far (everything, from the start)
+
+**QuickBooks Online connector (Sep 6)**
+- ✅ HQ → QuickBooks direct, no CSV in between: a fulfilled order (the DR moment) becomes an Invoice — DocNumber = HS number, DueDate from terms, VAT 12% inclusive (`GlobalTaxCalculation: TaxInclusive`, one tax code per line), per-SKU items matched by SKU and created on the chosen income account, deal +1 / FOC lines at ₱0, Class = specialist and Location = team when tracking is on in QBO
+- ✅ Each HQ payment → Payment applied to the invoice (deposit account configurable); negative correction payments are skipped and listed. Credit memo (return) → CreditMemo, applied to the invoice it names
+- ✅ Payments recorded straight in QuickBooks are pulled back every run (change-data-capture) into HQ `payments` with `qbo_id` and `created_name 'QuickBooks'`; the order's paid / balance / pay_status roll up; a payment deleted in QBO becomes an offsetting negative row; our own payments never echo back
+- ✅ Cancelled after posting → invoice voided; changed order (hash of what was sent) → invoice updated with the current SyncToken; internal and test accounts (pull-out, Remedy, Healthspan, test) skipped
+- ✅ Customers matched by exact name, then normalised name — an unconfirmed match HOLDS the invoice until finance confirms it on the page (or picks another QBO customer via search); no match creates the customer. Mappings in `qbo_map`, ledger in `qbo_sync` (unique per kind + hq_ref)
+- ✅ Finance → QuickBooks sync page (admin + finance): Connection, Settings, Last run, Customer matches to confirm, Sync ledger with Retry and Sync now. Connect / Disconnect / Settings / Enable are super admin only, enforced in `qbo-auth.mjs` and `qbo-admin.mjs`
+- ✅ Scan-based and idempotent — no triggers, no queue; every 15 minutes (`qbo-schedule.mjs` → `qbo-sync-background.mjs`, JOB_KEY), one run at a time, 150 invoices per run, an erroring row stops after 5 attempts until Retry
+- ✅ Tokens in `qbo_tokens`, service key only, never in the UI; refresh tokens rotate and are kept warm. Env: QBO_CLIENT_ID, QBO_CLIENT_SECRET, QBO_ENV (sandbox | production), optional QBO_REDIRECT_URI. 39 checks in `tools/test/qbo-connector.test.mjs` against a fake Intuit + fake Supabase
+- ✅ Built now, **switched on at cutover** (`app_settings.qbo_enabled`): until then every run is a preview — rows written as pending with the amount that would post, nothing posted — and the Shopify→QBO connector keeps carrying Shopify orders
+- ⏭ Switch on at cutover; pull-outs to QBO as journal entries later
 
 **Data pipeline & sync**
 - ✅ Live Google Sheets sync of Verna's master file (products, batches, IN/OUT movement, pull-outs), auto-refresh every 15 min, localStorage instant-load cache, sync progress UI
@@ -111,6 +124,16 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ Product specialists removed from the fund-source approver picker
 - ✅ New **Finance forms** sidebar section (pull-out requests today; the five finance forms as they land)
 
+**Two-level sidebar, fast boot, Ask Healthspan (Sep 5)**
+- ✅ Sidebar is two levels: a rail of six areas (Home, Sales, Warehouse, Finance, Planning, Admin) and the chosen area's pages under their familiar headings. 101 pages, none retired, none moved; deep links, favourites and cards switch the rail; search spans every area; the phone Menu shows the same areas as chips
+- ✅ Shopify blob cached on the device (IndexedDB) and painted before the network; `?since=` handshake downloads it only when it changed
+- ✅ `/api/sync` serves a Netlify Blobs snapshot warmed every 15 min by `sync-warm.mjs`; only the Sync button reads Google Sheets live
+- ✅ One hashed, minified bundle built by Netlify (`npm run build` → `dist/app.<hash>.js`, immutable for a year; `index.html` never cached); source stays in `js/` for the tests
+- ✅ Montserrat self-hosted with `font-display: swap` — no Google Fonts on the critical path
+- ✅ "Ask HQ" → **Ask Healthspan**; Settings → AI offers Gemini Flash / Claude Haiku only; a dropdown in the chat picks the model per person, remembered on the device
+- ✅ Ask Healthspan "today" is Manila time, not UTC (before 8 am the calendar was a day behind)
+- ⏭ Next: load the review/decks, simulators and aged-inventory modules on demand; service-worker precache once the hashed bundle has been live a week; move `mergeShopify` to a worker if the boot timing shows it matters
+
 **Buttons, not hyperlinks (Sep 2)**
 - ✅ Every row action app-wide — approve / reject / cancel / delete / return / → sale / sold / dispose and the rest — is now a proper button instead of an underlined link with dot separators. One upgrader in js/01 does it at render time from the colour each link already carried (green confirm, outlined red for destructive, blue/amber/purple tones, neutral otherwise), finger-sized on touch devices. Navigation links (account names, "Open … →", footers) stay links. No template was edited; future views get it for free
 
@@ -132,7 +155,7 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ Team deck: monthly performance slide per brand (13 months vs monthly target), Accounts overview (active / new / new-to-brand with names), SkinPen to date (pens, kits, kits per pen, installed base), Mixexpert → Mesoestetic conversion vs the 250 target (list pasted once → accounts.source)
 - ✅ Reports → Google Slides: deck uploaded to the shared Drive folder, converted to native Slides, shared with the given emails (deck-to-drive.mjs, same service account as attachments)
 
-**Ask HQ (Sep 3)**
+**Ask HQ → Ask Healthspan (Sep 3)**
 - ✅ "Ask the inventory" → **Ask HQ**: the chat now carries the sales side (week calendar + weekly external sales, brands vs target with 13-month series, specialists, accounts, machines, targets, loaners) next to the warehouse catalog; prompt teaches date mapping and "closest answer, never just unavailable"; analysis questions get low thinking
 - ✅ Gemini fixed: 3.6 Flash minimal thinking (the -latest alias was 3.8 Flash thinking at length), 45 s per-attempt cap, catalog trimmed to the question, stage-aware timeouts, AI connection test for managers/admin
 - ✅ Draft with AI briefs per section (wins = achievements not totals, first names, ≤6 bullets; challenges, territory, plan, programs, plan notes; per-specialist boxes)
@@ -161,7 +184,7 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ Back, for the installed app: a small ← in the phone/iPad top bar whenever there is somewhere to go back to, and a left-edge swipe right that does the same — both walk the app's own history, and a native-handled gesture is never doubled
 - ✅ My profile: every user has one (sidebar, under Home; the name in the footer/phone menu opens it) — identity, filed finance forms with status, open follow-ups, checked-out loaners, quick actions
 - ✅ Boot splash for the installed app only: the real app icon on its blue the instant it opens (like Instagram/X), fading once the app is ready or the login form is up; browser tabs never see it, and an inline failsafe clears it even if the JS errors
-- ✅ Faster loading: every script is deferred (the page paints before ~1.3MB of JS downloads), preconnects to Supabase and the CDNs, and icons cache for a week. JS/HTML deliberately stay on etag revalidation — unhashed files must never go half-stale
+- ✅ Faster loading: every script is deferred (the page paints before ~1.3MB of JS downloads), preconnects to Supabase and the CDNs, and icons cache for a week. The app JS ships as one content-hashed bundle (`app.<hash>.js`, see Modular restructure Phase 2a) cached immutable for a year; `index.html` is `no-cache`, so a deploy is never half-stale
 - ✅ Serial numbers (Logistics): one row per equipment unit — lasers, devices — from receiving through loan, sale or disposal. Consumables stay batch-tracked
 - ✅ Demo / loaners (Logistics): check a serial out to a clinic with a due-back date and condition notes; return puts it back in stock, a closed demo converts to a sale; nightly rule 11 pings whoever checked it out once it goes overdue
 - ✅ Wave picking: tick orders in the fulfillment queue → one WV-numbered pick list merged per SKU and sorted by bin — one walk instead of one list per order, with per-order confirm
@@ -221,7 +244,8 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ Per-form approval chains (`approval_routes`): a step points at a person, a role, or the request's own fund source, with an optional amount threshold; DB enforces the step, so no reaching past step 1. Nobody approves their own request
 - ✅ Editable option lists (`code_lists`): 41 event codes + 35 cash-flow tags seeded from the Google forms, plus product lines, payment modes, replenishment/reimbursement types and teams — finance and admin add and retire them
 - ✅ Finance request register is need-to-know (own + ones you decide + finance/admin), and attachments follow the request
-- ▢ Push pull-outs (and all orders) to QBO directly — today the Shopify↔QBO integration carries them; separate piece of work
+- ✅ Push orders, payments and credit memos to QBO directly — the QuickBooks Online connector (Sep 6), switched on at cutover; until then the Shopify↔QBO integration carries them
+- ▢ Push pull-outs to QBO directly (as journal entries) — still to build
 
 **Accounting integrity pack (Aug 28)**
 - ✅ Period close: super-admin closed-through date; order amounts/dates/lines, credit memos, cheque maturities and monthly targets freeze on or before it. Enforced by Postgres triggers, so neither a client bug nor a service-key job can restate a signed-off month; collections, shipping and DR numbers stay open
@@ -313,7 +337,7 @@ platform feeds it via the accounting export; it does not replace it.
 - ✅ **Credit management** — shipped (per-account credit limits set by finance; order entry checks open exposure + new total and holds automatically)
 - ✅ **Returns & credit memos** — shipped (Finance → Returns & credit memos; parallel-run banner until cutover)
 - ✅ **Commissions** — shipped (tiered %-of-target rules, per-specialist monthly compute, finance-editable tiers, CSV export for payroll)
-- 🔨 **Accounting export → QBO bridge** — period CSV shipped; field mapping + credit-memo flow to design with accounting
+- ✅ **Accounting export → QBO bridge** — the direct QuickBooks Online connector is built (invoice on fulfilment, payments both ways, credit memos; preview until cutover, then `qbo_enabled`); the period CSV export stays as the fallback
 - ✅ **Invoice/DR numbering series** — shipped (doc_series table + atomic RPC; permanent DR numbers assigned at first print, configurable prefix/next/pad on the Cutover page; falls back to HS numbers when unconfigured)
 - ✅ **Quotations** — shipped (QT-numbered quotes with catalog/deal/promo pricing, validity dates, printable, sent/accepted/lost tracking with win rate, one-tap convert to a prefilled order)
 - ▢ **Standing orders** — recurring monthly orders per account, auto-drafted for specialist confirmation
@@ -409,7 +433,7 @@ platform feeds it via the accounting export; it does not replace it.
 ## Workstream D — Platform & engineering (parallel track)
 
 - ✅ **Close public endpoints** — shipped (session-verified server-side; JOB_KEY jobs; access codes removed)
-- 🔨 **Modular restructure** — Phase 1 DONE: the single 15k-line file is split into `index.html` (shell/CSS) + 9 ordered script modules in `js/`, proven byte-identical on reassembly; zero build step, drag-drop deploys unchanged. Phase 2 (post-cutover): Vite proper — ES modules, per-view code splitting, minification, git-based deploys
+- 🔨 **Modular restructure** — Phase 1 DONE: the single 15k-line file is split into `index.html` (shell/CSS) + 13 ordered script modules in `js/`, proven byte-identical on reassembly. Phase 2a DONE: `tools/build.mjs` ships them as ONE hashed, minified `app.<hash>.js` (identifiers untouched), Netlify runs `npm run build` and publishes `dist/` with a 1-year immutable cache on the bundle and `no-cache` on `index.html`; drag-drop deploys unchanged, source stays in `js/`. Phase 2b (post-cutover): Vite proper — ES modules, per-view code splitting, git-based deploys
 - 🔨 **Supabase Pro** at cutover — checklist + restore drill documented in SUPABASE-SETUP.md (decided: staying on Supabase; plain-Postgres portability is the exit strategy). Remaining: Angelo upgrades + runs the drill
 - ✅ Server-side pagination & filtering for the register — shipped (page-by-page queries with search on account/specialist/order no.; finance computations unchanged)
 - ✅ Custom domain (hq.healthspan.ph) + PWA install — shipped (manifest, icons, standalone, touch polish, zoom lock; no offline cache by design)

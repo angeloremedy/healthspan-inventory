@@ -1,4 +1,10 @@
+import { connectLambda, getStore } from '@netlify/blobs';
+
 const SHEET_ID='1tgedHZhpaMkHZqKElL13jBm9f90HRzsW5EkoL8QaW24';
+// Snapshot: the full feed is built once, kept in Netlify Blobs (store 'sync', key
+// 'data') and served from there for up to 15 min. sync-warm.mjs rebuilds it on a
+// schedule, so a page load is a blob read (~100 ms) instead of a dozen Sheets calls.
+const SNAPSHOT_STORE='sync', SNAPSHOT_KEY='data', SNAPSHOT_TTL_MS=15*60*1000;
 // Row STARTS skip pre-2025 history; ranges are OPEN-ENDED (no end row) so the
 // feed can never again go blind when a tab outgrows a hardcoded ceiling —
 // which is exactly what happened when the OUT tab crossed row 15,100 in June 2026.
@@ -131,330 +137,352 @@ export const handler=async(event,context)=>{
     }catch(err){return{statusCode:500,headers:hdrs,body:JSON.stringify({error:err.message})};}
   }
   if(!KEY)return{statusCode:500,headers:hdrs,body:JSON.stringify({error:'GOOGLE_API_KEY not set'})};
-  const t0=Date.now();
-  try{
-    const acctP=fetchAcctBooked(KEY); // official accounting numbers, in parallel
-    const [fR,rR]=await Promise.all([
-      batchFetch(KEY,[
-        {t:'Product Database',r:'A1:K'},
-        {t:'Shelf Life',r:'A1:L'},
-        {t:'Price',r:'A1:E'},
-      ],true),
-      batchFetch(KEY,[
-        {t:'Inventory Overview',r:'A1:N'},
-        {t:'Sending Inventory (OUT)',r:'A'+OUT_START+':A'},
-        {t:'Sending Inventory (OUT)',r:'D'+OUT_START+':D'},
-        {t:'Sending Inventory (OUT)',r:'G'+OUT_START+':H'},
-        {t:'Sending Inventory (OUT)',r:'I'+OUT_START+':K'},
-        {t:'Receiving Inventory (IN)',r:'A'+IN_START+':G'},
-        {t:'Pull-out Orders (INTERNAL)',r:'A2:C'},
-      ],false),
-    ]);
-    const [dbR,shR,prR]=fR;
-    const [ovR,oSKU,oQTY,oDC,oIK,inR,poR]=rR;
+  const force=qp.force==='1'; // the Refresh button — always read Sheets live
 
-    // Optional "Targets" tab (sales targets). Fetched separately and tolerated if
-    // missing, so the sheet team can add it whenever ready.
-    // Expected columns: MONTH (YYYY-MM) | SCOPE (TOTAL/PRODUCT/SPECIALIST/LINE) | NAME | TARGET_VALUE_PHP | TARGET_UNITS
-    let targets=[];
-    // Normalize MONTH to YYYY-MM whatever way Sheets formatted it (2026-08, 8/2026, 8/1/2026, Aug 2026, August 2026)
-    const normMonth=s=>{
-      s=String(s||'').trim();
-      let m=s.match(/^(\d{4})-(\d{1,2})$/); if(m)return m[1]+'-'+String(m[2]).padStart(2,'0');
-      m=s.match(/^(\d{1,2})\/(\d{4})$/); if(m)return m[2]+'-'+String(m[1]).padStart(2,'0');
-      m=s.match(/^(\d{1,2})\/\d{1,2}\/(\d{4})$/); if(m)return m[2]+'-'+String(m[1]).padStart(2,'0');
-      m=s.match(/^([A-Za-z]{3,9})\.?\s+(\d{4})$/);
-      if(m){const i=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].indexOf(m[1].slice(0,3).toLowerCase());if(i>=0)return m[2]+'-'+String(i+1).padStart(2,'0');}
-      return null;
-    };
+  // Blobs may be unavailable (netlify dev without a linked site) — then every
+  // request is a live read, exactly as before the snapshot existed.
+  let store=null;
+  try{connectLambda(event);store=getStore(SNAPSHOT_STORE);}catch(e){store=null;} // v1 handler: Blobs needs the event context
+
+  if(store&&!force){
+    // A corrupt or missing blob must never break the feed — fall through to live.
     try{
-      const [tgR]=await batchFetch(KEY,[{t:'Targets',r:'A1:E'}],true);
-      for(const r of (tgR||[]).slice(1)){
-        const month=normMonth(r[0]),scope=clean(r[1]).toUpperCase(),name=clean(r[2]);
-        const value=pNum(r[3]),units=pInt(r[4]);
-        if(month&&scope)targets.push({month,scope,name,value:value||0,units:units||0});
+      const snap=await store.get(SNAPSHOT_KEY,{type:'json'});
+      const age=snap&&snap.synced?Date.now()-Date.parse(snap.synced):NaN;
+      if(snap&&Array.isArray(snap.products)&&isFinite(age)&&age<SNAPSHOT_TTL_MS){
+        return{statusCode:200,headers:hdrs,body:JSON.stringify({...snap,fromSnapshot:true})};
       }
-    }catch(e){/* Targets tab not created yet — fine */}
-    let acctBooked=null;try{acctBooked=await acctP;}catch(e){}
+    }catch(e){}
+  }
 
-    const prices={};
-    for(const r of dbR.slice(1)){const s=clean(r[0]);const p=pNum(r[5]);if(s&&p>0)prices[s]=p;}
-    for(const r of prR.slice(1)){const s=clean(r[0]);const p=pNum(r[4]);if(s&&p>0&&!prices[s])prices[s]=p;}
-
-    const master={};
-    for(const r of dbR.slice(1)){const s=clean(r[0]);if(!s||s==='SKU')continue;master[s]={batch:clean(r[6]),expiry:fmtExp(r[7]),bin:clean(r[9])};}
-
-    // Column mapping by HEADER NAME so inserted/reordered columns don't break the sync.
-    // Falls back to the historical positions if a header isn't found.
-    const ovHdr=(ovR[0]||[]).map(h=>clean(h).toUpperCase());
-    const ovCol=(names,fb)=>{for(const n of names){const i=ovHdr.findIndex(h=>h===n);if(i>=0)return i;}for(const n of names){const i=ovHdr.findIndex(h=>h.includes(n));if(i>=0)return i;}return fb;};
-    const iSku=ovCol(['SKU'],0), iName=ovCol(['PRODUCT NAME'],1), iSup=ovCol(['SUPPLIER'],-1),
-          iLine=ovCol(['PRODUCT LINE'],2), iCat=ovCol(['CATEGORY'],3),
-          iRcv=ovCol(['RECEIVED QTY','RECEIVED'],4), iSold=ovCol(['SOLD'],5),
-          iStock=ovCol(['INVENTORY','STOCK'],6), iExpS=ovCol(['EXPIRY DATE','EXPIRY'],9);
-
-    const products=[];
-    for(const r of ovR.slice(1)){
-      const s=clean(r[iSku]);if(!s||s==='SKU')continue;
-      if(typeof r[iStock]==='string'&&r[iStock].toLowerCase().includes('inventory'))continue;
-      const stock=pInt(r[iStock]);const line=clean(r[iLine]);const rc=clean(r[iCat]);
-      const cat=rc==='MKT Samples'?'MKT SAMPLES':rc==='SKINPEN  MKT'?'SKINPEN MKT':rc||line||'Other';
-      const m=master[s]||{};
-      products.push({sku:s,name:clean(r[iName]),line,category:cat,supplier:iSup>=0?clean(r[iSup]):'',received:pInt(r[iRcv]),sold:pInt(r[iSold]),stock,price:prices[s]??null,batch:m.batch||'',expiry:m.expiry||serialExp(r[iExpS]),bin:m.bin||''});
-    }
-
-    const batches=[];
-    for(const r of shR.slice(2)){const n=clean(r[2]);const e=fmtExp(clean(r[5]));if(!n||!e)continue;batches.push({skuCode:clean(r[1]),name:n,line:clean(r[3]),batch:clean(r[4]),expiry:e,monthsLeft:pNum(r[6]),qty:pInt(r[7]),soh:pInt(r[9]),tag:clean(r[10])});}
-    batches.sort((a,b)=>{const pa=a.expiry.match(/^(\d{1,2})\/(\d{4})$/),pb=b.expiry.match(/^(\d{1,2})\/(\d{4})$/);return(pa?new Date(+pa[2],+pa[1]-1,1):new Date(9999,0,1))-(pb?new Date(+pb[2],+pb[1]-1,1):new Date(9999,0,1));});
-
-    const now=new Date();
-    const months=[];
-    let md=new Date(now.getFullYear(),now.getMonth(),1);
-    for(let i=0;i<13;i++){months.unshift(md.getFullYear()+'-'+String(md.getMonth()+1).padStart(2,'0'));md=new Date(md.getFullYear(),md.getMonth()-1,1);}
-    const mIn=Object.fromEntries(months.map(m=>[m,0]));
-    const mOut=Object.fromEntries(months.map(m=>[m,0]));
-    const skuMO={},lss={},bT=[];
-
-    const BMAP={'APRIL GERALDEZ':'BGC','APRIL':'BGC','REMEDY BGC':'BGC','ANGELA DACONES':'BGC','ANGELA':'BGC','REMEDY VERTIS':'Vertis North','VERTIS':'Vertis North','MICH':'Vertis North','REMEDY GH':'GH Mall','GH MALL':'GH Mall'};
-
-    // Product metadata lookup for transfer enrichment
-    const prodMeta={};
-    for(const p of products) prodMeta[p.sku]={name:p.name,line:p.line};
-    // OUT columns I:K -> [0]=batch, [1]=expiry, [2]=order ref (adjust indices here if sheet layout differs)
-    function outExpiry(v){
-      if(v==null||v==='')return'';
-      if(typeof v==='number')return serialExp(v);
-      return fmtExp(clean(v));
-    }
-
-    const custAgg={};
-    const nowSerial=now.getTime()/86400000+25569;
-    let lastOutDs=0; // newest movement date actually read — feed-health indicator
-    const ol=Math.min(oSKU.length,oQTY.length,oDC.length);
-    for(let i=0;i<ol;i++){
-      const s=clean(oSKU[i]?.[0]);const q=pInt(oQTY[i]?.[0]);const ds=oDC[i]?.[0];const cu=String(oDC[i]?.[1]||'');
-      if(!s||q<=0)continue;
-      const mk=serialMK(ds);
-      if(mk){if(mOut[mk]!==undefined)mOut[mk]+=q;if(!skuMO[s])skuMO[s]={};skuMO[s][mk]=(skuMO[s][mk]||0)+q;if(!lss[s]||ds>lss[s])lss[s]=ds;}
-      const cup=cu.trim().toUpperCase();let br=null;
-      for(const[kw,b] of Object.entries(BMAP)){if(cup.includes(kw)){br=b;break;}}
-      if(br&&ds){
-        const yr=Math.floor((ds-25569)/365.25)+1970;
-        if(yr>=2025){
-          const ik=oIK[i]||[];
-          const meta=prodMeta[s]||{};
-          bT.push({branch:br,sku:s,name:meta.name||s,qty:q,dateSerial:ds,batch:clean(ik[0]),expiry:outExpiry(ik[1]),order:clean(ik[2]),line:meta.line||''});
-        }
-      }
-      // Customer/account aggregation from the destination column (Remedy branches grouped under "Remedy")
-      const cuName=cu.trim().replace(/\s+/g,' ');
-      if(cuName){
-        const key=br?'REMEDY':cuName.toUpperCase();
-        let c=custAgg[key];
-        if(!c)c=custAgg[key]={name:br?'Remedy':cuName,qty:0,value:0,lines:0,skus:new Set(),orders:new Set(),lastDs:0,recentVal:0,priorVal:0,isRemedy:!!br,skuQty:{},items:[]};
-        const val=q*(prices[s]||0);
-        c.qty+=q; c.value+=val; c.lines+=1; c.skus.add(s);
-        c.skuQty[s]=(c.skuQty[s]||0)+q;
-        // Date column can contain text/garbage on footer rows — only trust real serial numbers.
-        const dsNum=(typeof ds==='number'&&isFinite(ds)&&ds>1)?ds:null;
-        if(dsNum&&dsNum>lastOutDs&&dsNum<=nowSerial+31)lastOutDs=dsNum;
-        if(dsNum)c.items.push({ds:dsNum,s,q});
-        const ordRef=clean((oIK[i]||[])[2]); if(ordRef)c.orders.add(ordRef);
-        if(dsNum&&dsNum>c.lastDs)c.lastDs=dsNum;
-        if(dsNum){ if(dsNum>=nowSerial-90)c.recentVal+=val; else if(dsNum>=nowSerial-180)c.priorVal+=val; }
-      }
-    }
-    bT.sort((a,b)=>(b.dateSerial||0)-(a.dateSerial||0));
-
-    const customers=Object.values(custAgg).map(c=>{
-      const orders=c.orders.size||c.lines;
-      const lastOrder=c.lastDs?new Date((c.lastDs-25569)*86400000).toISOString().slice(0,10):null;
-      const daysSince=c.lastDs?Math.round(nowSerial-c.lastDs):null;
-      let trend='flat';
-      if(c.recentVal>0||c.priorVal>0){ if(c.priorVal<=0)trend='new'; else if(c.recentVal>=c.priorVal*1.15)trend='up'; else if(c.recentVal<=c.priorVal*0.85)trend='down'; }
-      const topProducts=Object.entries(c.skuQty).sort((a,b)=>b[1]-a[1]).slice(0,8)
-        .map(([sku,q])=>({sku,name:(prodMeta[sku]&&prodMeta[sku].name)||sku,qty:q,value:Math.round(q*(prices[sku]||0))}));
-      const recent=c.items.sort((a,b)=>b.ds-a.ds).slice(0,8)
-        .map(x=>({date:new Date((x.ds-25569)*86400000).toISOString().slice(0,10),sku:x.s,name:(prodMeta[x.s]&&prodMeta[x.s].name)||x.s,qty:x.q}));
-      return {name:c.name,qty:c.qty,value:Math.round(c.value),orders,skuCount:c.skus.size,lastOrder,daysSince,recentVal:Math.round(c.recentVal),priorVal:Math.round(c.priorVal),trend,isRemedy:c.isRemedy,topProducts,recent};
-    }).sort((a,b)=>b.value-a.value).slice(0,300);
-
-    for(const r of inR){const mk=serialMK(r[6]);const q=pInt(r[3]);if(mk&&mIn[mk]!==undefined&&q>0)mIn[mk]+=q;}
-
-    const pt={};
-    for(const r of poR){const s=clean(r[0]);const q=pInt(r[2]);if(s&&q>0)pt[s]=(pt[s]||0)+q;}
-
-    const l6=months.slice(-6);
-    const comp=months.slice(0,12); // 12 complete months, excludes current partial month
-    const curKey=months[12];
-
-    function seasonalIdx(mo){
-      // month-of-year index from all complete-month history; null if too little signal
-      const entries=Object.entries(mo).filter(([k])=>k<curKey);
-      if(entries.length<10)return null;
-      const mean=entries.reduce((a,[,v])=>a+v,0)/entries.length;
-      if(mean<=0.5)return null;
-      const sum={},cnt={};
-      for(const[k,v] of entries){const m=+k.slice(5);sum[m]=(sum[m]||0)+v;cnt[m]=(cnt[m]||0)+1;}
-      const idx=[];
-      for(let m=1;m<=12;m++)idx[m-1]=cnt[m]?Math.round(Math.min(3,Math.max(0.3,(sum[m]/cnt[m])/mean))*100)/100:1;
-      return idx;
-    }
-    function simStockout(stock,fcM){
-      if(stock==null)return null;
-      if(stock<=0)return 0;
-      let rem=stock,days=0,d=new Date(now);
-      for(let k=0;k<12;k++){
-        const y=d.getFullYear(),m=d.getMonth();
-        const dim=new Date(y,m+1,0).getDate();
-        const daily=(k<fcM.length?fcM[k]:fcM[fcM.length-1])/dim;
-        const dRem=k===0?dim-d.getDate()+1:dim;
-        if(daily>0&&rem<=daily*dRem){return days+Math.ceil(rem/daily);}
-        rem-=daily*dRem;days+=dRem;d=new Date(y,m+1,1);
-      }
-      return null; // beyond 12 months
-    }
-
-    for(const p of products){
-      const mo=skuMO[p.sku]||{};
-      p.monthly=months.map(m=>mo[m]||0); // 13-month actual outbound history (oldest→newest, last is current partial month)
-      const av=l6.reduce((a,m)=>a+(mo[m]||0),0)/6;
-      p.velocity=Math.round(av*10)/10;
-
-      // Trend: last 3 complete months vs prior 3
-      const g3=arr=>arr.reduce((a,m)=>a+(mo[m]||0),0)/3;
-      const last3=g3(comp.slice(-3)),prior3=g3(comp.slice(-6,-3));
-      let tr=prior3>0?last3/prior3:(last3>0?1.3:1);
-      tr=Math.min(2.5,Math.max(0.4,tr));
-      const growth=Math.min(1.25,Math.max(0.85,Math.pow(tr,1/3)));
-      p.trend=Math.round(tr*100)/100;
-      p.trendFlag=(last3>=1||prior3>=1)?(tr>=1.15?'up':tr<=0.85?'down':'flat'):'flat';
-
-      // Seasonality: month-of-year weighting
-      const idx=seasonalIdx(mo);
-      p.seasonal=!!idx;
-      const sIdx=idx||Array(12).fill(1);
-      // Base = deseasonalized average of last 6 complete months
-      const base6=comp.slice(-6);
-      const base=base6.reduce((a,m)=>a+(mo[m]||0)/sIdx[(+m.slice(5))-1],0)/6;
-
-      // 6-month forecast, trend compounding capped at 4 months out
-      const curM=now.getMonth(); // 0-based
-      p.fcM=[];
-      for(let k=0;k<6;k++){
-        const cal=(curM+k)%12;
-        p.fcM.push(Math.round(base*sIdx[cal]*Math.pow(growth,Math.min(k,4))*10)/10);
-      }
-      p.velAdj=p.fcM[0];
-
-      // Demand variability (coefficient of variation) over complete-month history.
-      // Trim leading zeros so a SKU launched mid-history isn't penalised for months it didn't exist.
-      const compVals=comp.map(m=>mo[m]||0);
-      const fi=compVals.findIndex(v=>v>0);
-      const series=fi<0?[]:compVals.slice(fi);
-      const dn=series.length;
-      let dmean=null,dstd=null,dcv=null,dzero=null,dclass='insufficient';
-      if(dn>=1){
-        dmean=series.reduce((a,v)=>a+v,0)/dn;
-        dstd=dn>=2?Math.sqrt(series.reduce((a,v)=>a+(v-dmean)*(v-dmean),0)/(dn-1)):0;
-        dzero=series.filter(v=>v===0).length/dn;
-        if(dmean>0)dcv=dstd/dmean;
-        if(dn<3||dmean<=0)dclass='insufficient';
-        else if(dzero>=0.5)dclass='lumpy';       // intermittent / spiky demand
-        else if(dcv<0.5)dclass='steady';
-        else if(dcv<=1.0)dclass='variable';
-        else dclass='lumpy';
-      }
-      p.demandN=dn;
-      p.demandMean=dmean!=null?Math.round(dmean*10)/10:null;   // units/mo
-      p.demandStd=dstd!=null?Math.round(dstd*100)/100:null;    // units/mo std dev
-      p.cv=dcv!=null?Math.round(dcv*100)/100:null;
-      p.zeroShare=dzero!=null?Math.round(dzero*100)/100:null;
-      p.demandClass=dclass;
-
-      // Stockout projection
-      p.daysToStockout=simStockout(p.stock,p.fcM);
-      p.stockoutDate=p.daysToStockout!=null?new Date(now.getTime()+p.daysToStockout*864e5).toISOString().slice(0,10):null;
-
-      p.monthsOfStock=av>0&&p.stock>0?Math.round((p.stock/av)*10)/10:null;
-      const ls=lss[p.sku];
-      if(ls){const ld=new Date((ls-25569)*86400000);p.daysSinceLastSale=Math.round((now-ld)/86400000);p.lastSaleDate=ld.toISOString().slice(0,10);}
-      else{p.daysSinceLastSale=p.sold>0?999:null;p.lastSaleDate=p.sold>0?'Before 2025':null;}
-      p.agedBucket=p.daysSinceLastSale===null?null:p.daysSinceLastSale>180?'dead':p.daysSinceLastSale>90?'slow':p.daysSinceLastSale>30?'aging':'active';
-      p.shrinkage=p.received>0?p.received-p.sold-(pt[p.sku]||0)-p.stock:0;
-      p.shrinkageValue=Math.abs(p.shrinkage)*(p.price||0);
-    }
-
-    // ABC classification by 6-month consumption value
-    const priced=products.map(p=>p.price).filter(v=>v>0).sort((a,b)=>a-b);
-    const medPrice=priced.length?priced[Math.floor(priced.length/2)]:0;
-    const scored=products.map(p=>{
-      const mo=skuMO[p.sku]||{};
-      const units=comp.slice(-6).reduce((a,m)=>a+(mo[m]||0),0);
-      return {p,score:units*(p.price||medPrice)};
-    }).sort((a,b)=>b.score-a.score);
-    const totScore=scored.reduce((a,x)=>a+x.score,0);
-    let cum=0;
-    for(const x of scored){
-      cum+=x.score;
-      x.p.abcShare=totScore>0?Math.round(x.score/totScore*10000)/100:0;
-      x.p.abc=x.score<=0?'C':(cum/totScore<=0.80?'A':cum/totScore<=0.95?'B':'C');
-    }
-
-    // Expiry-vs-demand collision: FEFO depletion vs adjusted velocity
-    const velBySku={};
-    for(const p of products)velBySku[p.sku]=p.velAdj||0;
-    const colGroups={};
-    for(const b of batches){
-      if(b.soh<=0)continue;
-      const pm=b.expiry.match(/^(\d{1,2})\/(\d{4})$/);
-      if(!pm)continue;
-      (colGroups[b.skuCode]=colGroups[b.skuCode]||[]).push({b,pm});
-    }
-    const collisions=[];
-    for(const[sku,list] of Object.entries(colGroups)){
-      const daily=(velBySku[sku]||0)/30.44;
-      let ahead=0;
-      for(const{b,pm} of list){ // batches[] is already FEFO-sorted
-        const expEnd=new Date(+pm[2],+pm[1],0); // last day of expiry month
-        const dte=Math.max(0,Math.round((expEnd-now)/864e5));
-        const sellable=Math.max(0,daily*dte-ahead);
-        const projSold=Math.min(b.soh,sellable);
-        const projExpired=Math.round(b.soh-projSold);
-        const price=prices[sku]||0;
-        collisions.push({sku,name:b.name,batch:b.batch,expiry:b.expiry,daysToExpiry:dte,soh:b.soh,stockAhead:Math.round(ahead),daily:Math.round(daily*100)/100,price,projExpired,writeOff:Math.round(projExpired*price)});
-        ahead+=b.soh;
-      }
-    }
-    collisions.sort((a,b)=>b.writeOff-a.writeOff||b.projExpired-a.projExpired);
-
-    const vbl={};
-    for(const p of products){if(p.stock>0&&p.price)vbl[p.line]=(vbl[p.line]||0)+p.stock*p.price;}
-
-    const ce={expired:0,lt30:0,lt90:0,lt180:0};const ei=[];
-    for(const b of batches){
-      if(!b.expiry||b.soh<=0)continue;
-      const pm=b.expiry.match(/^(\d{1,2})\/(\d{4})$/);if(!pm)continue;
-      const days=Math.round((new Date(+pm[2],+pm[1]-1,1)-now)/86400000);
-      const price=prices[b.skuCode]||0;const value=b.soh*price;
-      const bkt=days<0?'expired':days<=30?'lt30':days<=92?'lt90':days<=183?'lt180':null;
-      if(bkt){ce[bkt]+=value;ei.push({name:b.name,skuCode:b.skuCode,batch:b.batch,expiry:b.expiry,days,soh:b.soh,price,value,bucket:bkt});}
-    }
-    ei.sort((a,b)=>b.value-a.value);
-
-    const bExp={};
-    for(const t of bT){if(!bExp[t.branch])bExp[t.branch]={};const k=t.sku+'|'+t.batch;if(!bExp[t.branch][k])bExp[t.branch][k]={sku:t.sku,name:t.name,batch:t.batch,expiry:t.expiry,qty:0,line:t.line};bExp[t.branch][k].qty+=t.qty;}
-    const bes={};
-    for(const[br,items] of Object.entries(bExp)){bes[br]=Object.values(items).filter(i=>i.expiry).sort((a,b)=>{const pa=a.expiry.match(/^(\d{1,2})\/(\d{4})$/),pb=b.expiry.match(/^(\d{1,2})\/(\d{4})$/);return(pa?new Date(+pa[2],+pa[1]-1,1):new Date(9999,0,1))-(pb?new Date(+pb[2],+pb[1]-1,1):new Date(9999,0,1));});}
-
-    const elapsed=((Date.now()-t0)/1000).toFixed(1);
-    return{
-      statusCode:200,
-      headers:hdrs,
-      body:JSON.stringify({products,batches,monthlyIn:mIn,monthlyOut:mOut,months,valueByLine:vbl,cashExpiring:ce,expiringItems:ei.slice(0,100),branchTransfers:bT.slice(0,300),branchExpirySummary:bes,collisions:collisions.slice(0,400),customers,targets,acctBooked,lastMovement:lastOutDs>1?new Date((lastOutDs-25569)*86400000).toISOString().slice(0,10):null,synced:new Date().toISOString(),elapsed}),
-    };
-
+  try{
+    const data=await buildSnapshot(KEY);
+    if(store){try{await store.setJSON(SNAPSHOT_KEY,data);}catch(e){}}
+    return{statusCode:200,headers:hdrs,body:JSON.stringify(data)};
   }catch(err){
     return{statusCode:500,headers:hdrs,body:JSON.stringify({error:err.message})};
   }
 };
+
+// ── Read every tab from Google Sheets and compute the full feed. Returns the exact
+// object the handler has always sent (products, batches, months, customers, …,
+// synced, elapsed). Throws on a Sheets failure; callers decide how to report it.
+export async function buildSnapshot(KEY){
+  const t0=Date.now();
+  const acctP=fetchAcctBooked(KEY); // official accounting numbers, in parallel
+  const [fR,rR]=await Promise.all([
+    batchFetch(KEY,[
+      {t:'Product Database',r:'A1:K'},
+      {t:'Shelf Life',r:'A1:L'},
+      {t:'Price',r:'A1:E'},
+    ],true),
+    batchFetch(KEY,[
+      {t:'Inventory Overview',r:'A1:N'},
+      {t:'Sending Inventory (OUT)',r:'A'+OUT_START+':A'},
+      {t:'Sending Inventory (OUT)',r:'D'+OUT_START+':D'},
+      {t:'Sending Inventory (OUT)',r:'G'+OUT_START+':H'},
+      {t:'Sending Inventory (OUT)',r:'I'+OUT_START+':K'},
+      {t:'Receiving Inventory (IN)',r:'A'+IN_START+':G'},
+      {t:'Pull-out Orders (INTERNAL)',r:'A2:C'},
+    ],false),
+  ]);
+  const [dbR,shR,prR]=fR;
+  const [ovR,oSKU,oQTY,oDC,oIK,inR,poR]=rR;
+
+  // Optional "Targets" tab (sales targets). Fetched separately and tolerated if
+  // missing, so the sheet team can add it whenever ready.
+  // Expected columns: MONTH (YYYY-MM) | SCOPE (TOTAL/PRODUCT/SPECIALIST/LINE) | NAME | TARGET_VALUE_PHP | TARGET_UNITS
+  let targets=[];
+  // Normalize MONTH to YYYY-MM whatever way Sheets formatted it (2026-08, 8/2026, 8/1/2026, Aug 2026, August 2026)
+  const normMonth=s=>{
+    s=String(s||'').trim();
+    let m=s.match(/^(\d{4})-(\d{1,2})$/); if(m)return m[1]+'-'+String(m[2]).padStart(2,'0');
+    m=s.match(/^(\d{1,2})\/(\d{4})$/); if(m)return m[2]+'-'+String(m[1]).padStart(2,'0');
+    m=s.match(/^(\d{1,2})\/\d{1,2}\/(\d{4})$/); if(m)return m[2]+'-'+String(m[1]).padStart(2,'0');
+    m=s.match(/^([A-Za-z]{3,9})\.?\s+(\d{4})$/);
+    if(m){const i=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].indexOf(m[1].slice(0,3).toLowerCase());if(i>=0)return m[2]+'-'+String(i+1).padStart(2,'0');}
+    return null;
+  };
+  try{
+    const [tgR]=await batchFetch(KEY,[{t:'Targets',r:'A1:E'}],true);
+    for(const r of (tgR||[]).slice(1)){
+      const month=normMonth(r[0]),scope=clean(r[1]).toUpperCase(),name=clean(r[2]);
+      const value=pNum(r[3]),units=pInt(r[4]);
+      if(month&&scope)targets.push({month,scope,name,value:value||0,units:units||0});
+    }
+  }catch(e){/* Targets tab not created yet — fine */}
+  let acctBooked=null;try{acctBooked=await acctP;}catch(e){}
+
+  const prices={};
+  for(const r of dbR.slice(1)){const s=clean(r[0]);const p=pNum(r[5]);if(s&&p>0)prices[s]=p;}
+  for(const r of prR.slice(1)){const s=clean(r[0]);const p=pNum(r[4]);if(s&&p>0&&!prices[s])prices[s]=p;}
+
+  const master={};
+  for(const r of dbR.slice(1)){const s=clean(r[0]);if(!s||s==='SKU')continue;master[s]={batch:clean(r[6]),expiry:fmtExp(r[7]),bin:clean(r[9])};}
+
+  // Column mapping by HEADER NAME so inserted/reordered columns don't break the sync.
+  // Falls back to the historical positions if a header isn't found.
+  const ovHdr=(ovR[0]||[]).map(h=>clean(h).toUpperCase());
+  const ovCol=(names,fb)=>{for(const n of names){const i=ovHdr.findIndex(h=>h===n);if(i>=0)return i;}for(const n of names){const i=ovHdr.findIndex(h=>h.includes(n));if(i>=0)return i;}return fb;};
+  const iSku=ovCol(['SKU'],0), iName=ovCol(['PRODUCT NAME'],1), iSup=ovCol(['SUPPLIER'],-1),
+        iLine=ovCol(['PRODUCT LINE'],2), iCat=ovCol(['CATEGORY'],3),
+        iRcv=ovCol(['RECEIVED QTY','RECEIVED'],4), iSold=ovCol(['SOLD'],5),
+        iStock=ovCol(['INVENTORY','STOCK'],6), iExpS=ovCol(['EXPIRY DATE','EXPIRY'],9);
+
+  const products=[];
+  for(const r of ovR.slice(1)){
+    const s=clean(r[iSku]);if(!s||s==='SKU')continue;
+    if(typeof r[iStock]==='string'&&r[iStock].toLowerCase().includes('inventory'))continue;
+    const stock=pInt(r[iStock]);const line=clean(r[iLine]);const rc=clean(r[iCat]);
+    const cat=rc==='MKT Samples'?'MKT SAMPLES':rc==='SKINPEN  MKT'?'SKINPEN MKT':rc||line||'Other';
+    const m=master[s]||{};
+    products.push({sku:s,name:clean(r[iName]),line,category:cat,supplier:iSup>=0?clean(r[iSup]):'',received:pInt(r[iRcv]),sold:pInt(r[iSold]),stock,price:prices[s]??null,batch:m.batch||'',expiry:m.expiry||serialExp(r[iExpS]),bin:m.bin||''});
+  }
+
+  const batches=[];
+  for(const r of shR.slice(2)){const n=clean(r[2]);const e=fmtExp(clean(r[5]));if(!n||!e)continue;batches.push({skuCode:clean(r[1]),name:n,line:clean(r[3]),batch:clean(r[4]),expiry:e,monthsLeft:pNum(r[6]),qty:pInt(r[7]),soh:pInt(r[9]),tag:clean(r[10])});}
+  batches.sort((a,b)=>{const pa=a.expiry.match(/^(\d{1,2})\/(\d{4})$/),pb=b.expiry.match(/^(\d{1,2})\/(\d{4})$/);return(pa?new Date(+pa[2],+pa[1]-1,1):new Date(9999,0,1))-(pb?new Date(+pb[2],+pb[1]-1,1):new Date(9999,0,1));});
+
+  const now=new Date();
+  const months=[];
+  let md=new Date(now.getFullYear(),now.getMonth(),1);
+  for(let i=0;i<13;i++){months.unshift(md.getFullYear()+'-'+String(md.getMonth()+1).padStart(2,'0'));md=new Date(md.getFullYear(),md.getMonth()-1,1);}
+  const mIn=Object.fromEntries(months.map(m=>[m,0]));
+  const mOut=Object.fromEntries(months.map(m=>[m,0]));
+  const skuMO={},lss={},bT=[];
+
+  const BMAP={'APRIL GERALDEZ':'BGC','APRIL':'BGC','REMEDY BGC':'BGC','ANGELA DACONES':'BGC','ANGELA':'BGC','REMEDY VERTIS':'Vertis North','VERTIS':'Vertis North','MICH':'Vertis North','REMEDY GH':'GH Mall','GH MALL':'GH Mall'};
+
+  // Product metadata lookup for transfer enrichment
+  const prodMeta={};
+  for(const p of products) prodMeta[p.sku]={name:p.name,line:p.line};
+  // OUT columns I:K -> [0]=batch, [1]=expiry, [2]=order ref (adjust indices here if sheet layout differs)
+  function outExpiry(v){
+    if(v==null||v==='')return'';
+    if(typeof v==='number')return serialExp(v);
+    return fmtExp(clean(v));
+  }
+
+  const custAgg={};
+  const nowSerial=now.getTime()/86400000+25569;
+  let lastOutDs=0; // newest movement date actually read — feed-health indicator
+  const ol=Math.min(oSKU.length,oQTY.length,oDC.length);
+  for(let i=0;i<ol;i++){
+    const s=clean(oSKU[i]?.[0]);const q=pInt(oQTY[i]?.[0]);const ds=oDC[i]?.[0];const cu=String(oDC[i]?.[1]||'');
+    if(!s||q<=0)continue;
+    const mk=serialMK(ds);
+    if(mk){if(mOut[mk]!==undefined)mOut[mk]+=q;if(!skuMO[s])skuMO[s]={};skuMO[s][mk]=(skuMO[s][mk]||0)+q;if(!lss[s]||ds>lss[s])lss[s]=ds;}
+    const cup=cu.trim().toUpperCase();let br=null;
+    for(const[kw,b] of Object.entries(BMAP)){if(cup.includes(kw)){br=b;break;}}
+    if(br&&ds){
+      const yr=Math.floor((ds-25569)/365.25)+1970;
+      if(yr>=2025){
+        const ik=oIK[i]||[];
+        const meta=prodMeta[s]||{};
+        bT.push({branch:br,sku:s,name:meta.name||s,qty:q,dateSerial:ds,batch:clean(ik[0]),expiry:outExpiry(ik[1]),order:clean(ik[2]),line:meta.line||''});
+      }
+    }
+    // Customer/account aggregation from the destination column (Remedy branches grouped under "Remedy")
+    const cuName=cu.trim().replace(/\s+/g,' ');
+    if(cuName){
+      const key=br?'REMEDY':cuName.toUpperCase();
+      let c=custAgg[key];
+      if(!c)c=custAgg[key]={name:br?'Remedy':cuName,qty:0,value:0,lines:0,skus:new Set(),orders:new Set(),lastDs:0,recentVal:0,priorVal:0,isRemedy:!!br,skuQty:{},items:[]};
+      const val=q*(prices[s]||0);
+      c.qty+=q; c.value+=val; c.lines+=1; c.skus.add(s);
+      c.skuQty[s]=(c.skuQty[s]||0)+q;
+      // Date column can contain text/garbage on footer rows — only trust real serial numbers.
+      const dsNum=(typeof ds==='number'&&isFinite(ds)&&ds>1)?ds:null;
+      if(dsNum&&dsNum>lastOutDs&&dsNum<=nowSerial+31)lastOutDs=dsNum;
+      if(dsNum)c.items.push({ds:dsNum,s,q});
+      const ordRef=clean((oIK[i]||[])[2]); if(ordRef)c.orders.add(ordRef);
+      if(dsNum&&dsNum>c.lastDs)c.lastDs=dsNum;
+      if(dsNum){ if(dsNum>=nowSerial-90)c.recentVal+=val; else if(dsNum>=nowSerial-180)c.priorVal+=val; }
+    }
+  }
+  bT.sort((a,b)=>(b.dateSerial||0)-(a.dateSerial||0));
+
+  const customers=Object.values(custAgg).map(c=>{
+    const orders=c.orders.size||c.lines;
+    const lastOrder=c.lastDs?new Date((c.lastDs-25569)*86400000).toISOString().slice(0,10):null;
+    const daysSince=c.lastDs?Math.round(nowSerial-c.lastDs):null;
+    let trend='flat';
+    if(c.recentVal>0||c.priorVal>0){ if(c.priorVal<=0)trend='new'; else if(c.recentVal>=c.priorVal*1.15)trend='up'; else if(c.recentVal<=c.priorVal*0.85)trend='down'; }
+    const topProducts=Object.entries(c.skuQty).sort((a,b)=>b[1]-a[1]).slice(0,8)
+      .map(([sku,q])=>({sku,name:(prodMeta[sku]&&prodMeta[sku].name)||sku,qty:q,value:Math.round(q*(prices[sku]||0))}));
+    const recent=c.items.sort((a,b)=>b.ds-a.ds).slice(0,8)
+      .map(x=>({date:new Date((x.ds-25569)*86400000).toISOString().slice(0,10),sku:x.s,name:(prodMeta[x.s]&&prodMeta[x.s].name)||x.s,qty:x.q}));
+    return {name:c.name,qty:c.qty,value:Math.round(c.value),orders,skuCount:c.skus.size,lastOrder,daysSince,recentVal:Math.round(c.recentVal),priorVal:Math.round(c.priorVal),trend,isRemedy:c.isRemedy,topProducts,recent};
+  }).sort((a,b)=>b.value-a.value).slice(0,300);
+
+  for(const r of inR){const mk=serialMK(r[6]);const q=pInt(r[3]);if(mk&&mIn[mk]!==undefined&&q>0)mIn[mk]+=q;}
+
+  const pt={};
+  for(const r of poR){const s=clean(r[0]);const q=pInt(r[2]);if(s&&q>0)pt[s]=(pt[s]||0)+q;}
+
+  const l6=months.slice(-6);
+  const comp=months.slice(0,12); // 12 complete months, excludes current partial month
+  const curKey=months[12];
+
+  function seasonalIdx(mo){
+    // month-of-year index from all complete-month history; null if too little signal
+    const entries=Object.entries(mo).filter(([k])=>k<curKey);
+    if(entries.length<10)return null;
+    const mean=entries.reduce((a,[,v])=>a+v,0)/entries.length;
+    if(mean<=0.5)return null;
+    const sum={},cnt={};
+    for(const[k,v] of entries){const m=+k.slice(5);sum[m]=(sum[m]||0)+v;cnt[m]=(cnt[m]||0)+1;}
+    const idx=[];
+    for(let m=1;m<=12;m++)idx[m-1]=cnt[m]?Math.round(Math.min(3,Math.max(0.3,(sum[m]/cnt[m])/mean))*100)/100:1;
+    return idx;
+  }
+  function simStockout(stock,fcM){
+    if(stock==null)return null;
+    if(stock<=0)return 0;
+    let rem=stock,days=0,d=new Date(now);
+    for(let k=0;k<12;k++){
+      const y=d.getFullYear(),m=d.getMonth();
+      const dim=new Date(y,m+1,0).getDate();
+      const daily=(k<fcM.length?fcM[k]:fcM[fcM.length-1])/dim;
+      const dRem=k===0?dim-d.getDate()+1:dim;
+      if(daily>0&&rem<=daily*dRem){return days+Math.ceil(rem/daily);}
+      rem-=daily*dRem;days+=dRem;d=new Date(y,m+1,1);
+    }
+    return null; // beyond 12 months
+  }
+
+  for(const p of products){
+    const mo=skuMO[p.sku]||{};
+    p.monthly=months.map(m=>mo[m]||0); // 13-month actual outbound history (oldest→newest, last is current partial month)
+    const av=l6.reduce((a,m)=>a+(mo[m]||0),0)/6;
+    p.velocity=Math.round(av*10)/10;
+
+    // Trend: last 3 complete months vs prior 3
+    const g3=arr=>arr.reduce((a,m)=>a+(mo[m]||0),0)/3;
+    const last3=g3(comp.slice(-3)),prior3=g3(comp.slice(-6,-3));
+    let tr=prior3>0?last3/prior3:(last3>0?1.3:1);
+    tr=Math.min(2.5,Math.max(0.4,tr));
+    const growth=Math.min(1.25,Math.max(0.85,Math.pow(tr,1/3)));
+    p.trend=Math.round(tr*100)/100;
+    p.trendFlag=(last3>=1||prior3>=1)?(tr>=1.15?'up':tr<=0.85?'down':'flat'):'flat';
+
+    // Seasonality: month-of-year weighting
+    const idx=seasonalIdx(mo);
+    p.seasonal=!!idx;
+    const sIdx=idx||Array(12).fill(1);
+    // Base = deseasonalized average of last 6 complete months
+    const base6=comp.slice(-6);
+    const base=base6.reduce((a,m)=>a+(mo[m]||0)/sIdx[(+m.slice(5))-1],0)/6;
+
+    // 6-month forecast, trend compounding capped at 4 months out
+    const curM=now.getMonth(); // 0-based
+    p.fcM=[];
+    for(let k=0;k<6;k++){
+      const cal=(curM+k)%12;
+      p.fcM.push(Math.round(base*sIdx[cal]*Math.pow(growth,Math.min(k,4))*10)/10);
+    }
+    p.velAdj=p.fcM[0];
+
+    // Demand variability (coefficient of variation) over complete-month history.
+    // Trim leading zeros so a SKU launched mid-history isn't penalised for months it didn't exist.
+    const compVals=comp.map(m=>mo[m]||0);
+    const fi=compVals.findIndex(v=>v>0);
+    const series=fi<0?[]:compVals.slice(fi);
+    const dn=series.length;
+    let dmean=null,dstd=null,dcv=null,dzero=null,dclass='insufficient';
+    if(dn>=1){
+      dmean=series.reduce((a,v)=>a+v,0)/dn;
+      dstd=dn>=2?Math.sqrt(series.reduce((a,v)=>a+(v-dmean)*(v-dmean),0)/(dn-1)):0;
+      dzero=series.filter(v=>v===0).length/dn;
+      if(dmean>0)dcv=dstd/dmean;
+      if(dn<3||dmean<=0)dclass='insufficient';
+      else if(dzero>=0.5)dclass='lumpy';       // intermittent / spiky demand
+      else if(dcv<0.5)dclass='steady';
+      else if(dcv<=1.0)dclass='variable';
+      else dclass='lumpy';
+    }
+    p.demandN=dn;
+    p.demandMean=dmean!=null?Math.round(dmean*10)/10:null;   // units/mo
+    p.demandStd=dstd!=null?Math.round(dstd*100)/100:null;    // units/mo std dev
+    p.cv=dcv!=null?Math.round(dcv*100)/100:null;
+    p.zeroShare=dzero!=null?Math.round(dzero*100)/100:null;
+    p.demandClass=dclass;
+
+    // Stockout projection
+    p.daysToStockout=simStockout(p.stock,p.fcM);
+    p.stockoutDate=p.daysToStockout!=null?new Date(now.getTime()+p.daysToStockout*864e5).toISOString().slice(0,10):null;
+
+    p.monthsOfStock=av>0&&p.stock>0?Math.round((p.stock/av)*10)/10:null;
+    const ls=lss[p.sku];
+    if(ls){const ld=new Date((ls-25569)*86400000);p.daysSinceLastSale=Math.round((now-ld)/86400000);p.lastSaleDate=ld.toISOString().slice(0,10);}
+    else{p.daysSinceLastSale=p.sold>0?999:null;p.lastSaleDate=p.sold>0?'Before 2025':null;}
+    p.agedBucket=p.daysSinceLastSale===null?null:p.daysSinceLastSale>180?'dead':p.daysSinceLastSale>90?'slow':p.daysSinceLastSale>30?'aging':'active';
+    p.shrinkage=p.received>0?p.received-p.sold-(pt[p.sku]||0)-p.stock:0;
+    p.shrinkageValue=Math.abs(p.shrinkage)*(p.price||0);
+  }
+
+  // ABC classification by 6-month consumption value
+  const priced=products.map(p=>p.price).filter(v=>v>0).sort((a,b)=>a-b);
+  const medPrice=priced.length?priced[Math.floor(priced.length/2)]:0;
+  const scored=products.map(p=>{
+    const mo=skuMO[p.sku]||{};
+    const units=comp.slice(-6).reduce((a,m)=>a+(mo[m]||0),0);
+    return {p,score:units*(p.price||medPrice)};
+  }).sort((a,b)=>b.score-a.score);
+  const totScore=scored.reduce((a,x)=>a+x.score,0);
+  let cum=0;
+  for(const x of scored){
+    cum+=x.score;
+    x.p.abcShare=totScore>0?Math.round(x.score/totScore*10000)/100:0;
+    x.p.abc=x.score<=0?'C':(cum/totScore<=0.80?'A':cum/totScore<=0.95?'B':'C');
+  }
+
+  // Expiry-vs-demand collision: FEFO depletion vs adjusted velocity
+  const velBySku={};
+  for(const p of products)velBySku[p.sku]=p.velAdj||0;
+  const colGroups={};
+  for(const b of batches){
+    if(b.soh<=0)continue;
+    const pm=b.expiry.match(/^(\d{1,2})\/(\d{4})$/);
+    if(!pm)continue;
+    (colGroups[b.skuCode]=colGroups[b.skuCode]||[]).push({b,pm});
+  }
+  const collisions=[];
+  for(const[sku,list] of Object.entries(colGroups)){
+    const daily=(velBySku[sku]||0)/30.44;
+    let ahead=0;
+    for(const{b,pm} of list){ // batches[] is already FEFO-sorted
+      const expEnd=new Date(+pm[2],+pm[1],0); // last day of expiry month
+      const dte=Math.max(0,Math.round((expEnd-now)/864e5));
+      const sellable=Math.max(0,daily*dte-ahead);
+      const projSold=Math.min(b.soh,sellable);
+      const projExpired=Math.round(b.soh-projSold);
+      const price=prices[sku]||0;
+      collisions.push({sku,name:b.name,batch:b.batch,expiry:b.expiry,daysToExpiry:dte,soh:b.soh,stockAhead:Math.round(ahead),daily:Math.round(daily*100)/100,price,projExpired,writeOff:Math.round(projExpired*price)});
+      ahead+=b.soh;
+    }
+  }
+  collisions.sort((a,b)=>b.writeOff-a.writeOff||b.projExpired-a.projExpired);
+
+  const vbl={};
+  for(const p of products){if(p.stock>0&&p.price)vbl[p.line]=(vbl[p.line]||0)+p.stock*p.price;}
+
+  const ce={expired:0,lt30:0,lt90:0,lt180:0};const ei=[];
+  for(const b of batches){
+    if(!b.expiry||b.soh<=0)continue;
+    const pm=b.expiry.match(/^(\d{1,2})\/(\d{4})$/);if(!pm)continue;
+    const days=Math.round((new Date(+pm[2],+pm[1]-1,1)-now)/86400000);
+    const price=prices[b.skuCode]||0;const value=b.soh*price;
+    const bkt=days<0?'expired':days<=30?'lt30':days<=92?'lt90':days<=183?'lt180':null;
+    if(bkt){ce[bkt]+=value;ei.push({name:b.name,skuCode:b.skuCode,batch:b.batch,expiry:b.expiry,days,soh:b.soh,price,value,bucket:bkt});}
+  }
+  ei.sort((a,b)=>b.value-a.value);
+
+  const bExp={};
+  for(const t of bT){if(!bExp[t.branch])bExp[t.branch]={};const k=t.sku+'|'+t.batch;if(!bExp[t.branch][k])bExp[t.branch][k]={sku:t.sku,name:t.name,batch:t.batch,expiry:t.expiry,qty:0,line:t.line};bExp[t.branch][k].qty+=t.qty;}
+  const bes={};
+  for(const[br,items] of Object.entries(bExp)){bes[br]=Object.values(items).filter(i=>i.expiry).sort((a,b)=>{const pa=a.expiry.match(/^(\d{1,2})\/(\d{4})$/),pb=b.expiry.match(/^(\d{1,2})\/(\d{4})$/);return(pa?new Date(+pa[2],+pa[1]-1,1):new Date(9999,0,1))-(pb?new Date(+pb[2],+pb[1]-1,1):new Date(9999,0,1));});}
+
+  const elapsed=((Date.now()-t0)/1000).toFixed(1);
+  return{products,batches,monthlyIn:mIn,monthlyOut:mOut,months,valueByLine:vbl,cashExpiring:ce,expiringItems:ei.slice(0,100),branchTransfers:bT.slice(0,300),branchExpirySummary:bes,collisions:collisions.slice(0,400),customers,targets,acctBooked,lastMovement:lastOutDs>1?new Date((lastOutDs-25569)*86400000).toISOString().slice(0,10):null,synced:new Date().toISOString(),elapsed};
+}
