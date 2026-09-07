@@ -315,7 +315,13 @@ function navAreaFollow(v){
   if(!onScreen){const a=navAreaOfView(v);if(a&&a!==NAV_AREA){NAV_AREA=a;try{localStorage.setItem('hs_nav_area',a);}catch(e){}}}
   navAreaPaint();
 }
-function mmArea(id){navAreaSelect(id,false);const q=$('mmq');if(q)q.value='';buildMobileMenu('');}
+function mmArea(id){
+  // keep the chip row where the thumb left it, then make sure the chosen chip is on screen —
+  // rebuilding the list used to snap the row back to Home, which read as "it went back to default"
+  const row=document.getElementById('mm-areas');const sl=row?row.scrollLeft:0;
+  navAreaSelect(id,false);const q=$('mmq');if(q)q.value='';buildMobileMenu('');
+  const row2=document.getElementById('mm-areas');if(row2){row2.scrollLeft=sl;const on=row2.querySelector('[data-area="'+id+'"]');if(on&&on.scrollIntoView)try{on.scrollIntoView({block:'nearest',inline:'nearest'});}catch(e){}}
+  const list=$('mmenu-list');if(list&&list.parentElement)list.parentElement.scrollTop=0;}
 
 
 /* ── MOBILE FULL MENU: every view reachable on the phone ── */
@@ -353,7 +359,7 @@ function buildMobileMenu(q){
   if(!q){
     const vis=NAV_AREAS.filter(a=>{try{return navAreaVisible(a.id);}catch(e){return true;}});
     if(!vis.some(a=>a.id===area)){NAV_AREA='home';}
-    html+='<div style="display:flex;gap:8px;overflow-x:auto;padding:12px 16px 6px;-webkit-overflow-scrolling:touch;scrollbar-width:none">'+vis.map(a=>'<button onclick="mmArea(\''+a.id+'\')" style="flex-shrink:0;display:flex;align-items:center;gap:6px;padding:8px 13px;border-radius:999px;border:1px solid var(--bd);font-size:13px;font-weight:600;background:'+(a.id===(NAV_AREA||'home')?'var(--gr-bg)':'var(--sf)')+';color:'+(a.id===(NAV_AREA||'home')?'var(--gr)':'var(--tx2)')+'"><span style="width:15px;height:15px;display:inline-flex">'+a.icon.replace('<svg ','<svg style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round" ')+'</span>'+esc(a.label)+'</button>').join('')+'</div>';
+    html+='<div id="mm-areas" style="display:flex;gap:8px;overflow-x:auto;padding:12px 16px 6px;-webkit-overflow-scrolling:touch;scrollbar-width:none">'+vis.map(a=>'<button data-area="'+a.id+'" onclick="mmArea(\''+a.id+'\')" style="flex-shrink:0;display:flex;align-items:center;gap:6px;padding:8px 13px;border-radius:999px;border:1px solid var(--bd);font-size:13px;font-weight:600;background:'+(a.id===(NAV_AREA||'home')?'var(--gr-bg)':'var(--sf)')+';color:'+(a.id===(NAV_AREA||'home')?'var(--gr)':'var(--tx2)')+'"><span style="width:15px;height:15px;display:inline-flex">'+a.icon.replace('<svg ','<svg style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round" ')+'</span>'+esc(a.label)+'</button>').join('')+'</div>';
   }
   const areaNow=q?'':(NAV_AREA||'home');
   const walk=(nodes)=>{

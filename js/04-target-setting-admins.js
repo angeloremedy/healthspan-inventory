@@ -425,7 +425,9 @@ let CUR_ACCT=null,ACCT_BACK='customers';
 let ROUTING=false; // true while applying a route from the URL (prevents push loops)
 function pushRoute(h){
   if(ROUTING)return;
-  try{if(location.hash!==h){history.pushState(null,'',h);window._navDepth=(window._navDepth||0)+1;}}catch(e){}
+  // the first route after sign-in (no hash yet) REPLACES the entry instead of pushing one:
+  // otherwise Home would show a ← that only leads back to the login screen
+  try{if(location.hash!==h){if((!location.hash||location.hash==='#')&&/#\/v\/home$/.test(h)){history.replaceState(null,'',h);}else{history.pushState(null,'',h);window._navDepth=(window._navDepth||0)+1;}}}catch(e){}
   try{if(typeof backPaint==='function')backPaint();}catch(e){}
 }
 /* ── BACK, for the installed app: iPhones and iPads have no browser chrome, so

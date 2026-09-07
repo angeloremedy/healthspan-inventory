@@ -283,6 +283,12 @@ ROLE='admin';SBPROFILE={name:'Angelo',role:'admin',is_super:true};navSync();
  ok('DESC knows the page', /QuickBooks/.test(DESC.qbo||''));
  ROLE='finance';SBPROFILE={name:'Alex',role:'finance'};isSuper=()=>false;await renderQbo();await new Promise(r=>setTimeout(r,40));const qf=$('content').innerHTML;
  ok('finance sees the page read-only: no Enable/Disconnect, Sync now still there', !/Enable — start posting/.test(qf)&&!/qboDisconnect/.test(qf)&&/qboRun\\(false\\)/.test(qf)&&document.getElementById('qbo-post-from').disabled);}
+// phone: the chip row keeps its scroll and carries data-area; the first route after sign-in replaces, so Home has no ←
+{buildMobileMenu('');const row=document.getElementById('mm-areas');
+ ok('area chip row has an id and data-area per chip (scroll is preserved across rebuilds)', !!row&&row.querySelectorAll('button[data-area]').length===6);
+ window._navDepth=0;history.replaceState(null,'',location.pathname);pushRoute('#/v/home');
+ ok('landing on Home after sign-in does not create a back step', (window._navDepth||0)===0&&location.hash==='#/v/home');
+ pushRoute('#/v/orders');ok('a real navigation still does', window._navDepth===1);}
 // sales role may open crmstats but not serials/loans
 ROLE='sales';
 ok('sales can open CRM activity', viewAllowed('crmstats'));

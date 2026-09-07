@@ -100,10 +100,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 /* Two-level sidebar: a narrow RAIL of areas (Home, Sales, Warehouse, Finance, Planning,
    Admin) and a PANEL listing only the chosen area's pages, under their familiar section
    headings. Every page is still here — the rail just decides which slice is on screen. */
-.sb{width:268px;flex-shrink:0;background:var(--sf);border-right:1px solid var(--bd);display:flex;flex-direction:row;overflow:hidden;transition:margin-left .18s ease}
-body.sbhidden .sb{margin-left:-269px} /* slides out (width+border) — internal layout stays intact */
-.rail{width:60px;flex-shrink:0;background:var(--sf2);border-right:1px solid var(--bd);display:flex;flex-direction:column;align-items:stretch;gap:2px;padding:10px 5px;overflow-y:auto}
-.rl{display:flex;flex-direction:column;align-items:center;gap:4px;padding:9px 2px 7px;border-radius:9px;font-size:9.5px;font-weight:600;letter-spacing:.01em;color:var(--tx3);cursor:pointer;user-select:none;text-align:center;line-height:1.1;transition:background .12s,color .12s}
+.sb{width:276px;flex-shrink:0;background:var(--sf);border-right:1px solid var(--bd);display:flex;flex-direction:row;overflow:hidden;transition:margin-left .18s ease}
+body.sbhidden .sb{margin-left:-277px} /* slides out (width+border) — internal layout stays intact */
+.rail{width:68px;flex-shrink:0;background:var(--sf2);border-right:1px solid var(--bd);display:flex;flex-direction:column;align-items:stretch;gap:2px;padding:10px 4px;overflow-y:auto}
+.rl{display:flex;flex-direction:column;align-items:center;gap:4px;padding:9px 2px 7px;border-radius:9px;font-size:9px;font-weight:600;letter-spacing:0;color:var(--tx3);cursor:pointer;user-select:none;text-align:center;line-height:1.1;transition:background .12s,color .12s;min-width:0}
+.rl span{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap} /* "Warehouse" fits at 9px in 60px; anything longer trims instead of bleeding */
 .rl svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .rl:hover{background:var(--sf);color:var(--tx)}
 .rl.active{background:var(--gr-bg);color:var(--gr)}
