@@ -14,6 +14,10 @@
    "v": "<b>1 · Getting started</b>"
   },
   {
+   "t": "p",
+   "v": "HQ never uses the browser’s own pop-up boxes any more. Every question, confirmation and message appears as an HQ dialog inside the app — Enter confirms, Escape cancels, and a form asks its questions in one box instead of one after another."
+  },
+  {
    "t": "h2",
    "v": "<b>Sign in</b>"
   },
@@ -288,6 +292,10 @@
   },
   {
    "t": "step",
+   "v": "<b>Delivery cost</b> — next to the courier and waybill the shipment block takes what <i>we</i> paid the courier. It is an internal figure that never prints on the delivery receipt; you see it because your role sees costs. The warehouse can mark dispatched / delivered as well."
+  },
+  {
+   "t": "step",
    "v": "Fulfilling or cancelling an order releases its ATP promise automatically.",
    "n": "6"
   },
@@ -467,6 +475,42 @@
    "t": "callout",
    "v": "CADENCE — Count a different line each week rather than everything monthly — steadier evidence, smaller sessions, faster path to two clean counts.",
    "c": "#0E8A5F"
+  },
+  {
+   "t": "h1",
+   "v": "<b>Receiving — inbound shipments, counts, terms, landed cost</b>"
+  },
+  {
+   "t": "p",
+   "v": "Logistics → <b>Receiving</b> is the page for everything coming in from a supplier. A purchase order says what we ordered; a <b>shipment</b> is what the supplier actually sent — one PO can arrive in several. Each shipment carries its papers and tracking (supplier invoice or packing list no., carrier, tracking / AWB / BL, ETD, ETA, customs status, broker) and walks a pipeline: expected → on the water → in customs → arrived → counting → received → closed. A shipment past its ETA pings the warehouse nightly."
+  },
+  {
+   "t": "h2",
+   "v": "<b>Running a shipment</b>"
+  },
+  {
+   "t": "step",
+   "n": 1,
+   "v": "<b>+ New shipment from a PO</b>: pick the open PO, add the supplier’s reference, carrier, tracking, ETD/ETA and the supplier’s <b>terms in days from receipt</b>. The lines are the PO’s outstanding quantities."
+  },
+  {
+   "t": "step",
+   "n": 2,
+   "v": "Advance the status as it moves (<b>Tracking &amp; papers</b> edits the details; the PO’s import block follows). When it arrives, count at the door: per line the <b>counted</b> quantity, batch, expiry, bin and a <b>QA hold</b> tick for anything that should wait for inspection."
+  },
+  {
+   "t": "step",
+   "n": 3,
+   "v": "<b>Post the counted lines to stock</b>: sellable lines go into the stock ledger, QA-hold lines into quarantine; the PO’s received quantities and status update; waiting backorders release; finance is pinged with the payment due date (receipt + terms). Counts that differ from the PO are flagged short or over — <b>Raise a claim with the supplier</b> opens the complaints log pre-filled."
+  },
+  {
+   "t": "step",
+   "n": 4,
+   "v": "<b>Landed cost calculator</b>: invoice total × FX rate = goods in pesos; then freight, insurance, customs duty, import VAT, brokerage, arrastre / wharfage, storage / demurrage, trucking, bank charges, other. Import VAT is treated as recoverable input tax by default (not a cost) — untick when it is not. Fees are allocated to lines by value or by quantity → a landed ₱ per unit for every SKU. <b>Apply</b> writes the lines and the PO, which is what Landed cost &amp; valuation reads."
+  },
+  {
+   "t": "callout",
+   "v": "WHY A SEPARATE PAGE — receiving used to be a button on the PO line. A shipment is its own record now, so the papers, the tracking, the count, the claim, the due date and the landed cost all hang off the thing that actually arrived — and one PO can arrive in three boxes across two months without losing track of any of it."
   },
   {
    "t": "h1",
@@ -665,6 +709,10 @@
   {
    "t": "h1",
    "v": "<b>Complaints log — quality reports with teeth</b>"
+  },
+  {
+   "t": "p",
+   "v": "The log has <b>two tabs</b>. <b>From customers</b> is the quality log described below. <b>To our suppliers</b> is the mirror image — claims we raise against a supplier (short shipment, damaged goods, wrong item or batch, expiry too close, documentation, quality defect, late delivery) with the supplier, the PO or shipment reference and the kind; finance is pinged, closing needs the outcome, and every claim shows in a Claims column on the supplier scorecard. You raise supplier claims from this tab or in one tap from a shipment whose count came in short."
   },
   {
    "t": "step",

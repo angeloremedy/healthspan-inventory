@@ -586,6 +586,30 @@ pings admins/managers on those days while the row is still missing. Rule 12 read
 `serials.warranty_end` and `serial_service.next_due` and pings the warehouse,
 deduped per unit per date through `auto_log`.
 
+### 4.11 Receiving — `js/17-receiving.js`
+
+`shipments` + `shipment_lines` are the inbound mirror of orders + order_lines.
+Creating one from a PO copies the PO's outstanding quantities and unit costs;
+`shipPost` is the door: `ledgerAdd` (kind `receive`, ref `RCV-n PO-n`) or
+`quarAdd` for QA-hold lines, `po_lines.received += counted`, PO status roll-up,
+`boRelease`, shipment `received_at`, finance ping with the due date
+(`received_at + terms_days`). `shipLanded(s, lines)` is pure: goods = invoice ×
+rate; fees summed with import VAT excluded when `fees.vat_recoverable` (default);
+allocation by line value or quantity → `per[lineId]` landed ₱/unit. `shipApplyLanded`
+writes the lines and sets `pos.landed_cost` (= Σ applied shipments' fees on the
+PO) and `pos.fx_rate`, so `renderValuation` needed no change. Status pipeline
+lives in `SHIP_STATUS`; the PO page's import fields are kept in step by
+`shipEdit`. Nightly rule 13 pings past-ETA shipments.
+
+### 4.12 In-app dialogs — `js/00-dialogs.js`
+
+`uiPrompt / uiConfirm / uiAlert / uiForm` return promises and paint one
+`#uidlg` box at a time (a queue serialises overlapping calls). The 2026-09-08
+codemod (`tools/dedialog.mjs`, acorn) rewrote every `prompt()` / `confirm()` /
+`alert()` call in `js/` to the awaited forms and marked the six enclosing
+functions that were not yet `async`. Rule going forward: never call the browser
+dialogs — the serials test fails if one appears.
+
 ## 5. Supabase schema (see SUPABASE-SETUP.md for exact SQL)
 
 | Table | Purpose | Key columns |
@@ -642,6 +666,8 @@ from `profiles` at sign-in and drive everything (`ROLE`, `SBPROFILE`).
 
 ### Added 2026-09-08
 
+`shipments`, `shipment_lines` (Receiving), `orders.delivery_cost`,
+`complaints.direction/supplier/po_ref/kind`;
 `serial_service` (per-unit service log; `serials` gained `warranty_end`,
 `warranty_note`, `holder`), `saved_reports` + `report_runs` (reporting layer),
 `review_snapshots.checkpoint` (+ unique partial index), `public.hs_role()` (the

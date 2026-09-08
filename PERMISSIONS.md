@@ -114,6 +114,15 @@ therefore a floor — implementation grants the full circle read to all three.
 | Saved reports (build, save, run, export CSV, schedule) | ✅ | ✅ | ✅ own rows only | ✅ | ✅ | ✅ — viewers ✖. Every source gates itself: stock/batches/sales/accounts/visits all six; HQ orders & lines not marketing; quotations admin/manager/sales/finance; payments + finance forms admin/finance; purchase orders (costs) admin/finance/supply_chain; serials admin/manager/supply_chain; loaners + sales. Cost columns stripped for non-cost roles in the preview AND the scheduled file; a schedule runs as its owner |
 | Saved reports — edit / delete someone else's | ✅ | ✖ | ✖ | ✖ | ✖ | ✖ — shared reports are run/export-only for everyone but the owner and admin |
 | Business review — automatic checkpoints (15th, month-end) | ✅ (taken by the app on open) | ✅ (same) | ✖ | ✖ | ✖ | ✖ — same RLS as Save snapshot; one row per month per checkpoint |
+| Receiving — inbound shipments (open the page) | ✅ | 👁 no costs | ✖ | ✅ | 👁 + costs | ✖ — viewers ✖. RLS read: admin, supply_chain, finance, manager |
+| Receiving — create shipment from a PO, tracking, counts, post to stock, apply landed cost | ✅ | ✖ | ✖ | ✅ | money fields only | ✖ — posting writes stock_moves / quarantine and the PO's received quantities |
+| Receiving — landed cost calculator, invoice/FX, terms & due date (cost fields) | ✅ | ✖ | ✖ | ✅ | ✅ | ✖ — the cost rule |
+| Orders — delivery cost (what we paid the courier) | ✅ | ✖ | ✖ | ✅ | ✅ | ✖ — never on the delivery receipt |
+| Orders — shipment marks (courier, waybill, dispatched, delivered) | ✅ | ✅ | ✖ | ✅ (2026-09-08: the warehouse dispatches) | ✖ | ✖ |
+| Orders — "+ New order" button | ✅ | ✅ | ✅ | ✖ | ✖ | ✖ — follows viewAllowed('neworder'); viewers ✖ |
+| Complaints — from customers (file) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ — anyone signed in |
+| Complaints — claims to suppliers (raise) | ✅ | ✖ | ✖ | ✅ | ✅ | ✖ — RLS on direction='supplier' |
+| Complaints — investigate / close (either direction) | ✅ | ✅ | ✖ | ✅ | ✖ | ✖ |
 | Finance forms — receipts while filing (Add receipt / Add file) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ — anyone who can file; expense reimbursement and expense report require ≥ 1 receipt |
 | Demo / loaners (view) | ✖ | ✅ | ✅ | ✅ | ✅ | |
 | Demo / loaners (check out / return / convert) | ✖ | ✅ | ✅ | ✅ (supply chain) | ✅ | RLS: supply_chain, admin, manager, super |

@@ -79,18 +79,18 @@ async function qboSaveSettings(){
   try{await qboApi('settings',{values:v});audit('qbo.settings',v);if(m)m.textContent='Saved.';}catch(e){if(m)m.textContent='Could not save: '+e.message;}}
 async function qboToggle(){
   if(!qboCanEdit()||!QBO_ST)return;const on=(QBO_ST.settings||{}).qbo_enabled==='1';const s=QBO_ST.settings||{};
-  if(!on){if(!s.qbo_post_from||!s.qbo_tax_code||!s.qbo_income_account){alert('Before enabling: set the post-from date, the VAT tax code and the income account, then Save settings.');return;}
-    if(!confirm('Enable the QuickBooks sync?\n\nFrom the next run, fulfilled orders dated '+s.qbo_post_from+' onward are posted to '+(QBO_ST.company||'QuickBooks')+' as invoices, with their payments. Make sure the Shopify→QBO connector is OFF for the same orders, or they will be booked twice.'))return;}
-  else if(!confirm('Disable the sync? Nothing more is posted; runs continue in preview.'))return;
-  try{await qboApi('settings',{values:{qbo_enabled:on?'0':'1'}});audit('qbo.'+(on?'disable':'enable'),{});await renderQbo();}catch(e){alert('Could not change: '+e.message);}}
-async function qboRun(force){const m=$('qbo-msg');if(m)m.textContent='Sync started — refresh in a minute for the result.';try{await qboApi('run',{force:!!force});}catch(e){if(m)m.textContent='Could not start: '+e.message;else alert(e.message);}}
+  if(!on){if(!s.qbo_post_from||!s.qbo_tax_code||!s.qbo_income_account){uiAlert('Before enabling: set the post-from date, the VAT tax code and the income account, then Save settings.');return;}
+    if(!await uiConfirm('Enable the QuickBooks sync?\n\nFrom the next run, fulfilled orders dated '+s.qbo_post_from+' onward are posted to '+(QBO_ST.company||'QuickBooks')+' as invoices, with their payments. Make sure the Shopify→QBO connector is OFF for the same orders, or they will be booked twice.'))return;}
+  else if(!await uiConfirm('Disable the sync? Nothing more is posted; runs continue in preview.'))return;
+  try{await qboApi('settings',{values:{qbo_enabled:on?'0':'1'}});audit('qbo.'+(on?'disable':'enable'),{});await renderQbo();}catch(e){uiAlert('Could not change: '+e.message);}}
+async function qboRun(force){const m=$('qbo-msg');if(m)m.textContent='Sync started — refresh in a minute for the result.';try{await qboApi('run',{force:!!force});}catch(e){if(m)m.textContent='Could not start: '+e.message;else uiAlert(e.message);}}
 async function qboConnect(){
   if(!qboCanEdit())return;
   try{const r=await fetch('/.netlify/functions/qbo-auth?action=start',{headers:await sbAuthHeaders()});const j=await r.json();if(!j.url)throw new Error(j.error||'no url');
-    audit('qbo.connect.start',{env:j.env});location.href=j.url;}catch(e){alert('Could not start the QuickBooks connection: '+e.message);}}
+    audit('qbo.connect.start',{env:j.env});location.href=j.url;}catch(e){uiAlert('Could not start the QuickBooks connection: '+e.message);}}
 async function qboDisconnect(){
-  if(!qboCanEdit())return;if(!confirm('Disconnect QuickBooks? The sync stops and the tokens are revoked. Connecting again is one click.'))return;
-  try{const r=await fetch('/.netlify/functions/qbo-auth',{method:'POST',headers:await sbAuthHeaders({'Content-Type':'application/json'}),body:JSON.stringify({action:'disconnect'})});const j=await r.json();if(j.error)throw new Error(j.error);QBO_LISTS=null;await renderQbo();}catch(e){alert('Could not disconnect: '+e.message);}}
+  if(!qboCanEdit())return;if(!await uiConfirm('Disconnect QuickBooks? The sync stops and the tokens are revoked. Connecting again is one click.'))return;
+  try{const r=await fetch('/.netlify/functions/qbo-auth',{method:'POST',headers:await sbAuthHeaders({'Content-Type':'application/json'}),body:JSON.stringify({action:'disconnect'})});const j=await r.json();if(j.error)throw new Error(j.error);QBO_LISTS=null;await renderQbo();}catch(e){uiAlert('Could not disconnect: '+e.message);}}
 async function qboLoadMaps(){
   const b=$('qbo-maps-body');if(!b)return;
   try{const {rows}=await qboApi('mappings');if(!rows.length){b.textContent='Nothing waiting.';return;}
@@ -101,12 +101,12 @@ async function qboLoadMaps(){
         '<a href="#" class="abtn" onclick="qboPick(\''+esc(r.kind)+'\',\''+esc(r.hq_key).replace(/'/g,'&#39;')+'\');return false">Search QuickBooks…</a>'];}),{left:true});
   }catch(e){b.textContent='Could not load: '+e.message;}}
 async function qboConfirm(kind,key,qboId,qboName){
-  try{await qboApi('confirm',{kind,hq_key:key,qbo_id:qboId||undefined,qbo_name:qboName||undefined});await renderQbo();}catch(e){alert('Could not confirm: '+e.message);}}
+  try{await qboApi('confirm',{kind,hq_key:key,qbo_id:qboId||undefined,qbo_name:qboName||undefined});await renderQbo();}catch(e){uiAlert('Could not confirm: '+e.message);}}
 async function qboPick(kind,key){
-  const term=prompt('Search QuickBooks customers for:',key);if(!term)return;
-  try{const {rows}=await qboApi('search',null,'q='+encodeURIComponent(term));if(!rows.length){alert('No QuickBooks customer contains "'+term+'". Confirm the current match to keep it, or create the customer in QuickBooks first.');return;}
-    const pick=prompt(rows.map((r,i)=>(i+1)+'. '+r.name).join('\n')+'\n\nType the number to use for "'+key+'":');const r=rows[(+pick||0)-1];if(!r)return;
-    await qboConfirm(kind,key,r.id,r.name);}catch(e){alert('Search failed: '+e.message);}}
+  const term=await uiPrompt('Search QuickBooks customers for:',key);if(!term)return;
+  try{const {rows}=await qboApi('search',null,'q='+encodeURIComponent(term));if(!rows.length){uiAlert('No QuickBooks customer contains "'+term+'". Confirm the current match to keep it, or create the customer in QuickBooks first.');return;}
+    const pick=await uiPrompt(rows.map((r,i)=>(i+1)+'. '+r.name).join('\n')+'\n\nType the number to use for "'+key+'":');const r=rows[(+pick||0)-1];if(!r)return;
+    await qboConfirm(kind,key,r.id,r.name);}catch(e){uiAlert('Search failed: '+e.message);}}
 let _qboLogT=null;function qboLogDebounce(){clearTimeout(_qboLogT);_qboLogT=setTimeout(qboLoadLog,300);}
 async function qboLoadLog(){
   const el=$('qbo-log');if(!el)return;const q=($('qbo-q')||{}).value||'',f=($('qbo-f')||{}).value||'';
@@ -115,4 +115,4 @@ async function qboLoadLog(){
     el.className='';el.innerHTML=bizTbl(['Order','Document','Status','QBO no.','Amount','Detail','Updated',''],rows.map(r=>[r.order_id?'<a href="#" onclick="showOrderPage(\''+esc(r.order_id)+'\');return false">'+esc(r.order_label||r.hq_ref)+'</a>':esc(r.order_label||r.hq_ref),esc(r.kind),'<span class="pill '+(QBO_STATUS_TONE[r.status]||'pgy')+'">'+esc(r.status)+'</span>',esc(r.qbo_doc_no||r.qbo_id||'—'),qboFmt(r.amount),'<span class="mu" style="font-size:11px">'+esc(r.last_error||'')+'</span>',qboWhen(r.updated_at),
       r.status==='error'||r.status==='pending'?'<a href="#" class="abtn" onclick="qboRetry('+r.id+');return false">Retry</a>':'']),{left:true});
   }catch(e){el.className='mu';el.textContent='Could not load: '+e.message;}}
-async function qboRetry(id){try{await qboApi('retry',{id});qboLoadLog();}catch(e){alert('Could not retry: '+e.message);}}
+async function qboRetry(id){try{await qboApi('retry',{id});qboLoadLog();}catch(e){uiAlert('Could not retry: '+e.message);}}

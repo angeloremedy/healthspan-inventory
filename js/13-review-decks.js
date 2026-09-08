@@ -297,7 +297,7 @@ async function bizExport(mode){ // 'full' = team deck (manager/admin), 'mine' = 
   await bizDownload(mode==='mine'?me:null,'pptx');}
 async function bizDownload(tag,fmt){
   if(!BIZ.R||BIZ.busy)return;const R=BIZ.R;const sp=tag?R.specs.find(s=>s.name.toLowerCase()===String(tag).toLowerCase()):null;
-  if(tag&&!sp)return alert('No report for that specialist this month.');
+  if(tag&&!sp)return uiAlert('No report for that specialist this month.');
   if(!bizCanEditAll()&&!(sp&&bizMySpec().toLowerCase()===sp.name.toLowerCase()))return;
   BIZ.busy=true;const btns=[...document.querySelectorAll('#content .abtn')];btns.forEach(b=>b.style.opacity='.5');
   try{if(fmt==='pdf'){const ctx=bizCtx(R,tag);ctx.charts=await bizChartImages(R,{only:tag});const spec=bizSpecFor(R,ctx);
@@ -305,7 +305,7 @@ async function bizDownload(tag,fmt){
       const w=window.open('','_blank');if(!w)throw new Error('The browser blocked the print window — allow pop-ups for hq.healthspan.ph and try again.');w.document.open();w.document.write(html);w.document.close();}
     else{const pptx=await bizBuildPptx(R,tag);await pptx.writeFile({fileName:bizFileName(R,sp,'pptx')});}
     audit('review.export',{month:BIZ.ym,who:tag||'team',fmt});}
-  catch(e){alert('Export failed: '+(e.message||e));}
+  catch(e){uiAlert('Export failed: '+(e.message||e));}
   finally{BIZ.busy=false;btns.forEach(b=>b.style.opacity='');}}
 /* Google Slides: build the deck, hand the bytes to Drive with "convert to Slides",
    share with the addresses given, show the link. The team edits a native Slides
@@ -314,7 +314,7 @@ async function bizToSlides(tag){
   if(!BIZ.R||BIZ.busy)return;const R=BIZ.R;const sp=tag?R.specs.find(s=>s.name.toLowerCase()===String(tag).toLowerCase()):null;
   const mine=sp&&bizMySpec().toLowerCase()===sp.name.toLowerCase();if(!bizCanEditAll()&&!mine)return;
   let def='';try{def=localStorage.getItem('hq_slides_share')||'';}catch(e){}
-  const who=prompt('Share the Google Slides with (emails, comma-separated). You are added automatically.',def);if(who===null)return;
+  const who=await uiPrompt('Share the Google Slides with (emails, comma-separated). You are added automatically.',def);if(who===null)return;
   try{localStorage.setItem('hq_slides_share',who);}catch(e){}
   const emails=who.split(/[,;\s]+/).map(x=>x.trim()).filter(Boolean);
   BIZ.busy=true;const st=$('rp-status');const say=t=>{if(st)st.textContent=t;};
@@ -330,17 +330,17 @@ async function bizToSlides(tag){
     audit('review.slides',{month:BIZ.ym,who:tag||'team',shared:(s2.shared||[]).length});
     const box=$('rp-links');if(box)box.insertAdjacentHTML('afterbegin','<div style="font-size:12.5px;margin:4px 0"><a href="'+esc(s2.link)+'" target="_blank" rel="noopener" style="font-weight:600">'+esc(s2.name||name)+'</a> — Google Slides, shared with '+esc((s2.shared||[]).join(', ')||'you')+(s2.failed&&s2.failed.length?' <span style="color:var(--rd)">(could not share with '+esc(s2.failed.join(', '))+')</span>':'')+'</div>');
     say('Done.');try{window.open(s2.link,'_blank');}catch(e){}}
-  catch(e){alert('Google Slides export failed: '+(e.message||e));say('');}
+  catch(e){uiAlert('Google Slides export failed: '+(e.message||e));say('');}
   finally{BIZ.busy=false;}}
 async function bizDownloadAll(){ // every specialist's deck plus the team deck, one file after another
   if(!BIZ.R||BIZ.busy||!bizCanEditAll())return;const R=BIZ.R;
-  if(!confirm('Download '+(R.specs.length+1)+' PowerPoint files (the team deck and one per specialist)? The browser may ask once to allow multiple downloads.'))return;
+  if(!await uiConfirm('Download '+(R.specs.length+1)+' PowerPoint files (the team deck and one per specialist)? The browser may ask once to allow multiple downloads.'))return;
   BIZ.busy=true;const st=$('rp-status');
   try{const P=await bizLoadPptx();let n=0;
     for(const tag of [null].concat(R.specs.map(s=>s.name))){const sp=tag?R.specs.find(s=>s.name===tag):null;if(st)st.textContent='Building '+(sp?sp.label:'team deck')+'… ('+(++n)+'/'+(R.specs.length+1)+')';
       const pptx=new P();const ctx=bizCtx(R,tag);ctx.charts=await bizChartImages(R,{only:tag});bizDeck(pptx,R,ctx);await pptx.writeFile({fileName:bizFileName(R,sp,'pptx')});await new Promise(r=>setTimeout(r,700));}
     if(st)st.textContent='Done — '+n+' files.';audit('review.export',{month:BIZ.ym,who:'all',fmt:'pptx',n});}
-  catch(e){alert('Download stopped: '+(e.message||e));}
+  catch(e){uiAlert('Download stopped: '+(e.message||e));}
   finally{BIZ.busy=false;}}
 
 /* ── Reports: one page that says whose inputs are in and hands out the files ── */

@@ -140,11 +140,11 @@ async function askOpenChat(id){
   askPaintAll();}
 function askNewChat(){ASK_CUR={id:null,title:'',messages:[]};askPaintAll();const i=document.getElementById(currentView==='ask'?'askpg-input':'askinput');if(i)setTimeout(()=>i.focus(),50);}
 async function askRenameChat(id){
-  const cur=(ASK_CHATS||[]).find(c=>c.id===id);const t=prompt('Rename this chat:',cur?cur.title:'');if(t==null)return;
+  const cur=(ASK_CHATS||[]).find(c=>c.id===id);const t=await uiPrompt('Rename this chat:',cur?cur.title:'');if(t==null)return;
   try{await SB.from('ask_chats').update({title:t.trim().slice(0,70)}).eq('id',id);}catch(e){}
   if(ASK_CUR.id===id)ASK_CUR.title=t.trim().slice(0,70);ASK_CHATS=null;askPaintAll();}
 async function askDeleteChat(id){
-  if(!confirm('Delete this chat? This cannot be undone.'))return;
+  if(!await uiConfirm('Delete this chat? This cannot be undone.'))return;
   try{await SB.from('ask_chats').delete().eq('id',id);}catch(e){}
   if(ASK_CUR.id===id)ASK_CUR={id:null,title:'',messages:[]};ASK_CHATS=null;askPaintAll();}
 /* render the current conversation into a log element (drawer or page) */
@@ -314,7 +314,7 @@ function buildMobileNav(){
     return el?el.outerHTML.replace('<svg ','<svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" '):'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>';
   };
   const mLabel=v=>{
-    const SHORT={bizreview:'Review',reports:'Reports',savedreports:'Saved',qbo:'QuickBooks',ask:'Ask',settings:'Settings',neworder:'Order',logvisit:'Visit',followups:'To-dos',salesdue:'Reorder',approvals:'Approve',orders:'Orders',salespace:'Pace',customers:'Accounts',fulfillq:'Fulfill',scan:'Scan',cyclecount:'Count',po:'POs',ar:'AR',pdc:'PDCs',cashflow:'Cash',returns:'Returns',campaigns:'Campaigns',promos:'Promos',salesoverview:'Sales',pipeline:'Pipeline',dashboard:'Inventory',quotes:'Quotes',complaints:'Complaints',salesevents:'Events',transfers:'Transfers',quarantine:'Quarantine',whkpi:'KPIs',suppliers:'Suppliers',valuation:'Costs',catalog:'Items',recall:'Recall',targets:'Targets',scorecards:'Reviews',users:'Team',audit:'Log',commissions:'Commis.',regs:'Regs',salestarget:'Vs target',salesfield:'Coverage',crmstats:'Activity',serials:'Serials',loans:'Loaners',expreport:'Exp. report',profile:'Profile',all:'SKUs',forecast:'Stockout',health:'Data'};
+    const SHORT={bizreview:'Review',reports:'Reports',savedreports:'Saved',qbo:'QuickBooks',ask:'Ask',settings:'Settings',neworder:'Order',logvisit:'Visit',followups:'To-dos',salesdue:'Reorder',approvals:'Approve',orders:'Orders',salespace:'Pace',customers:'Accounts',fulfillq:'Fulfill',scan:'Scan',cyclecount:'Count',po:'POs',receiving:'Receiving',ar:'AR',pdc:'PDCs',cashflow:'Cash',returns:'Returns',campaigns:'Campaigns',promos:'Promos',salesoverview:'Sales',pipeline:'Pipeline',dashboard:'Inventory',quotes:'Quotes',complaints:'Complaints',salesevents:'Events',transfers:'Transfers',quarantine:'Quarantine',whkpi:'KPIs',suppliers:'Suppliers',valuation:'Costs',catalog:'Items',recall:'Recall',targets:'Targets',scorecards:'Reviews',users:'Team',audit:'Log',commissions:'Commis.',regs:'Regs',salestarget:'Vs target',salesfield:'Coverage',crmstats:'Activity',serials:'Serials',loans:'Loaners',expreport:'Exp. report',profile:'Profile',all:'SKUs',forecast:'Stockout',health:'Data'};
     if(SHORT[v])return SHORT[v];
     const el=document.querySelector('.nav .ni[onclick*="\''+v+'\'"]');
     if(!el)return v;

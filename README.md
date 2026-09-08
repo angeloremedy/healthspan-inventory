@@ -1026,6 +1026,76 @@ puts it straight back to preview. The SQL for the three tables and the Intuit
 app setup (client id, secret, redirect URI, `QBO_ENV`) are in SUPABASE-SETUP.md
 under "QuickBooks Online connector".
 
+## 9.24 Receiving — inbound shipments, counts, terms, landed cost
+
+Logistics → **Receiving** is the warehouse's page for everything coming *in*
+from a supplier. A purchase order says what we ordered; a **shipment** is what
+the supplier actually sent — one PO can arrive in several. Start one from an
+open PO (*+ New shipment from a PO*): the lines are the PO's outstanding
+quantities. Each shipment carries its papers and tracking (supplier ref or
+invoice, carrier, tracking/AWB/BL number, ETD, ETA, customs status, broker) and
+walks a pipeline: expected → on the water → in customs → arrived → counting →
+received → closed. The PO's import block mirrors the live shipment, and a
+shipment past its ETA pings the warehouse nightly until the ETA moves or it
+arrives.
+
+**Counting at the door.** Per line: counted quantity, batch, expiry, bin, and a
+QA-hold tick. *Post the counted lines to stock* writes the stock ledger
+(sellable) or quarantine (QA hold), updates the PO's received quantities and its
+status, releases waiting backorders, and stamps the shipment received — the
+same effects receiving on the PO page had, now with the shipment as the record.
+Counts that differ from the PO are flagged short or over; *Raise a claim with
+the supplier* opens the complaints log pre-filled with the shipment, the PO and
+the discrepancy.
+
+**Supplier terms.** Enter the supplier's terms as days from receipt; the moment
+the shipment is posted, HQ shows the payment **due date** and pings finance
+(with a warning if any line came in short — check the claim before paying).
+
+**Landed cost calculator.** Invoice total in the supplier's currency × FX rate
+= goods in pesos; then freight, insurance, customs duty, import VAT, brokerage,
+arrastre/wharfage, storage/demurrage, trucking to the warehouse, bank charges
+and other. Import VAT is treated as recoverable input tax by default (so it is
+*not* part of cost) — untick when it isn't. Fees are allocated to lines by value
+(default) or by quantity, giving a landed ₱ per unit for every SKU. *Apply*
+writes those unit costs to the lines and pushes the fees and the FX rate to the
+PO, which is exactly what **Landed cost & valuation** already reads — so
+margins and inventory value pick the real numbers up without any other change.
+
+Who does what: the warehouse and admins run shipments; finance reads them,
+fills the money fields, and sees costs and due dates; sales managers read them
+without cost columns; specialists, marketing and viewers do not see the page.
+
+## 9.25 Complaints — two directions
+
+The complaints log now has two tabs. **From customers** is the quality log it
+always was (batch on record, one tap into the recall trace). **To our
+suppliers** is the mirror image: claims we raise against a supplier — short
+shipment, damaged goods, wrong item or batch, expiry too close, documentation,
+quality defect, late delivery — with the supplier, the PO or shipment reference
+and the kind. Finance is pinged (a credit or replacement may be due), closing
+needs the outcome, and every claim counts in a **Claims** column on the
+Receiving & supplier scorecard. The warehouse, finance and admins raise claims;
+customer complaints stay open to anyone signed in.
+
+## 9.26 Delivery cost, in-app dialogs, and the New order button
+
+**Delivery cost.** The shipment block on an order page takes what *we* paid the
+courier next to the courier and waybill. It is an internal figure: admin,
+finance and the warehouse see it; it never prints on the delivery receipt; it
+is a cost column in the HQ orders report source. The warehouse can now mark
+dispatched / delivered too — it is the warehouse that ships.
+
+**No more browser pop-ups.** Every `prompt`, `confirm` and `alert` in the app —
+around 370 of them — has been replaced by HQ's own dialogs: a proper box in the
+app's typography, keyboard-friendly (Enter confirms, Escape cancels), one at a
+time, and well-behaved inside the installed iOS/Android app where the browser's
+own boxes were ugly or blocked. Flows that used to chain several questions now
+open one form.
+
+**+ New order** appears only for roles that may take an order. Supply chain,
+finance, marketing and viewers see the register without the button.
+
 ## 9.23 Saved reports — the reporting layer
 
 Sales analytics → **Saved reports** is what people who came from NetSuite mean by
@@ -1101,6 +1171,17 @@ the sidebar; the browser reckons "today" in Manila; sixteen tables joined the
 nightly backup; and the site ships security headers with a Content-Security-Policy
 in report-only mode for a week before it is enforced. PERMISSIONS.md has the
 detail; SUPABASE-SETUP.md has the SQL.
+
+## 10.6 What HQ will never be: the two scope boundaries
+
+HQ replaces the systems where it already holds better data than they do and the
+users are our own team — Shopify, Zoho, Verna's sheet. Two systems stay bought:
+**QuickBooks Online** is the book of record (general ledger, statements, BIR),
+fed by HQ's sub-ledgers through the connector; **Sprout** is HRIS and payroll,
+fed by HQ's commissions and incentive computations. Both exist so that outside
+parties — BIR, the auditor, DOLE, the bank — can hold the company accountable
+through something they recognise; that is not a feature HQ can build. Decided
+2026-09-08; the reasoning is in ROADMAP → Deliberately NOT building.
 
 ## 11. Odds and ends
 

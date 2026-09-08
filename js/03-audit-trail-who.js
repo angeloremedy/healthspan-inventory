@@ -125,17 +125,17 @@ async function renderCampaigns(){
 async function campaignAdd(){
   if(!canManage()||!SB)return;
   const g=id=>($(id)&&$(id).value||'').trim();
-  if(!g('cp-name')||!g('cp-from')||!g('cp-to'))return alert('Need a name and both dates.');
+  if(!g('cp-name')||!g('cp-from')||!g('cp-to'))return uiAlert('Need a name and both dates.');
   try{
     const {error}=await SB.from('campaigns').insert({name:g('cp-name'),from_date:g('cp-from'),to_date:g('cp-to'),skus:g('cp-skus')||null,uplift_pct:g('cp-up')?parseInt(g('cp-up'),10):null,created_by:(SBUSER&&SBUSER.id)||null});
     if(error)throw error;
     audit('campaign.add',{name:g('cp-name'),from:g('cp-from'),to:g('cp-to')});
     renderCampaigns();
-  }catch(e){alert('Could not save: '+(e.message||e)+(String(e.message||'').includes('campaigns')?'\n\n(Run the campaigns SQL from SUPABASE-SETUP.md.)':''));}
+  }catch(e){uiAlert('Could not save: '+(e.message||e)+(String(e.message||'').includes('campaigns')?'\n\n(Run the campaigns SQL from SUPABASE-SETUP.md.)':''));}
 }
 async function campaignDel(id){
-  if(!canManage()||!SB||!confirm('Remove this campaign?'))return;
-  try{const {error}=await SB.from('campaigns').delete().eq('id',id);if(error)throw error;renderCampaigns();}catch(e){alert(e.message||e);}
+  if(!canManage()||!SB||!await uiConfirm('Remove this campaign?'))return;
+  try{const {error}=await SB.from('campaigns').delete().eq('id',id);if(error)throw error;renderCampaigns();}catch(e){uiAlert(e.message||e);}
 }
 
 // 3) AI planning review — the existing Ask Healthspan worker walks the whole catalog and
@@ -276,7 +276,7 @@ async function scSave(k,name){
     if(error)throw error;
     audit('review.save',{spec:name,quarter:window._scQ,rating});
     renderScorecards();
-  }catch(e){alert('Could not save: '+(e.message||e)+(String(e.message||'').includes('review_notes')?'\n\n(Run the review_notes SQL from SUPABASE-SETUP.md.)':''));}
+  }catch(e){uiAlert('Could not save: '+(e.message||e)+(String(e.message||'').includes('review_notes')?'\n\n(Run the review_notes SQL from SUPABASE-SETUP.md.)':''));}
 }
 
 /* ── INDEPENDENCE MODULE: cutover flags · item master · reorder-due · returns/CM ·
@@ -311,24 +311,24 @@ function periodClosed(d){const c=closedThrough();if(!c||!d)return false;return S
 function closedMsg(d){return 'The books are closed through '+closedThrough()+', so records dated '+String(d||'').slice(0,10)+' are frozen. Payments and shipping still work; amounts and dates need the super admin to reopen the period.';}
 function blockIfClosed(d,what){ // returns true when the caller should stop
   if(!periodClosed(d))return false;
-  alert((what?what+' — ':'')+closedMsg(d));
+  uiAlert((what?what+' — ':'')+closedMsg(d));
   return true;
 }
 async function setClosedThrough(){
-  if(!isSuper())return alert('Closing an accounting period is a super-admin decision.');
+  if(!isSuper())return uiAlert('Closing an accounting period is a super-admin decision.');
   const cur=closedThrough();
-  const v=prompt('Close the books through which date? (YYYY-MM-DD)\n\nEverything dated on or before it freezes: order amounts, dates, credit memos, cheques and targets. Payments and shipping stay open.\n\nBlank = no period close.',cur||new Date(Date.now()-864e5).toISOString().slice(0,10));
+  const v=await uiPrompt('Close the books through which date? (YYYY-MM-DD)\n\nEverything dated on or before it freezes: order amounts, dates, credit memos, cheques and targets. Payments and shipping stay open.\n\nBlank = no period close.',cur||new Date(Date.now()-864e5).toISOString().slice(0,10));
   if(v===null)return;
   const t=v.trim();
-  if(t&&!/^\d{4}-\d{2}-\d{2}$/.test(t))return alert('Use the form 2026-07-31 — nothing changed.');
-  if(t&&cur&&t<cur&&!confirm('That REOPENS the period from '+t+' onward (it was closed through '+cur+').\n\nReopening lets amounts in an already-signed-off month change again. Continue?'))return;
+  if(t&&!/^\d{4}-\d{2}-\d{2}$/.test(t))return uiAlert('Use the form 2026-07-31 — nothing changed.');
+  if(t&&cur&&t<cur&&!await uiConfirm('That REOPENS the period from '+t+' onward (it was closed through '+cur+').\n\nReopening lets amounts in an already-signed-off month change again. Continue?'))return;
   await setFlagRaw('closed_through',t);
   audit('period.close',{closed_through:t||'(none)'});
   try{renderCutover();}catch(e){}
 }
 async function setFlag(k,v,label){
-  if(!isSuper())return alert('Super admin only — cutover switches are reserved to Angelo.');
-  if(!confirm((v==='on'?'TURN ON: ':'TURN OFF: ')+label+'\n\nThis changes which system the app treats as the truth. Proceed?'))return;
+  if(!isSuper())return uiAlert('Super admin only — cutover switches are reserved to Angelo.');
+  if(!await uiConfirm((v==='on'?'TURN ON: ':'TURN OFF: ')+label+'\n\nThis changes which system the app treats as the truth. Proceed?'))return;
   try{
     const {error}=await SB.from('app_settings').upsert({key:k,value:v,updated_by:(SBUSER&&SBUSER.id)||null,updated_at:new Date().toISOString()});
     if(error)throw error;
@@ -336,21 +336,21 @@ async function setFlag(k,v,label){
     await loadFlags(true);
     applyCatalog();
     renderCutover();
-  }catch(e){alert('Could not save: '+(e.message||e)+(String(e.message||'').includes('app_settings')?'\n\n(Run the independence SQL from SUPABASE-SETUP.md.)':''));}
+  }catch(e){uiAlert('Could not save: '+(e.message||e)+(String(e.message||'').includes('app_settings')?'\n\n(Run the independence SQL from SUPABASE-SETUP.md.)':''));}
 }
 async function cutoverDocSeries(){
   if(!isSuper())return;
   let cur=null;try{const {data}=await SB.from('doc_series').select('*').eq('kind','dr').maybeSingle();cur=data;}catch(e){}
-  const prefix=prompt('DR number prefix:',cur?cur.prefix:'DR-');if(prefix===null)return;
-  const next=prompt('Next number to issue:',cur?String(cur.next_no):'1001');if(next===null)return;
-  const pad=prompt('Zero-pad to how many digits? (e.g. 6 → DR-000123)',cur?String(cur.pad):'6');if(pad===null)return;
+  const prefix=await uiPrompt('DR number prefix:',cur?cur.prefix:'DR-');if(prefix===null)return;
+  const next=await uiPrompt('Next number to issue:',cur?String(cur.next_no):'1001');if(next===null)return;
+  const pad=await uiPrompt('Zero-pad to how many digits? (e.g. 6 → DR-000123)',cur?String(cur.pad):'6');if(pad===null)return;
   try{
     const {error}=await SB.from('doc_series').upsert({kind:'dr',prefix:prefix.trim(),next_no:parseInt(next,10)||1,pad:parseInt(pad,10)||0});
     if(error)throw error;
     audit('cutover.doc_series',{kind:'dr',prefix:prefix.trim(),next:next,pad});
-    alert('DR series saved — the next printed DR gets '+prefix.trim()+String(parseInt(next,10)).padStart(parseInt(pad,10)||0,'0'));
+    uiAlert('DR series saved — the next printed DR gets '+prefix.trim()+String(parseInt(next,10)).padStart(parseInt(pad,10)||0,'0'));
     renderCutover();
-  }catch(e){alert('Could not save: '+(e.message||e)+(String(e.message||'').includes('doc_series')?'\n\n(Run the DR-series SQL from SUPABASE-SETUP.md.)':''));}
+  }catch(e){uiAlert('Could not save: '+(e.message||e)+(String(e.message||'').includes('doc_series')?'\n\n(Run the DR-series SQL from SUPABASE-SETUP.md.)':''));}
 }
 async function downloadBackup(){
   try{
@@ -359,7 +359,7 @@ async function downloadBackup(){
     const blob=await r.blob();
     const a=document.createElement('a');a.href=URL.createObjectURL(blob);
     a.download='healthspan-hq-backup.json';a.click();URL.revokeObjectURL(a.href);
-  }catch(e){alert('Download failed: '+(e.message||e));}
+  }catch(e){uiAlert('Download failed: '+(e.message||e));}
 }
 async function renderCutover(){
   if(!isSuper()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Super admin only.</div>';return;}
@@ -478,9 +478,9 @@ async function renderCatalog(){
     '</tbody></table></div><div class="tfooter"><span>⚠ = price here differs from Shopify (drift to resolve before independence) · costs enable true margin reporting · barcode links a scan code to the SKU for the Scan view · edits save instantly and are audited</span></div></div>';
 }
 async function catalogSeed(){
-  if(!canCatalogEdit())return alert('Catalog editing is admin + finance only.');
-  if(!DATA.length)return alert('Wait for the sheet sync first.');
-  if(!confirm('Seed/refresh the item master from the current catalog ('+DATA.length+' products)?\n\nPrices you have already edited here are kept; only missing items and empty prices are filled.'))return;
+  if(!canCatalogEdit())return uiAlert('Catalog editing is admin + finance only.');
+  if(!DATA.length)return uiAlert('Wait for the sheet sync first.');
+  if(!await uiConfirm('Seed/refresh the item master from the current catalog ('+DATA.length+' products)?\n\nPrices you have already edited here are kept; only missing items and empty prices are filled.'))return;
   try{
     await loadItems(true);
     const rows=DATA.map(p=>{
@@ -493,7 +493,7 @@ async function catalogSeed(){
     for(let i=0;i<rows.length;i+=200){const {error}=await SB.from('items').upsert(rows.slice(i,i+200));if(error)throw error;}
     audit('catalog.seed',{items:rows.length});
     renderCatalog();
-  }catch(e){alert('Could not seed: '+(e.message||e)+(String(e.message||'').includes('items')?'\n\n(Run the independence SQL from SUPABASE-SETUP.md.)':''));}
+  }catch(e){uiAlert('Could not seed: '+(e.message||e)+(String(e.message||'').includes('items')?'\n\n(Run the independence SQL from SUPABASE-SETUP.md.)':''));}
 }
 async function catalogSet(sku,field,val){
   if(!canCatalogEdit())return;
@@ -508,18 +508,18 @@ async function catalogSet(sku,field,val){
     await loadItems(true);applyCatalog();
     const m=$('cat-msg');if(m){m.style.color='var(--gr)';m.textContent=sku+' saved.';}
     if(field==='active')renderCatalog();
-  }catch(e){alert('Could not save: '+(e.message||e));}
+  }catch(e){uiAlert('Could not save: '+(e.message||e));}
 }
 async function catalogAdd(){
   if(!canCatalogEdit())return;
-  const sku=prompt('New SKU code:','');if(!sku||!sku.trim())return;
-  const name=prompt('Product name:','');if(name===null)return;
+  const sku=await uiPrompt('New SKU code:','');if(!sku||!sku.trim())return;
+  const name=await uiPrompt('Product name:','');if(name===null)return;
   try{
     const {error}=await SB.from('items').insert({sku:sku.trim(),name:(name||sku).trim(),active:true,updated_by:(SBUSER&&SBUSER.id)||null});
     if(error)throw error;
     audit('catalog.add',{sku:sku.trim()});
     renderCatalog();
-  }catch(e){alert('Could not add: '+(e.message||e));}
+  }catch(e){uiAlert('Could not add: '+(e.message||e));}
 }
 
 // ── REORDER-DUE ALERTS: each account's buying rhythm vs the calendar
@@ -618,7 +618,7 @@ async function renderReturns(){
 async function returnAdd(){
   if(!canManage())return;
   const g=id=>($(id)&&$(id).value||'').trim();
-  if(!g('rt-acct')||!g('rt-amt'))return alert('Need at least the account and the CM amount.');
+  if(!g('rt-acct')||!g('rt-amt'))return uiAlert('Need at least the account and the CM amount.');
   const cmDate=g('rt-date')||todayISO();
   if(typeof blockIfClosed==='function'&&blockIfClosed(cmDate,'Credit memo not recorded'))return;
   try{
@@ -627,12 +627,12 @@ async function returnAdd(){
     audit('return.record',{cm:docNo('cm',data.id),account:g('rt-acct'),amount:g('rt-amt'),action:($('rt-act')||{}).value});
     if((($('rt-act')||{}).value)==='restock'){
       // walk the returned units into stock — sellable straight to the ledger, doubtful to quarantine
-      if(confirm('Receive the returned units into stock now?\n\nYou\u2019ll enter each SKU; per SKU you choose SELLABLE (back to the ledger) or QUARANTINE (held for inspection).')){
+      if(await uiConfirm('Receive the returned units into stock now?\n\nYou\u2019ll enter each SKU; per SKU you choose SELLABLE (back to the ledger) or QUARANTINE (held for inspection).')){
         try{await returnsReceive(docNo('cm',data.id));}catch(e){}
       }
     }
     renderReturns();
-  }catch(e){alert('Could not record: '+(e.message||e));}
+  }catch(e){uiAlert('Could not record: '+(e.message||e));}
 }
 async function applyCM(id){
   if(ROLE!=='admin')return;
@@ -645,8 +645,8 @@ async function applyCM(id){
     if(!o){const q=await SB.from('orders').select('*').eq('ext_ref',ref).maybeSingle();o=q.data;}
     if(!o){const q=await SB.from('orders').select('*').eq('ext_ref','#'+ref).maybeSingle();o=q.data;}
     if(!o&&/^HS-\d+$/i.test(ref)){const num=parseInt(ref.replace(/\D/g,''),10)-1000;const q=await SB.from('orders').select('*').eq('num',num).maybeSingle();o=q.data;}
-    if(!o)return alert('Order "'+ref+'" not found in the register.');
-    if(!confirm('Apply CM-'+String(1000+id)+' ('+fmtPeso(r.amount)+') against '+ordLabel(o)+'?\nBalance '+fmtPeso(o.balance||0)+' → '+fmtPeso(Math.max(0,(o.balance||0)-r.amount))))return;
+    if(!o)return uiAlert('Order "'+ref+'" not found in the register.');
+    if(!await uiConfirm('Apply CM-'+String(1000+id)+' ('+fmtPeso(r.amount)+') against '+ordLabel(o)+'?\nBalance '+fmtPeso(o.balance||0)+' → '+fmtPeso(Math.max(0,(o.balance||0)-r.amount))))return;
     const balance=Math.max(0,(o.balance||0)-r.amount);
     // mark the CM applied FIRST: if that write is refused (closed period), the
     // balance must not move — otherwise the CM stays appliable and double-reduces
@@ -656,7 +656,7 @@ async function applyCM(id){
     if(error){await SB.from('returns').update({applied:false}).eq('id',id);throw error;}
     audit('return.apply',{cm:docNo('cm',id),order:ordLabel(o),amount:r.amount,newBalance:balance});
     NORDERS=null;renderReturns();
-  }catch(e){alert('Could not apply: '+(e.message||e));}
+  }catch(e){uiAlert('Could not apply: '+(e.message||e));}
 }
 async function printCM(id){
   const {data:r}=await SB.from('returns').select('*').eq('id',id).maybeSingle();
@@ -727,11 +727,11 @@ async function loadLedgerSums(force){
 /* Freeze the sheet's stock as the ledger's opening balances (super admin, from Cutover) */
 async function cutoverFreeze(){
   if(!isSuper())return;
-  if(flagOn('ledger_is_truth'))return alert('Turn the ledger switch OFF before re-freezing — the snapshot must come from the sheet.');
+  if(flagOn('ledger_is_truth'))return uiAlert('Turn the ledger switch OFF before re-freezing — the snapshot must come from the sheet.');
   const rows=(DATA||[]).filter(p=>typeof p.stock==='number').map(p=>({sku:p.sku,qty:p.stock,kind:'adjust',ref:'OPENING',note:null}));
-  if(!rows.length)return alert('No sheet stock loaded yet — wait for the sync.');
+  if(!rows.length)return uiAlert('No sheet stock loaded yet — wait for the sync.');
   const prev=(FLAGS&&FLAGS.ledger_epoch)||null;
-  if(!confirm((prev?'RE-FREEZE the opening balances? The previous snapshot ('+prev.slice(0,16)+') stays on record but stops counting.\n\n':'FREEZE opening balances?\n\n')+rows.length+' SKUs — the sheet\'s current stock becomes the ledger\'s starting point. Do this at the moment of cutover, after the final sheet update.'))return;
+  if(!await uiConfirm((prev?'RE-FREEZE the opening balances? The previous snapshot ('+prev.slice(0,16)+') stays on record but stops counting.\n\n':'FREEZE opening balances?\n\n')+rows.length+' SKUs — the sheet\'s current stock becomes the ledger\'s starting point. Do this at the moment of cutover, after the final sheet update.'))return;
   const epoch=new Date().toISOString();
   rows.forEach(r=>r.note=epoch);
   try{
@@ -740,16 +740,16 @@ async function cutoverFreeze(){
     if(error)throw error;
     audit('cutover.freeze',{skus:rows.length,epoch});
     await loadFlags(true);await loadLedgerSums(true);
-    alert('Opening balances frozen ✓ — '+rows.length+' SKUs at '+epoch.slice(0,16)+'. The ledger switch can now flip whenever the counts prove out.');
+    uiAlert('Opening balances frozen ✓ — '+rows.length+' SKUs at '+epoch.slice(0,16)+'. The ledger switch can now flip whenever the counts prove out.');
     renderCutover();
-  }catch(e){alert('Freeze failed: '+(e.message||e));}
+  }catch(e){uiAlert('Freeze failed: '+(e.message||e));}
 }
 async function confirmPick(orderRef){
-  if(!canFulfil())return alert('Fulfillment roles only (admin / manager / supply chain).');
+  if(!canFulfil())return uiAlert('Fulfillment roles only (admin / manager / supply chain).');
   let o=null;
   try{const {data}=await SB.from('orders').select('*,order_lines(*)').eq('id',orderRef).maybeSingle();o=data;}catch(e){}
-  if(!o)return alert('Order not found.');
-  if(!confirm('Confirm this order as PICKED?\n\nEvery line is recorded as an outbound movement in the platform ledger'+(flagOn('ledger_is_truth')?'.':' (shadow — Verna’s sheet stays the stock truth until cutover).')))return;
+  if(!o)return uiAlert('Order not found.');
+  if(!await uiConfirm('Confirm this order as PICKED?\n\nEvery line is recorded as an outbound movement in the platform ledger'+(flagOn('ledger_is_truth')?'.':' (shadow — Verna’s sheet stays the stock truth until cutover).')))return;
   try{
     const rows=[];
     for(const l of (o.order_lines||[])){
@@ -760,19 +760,19 @@ async function confirmPick(orderRef){
     await ledgerAdd(rows);
     audit('ledger.pick',{order:ordLabel(o),lines:rows.length});
     // gear 2: the warehouse action drives the order status too
-    if(o.status==='pending'&&canFulfil()&&confirm('Picked ✓ ('+rows.length+' line'+(rows.length>1?'s':'')+' in the ledger).\n\nAlso mark '+ordLabel(o)+' as FULFILLED?')){
+    if(o.status==='pending'&&canFulfil()&&await uiConfirm('Picked ✓ ('+rows.length+' line'+(rows.length>1?'s':'')+' in the ledger).\n\nAlso mark '+ordLabel(o)+' as FULFILLED?')){
       const {error:e2}=await SB.from('orders').update({status:'fulfilled',fulfilled_at:new Date().toISOString()}).eq('id',o.id);
       if(!e2){audit('order.fulfilled',{order:ordLabel(o),via:'pick-confirm'});NORDERS=null;try{notifyOrderOwner(o.id,'fulfilled','Order fulfilled: '+ordLabel(o),(o.account||'')+' — picked and shipped from the warehouse','#/v/orders');}catch(ex){}}
-      alert(e2?('Ledger saved, but the status update failed: '+e2.message):'Fulfilled ✓ — ledger and order updated together.');
+      uiAlert(e2?('Ledger saved, but the status update failed: '+e2.message):'Fulfilled ✓ — ledger and order updated together.');
     }else{
-      alert('Picked ✓ — '+rows.length+' line'+(rows.length>1?'s':'')+' recorded in the ledger.');
+      uiAlert('Picked ✓ — '+rows.length+' line'+(rows.length>1?'s':'')+' recorded in the ledger.');
     }
-  }catch(e){alert('Could not record: '+(e.message||e)+(String(e.message||'').includes('stock_moves')?'\n\n(Run the independence SQL from SUPABASE-SETUP.md.)':''));}
+  }catch(e){uiAlert('Could not record: '+(e.message||e)+(String(e.message||'').includes('stock_moves')?'\n\n(Run the independence SQL from SUPABASE-SETUP.md.)':''));}
 }
 /* SCAN-TO-PICK: fulfillment queue → pick list → scan every item against the order.
    Wrong item = red stop; over-scan = warning; all lines green = confirm + fulfill. */
 async function showScanPick(orderId){
-  if(!canFulfil())return alert('Fulfillment roles only.');
+  if(!canFulfil())return uiAlert('Fulfillment roles only.');
   currentView='scanpick';
   window._scanHandler=pickCode;
   $('ptitle').textContent='Scan to pick';
@@ -846,10 +846,10 @@ async function pickFinish(){
       if(!error){audit('order.fulfilled',{order:P.label,via:'scan-pick'});NORDERS=null;ftxt=' and marked fulfilled';try{notifyOrderOwner(P.id,'fulfilled','Order fulfilled: '+P.label,'Every unit scanned and shipped','#/v/orders');}catch(ex){}}
     }
     window._scanHandler=null;scanStop();
-    alert('\u2713 '+P.label+' picked'+ftxt+' \u2014 every unit scanned and in the ledger.');
+    uiAlert('\u2713 '+P.label+' picked'+ftxt+' \u2014 every unit scanned and in the ledger.');
     const id=P.id;window._PICK=null;
     showOrderPage(id);
-  }catch(e){alert('Could not record: '+(e.message||e));}
+  }catch(e){uiAlert('Could not record: '+(e.message||e));}
 }
 
 let SCAN_MODE='pick',SCAN_STREAM=null;
@@ -937,7 +937,7 @@ async function scanStart(){
     tick();
   }catch(e){
     scanStop();
-    alert('Camera unavailable: '+(e.message||e)+'\n\nType or paste the code instead — it does the same thing.');
+    uiAlert('Camera unavailable: '+(e.message||e)+'\n\nType or paste the code instead — it does the same thing.');
   }
 }
 function scanStop(){
@@ -997,7 +997,7 @@ async function scanRecord(sku){
     const hit=$('scan-hit');if(hit)hit.innerHTML='<div style="background:'+(msg.startsWith('⚠')?'var(--am-bg)':'var(--gr-bg)')+';color:'+(msg.startsWith('⚠')?'var(--am)':'var(--gr)')+';border-radius:10px;padding:10px 14px;font-size:13px;font-weight:600">'+msg+'</div>';
     const c=$('scan-code');if(c){c.value='';c.focus();}
     scanLog();
-  }catch(e){alert('Could not record: '+(e.message||e)+(String(e.message||'').includes('stock_moves')?'\n\n(Run the independence SQL from SUPABASE-SETUP.md.)':''));}
+  }catch(e){uiAlert('Could not record: '+(e.message||e)+(String(e.message||'').includes('stock_moves')?'\n\n(Run the independence SQL from SUPABASE-SETUP.md.)':''));}
 }
 
 
@@ -1184,11 +1184,11 @@ async function acAddContact(key,name){
     if(error)throw error;
     audit('contact.add',{account:name,contact:g('ac-cn')});
     fillContacts(key,name);
-  }catch(e){alert('Could not save: '+(e.message||e)+(String(e.message||'').includes('account_contacts')?'\n\n(Run the account_contacts SQL from SUPABASE-SETUP.md.)':''));}
+  }catch(e){uiAlert('Could not save: '+(e.message||e)+(String(e.message||'').includes('account_contacts')?'\n\n(Run the account_contacts SQL from SUPABASE-SETUP.md.)':''));}
 }
 async function acDelContact(id,key,name){
-  if(!confirm('Remove this contact?'))return;
-  try{const {error}=await SB.from('account_contacts').delete().eq('id',id);if(error)throw error;fillContacts(key,name);}catch(e){alert(e.message||e);}
+  if(!await uiConfirm('Remove this contact?'))return;
+  try{const {error}=await SB.from('account_contacts').delete().eq('id',id);if(error)throw error;fillContacts(key,name);}catch(e){uiAlert(e.message||e);}
 }
 
 // PDC register: every post-dated cheque, tracked to maturity
@@ -1244,26 +1244,26 @@ async function pdcAdd(){
   // friendly refusal before the trigger raises
   if(!canManage()||!SB)return;
   const g=id=>($(id)&&$(id).value||'').trim();
-  if(!g('pd-acct')||!g('pd-amt')||!g('pd-mat'))return alert('Need at least the account, amount, and maturity date.');
+  if(!g('pd-acct')||!g('pd-amt')||!g('pd-mat'))return uiAlert('Need at least the account, amount, and maturity date.');
   if(typeof blockIfClosed==='function'&&blockIfClosed(g('pd-mat'),'Cheque not recorded'))return;
   try{
     const {error}=await SB.from('pdcs').insert({account:g('pd-acct'),bank:g('pd-bank')||null,cheque_no:g('pd-no')||null,amount:Math.round(parseFloat(g('pd-amt'))),maturity:g('pd-mat'),order_ref:g('pd-ref')||null,status:'on_hand',created_by:(SBUSER&&SBUSER.id)||null});
     if(error)throw error;
     audit('pdc.add',{account:g('pd-acct'),amount:g('pd-amt'),maturity:g('pd-mat')});
     renderPDC();
-  }catch(e){alert('Could not save: '+(e.message||e)+(String(e.message||'').includes('pdcs')?'\n\n(Run the pdcs SQL from SUPABASE-SETUP.md.)':''));}
+  }catch(e){uiAlert('Could not save: '+(e.message||e)+(String(e.message||'').includes('pdcs')?'\n\n(Run the pdcs SQL from SUPABASE-SETUP.md.)':''));}
 }
 async function pdcSet(id,status){
   if(!canManage()||!SB)return;
-  if(status==='bounced'&&!confirm('Mark this cheque bounced?'))return;
+  if(status==='bounced'&&!await uiConfirm('Mark this cheque bounced?'))return;
   try{
     const {error}=await SB.from('pdcs').update({status,updated_at:new Date().toISOString()}).eq('id',id);
     if(error)throw error;
     audit('pdc.'+status,{id});
     renderPDC();
-  }catch(e){alert(e.message||e);}
+  }catch(e){uiAlert(e.message||e);}
 }
 async function pdcDel(id){
-  if(!canManage()||!SB||!confirm('Delete this cheque record?'))return;
-  try{const {error}=await SB.from('pdcs').delete().eq('id',id);if(error)throw error;audit('pdc.delete',{id});renderPDC();}catch(e){alert(e.message||e);}
+  if(!canManage()||!SB||!await uiConfirm('Delete this cheque record?'))return;
+  try{const {error}=await SB.from('pdcs').delete().eq('id',id);if(error)throw error;audit('pdc.delete',{id});renderPDC();}catch(e){uiAlert(e.message||e);}
 }

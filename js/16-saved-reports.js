@@ -132,8 +132,8 @@ function rptPaintBuilder(){
 }
 async function rptSave(){
   const C=RPT_CUR;if(!C)return;
-  if(!C.name.trim())return alert('Give the report a name.');
-  if(!C.def.source)return alert('Pick a source.');
+  if(!C.name.trim())return uiAlert('Give the report a name.');
+  if(!C.def.source)return uiAlert('Pick a source.');
   const row={name:C.name.trim(),def:C.def,shared:!!C.shared,schedule:C.schedule&&C.schedule.freq?C.schedule:null,recipients:C.recipients||[],updated_at:new Date().toISOString()};
   try{
     let res;
@@ -142,25 +142,25 @@ async function rptSave(){
     if(res.error)throw res.error;
     RPT_CUR=Object.assign(rptBlank(),res.data);audit('report.save',{id:res.data.id,name:row.name,source:C.def.source,scheduled:!!row.schedule});
     await rptLoadList(true);renderSavedReports(true);
-  }catch(e){alert('Could not save: '+(e.message||e)+(/saved_reports/.test(String(e.message))?' — run the saved-reports SQL from SUPABASE-SETUP.md.':''));}
+  }catch(e){uiAlert('Could not save: '+(e.message||e)+(/saved_reports/.test(String(e.message))?' — run the saved-reports SQL from SUPABASE-SETUP.md.':''));}
 }
 async function rptOpen(id){const L=await rptLoadList();const r=L.find(x=>x.id===id);if(!r)return;RPT_CUR=Object.assign(rptBlank(),r);RPT_RES=null;await rptLoadRuns(id);renderSavedReports(true);rptPreview();}
 function rptNew(){RPT_CUR=rptBlank();RPT_RES=null;RPT_RUNS=[];renderSavedReports(true);}
 async function rptDuplicate(){const C=RPT_CUR;if(!C)return;RPT_CUR=Object.assign(rptBlank(),{name:C.name+' (copy)',def:JSON.parse(JSON.stringify(C.def))});renderSavedReports(true);rptPreview();}
-async function rptDelete(){const C=RPT_CUR;if(!C||!C.id||!confirm('Delete “'+C.name+'”? Past runs are removed with it.'))return;
-  try{const {error}=await SB.from('saved_reports').delete().eq('id',C.id);if(error)throw error;audit('report.delete',{id:C.id,name:C.name});RPT_CUR=null;await rptLoadList(true);renderSavedReports(true);}catch(e){alert('Could not delete: '+(e.message||e));}}
+async function rptDelete(){const C=RPT_CUR;if(!C||!C.id||!await uiConfirm('Delete “'+C.name+'”? Past runs are removed with it.'))return;
+  try{const {error}=await SB.from('saved_reports').delete().eq('id',C.id);if(error)throw error;audit('report.delete',{id:C.id,name:C.name});RPT_CUR=null;await rptLoadList(true);renderSavedReports(true);}catch(e){uiAlert('Could not delete: '+(e.message||e));}}
 function rptExport(){if(!RPT_RES||!RPT_CUR)return;const csv=rptCSV(RPT_RES);const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,﻿'+encodeURIComponent(csv);a.download='healthspan_'+(RPT_CUR.name||'report').replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'_'+todayISO()+'.csv';a.click();audit('report.export',{name:RPT_CUR.name,rows:RPT_RES.rows.length});}
 async function rptRunNow(){ // a server-side run, exactly as the schedule would do it — proves the schedule before waiting for 6am
-  const C=RPT_CUR;if(!C||!C.id)return alert('Save the report first.');
+  const C=RPT_CUR;if(!C||!C.id)return uiAlert('Save the report first.');
   const b=$('rpt-runnow');if(b){b.textContent='Running…';b.disabled=true;}
   try{const r=await fetch('/.netlify/functions/report-run',{method:'POST',headers:await sbAuthHeaders({'Content-Type':'application/json'}),body:JSON.stringify({id:C.id})});const j=await r.json().catch(()=>({}));if(!r.ok||j.error)throw new Error(j.error||('HTTP '+r.status));
     await rptLoadRuns(C.id);renderSavedReports(true);}
-  catch(e){alert('The run failed: '+(e.message||e));if(b){b.textContent='Run on the server now';b.disabled=false;}}
+  catch(e){uiAlert('The run failed: '+(e.message||e));if(b){b.textContent='Run on the server now';b.disabled=false;}}
 }
 async function rptDownloadRun(runId){
   try{const r=await fetch('/.netlify/functions/report-run?id='+encodeURIComponent(runId),{headers:await sbAuthHeaders()});if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.error||('HTTP '+r.status));}
     const blob=await r.blob();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=(r.headers.get('x-filename')||'report.csv');a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);}
-  catch(e){alert('Could not download: '+(e.message||e));}
+  catch(e){uiAlert('Could not download: '+(e.message||e));}
 }
 
 async function renderSavedReports(cheap){

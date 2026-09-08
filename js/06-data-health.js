@@ -102,14 +102,14 @@ function renderProspects(){
 }
 async function prospectMerge(fromName,toName){
   if(!canManage())return;
-  if(!confirm('Merge "'+fromName+'" into "'+toName+'"?\n\nOnly do this if they are the SAME customer (open both pages to compare first). Reversible from the account page.'))return;
+  if(!await uiConfirm('Merge "'+fromName+'" into "'+toName+'"?\n\nOnly do this if they are the SAME customer (open both pages to compare first). Reversible from the account page.'))return;
   try{
     const {error}=await SB.from('account_links').upsert({from_key:custNorm(acctDedup(fromName)),from_name:fromName,to_name:toName,kind:'merge',created_by:(SBUSER&&SBUSER.id)||null});
     if(error)throw error;
     audit('account.merge',{from:fromName,to:toName,via:'prospects'});
     await loadAcctLinks(true);
     renderProspects();
-  }catch(e){alert('Could not merge: '+(e.message||e));}
+  }catch(e){uiAlert('Could not merge: '+(e.message||e));}
 }
 function exportProspectsCSV(){
   const rows=(window._PROSPECTS||[]).map(r=>[r.name,r.src==='prospect'?'visit log only':'shopify only',r.booked||0,r.v90||0,r.last||'',r.m||''].map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','));

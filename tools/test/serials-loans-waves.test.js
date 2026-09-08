@@ -17,7 +17,7 @@ ok('splash uses the real app icon', /id="splash"[^]*?icon-512\.png/.test(html));
 ok('splash is standalone-only', /display-mode: standalone/.test(html) && /id="splash" style="display:none/.test(html));
 ok('browser tab never shows it', (()=>{ // jsdom is not standalone, so the gate must leave it hidden
   const el=d.getElementById('splash'); return el&&el.style.display==='none';})());
-ok('all app scripts defer', (html.match(/<script defer src="js\//g)||[]).length===16, (html.match(/<script defer src="js\//g)||[]).length);
+ok('all app scripts defer', (html.match(/<script defer src="js\//g)||[]).length===18, (html.match(/<script defer src="js\//g)||[]).length);
 ok('CDN libs defer too', (html.match(/<script defer src="https:/g)||[]).length===2);
 ok('no blocking external script left', !/<script src=/.test(html));
 ok('preconnects present', /rel="preconnect" href="https:\/\/lesjigujcajxurmsmwwc/.test(html));
@@ -364,11 +364,68 @@ ok('notification links are validated as in-app routes and JS-quoted', __src.inde
 ok('supplier AP block and open-payables metric are behind SHOWCOST', __src.indexOf("(SHOWCOST?apBlock(p):'')")>=0&&__src.indexOf("(SHOWCOST?'<div class=\\"met\\" style=\\"border-left:3px solid var(--rd)\\"><div class=\\"met-lbl\\">Open payables")>=0);
 ok('missing profile defaults to viewer, not sales', __src.indexOf("ROLE=(SBPROFILE&&SBPROFILE.role)||'viewer'")>=0);
 ok('the browser reckons "today" in Manila everywhere', typeof todayISO==='function'&&todayISO().length===10&&__src.split('new Date().toISOString().slice(0,10)').length===2);
+// ── in-app dialogs replace the browser's prompt / confirm / alert (2026-09-08) ──
+ok('no browser dialog call is left in the app', ['prompt(','confirm(','alert('].every(w=>{let i=-1,n=0;const S=__src;while((i=S.indexOf(w,i+1))>=0){const c=S[i-1]||' ';if(!/[.A-Za-z0-9_]/.test(c))n++;}return n===0;}));
+{ let p=uiPrompt('Terms:','30 days');await new Promise(r=>setTimeout(r,5));
+  const box=document.querySelector('#uidlg .uidlg-box');
+  ok('uiPrompt paints a box with the label and the default value', box&&/Terms:/.test(box.textContent)&&box.querySelector('input').value==='30 days');
+  box.querySelector('input').value='60 days';box.querySelector('[data-act="ok"]').click();
+  ok('OK resolves with the typed value', (await p)==='60 days');
+  p=uiPrompt('Note');await new Promise(r=>setTimeout(r,5));
+  document.dispatchEvent(new window.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+  ok('Escape resolves null, like a cancelled prompt', (await p)===null);
+  p=uiConfirm('Delete this?',{ok:'Delete',danger:true});await new Promise(r=>setTimeout(r,5));
+  ok('uiConfirm shows the message and a danger button', document.querySelector('#uidlg').textContent.indexOf('Delete this?')>=0&&!!document.querySelector('#uidlg .uidlg-ok.danger'));
+  document.querySelector('#uidlg [data-act="cancel"]').click();
+  ok('Cancel resolves false', (await p)===false);
+  p=uiConfirm('Sure?');await new Promise(r=>setTimeout(r,5));document.querySelector('#uidlg [data-act="ok"]').click();
+  ok('OK resolves true', (await p)===true);
+  const a=uiAlert('Saved.');await new Promise(r=>setTimeout(r,5));
+  ok('uiAlert has one button and closes on it', !document.querySelector('#uidlg [data-act="cancel"]')&&(document.querySelector('#uidlg [data-act="ok"]').click(),(await a)===true));
+  p=uiForm('Supplier',[{k:'name',l:'Name',req:1},{k:'cur',l:'Currency',t:'select',opts:['PHP','USD'],v:'USD'}]);await new Promise(r=>setTimeout(r,5));
+  document.querySelector('#uidlg [data-act="ok"]').click();await new Promise(r=>setTimeout(r,5));
+  ok('uiForm blocks on a missing required field', document.querySelector('#uidlg').classList.contains('open')&&/required/.test(document.querySelector('#uidlg-err').textContent));
+  document.querySelector('#uif-name').value='Lumenis';document.querySelector('#uidlg [data-act="ok"]').click();
+  const v=await p;ok('uiForm resolves the field map', v&&v.name==='Lumenis'&&v.cur==='USD', JSON.stringify(v));
+  ok('box closed and body unlocked afterwards', !document.querySelector('#uidlg').classList.contains('open')&&!document.body.classList.contains('uidlg-open'));
+}
+// ── Receiving (Verna's batch, 2026-09-08) ──
+{ const lc=shipLanded({invoice_total:1000,fx_rate:58,alloc_method:'value',fees:{freight:5800,insurance:200,duty:1160,vat_import:7000,brokerage:840,vat_recoverable:true}},
+    [{id:1,sku:'A',qty_expected:10,qty_counted:10,unit_cost:60},{id:2,sku:'B',qty_expected:20,qty_counted:20,unit_cost:20}]);
+  ok('landed cost: goods = invoice × rate; recoverable VAT excluded from fees', lc.goods===58000&&lc.feesTotal===8000&&lc.landed===66000&&lc.vatRecoverable===true, JSON.stringify(lc));
+  // value allocation: A carries 600/1000 of fees → 4800/10 = 480 + 60×58 = 3960 ; B: 3200/20 = 160 + 1160 = 1320
+  ok('allocation by value gives each unit its goods ₱ + share of fees', lc.per[1]===3960&&lc.per[2]===1320, JSON.stringify(lc.per));
+  const lq=shipLanded({invoice_total:1000,fx_rate:58,alloc_method:'qty',fees:{freight:3000,vat_import:7000,vat_recoverable:false}},[{id:1,qty_expected:10,unit_cost:60},{id:2,qty_expected:20,unit_cost:20}]);
+  ok('allocation by quantity; VAT counted when not recoverable', lq.feesTotal===10000&&lq.per[1]===(60*58+10000/30)&&Math.abs(lq.per[2]-(20*58+10000/30))<0.01, JSON.stringify(lq));
+  ok('due date = receipt + terms', shipDue({received_at:'2026-09-08',terms_days:60})==='2026-11-07'&&shipDue({received_at:'2026-09-08'})===null);
+}
+{ DB.shipments=[{id:3,po_id:12,supplier:'Lumenis PH',ref:'INV-77',status:'arrived',carrier:'DHL',tracking_no:'AWB123',etd:'2026-08-20',eta:'2026-09-01',arrived_at:'2026-09-07',terms_days:60,currency:'USD',fx_rate:58,invoice_total:1000,fees:{freight:5800,vat_recoverable:true},alloc_method:'value'},
+                {id:4,po_id:13,supplier:'Mesoestetic',status:'shipped',eta:'2020-01-01'}];
+  DB.shipment_lines=[{id:9,shipment_id:3,po_line_id:5,sku:'TD040',name:'FACE NADE',qty_expected:10,qty_counted:8,unit_cost:60,received:false},{id:10,shipment_id:3,po_line_id:6,sku:'INVESTA',name:'LASER',qty_expected:1,unit_cost:400,received:false}];
+  ROLE='supply_chain';currentView='receiving';SHIP_FILTER='open';SHIP_OPEN=3;await renderReceiving();
+  const t=$('content').textContent,h=$('content').innerHTML;
+  ok('receiving renders metrics, tabs, both shipments, late pill', /On the water/.test(t)&&/Past ETA/.test(t)&&/RCV-3/.test(t)&&/RCV-4/.test(t)&&/late/.test(t)&&/Lumenis PH/.test(t));
+  ok('open shipment shows the pipeline, tracking facts, lines with count inputs and the landed calculator', /Arrived/.test(t)&&/AWB123/.test(t)&&/FACE NADE/.test(t)&&h.indexOf("shipLineSet(9,'qty_counted'")>=0&&/Landed cost calculator/.test(t)&&/Import VAT/.test(t));
+  ok('short count is flagged and Post is offered to the warehouse', h.indexOf('title="counted vs expected">-2<')>=0&&h.indexOf('shipPost(3)')>=0&&h.indexOf('shipNew()')>=0);
+  ok('warehouse sees costs: landed ₱/unit and terms/due columns', /Landed ₱/.test(t)&&t.indexOf('Terms / due')>=0&&/60d/.test(t));
+  ROLE='manager';await renderReceiving();
+  const t2=$('content').textContent,h2=$('content').innerHTML;
+  ok('manager reads without costs and without controls', !/Landed ₱/.test(t2)&&!/Landed cost calculator/.test(t2)&&h2.indexOf('shipPost(3)')<0&&h2.indexOf('shipNew()')<0&&/View-only/.test(t2));
+  ROLE='finance';await renderReceiving();
+  ok('finance sees costs but no posting controls', /Landed ₱/.test($('content').textContent)&&$('content').innerHTML.indexOf('shipPost(3)')<0);
+  ok('viewAllowed: receiving for admin/supply_chain/finance/manager only', (ROLE='sales',!viewAllowed('receiving'))&&(ROLE='marketing',!viewAllowed('receiving'))&&(ROLE='viewer',!viewAllowed('receiving'))&&(ROLE='supply_chain',viewAllowed('receiving'))&&(ROLE='manager',viewAllowed('receiving')));
+  ROLE='supply_chain';SHIP_OPEN=null;
+  ok('PO page links to Receiving; nightly rule 13 pings past-ETA shipments', __src.indexOf("open Receiving →")>=0&&window.__autoHasShiplate);
+}
+// complaints split + delivery cost (source checks — the pages need live tables)
+ok('complaints: two directions, supplier tab with PO ref and kind, scorecard Claims column', __src.indexOf("cpSetDir('supplier')")>=0&&__src.indexOf("direction,account:sup?null:who,supplier:sup?who:null,po_ref")>=0&&__src.indexOf('<th class="r">Claims</th>')>=0);
+ok('delivery cost: saved with shipment details, cost roles only, never in the DR', __src.indexOf("patch.delivery_cost=")>=0&&__src.indexOf("canSeeDeliveryCost()")>=0&&!/delivery_cost/.test(__src.slice(__src.indexOf('async function showDeliveryReceipt'),__src.indexOf('async function showDeliveryReceipt')+6000))&&__src.indexOf("function canShip(){return roleIn('admin','manager','supply_chain')")>=0);
+ok('New order button follows viewAllowed(neworder)', __src.indexOf("(!trash&&viewAllowed('neworder')?'<button")>=0);
 ok('wave pick loads its orders in one query', __src.indexOf("SB.from('orders').select('*,order_lines(*)').in('id',ids)")>=0);
 window.__done=true;
 })().catch(e=>{window.__err=(e&&e.stack)||String(e);window.__done=true;});
 `;
-w.__src=app;
+w.__src=app;w.__autoHasShiplate=/shiplate/.test(fs.readFileSync('netlify/functions/automations-background.mjs','utf8'));
 w.eval(app+'\n;\n'+test);
 setTimeout(()=>{
   if(w.__err){console.error(w.__err);process.exit(1);}

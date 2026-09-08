@@ -30,7 +30,8 @@ const TABLES = {
   approval_routes: 'id', code_lists: 'id', fin_requests: 'id', fin_lines: 'id',
   serials: 'id', loans: 'id', waves: 'id', auto_log: 'id',
   review_notes: 'spec', review_commentary: 'month', review_snapshots: 'id',
-  ask_chats: 'id', user_prefs: 'user_id', qbo_map: 'kind', qbo_sync: 'id'
+  ask_chats: 'id', user_prefs: 'user_id', qbo_map: 'kind', qbo_sync: 'id',
+  shipments: 'id', shipment_lines: 'id'
 };
 
 async function dump(table, orderCol) {

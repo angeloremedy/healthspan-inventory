@@ -325,30 +325,30 @@ async function userCreate(){
   }catch(e){if(msg){msg.style.color='var(--rd)';msg.textContent=e.message;}}
 }
 async function userEdit(id,name,role,tag,ps,team,order){
-  const nn=prompt('Name:',name);if(nn===null)return;
-  let nr=prompt('Role (admin / manager / sales / supply_chain / finance / marketing / viewer / it):',ps?'it':(role==='(no profile)'?'sales':role));if(nr===null)return;
+  const nn=await uiPrompt('Name:',name);if(nn===null)return;
+  let nr=await uiPrompt('Role (admin / manager / sales / supply_chain / finance / marketing / viewer / it):',ps?'it':(role==='(no profile)'?'sales':role));if(nr===null)return;
   nr=nr.trim().toLowerCase();
-  const nt=nr==='sales'?prompt('Specialist tag (blank = manager, sees all):',tag||''):'';
+  const nt=nr==='sales'?await uiPrompt('Specialist tag (blank = manager, sees all):',tag||''):'';
   if(nt===null)return;
-  let tm='',od='';if(nr==='sales'&&(nt||'').trim()){tm=prompt('Team (as printed on the Business review, e.g. Team 1 / Team 2 / Key accounts — blank = none):',team||'');if(tm===null)return;
-    od=prompt('Presenting order on the Business review (1 = first; blank = after everyone with a number):',order==null?'':String(order));if(od===null)return;}
+  let tm='',od='';if(nr==='sales'&&(nt||'').trim()){tm=await uiPrompt('Team (as printed on the Business review, e.g. Team 1 / Team 2 / Key accounts — blank = none):',team||'');if(tm===null)return;
+    od=await uiPrompt('Presenting order on the Business review (1 = first; blank = after everyone with a number):',order==null?'':String(order));if(od===null)return;}
   try{await adminUsers('update',{id,name:nn.trim(),role:nr==='it'?'viewer':nr,can_manage_ps:nr==='it',tag:(nt||'').trim(),team:(tm||'').trim(),order:(od||'').trim()});renderUsers();}
-  catch(e){alert(e.message);}
+  catch(e){uiAlert(e.message);}
 }
 async function userPass(id,who){
-  const p=prompt('New password for '+who+' (8+ characters):','');if(!p)return;
-  try{await adminUsers('password',{id,password:p});alert('Password updated for '+who+'. Send it to them privately.');}
-  catch(e){alert(e.message);}
+  const p=await uiPrompt('New password for '+who+' (8+ characters):','');if(!p)return;
+  try{await adminUsers('password',{id,password:p});uiAlert('Password updated for '+who+'. Send it to them privately.');}
+  catch(e){uiAlert(e.message);}
 }
 async function userDelete(id,who){
-  if(!isSuper())return alert('Super admin only.');
-  if(!confirm('PERMANENTLY DELETE '+who+'?\n\nThis removes their login entirely. If they have orders/visits on record, deletion is blocked — use disable instead.'))return;
-  if(!confirm('Really sure? This cannot be undone. (Disable is the reversible option.)'))return;
-  try{await adminUsers('delete',{id});renderUsers();}catch(e){alert(e.message);}
+  if(!isSuper())return uiAlert('Super admin only.');
+  if(!await uiConfirm('PERMANENTLY DELETE '+who+'?\n\nThis removes their login entirely. If they have orders/visits on record, deletion is blocked — use disable instead.'))return;
+  if(!await uiConfirm('Really sure? This cannot be undone. (Disable is the reversible option.)'))return;
+  try{await adminUsers('delete',{id});renderUsers();}catch(e){uiAlert(e.message);}
 }
 async function userToggle(id,act){
-  if(act==='disable'&&!confirm('Disable this account? They’ll be signed out and blocked from signing in.'))return;
-  try{await adminUsers(act,{id});renderUsers();}catch(e){alert(e.message);}
+  if(act==='disable'&&!await uiConfirm('Disable this account? They’ll be signed out and blocked from signing in.'))return;
+  try{await adminUsers(act,{id});renderUsers();}catch(e){uiAlert(e.message);}
 }
 
 /* ── AR AGING & PAYMENTS (Phase 2) ── */
@@ -403,16 +403,16 @@ async function renderAR(){
 async function recordPayment(id){
   if(!SB||ROLE!=='admin')return;
   const os=await loadNativeOrders();const o=os.find(x=>x.id===id);if(!o)return;
-  const amt=parseFloat(prompt('Amount received (balance '+fmtPeso(o.balance||0)+'):','')||'');
+  const amt=parseFloat(await uiPrompt('Amount received (balance '+fmtPeso(o.balance||0)+'):','')||'');
   if(!amt||amt<=0)return;
-  if(o.source==='shopify'&&!confirm('This is a migrated Shopify order — the payment sync will overwrite this next backfill run. Record here anyway? (Better: mark it paid in Shopify.)'))return;
+  if(o.source==='shopify'&&!await uiConfirm('This is a migrated Shopify order — the payment sync will overwrite this next backfill run. Record here anyway? (Better: mark it paid in Shopify.)'))return;
   // cash needs its own date: a July invoice paid today is TODAY's collection
   const today=todayISO();
-  const pdate=(prompt('Date received (YYYY-MM-DD):',today)||'').trim();
+  const pdate=(await uiPrompt('Date received (YYYY-MM-DD):',today)||'').trim();
   if(!pdate)return;
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(pdate))return alert('Use the form 2026-08-28 — nothing recorded.');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(pdate))return uiAlert('Use the form 2026-08-28 — nothing recorded.');
   if(typeof blockIfClosed==='function'&&blockIfClosed(pdate,'Payment not recorded'))return;
-  const method=(prompt('Method / reference (bank transfer, cheque no., etc. — optional):','')||'').trim();
+  const method=(await uiPrompt('Method / reference (bank transfer, cheque no., etc. — optional):','')||'').trim();
   try{
     const paid=(o.paid||0)+amt;const balance=Math.max(0,(o.total||0)-paid);
     // the dated detail row first — if the period guard rejects it, the rollup is untouched
@@ -422,18 +422,18 @@ async function recordPayment(id){
     if(error)throw new Error(error.message);
     audit('payment.record',{order:ordLabel(o),account:o.account,amount:amt,date:pdate,method:method||'',newBalance:balance});
     NORDERS=null;renderOrderPage();
-  }catch(e){alert('Could not record: '+e.message);}
+  }catch(e){uiAlert('Could not record: '+e.message);}
 }
 async function collectionsCSV(){
   if(!canManage())return;
   const from=($('ax-from')&&$('ax-from').value)||'',to=($('ax-to')&&$('ax-to').value)||'';
-  if(!from||!to)return alert('Pick both dates.');
+  if(!from||!to)return uiAlert('Pick both dates.');
   try{
     const {data,error}=await SB.from('payments').select('date,order_label,account,amount,method,ref,created_name')
       .gte('date',from).lte('date',to).order('date',{ascending:true}).limit(5000);
     if(error)throw error;
     const rows=data||[];
-    if(!rows.length)return alert('No dated payments in that period.\n\nPayments recorded before this feature shipped have no date — those live only in the order totals and the Activity log.');
+    if(!rows.length)return uiAlert('No dated payments in that period.\n\nPayments recorded before this feature shipped have no date — those live only in the order totals and the Activity log.');
     const h=['Date received','Order','Account','Amount','Method / reference','Recorded by'];
     const body=rows.map(r=>[r.date,r.order_label||'',r.account||'',r.amount,[r.method,r.ref].filter(Boolean).join(' '),r.created_name||'']
       .map(v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"').join(','));
@@ -443,7 +443,7 @@ async function collectionsCSV(){
     const a=document.createElement('a');a.href=URL.createObjectURL(blob);
     a.download='healthspan-collections-'+from+'-to-'+to+'.csv';a.click();
     audit('export.collections',{from,to,rows:rows.length,total});
-  }catch(e){alert('Could not export: '+(e.message||e)+'\n\n(Run the accounting-integrity SQL if the payments table is missing.)');}
+  }catch(e){uiAlert('Could not export: '+(e.message||e)+'\n\n(Run the accounting-integrity SQL if the payments table is missing.)');}
 }
 function noAcctChanged(){
   const el=$('no-credit');if(!el)return;

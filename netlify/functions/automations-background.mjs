@@ -345,6 +345,19 @@ export const handler = async (event) => {
     }
   } catch (e) { errors.push('warranty: ' + e.message); }
 
+  // 13 · inbound shipments past their ETA and not yet arrived: the warehouse hears
+  //      once per shipment per ETA date (a new ETA after chasing pings again)
+  try {
+    const late = await q('shipments?select=id,supplier,eta,carrier,tracking_no,status&status=in.(expected,shipped,in_customs)&eta=not.is.null&eta=lt.' + today);
+    for (const s of late) {
+      if (!await fresh('shiplate', s.id + ':' + s.eta)) continue;
+      await notif({ role: 'supply_chain' }, 'auto', 'Shipment past ETA: RCV-' + s.id + ' · ' + s.supplier,
+        'ETA was ' + s.eta + ' and it is still ' + String(s.status).replace('_', ' ') + (s.carrier ? ' with ' + s.carrier : '') + (s.tracking_no ? ' (' + s.tracking_no + ')' : '') + '. Chase the forwarder or update the ETA on Receiving.',
+        '#/v/receiving');
+      fired.shiplate = (fired.shiplate || 0) + 1;
+    }
+  } catch (e) { errors.push('shiplate: ' + e.message); }
+
   console.log('automations', today, JSON.stringify(fired), errors.length ? 'errors: ' + JSON.stringify(errors) : 'clean');
   return { statusCode: 200, body: JSON.stringify({ ok: true, fired, errors }) };
 };

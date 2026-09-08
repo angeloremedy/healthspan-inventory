@@ -16,7 +16,7 @@ async function loadOwners(force){
 }
 function ownerOf(name){return (OWNERS||{})[custNorm(acctDedup(name||''))]||null;}
 async function setOwner(name,tag){
-  if(!canManage())return alert('Admins and sales managers only.');
+  if(!canManage())return uiAlert('Admins and sales managers only.');
   try{
     const nm=acctDedup(name);
     const {data:ex}=await SB.from('accounts').select('name').eq('name',nm).maybeSingle();
@@ -26,7 +26,7 @@ async function setOwner(name,tag){
     await loadOwners(true);
     if(currentView==='account')renderAccountPage();
     if(currentView==='customers')renderCustomers();
-  }catch(e){alert('Could not save owner: '+(e.message||e)+(String(e.message||'').includes('owner_tag')?'\n\n(Run the owner_tag SQL from SUPABASE-SETUP.md.)':''));}
+  }catch(e){uiAlert('Could not save owner: '+(e.message||e)+(String(e.message||'').includes('owner_tag')?'\n\n(Run the owner_tag SQL from SUPABASE-SETUP.md.)':''));}
 }
 function ownerSelHTML(name){
   const cur=ownerOf(name)||'';
@@ -52,7 +52,7 @@ async function renderRecall(){
 async function recallRun(){
   const sku=(($('rc-sku')||{}).value||'').trim(),batch=(($('rc-batch')||{}).value||'').trim();
   const out=$('rc-out');if(!out)return;
-  if(!sku&&!batch)return alert('Give at least a SKU or a batch number.');
+  if(!sku&&!batch)return uiAlert('Give at least a SKU or a batch number.');
   out.innerHTML='<div class="empty">Searching every shipment row…</div>';
   try{
     const r=await fetch('/.netlify/functions/refresh?trace=1&sku='+encodeURIComponent(sku)+'&batch='+encodeURIComponent(batch),{headers:await sbAuthHeaders()});
@@ -91,7 +91,7 @@ async function catalogDeals(sku){
   await loadItems();
   const it=ITEMS[sku];if(!it)return;
   let cur=[];try{cur=JSON.parse(it.deals||'[]');}catch(e){}
-  const txt=prompt('Deal definitions for '+sku+' — one per line as  buy+free=set price\n(e.g. "5+1=237500"). Blank = no deals.',cur.map(d=>d.buy+'+'+d.free+'='+d.price).join('\n'));
+  const txt=await uiPrompt('Deal definitions for '+sku+' — one per line as  buy+free=set price\n(e.g. "5+1=237500"). Blank = no deals.',cur.map(d=>d.buy+'+'+d.free+'='+d.price).join('\n'));
   if(txt===null)return;
   const deals=[];
   for(const line of txt.split('\n')){
@@ -103,7 +103,7 @@ async function catalogDeals(sku){
     if(error)throw error;
     audit('catalog.deals',{sku,deals:deals.length});
     await loadItems(true);applyCatalog();renderCatalog();
-  }catch(e){alert('Could not save deals: '+(e.message||e)+(String(e.message||'').includes('deals')?'\n\n(Run the items.deals SQL from SUPABASE-SETUP.md.)':''));}
+  }catch(e){uiAlert('Could not save deals: '+(e.message||e)+(String(e.message||'').includes('deals')?'\n\n(Run the items.deals SQL from SUPABASE-SETUP.md.)':''));}
 }
 
 
@@ -424,7 +424,7 @@ function stageOf(r){ // explicit stage wins; otherwise derived from behavior
 }
 function canStage(name){return canManage()||( ROLE==='sales'&&SBPROFILE&&SBPROFILE.specialist_tag&&specCanon(ownerOf(name)||'').toLowerCase()===specCanon(SBPROFILE.specialist_tag).toLowerCase());}
 async function setStage(name,stage,reason){
-  if(!canStage(name))return alert('Only the account owner, managers, or admins can move stages.');
+  if(!canStage(name))return uiAlert('Only the account owner, managers, or admins can move stages.');
   try{
     const nm=acctDedup(name);
     const patch={stage,stage_since:new Date().toISOString(),lost_reason:stage==='lost'?(reason||null):null};
@@ -435,15 +435,15 @@ async function setStage(name,stage,reason){
     await loadOwners(true);
     if(currentView==='pipeline')renderPipeline();
     if(currentView==='account')renderAccountPage();
-  }catch(e){alert('Could not move: '+(e.message||e)+(String(e.message||'').includes('stage')?'\n\n(Run the pipeline SQL from SUPABASE-SETUP.md.)':''));}
+  }catch(e){uiAlert('Could not move: '+(e.message||e)+(String(e.message||'').includes('stage')?'\n\n(Run the pipeline SQL from SUPABASE-SETUP.md.)':''));}
 }
 function stageMove(name,cur,dir){
   const i=PIPE_STAGES.indexOf(cur);
   const next=PIPE_STAGES[Math.min(PIPE_STAGES.length-1,Math.max(0,i+dir))];
   if(next!==cur)setStage(name,next);
 }
-function stageLost(name){
-  const r=prompt('Mark "'+name+'" as LOST — reason? (price / competitor / timing / no budget / other)','');
+async function stageLost(name){
+  const r=await uiPrompt('Mark "'+name+'" as LOST — reason? (price / competitor / timing / no budget / other)','');
   if(r===null)return;
   setStage(name,'lost',r.trim()||'other');
 }
@@ -509,25 +509,25 @@ async function renderPipeline(){
 }
 async function oppAdd(){
   const g=id=>($(id)&&$(id).value||'').trim();
-  if(!g('op-acct')||!g('op-title'))return alert('Need the account and a title.');
+  if(!g('op-acct')||!g('op-title'))return uiAlert('Need the account and a title.');
   try{
     const owner=ownerOf(g('op-acct'))||((ROLE==='sales'&&SBPROFILE&&SBPROFILE.specialist_tag)||null);
     const {error}=await SB.from('opportunities').insert({account:acctDedup(g('op-acct')),acct_key:custNorm(acctDedup(g('op-acct'))),title:g('op-title'),owner_tag:owner,est_value:g('op-val')?Math.round(parseFloat(g('op-val'))):null,expected_month:g('op-month')||null,created_by:(SBUSER&&SBUSER.id)||null});
     if(error)throw error;
     audit('opportunity.add',{account:g('op-acct'),title:g('op-title'),value:g('op-val')});
     renderPipeline();
-  }catch(e){alert('Could not add: '+(e.message||e)+(String(e.message||'').includes('opportunities')?'\n\n(Run the pipeline SQL from SUPABASE-SETUP.md.)':''));}
+  }catch(e){uiAlert('Could not add: '+(e.message||e)+(String(e.message||'').includes('opportunities')?'\n\n(Run the pipeline SQL from SUPABASE-SETUP.md.)':''));}
 }
 async function oppSet(id,stage){
   let reason=null;
-  if(stage==='lost'){reason=prompt('Lost — reason? (price / competitor / timing / no budget / other)','');if(reason===null)return;}
-  if(stage==='won'&&!confirm('Mark this opportunity WON? Link the resulting order from the account page afterwards.'))return;
+  if(stage==='lost'){reason=await uiPrompt('Lost — reason? (price / competitor / timing / no budget / other)','');if(reason===null)return;}
+  if(stage==='won'&&!await uiConfirm('Mark this opportunity WON? Link the resulting order from the account page afterwards.'))return;
   try{
     const {error}=await SB.from('opportunities').update({stage,lost_reason:reason,updated_at:new Date().toISOString()}).eq('id',id);
     if(error)throw error;
     audit('opportunity.'+stage,{id,reason:reason||''});
     renderPipeline();
-  }catch(e){alert(e.message||e);}
+  }catch(e){uiAlert(e.message||e);}
 }
 
 /* ── PURCHASE ORDERS + RECEIVING (procure-to-pay, feeds the scan ledger) ── */
@@ -587,54 +587,54 @@ async function renderPOs(){
     '<div style="font-size:11px;color:var(--tx3);margin-top:8px">Receiving asks for batch + expiry at the door and writes straight into the stock ledger'+(flagOn('ledger_is_truth')?'':' (shadow — the sheet stays stock truth until cutover)')+' · unit costs flow toward margin reporting</div>';
 }
 async function poCreate(){
-  if(!canWarehouse())return alert('PO writing is admin + supply chain.');
+  if(!canWarehouse())return uiAlert('PO writing is admin + supply chain.');
   const sup=(($('po-sup')||{}).value||'').trim();
-  if(!sup)return alert('Who’s the supplier?');
+  if(!sup)return uiAlert('Who’s the supplier?');
   try{
     const {data,error}=await SB.from('pos').insert({supplier:sup,eta:(($('po-eta')||{}).value||null)||null,status:'draft',created_by:(SBUSER&&SBUSER.id)||null}).select().single();
     if(error)throw error;
     audit('po.create',{po:PO_NO(data.id),supplier:sup});
     window._poOpen=data.id;renderPOs();
-  }catch(e){alert('Could not create: '+(e.message||e));}
+  }catch(e){uiAlert('Could not create: '+(e.message||e));}
 }
 async function poAddLine(poId){
   if(!canWarehouse())return;
   const sku=(($('pl-sku-'+poId)||{}).value||'').trim(),qty=parseInt(($('pl-qty-'+poId)||{}).value||'0',10);
-  if(!sku||!qty||qty<1)return alert('Need a SKU and quantity.');
+  if(!sku||!qty||qty<1)return uiAlert('Need a SKU and quantity.');
   const p=(DATA||[]).find(x=>x.sku===sku);
   const cost=($('pl-cost-'+poId)||{}).value;
   try{
     const {error}=await SB.from('po_lines').insert({po_id:poId,sku,name:(p&&p.name)||sku,qty,unit_cost:cost?Math.round(parseFloat(cost)):null});
     if(error)throw error;
     renderPOs();
-  }catch(e){alert(e.message||e);}
+  }catch(e){uiAlert(e.message||e);}
 }
 async function poStatus(poId,st){
   if(!canWarehouse())return;
-  if(st==='cancelled'&&!confirm('Cancel this PO?'))return;
+  if(st==='cancelled'&&!await uiConfirm('Cancel this PO?'))return;
   try{
     // SPEND GATE: sending a PO to the supplier commits money. Over the
     // threshold it holds for sign-off first — the mirror of the sales-order gate.
     if(st==='ordered'){
       const thr=parseFloat(((FLAGS&&FLAGS.po_approval_threshold)||'').toString().replace(/,/g,''))||0;
       const {data:po,error:poErr}=await SB.from('pos').select('id,supplier,approved,awaiting_approval').eq('id',poId).maybeSingle();
-      if(thr>0&&(poErr||!po))return alert('Cannot check the purchase limit right now'+(poErr?' ('+(poErr.message||poErr)+')':'')+'. The PO was NOT marked ordered — run the accounting-integrity SQL if this persists.');
+      if(thr>0&&(poErr||!po))return uiAlert('Cannot check the purchase limit right now'+(poErr?' ('+(poErr.message||poErr)+')':'')+'. The PO was NOT marked ordered — run the accounting-integrity SQL if this persists.');
       const {data:ls}=await SB.from('po_lines').select('qty,unit_cost').eq('po_id',poId);
       const value=(ls||[]).reduce((a,l)=>a+((l.unit_cost||0)*(l.qty||0)),0);
       const noCost=(ls||[]).some(l=>l.unit_cost==null); // an uncosted PO can hide any amount
       if(thr>0&&noCost&&!po.approved){
-        return alert(PO_NO(poId)+' has line(s) with no unit cost, so its value cannot be checked against the '+fmtPeso(thr)+' purchase limit.\n\nEnter the unit costs first — an uncosted PO cannot be sent for approval or marked ordered.');
+        return uiAlert(PO_NO(poId)+' has line(s) with no unit cost, so its value cannot be checked against the '+fmtPeso(thr)+' purchase limit.\n\nEnter the unit costs first — an uncosted PO cannot be sent for approval or marked ordered.');
       }
       if(thr>0&&value>thr&&!po.approved){
-        if(po.awaiting_approval)return alert(PO_NO(poId)+' is already waiting for approval ('+fmtPeso(value)+' is over the '+fmtPeso(thr)+' limit).');
-        if(!confirm(PO_NO(poId)+' is '+fmtPeso(value)+', over the '+fmtPeso(thr)+' purchase limit.\n\nSubmit it for approval? It stays a draft until an admin signs off.'))return;
+        if(po.awaiting_approval)return uiAlert(PO_NO(poId)+' is already waiting for approval ('+fmtPeso(value)+' is over the '+fmtPeso(thr)+' limit).');
+        if(!await uiConfirm(PO_NO(poId)+' is '+fmtPeso(value)+', over the '+fmtPeso(thr)+' purchase limit.\n\nSubmit it for approval? It stays a draft until an admin signs off.'))return;
         await SB.from('pos').update({awaiting_approval:true,updated_at:new Date().toISOString()}).eq('id',poId);
         await SB.from('approvals').insert({kind:'po',po_id:poId,order_label:PO_NO(poId),account:(po&&po.supplier)||'',amount:Math.round(value),
           reason:'Purchase order '+fmtPeso(value)+' exceeds the '+fmtPeso(thr)+' approval limit',
           requested_by:(SBUSER&&SBUSER.id)||null,requested_name:(SBPROFILE&&SBPROFILE.name)||''});
         audit('po.submit',{po:PO_NO(poId),value});
         try{notify({roles:['admin']},'approval','PO needs approval: '+PO_NO(poId),((po&&po.supplier)||'')+' \u00b7 '+fmtPeso(value)+' \u2014 over the purchase limit','#/v/approvals');}catch(e){}
-        alert('Submitted for approval. The PO stays a draft until it is signed off.');
+        uiAlert('Submitted for approval. The PO stays a draft until it is signed off.');
         renderPOs();return;
       }
     }
@@ -642,24 +642,24 @@ async function poStatus(poId,st){
     if(error)throw error;
     audit('po.'+st,{po:PO_NO(poId)});
     renderPOs();
-  }catch(e){alert(e.message||e);}
+  }catch(e){uiAlert(e.message||e);}
 }
 async function setPoThreshold(){
-  if(!isSuper())return alert('Spend limits are a super-admin setting.');
-  const v=prompt('Hold purchase orders above this amount for approval (₱, blank = off):',(FLAGS&&FLAGS.po_approval_threshold)||'');
+  if(!isSuper())return uiAlert('Spend limits are a super-admin setting.');
+  const v=await uiPrompt('Hold purchase orders above this amount for approval (₱, blank = off):',(FLAGS&&FLAGS.po_approval_threshold)||'');
   if(v===null)return;
   await setFlagRaw('po_approval_threshold',v.trim().replace(/,/g,''));
   renderApprovals();
 }
 async function poReceive(poId,lineId,sku,qty,got){
-  if(!canWarehouse())return alert('Receiving is admin + supply chain.');
+  if(!canWarehouse())return uiAlert('Receiving is admin + supply chain.');
   const left=qty-got;
-  const n=parseInt(prompt('Receiving '+sku+' — how many units? ('+left+' outstanding)',String(left))||'0',10);
+  const n=parseInt(await uiPrompt('Receiving '+sku+' — how many units? ('+left+' outstanding)',String(left))||'0',10);
   if(!n||n<1)return;
-  if(n>left&&!confirm(n+' is more than the '+left+' outstanding — receive anyway?'))return;
-  const batch=(prompt('Batch / lot number (from the box):','')||'').trim();
-  const expiry=(prompt('Expiry (MM/YYYY):','')||'').trim();
-  const qaHold=!confirm('Receive as SELLABLE stock?\n\nOK = sellable (into the ledger now)\nCancel = QA HOLD (quarantined until inspection releases it)');
+  if(n>left&&!await uiConfirm(n+' is more than the '+left+' outstanding — receive anyway?'))return;
+  const batch=(await uiPrompt('Batch / lot number (from the box):','')||'').trim();
+  const expiry=(await uiPrompt('Expiry (MM/YYYY):','')||'').trim();
+  const qaHold=!await uiConfirm('Receive as SELLABLE stock?\n\nOK = sellable (into the ledger now)\nCancel = QA HOLD (quarantined until inspection releases it)');
   try{
     if(qaHold){
       const p=DATA.find(x=>x.sku===sku);
@@ -674,7 +674,7 @@ async function poReceive(poId,lineId,sku,qty,got){
     audit('po.receive',{po:PO_NO(poId),sku,qty:n,batch});
     boRelease(sku,n); // stock arrived — auto-release waiting backorders, oldest first
     renderPOs();
-  }catch(e){alert('Could not receive: '+(e.message||e));}
+  }catch(e){uiAlert('Could not receive: '+(e.message||e));}
 }
 
 /* ══ FINANCE SUITE: credit limits + approvals · commissions · supplier AP · events ══ */
@@ -690,9 +690,9 @@ function creditLimitOf(name){
   return (window.CREDITS||{})[k]||null;
 }
 async function setCreditLimit(name){
-  if(!roleIn('admin','finance'))return alert('Credit limits are set by finance/admin.');
+  if(!roleIn('admin','finance'))return uiAlert('Credit limits are set by finance/admin.');
   const cur=creditLimitOf(name);
-  const v=prompt('Credit limit for '+name+' (₱ — blank to remove):',cur!=null?String(cur):'');
+  const v=await uiPrompt('Credit limit for '+name+' (₱ — blank to remove):',cur!=null?String(cur):'');
   if(v===null)return;
   try{
     const nm=acctDedup(name);
@@ -703,7 +703,7 @@ async function setCreditLimit(name){
     audit('credit.limit',{account:nm,limit:lim});
     await loadOwners(true);
     if(currentView==='account')renderAccountPage();
-  }catch(e){alert('Could not save: '+(e.message||e)+(String(e.message||'').includes('credit_limit')?'\n\n(Run the finance-suite SQL from SUPABASE-SETUP.md.)':''));}
+  }catch(e){uiAlert('Could not save: '+(e.message||e)+(String(e.message||'').includes('credit_limit')?'\n\n(Run the finance-suite SQL from SUPABASE-SETUP.md.)':''));}
 }
 async function renderApprovals(){
   if(!canManage()&&ROLE!=='finance'){$('content').innerHTML='<div class="empty" style="margin-top:40px">Managers decide approvals; finance may watch.</div>';return;}
@@ -734,8 +734,8 @@ async function renderApprovals(){
       '<br><b>Purchase threshold:</b> purchase orders above ₱<span id="ap-pothr">'+((window.FLAGS&&FLAGS.po_approval_threshold)?Number(FLAGS.po_approval_threshold).toLocaleString():'—')+'</span> hold as drafts until signed off · <a href="#" onclick="setPoThreshold();return false" style="color:var(--ac)">change</a> (blank = off)</div>':'');
 }
 async function setApprovalThreshold(){
-  if(!isSuper())return alert('Cutover-level setting — super admin only.');
-  const v=prompt('Hold specialist orders above this amount for manager approval (₱, blank = off):',(FLAGS&&FLAGS.approval_threshold)||'');
+  if(!isSuper())return uiAlert('Cutover-level setting — super admin only.');
+  const v=await uiPrompt('Hold specialist orders above this amount for manager approval (₱, blank = off):',(FLAGS&&FLAGS.approval_threshold)||'');
   if(v===null)return;
   await setFlagRaw('approval_threshold',v.trim().replace(/,/g,''));
   renderApprovals();
@@ -746,18 +746,18 @@ async function setFlagRaw(k,v){ // super-admin setting write (no confirm ceremon
     if(error)throw error;
     audit('setting.'+k,{value:String(v).slice(0,40)});
     await loadFlags(true);
-  }catch(e){alert('Could not save: '+(e.message||e));}
+  }catch(e){uiAlert('Could not save: '+(e.message||e));}
 }
 async function approvalAct(id,decision){
   if(!canManage())return;
-  if(decision==='rejected'&&!confirm('Reject this order? It will be CANCELLED with the reason on record.'))return;
+  if(decision==='rejected'&&!await uiConfirm('Reject this order? It will be CANCELLED with the reason on record.'))return;
   try{
     const {data:r}=await SB.from('approvals').select('*').eq('id',id).maybeSingle();
     if(!r||r.status!=='pending')return;
     const {error}=await SB.from('approvals').update({status:decision,decided_by:(SBPROFILE&&SBPROFILE.name)||'',decided_at:new Date().toISOString()}).eq('id',id);
     if(error)throw error;
     if(r.kind==='po'&&r.po_id){ // purchase order spend gate — admin only (managers have no write on pos)
-      if(!roleIn('admin'))return alert('Purchase approvals are an admin decision.');
+      if(!roleIn('admin'))return uiAlert('Purchase approvals are an admin decision.');
       const patch=decision==='approved'
         ?{approved:true,awaiting_approval:false,status:'ordered',updated_at:new Date().toISOString()}
         :{awaiting_approval:false,status:'cancelled',updated_at:new Date().toISOString()};
@@ -773,7 +773,7 @@ async function approvalAct(id,decision){
       if(decision==='approved')notify({roles:['supply_chain']},'order','New order '+r.order_label,r.account+' · '+fmtPeso(r.amount||0)+' — approved, ready to pick','#/v/fulfillq');
     }catch(e){}
     NORDERS=null;renderApprovals();
-  }catch(e){alert('Could not decide: '+(e.message||e));}
+  }catch(e){uiAlert('Could not decide: '+(e.message||e));}
 }
 
 // ── COMMISSIONS (finance-owned): rate tiers by attainment, payroll-ready ────
@@ -859,17 +859,17 @@ async function renderCommissions(){
 async function editCommRules(){
   if(!roleIn('admin','finance'))return;
   const rules=await loadCommRules();
-  const txt=prompt('Commission tiers — one per line as  min-attainment% : rate%\n(e.g. "80:1" = reaching 80% of target earns 1% of booked)',rules.map(t=>t.min+':'+t.pct).join('\n'));
+  const txt=await uiPrompt('Commission tiers — one per line as  min-attainment% : rate%\n(e.g. "80:1" = reaching 80% of target earns 1% of booked)',rules.map(t=>t.min+':'+t.pct).join('\n'));
   if(txt===null)return;
   const out=[];
   for(const line of txt.split('\n')){const m=line.trim().match(/^(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)$/);if(m)out.push({min:+m[1],pct:+m[2]});}
-  if(!out.length)return alert('No valid tiers.');
+  if(!out.length)return uiAlert('No valid tiers.');
   try{
     const {error}=await SB.from('comm_rules').upsert({id:1,rules:JSON.stringify(out),updated_by:(SBUSER&&SBUSER.id)||null,updated_at:new Date().toISOString()});
     if(error)throw error;
     audit('commissions.rules',{tiers:out.length});
     renderCommissions();
-  }catch(e){alert('Could not save: '+(e.message||e)+(String(e.message||'').includes('comm_rules')?'\n\n(Run the finance-suite SQL.)':''));}
+  }catch(e){uiAlert('Could not save: '+(e.message||e)+(String(e.message||'').includes('comm_rules')?'\n\n(Run the finance-suite SQL.)':''));}
 }
 function commExport(){
   const rows=window._COMMROWS||[];if(!rows.length)return;
@@ -935,8 +935,8 @@ async function renderEvents(){
 
 // ── SUPPLIER AP (finance): terms, proforma, FX amounts, payments per PO ──
 async function apSet(poId,field,label,cur){
-  if(!roleIn('admin','finance'))return alert('AP fields are finance/admin.');
-  const v=prompt(label+':',cur==null?'':String(cur));
+  if(!roleIn('admin','finance'))return uiAlert('AP fields are finance/admin.');
+  const v=await uiPrompt(label+':',cur==null?'':String(cur));
   if(v===null)return;
   try{
     const patch={};
@@ -946,7 +946,7 @@ async function apSet(poId,field,label,cur){
     if(error)throw error;
     audit('ap.'+field,{po:PO_NO(poId),value:String(v).slice(0,40)});
     renderPOs();
-  }catch(e){alert('Could not save: '+(e.message||e)+(String(e.message||'').includes(field)?'\n\n(Run the finance-suite SQL.)':''));}
+  }catch(e){uiAlert('Could not save: '+(e.message||e)+(String(e.message||'').includes(field)?'\n\n(Run the finance-suite SQL.)':''));}
 }
 function apBlock(p){
   const bal=(p.fx_total!=null&&p.amount_paid!=null)?(p.fx_total-p.amount_paid):null;
@@ -964,6 +964,7 @@ function apBlock(p){
     cell('landed_cost','Landed cost add-on ₱ (freight+customs+brokerage)',p.landed_cost,v=>fmtPeso(v))+
     '</div>'+
     '<div style="background:var(--sf2);border-radius:10px;padding:10px 14px;margin-top:10px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--tx3);margin-bottom:4px">Import shipment</div>'+
+    '<div class="drow"><span class="dlbl">Shipments</span><span class="dval"><a href="#" onclick="SHIP_FILTER=\'all\';showView(\'receiving\',null);return false" style="color:var(--ac)">open Receiving →</a></span></div>'+
     impCell(p,'etd','ETD (departs origin)')+
     impCell(p,'eta','ETA (arrives PH)')+
     impCell(p,'customs_status','Customs status (in transit / clearing / cleared / delivered)')+
@@ -977,7 +978,7 @@ function impCell(p,field,label){
 }
 async function impSet(poId,field,label,cur){
   if(!canWarehouse()&&!roleIn('finance'))return;
-  const v=prompt(label+(field==='etd'||field==='eta'?' (YYYY-MM-DD)':'')+':',cur||'');
+  const v=await uiPrompt(label+(field==='etd'||field==='eta'?' (YYYY-MM-DD)':'')+':',cur||'');
   if(v===null)return;
   try{
     const patch={};patch[field]=v.trim()||null;
@@ -985,7 +986,7 @@ async function impSet(poId,field,label,cur){
     if(error)throw error;
     audit('import.'+field,{po:PO_NO(poId),value:v.slice(0,40)});
     renderPOs();
-  }catch(e){alert('Could not save: '+(e.message||e)+(String(e.message||'').includes(field)?'\n\n(Run the procure-to-pay SQL.)':''));}
+  }catch(e){uiAlert('Could not save: '+(e.message||e)+(String(e.message||'').includes(field)?'\n\n(Run the procure-to-pay SQL.)':''));}
 }
 
 /* ══════════ QUOTATIONS — formal quotes, print, convert to order ══════════ */
@@ -1143,7 +1144,7 @@ async function qpSync(account,outcome,reason){ // quote decision → pipeline (o
 }
 async function quoteStatus(id,status){
   let reason=null;
-  if(status==='lost'){reason=prompt('Lost — why? (price / competitor / timing / no response / other)');if(reason===null)return;}
+  if(status==='lost'){reason=await uiPrompt('Lost — why? (price / competitor / timing / no response / other)');if(reason===null)return;}
   try{
     const upd={status};if(reason!==null)upd.lost_reason=reason.trim()||null;
     const {error}=await SB.from('quotes').update(upd).eq('id',id);if(error)throw error;
@@ -1152,11 +1153,11 @@ async function quoteStatus(id,status){
     if(q&&status==='accepted')qpSync(q.account,'won');
     if(q&&status==='lost')qpSync(q.account,'lost',reason);
     renderQuotes();
-  }catch(e){alert(e.message||e);}
+  }catch(e){uiAlert(e.message||e);}
 }
 async function quoteConvert(id){
   const q=(QUOTES||[]).find(x=>x.id===id);if(!q)return;
-  if(!confirm('Convert '+qtLabel(q)+' into an order for '+q.account+'? The order form opens prefilled — review, then submit.'))return;
+  if(!await uiConfirm('Convert '+qtLabel(q)+' into an order for '+q.account+'? The order form opens prefilled — review, then submit.'))return;
   if(q.status!=='accepted'){try{await SB.from('quotes').update({status:'accepted'}).eq('id',id);}catch(e){}}
   audit('quote.convert',{quote:qtLabel(q),account:q.account});
   qpSync(q.account,'won');
@@ -1252,11 +1253,11 @@ async function promoAdd(){
   }catch(e){if(msg){msg.style.color='var(--rd)';msg.textContent=(e.message||e)+(String(e.message||'').includes('promos')?' (run the promotions SQL from SUPABASE-SETUP.md)':'');}}
 }
 async function promoToggle(id,on){
-  try{const {error}=await SB.from('promos').update({active:on}).eq('id',id);if(error)throw error;audit('promo.'+(on?'on':'off'),{id});renderPromos();}catch(e){alert(e.message||e);}
+  try{const {error}=await SB.from('promos').update({active:on}).eq('id',id);if(error)throw error;audit('promo.'+(on?'on':'off'),{id});renderPromos();}catch(e){uiAlert(e.message||e);}
 }
 async function promoDel(id){
-  if(!confirm('Delete this promo? Past orders keep their promo-tagged lines.'))return;
-  try{const {error}=await SB.from('promos').delete().eq('id',id);if(error)throw error;audit('promo.delete',{id});renderPromos();}catch(e){alert(e.message||e);}
+  if(!await uiConfirm('Delete this promo? Past orders keep their promo-tagged lines.'))return;
+  try{const {error}=await SB.from('promos').delete().eq('id',id);if(error)throw error;audit('promo.delete',{id});renderPromos();}catch(e){uiAlert(e.message||e);}
 }
 
 /* ══════════ PRODUCT REGISTRATION TRACKING — CPR/FDA per SKU ══════════ */
@@ -1292,16 +1293,16 @@ async function renderRegs(){
 }
 async function regEdit(sku){
   const {data:x}=await SB.from('items').select('sku,reg_type,reg_no,reg_expiry').eq('sku',sku).maybeSingle();
-  if(!x)return alert('SKU not in the item master yet — seed the catalog first (Item master → seed).');
-  const t=prompt('Registration type (CPR / FDA / NA):',x.reg_type||'CPR');if(t===null)return;
-  const n=prompt('Registration number:',x.reg_no||'');if(n===null)return;
-  const e=prompt('Expiry date (YYYY-MM-DD, blank if none):',x.reg_expiry||'');if(e===null)return;
+  if(!x)return uiAlert('SKU not in the item master yet — seed the catalog first (Item master → seed).');
+  const t=await uiPrompt('Registration type (CPR / FDA / NA):',x.reg_type||'CPR');if(t===null)return;
+  const n=await uiPrompt('Registration number:',x.reg_no||'');if(n===null)return;
+  const e=await uiPrompt('Expiry date (YYYY-MM-DD, blank if none):',x.reg_expiry||'');if(e===null)return;
   try{
     const {error}=await SB.from('items').update({reg_type:t.trim()||null,reg_no:n.trim()||null,reg_expiry:e.trim()||null}).eq('sku',sku);
     if(error)throw error;
     audit('reg.update',{sku,no:n.trim(),expiry:e.trim()});
     renderRegs();
-  }catch(err){alert(err.message||err);}
+  }catch(err){uiAlert(err.message||err);}
 }
 
 /* ══════════ NOTIFICATIONS — the machine pings you (gap #2 closed) ══════════ */
@@ -1426,13 +1427,13 @@ async function renderShortDated(){
 async function sdPlan(sku,batch){
   const lot=(BATCHES||[]).find(b=>b.skuCode===sku&&String(b.batch||'')===String(batch||''));
   const opts=Object.keys(SD_PLANS).map((k,i)=>(i+1)+') '+SD_PLANS[k]).join('\n');
-  const pick=prompt('Plan for '+(lot?lot.name:sku)+(batch?' · batch '+batch:'')+':\n\n'+opts+'\n\nEnter 1-5:','1');
+  const pick=await uiPrompt('Plan for '+(lot?lot.name:sku)+(batch?' · batch '+batch:'')+':\n\n'+opts+'\n\nEnter 1-5:','1');
   const keys=Object.keys(SD_PLANS);const plan=keys[parseInt(pick,10)-1];
   if(!plan)return;
-  const own=(prompt('Who owns this action? (specialist tag or name — blank = the warehouse team)','')||'').trim();
-  const target=(prompt('Target date to have it done (YYYY-MM-DD):',new Date(Date.now()+14*864e5).toISOString().slice(0,10))||'').trim();
-  if(target&&!/^\d{4}-\d{2}-\d{2}$/.test(target))return alert('Target date must look like 2026-09-15 — nothing saved.');
-  const notes=(prompt('Note (e.g. which account, what discount):','')||'').trim();
+  const own=(await uiPrompt('Who owns this action? (specialist tag or name — blank = the warehouse team)','')||'').trim();
+  const target=(await uiPrompt('Target date to have it done (YYYY-MM-DD):',new Date(Date.now()+14*864e5).toISOString().slice(0,10))||'').trim();
+  if(target&&!/^\d{4}-\d{2}-\d{2}$/.test(target))return uiAlert('Target date must look like 2026-09-15 — nothing saved.');
+  const notes=(await uiPrompt('Note (e.g. which account, what discount):','')||'').trim();
   try{
     const row={sku,batch:batch||'',name:lot?lot.name:null,expiry:lot?lot.expiry:null,qty:lot?lot.soh:null, // '' not null — keeps the unique key honest
       plan,owner_tag:own||null,target_date:target||null,notes:notes||null,status:'open',
@@ -1440,19 +1441,19 @@ async function sdPlan(sku,batch){
     const {error}=await SB.from('shortdated').upsert(row,{onConflict:'sku,batch'});
     if(error)throw error;
     audit('shortdated.plan',{sku,batch:batch||'',plan,owner:own||''});
-    if(plan==='quarantine'&&canWarehouse()&&lot&&confirm('Pull these '+lot.soh+' units into quarantine now?'))
+    if(plan==='quarantine'&&canWarehouse()&&lot&&await uiConfirm('Pull these '+lot.soh+' units into quarantine now?'))
       await quarAdd(sku,lot.name,lot.soh,batch,'expiry','SD',true);
     renderShortDated();
-  }catch(e){alert('Could not save the plan: '+(e.message||e));}
+  }catch(e){uiAlert('Could not save the plan: '+(e.message||e));}
 }
 async function sdClose(id){
-  const note=(prompt('What actually happened? (outcome for the record)','')||'').trim();
+  const note=(await uiPrompt('What actually happened? (outcome for the record)','')||'').trim();
   try{
     const {error}=await SB.from('shortdated').update({status:'done',outcome:note||null,closed_at:new Date().toISOString(),closed_by:(SBPROFILE&&SBPROFILE.name)||''}).eq('id',id);
     if(error)throw error;
     audit('shortdated.close',{id,note});
     renderShortDated();
-  }catch(e){alert('Could not close it: '+(e.message||e));}
+  }catch(e){uiAlert('Could not close it: '+(e.message||e));}
 }
 
 /* ══ RECEIVING DISCREPANCIES & SUPPLIER SCORECARD ══
@@ -1465,13 +1466,15 @@ async function renderPoScore(){
   loadingHint();
   let pos=[],lines=[],sups=[];
   try{
-    const [a,b,c]=await Promise.all([
+    const [a,b,c,d]=await Promise.all([
       SB.from('pos').select('id,supplier,status,eta,etd,created_at,updated_at').order('id',{ascending:false}).limit(400),
       SB.from('po_lines').select('po_id,sku,name,qty,received,unit_cost').order('id',{ascending:false}).limit(4000),
-      SB.from('suppliers').select('name,lead_time_days').limit(200)
+      SB.from('suppliers').select('name,lead_time_days').limit(200),
+      SB.from('complaints').select('supplier,status').eq('direction','supplier').limit(1000)
     ]);
     if(a.error)throw a.error;if(b.error)throw b.error;if(c.error)throw c.error; // a silent po_lines failure would read as "no discrepancies"
     pos=a.data||[];lines=b.data||[];sups=c.data||[];
+    window._cpBySup={};for(const x of ((d&&d.data)||[])){const k=x.supplier||'—';const o=(window._cpBySup[k]=window._cpBySup[k]||{open:0,all:0});o.all++;if(x.status!=='closed')o.open++;}
   }catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Could not load POs: '+esc(e.message||e)+'</div>';return;}
   const poById={};for(const p of pos)poById[p.id]=p;
   const linesBy={};for(const l of lines)(linesBy[l.po_id]=linesBy[l.po_id]||[]).push(l);
@@ -1504,7 +1507,8 @@ async function renderPoScore(){
     const fill=s.units?Math.round(s.got/s.units*100):null;
     const onTime=(s.late+s.onTimeCount)?Math.round(s.onTimeCount/(s.late+s.onTimeCount)*100):null;
     const actual=s.leadN?Math.round(s.leadSum/s.leadN):null;
-    return{name,...s,fill,onTime,actual,quoted:lead[name]!=null?lead[name]:null};
+    const cl=(window._cpBySup||{})[name]||{open:0,all:0};
+    return{name,...s,fill,onTime,actual,quoted:lead[name]!=null?lead[name]:null,claims:cl.all,claimsOpen:cl.open};
   }).sort((a,b)=>(a.fill==null?101:a.fill)-(b.fill==null?101:b.fill));
   const grade=v=>v==null?'<span class="mu">—</span>':'<span class="pill p'+(v>=98?'gr':v>=90?'bl':v>=75?'am':'rd')+'">'+v+'%</span>';
   const shortV=disc.filter(d=>d.gap<0).reduce((a,d)=>a+d.value,0);
@@ -1514,10 +1518,11 @@ async function renderPoScore(){
     '<div class="met am"><div class="met-lbl">Lines off</div><div class="met-val">'+disc.length+'</div><div class="met-sub">received ≠ ordered on closed POs</div><div class="met-bar"></div></div>'+
     '<div class="met bl"><div class="met-lbl">Suppliers graded</div><div class="met-val">'+rows.length+'</div><div class="met-sub">fill rate · on-time · real lead time</div><div class="met-bar"></div></div>'+
     '</div>'+
-    '<div class="tcard" style="margin-bottom:16px"><div class="phd" style="padding:12px 14px 0;margin-bottom:8px">Supplier scorecard</div><div class="tscroll"><table><thead><tr><th>Supplier</th><th class="r">POs</th><th class="r">Fill rate</th><th class="r">On time</th><th class="r">Lead time — quoted</th><th class="r">actual</th><th class="r">Short lines</th></tr></thead><tbody>'+
+    '<div class="tcard" style="margin-bottom:16px"><div class="phd" style="padding:12px 14px 0;margin-bottom:8px">Supplier scorecard</div><div class="tscroll"><table><thead><tr><th>Supplier</th><th class="r">POs</th><th class="r">Fill rate</th><th class="r">On time</th><th class="r">Lead time — quoted</th><th class="r">actual</th><th class="r">Short lines</th><th class="r">Claims</th></tr></thead><tbody>'+
     (rows.length?rows.map(r=>'<tr><td style="font-weight:600">'+esc(r.name)+'</td><td class="r">'+r.pos+'</td><td class="r">'+grade(r.fill)+'</td><td class="r">'+grade(r.onTime)+'</td>'+
       '<td class="r mu">'+(r.quoted!=null?r.quoted+'d':'—')+'</td><td class="r">'+(r.actual!=null?'<span class="pill p'+(r.quoted!=null&&r.actual>r.quoted*1.25?'am':'bl')+'">'+r.actual+'d</span>':'<span class="mu">—</span>')+'</td>'+
-      '<td class="r">'+(r.short||'—')+(r.over?' <span class="mu">(+'+r.over+' over)</span>':'')+'</td></tr>').join(''):'<tr><td colspan="7" class="mu">No received POs yet.</td></tr>')+
+      '<td class="r">'+(r.short||'—')+(r.over?' <span class="mu">(+'+r.over+' over)</span>':'')+'</td>'+
+      '<td class="r">'+(r.claims?'<a href="#" onclick="cpSetDir(\'supplier\');showView(\'complaints\',null);return false" style="color:'+(r.claimsOpen?'var(--rd)':'var(--tx)')+'">'+r.claims+(r.claimsOpen?' <span class="mu">('+r.claimsOpen+' open)</span>':'')+'</a>':'<span class="mu">—</span>')+'</td></tr>').join(''):'<tr><td colspan="8" class="mu">No received POs yet.</td></tr>')+
     '</tbody></table></div><div class="tfooter"><span>Fill rate = units received ÷ units ordered · on-time = received on or before the ETA · actual lead time ≈ PO created → last update on a received PO (close enough to grade a supplier, not an audited date). Where actual runs 25%+ past quoted, the reorder plan is under-buying — worth updating the supplier’s lead time.</span></div></div>'+
     '<div class="tcard"><div class="phd" style="padding:12px 14px 0;margin-bottom:8px">Receiving discrepancies</div><div class="tscroll"><table><thead><tr><th>PO</th><th>Supplier</th><th>Product</th><th class="r">Ordered</th><th class="r">Received</th><th class="r">Gap</th><th class="r">Value</th></tr></thead><tbody>'+
     (disc.length?disc.map(d=>'<tr><td class="mu">PO-'+d.po+'</td><td>'+esc(d.supplier)+'</td><td style="font-weight:600">'+esc(d.name||d.sku)+'</td><td class="r">'+d.qty+'</td><td class="r">'+d.got+'</td>'+
@@ -1599,7 +1604,7 @@ async function renderCycleCounts(){
 function ccStart(line){
   const items=(DATA||[]).filter(p=>typeof p.stock==='number'&&(!line||p.line===line))
     .map(p=>({sku:p.sku,name:p.name,expected:stk(p)})).sort((a,b)=>a.name.localeCompare(b.name));
-  if(!items.length)return alert('Nothing to count in that scope.');
+  if(!items.length)return uiAlert('Nothing to count in that scope.');
   CCS={scope:line||'all',items,started:new Date().toISOString()};
   renderCCSheet();
 }
@@ -1610,7 +1615,7 @@ function renderCCSheet(){
     '<div class="panel" style="padding:12px 16px;margin-bottom:12px;border-left:3px solid var(--am);display:flex;align-items:center;gap:10px;flex-wrap:wrap">'+
     '<b style="font-size:13px">Counting: '+esc(CCS.scope)+'</b><span style="font-size:11.5px;color:var(--tx3)">'+CCS.items.length+' SKUs · blind — expected stays hidden · leave blank = not counted (skipped)</span><span style="flex:1"></span>'+
     '<button onclick="ccClose()" style="background:var(--gr);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:700;cursor:pointer">✓ Close & grade</button>'+
-    '<a href="#" onclick="if(confirm(\'Abandon this count? Nothing is saved.\')){CCS=null;renderCycleCounts();}return false" style="color:var(--rd);font-size:12px">abandon</a></div>'+
+    '<a href="#" onclick="ccAbandon();return false" style="color:var(--rd);font-size:12px">abandon</a></div>'+
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Product</th><th>SKU</th><th class="r">Counted</th></tr></thead><tbody>'+
     CCS.items.map((x,i)=>'<tr><td style="font-weight:600">'+esc(x.name)+'</td><td class="mu">'+esc(x.sku)+'</td>'+
       '<td class="r"><input id="cc-'+i+'" type="number" min="0" inputmode="numeric" '+inp+'></td></tr>').join('')+
@@ -1621,10 +1626,10 @@ async function ccClose(){
     const v=($('cc-'+i)&&$('cc-'+i).value)||'';
     return v===''?null:{...x,counted:Math.max(0,parseInt(v,10)||0)};
   }).filter(Boolean);
-  if(!counted.length)return alert('Nothing entered yet.');
+  if(!counted.length)return uiAlert('Nothing entered yet.');
   const matched=counted.filter(x=>x.counted===x.expected).length;
   const varU=counted.reduce((a,x)=>a+Math.abs(x.counted-x.expected),0);
-  if(!confirm('Close this count?\n\n'+counted.length+' SKUs counted · '+matched+' match ('+Math.round(matched/counted.length*100)+'%) · '+varU+' units of variance.\n\nVariances write adjustment movements into the ledger.'))return;
+  if(!await uiConfirm('Close this count?\n\n'+counted.length+' SKUs counted · '+matched+' match ('+Math.round(matched/counted.length*100)+'%) · '+varU+' units of variance.\n\nVariances write adjustment movements into the ledger.'))return;
   try{
     const {data:sess,error}=await SB.from('count_sessions').insert({scope:CCS.scope,started_by:SBUSER.id,started_name:(SBPROFILE&&SBPROFILE.name)||'',started_at:CCS.started,closed_at:new Date().toISOString(),skus:counted.length,matched,variance_units:varU}).select().single();
     if(error)throw error;
@@ -1634,9 +1639,9 @@ async function ccClose(){
     if(adj.length)for(let i=0;i<adj.length;i+=200)await ledgerAdd(adj.slice(i,i+200));
     audit('count.close',{session:sess.id,scope:CCS.scope,skus:counted.length,matched,variance:varU});
     CCS=null;
-    alert(matched===counted.length?'CLEAN COUNT ✓ 100% matched — one step closer to retiring the sheet.':'Count closed — '+adj.length+' variance(s) recorded as ledger adjustments.');
+    uiAlert(matched===counted.length?'CLEAN COUNT ✓ 100% matched — one step closer to retiring the sheet.':'Count closed — '+adj.length+' variance(s) recorded as ledger adjustments.');
     renderCycleCounts();
-  }catch(e){alert('Could not close: '+(e.message||e)+(String(e.message||'').includes('count_sessions')?'\n\n(Run the cycle-counts SQL from SUPABASE-SETUP.md.)':''));}
+  }catch(e){uiAlert('Could not close: '+(e.message||e)+(String(e.message||'').includes('count_sessions')?'\n\n(Run the cycle-counts SQL from SUPABASE-SETUP.md.)':''));}
 }
 
 /* ══════════ CASH-FLOW FORECAST — collections per week from AR terms + PDC maturities ══════════ */
@@ -1684,15 +1689,15 @@ async function renderCashflow(){
 /* ── COMMUNICATION LOG: 2-tap call/Viber touches on account pages ── */
 async function commLog(account,kind){
   if(!SB||!SBUSER)return;
-  const note=prompt(kind+' with '+account+' — what happened? (optional)','');
+  const note=await uiPrompt(kind+' with '+account+' — what happened? (optional)','');
   if(note===null)return;
   try{
     const {error}=await SB.from('visits').insert({user_id:SBUSER.id,spec:(SBPROFILE&&SBPROFILE.specialist_tag)||(SBPROFILE&&SBPROFILE.name)||'',account,date:todayISO(),type:kind,outcome:'Contacted',notes:(note||'').trim()||null,status:'done'});
     if(error)throw error;
     audit('comm.log',{account,kind});
-    alert(kind+' logged ✓ — it counts as a touch (timeline, coverage, dormancy).');
+    uiAlert(kind+' logged ✓ — it counts as a touch (timeline, coverage, dormancy).');
     if(typeof showAccountPage==='function')showAccountPage(account);
-  }catch(e){alert('Could not log: '+(e.message||e));}
+  }catch(e){uiAlert('Could not log: '+(e.message||e));}
 }
 
 
@@ -1713,22 +1718,22 @@ async function boRelease(sku,qtyIn){
 }
 async function boCancel(id){
   if(!canFulfil())return;
-  if(!confirm('Cancel this backorder? (e.g. the order itself was cancelled)'))return;
-  try{await SB.from('backorders').update({status:'cancelled',released_at:new Date().toISOString()}).eq('id',id);audit('backorder.cancel',{id});renderFulfillQ();}catch(e){alert(e.message||e);}
+  if(!await uiConfirm('Cancel this backorder? (e.g. the order itself was cancelled)'))return;
+  try{await SB.from('backorders').update({status:'cancelled',released_at:new Date().toISOString()}).eq('id',id);audit('backorder.cancel',{id});renderFulfillQ();}catch(e){uiAlert(e.message||e);}
 }
 
 /* ── RETURNS RECEIVING + QUARANTINE & DISPOSAL (the pharma trail) ── */
 async function returnsReceive(cmRef){
   if(!canWarehouse()&&!roleIn('finance','admin'))return;
   for(;;){
-    const skuIn=(prompt('Returned SKU (blank = done):','')||'').trim();
+    const skuIn=(await uiPrompt('Returned SKU (blank = done):','')||'').trim();
     if(!skuIn)break;
     const p=DATA.find(x=>x.sku.toLowerCase()===skuIn.toLowerCase())||DATA.find(x=>x.name.toLowerCase().startsWith(skuIn.toLowerCase()));
-    if(!p){alert('Unknown SKU/product: '+skuIn);continue;}
-    const qty=parseInt(prompt('Quantity of '+p.name+':','1')||'0',10);
+    if(!p){uiAlert('Unknown SKU/product: '+skuIn);continue;}
+    const qty=parseInt(await uiPrompt('Quantity of '+p.name+':','1')||'0',10);
     if(!qty||qty<1)continue;
-    const batch=(prompt('Batch / lot (from the box, blank if unreadable):','')||'').trim();
-    const sellable=confirm(p.name+' ×'+qty+'\n\nOK = SELLABLE (back into stock)\nCancel = QUARANTINE (held for inspection)');
+    const batch=(await uiPrompt('Batch / lot (from the box, blank if unreadable):','')||'').trim();
+    const sellable=await uiConfirm(p.name+' ×'+qty+'\n\nOK = SELLABLE (back into stock)\nCancel = QUARANTINE (held for inspection)');
     if(sellable){
       await ledgerAdd([{sku:p.sku,qty:qty,kind:'return',ref:cmRef,batch:batch||null,note:'return restock'}]);
       audit('return.restock',{cm:cmRef,sku:p.sku,qty,batch});
@@ -1772,19 +1777,19 @@ async function renderQuarantine(){
 }
 async function quarPull(){
   if(!canWarehouse())return;
-  const skuIn=(prompt('SKU or product to pull into quarantine:','')||'').trim();if(!skuIn)return;
+  const skuIn=(await uiPrompt('SKU or product to pull into quarantine:','')||'').trim();if(!skuIn)return;
   const p=DATA.find(x=>x.sku.toLowerCase()===skuIn.toLowerCase())||DATA.find(x=>x.name.toLowerCase().startsWith(skuIn.toLowerCase()));
-  if(!p)return alert('Unknown SKU/product.');
-  const qty=parseInt(prompt('Quantity of '+p.name+' to pull:','1')||'0',10);if(!qty||qty<1)return;
-  const batch=(prompt('Batch / lot:','')||'').trim();
-  const reason=(prompt('Reason (expiry / damage / QA hold):','expiry')||'expiry').trim();
+  if(!p)return uiAlert('Unknown SKU/product.');
+  const qty=parseInt(await uiPrompt('Quantity of '+p.name+' to pull:','1')||'0',10);if(!qty||qty<1)return;
+  const batch=(await uiPrompt('Batch / lot:','')||'').trim();
+  const reason=(await uiPrompt('Reason (expiry / damage / QA hold):','expiry')||'expiry').trim();
   try{await quarAdd(p.sku,p.name,qty,batch,reason,null,true);renderQuarantine();}
-  catch(e){alert('Could not quarantine: '+(e.message||e));}
+  catch(e){uiAlert('Could not quarantine: '+(e.message||e));}
 }
 async function quarDecide(id,status){
   if(!canWarehouse())return;
-  const note=(prompt(status==='released'?'Release back to sellable stock — inspection note:':'DISPOSE — method/witness note (compliance record):','')||'').trim();
-  if(note===''&&status==='disposed'&&!confirm('No disposal note — record anyway?'))return;
+  const note=(await uiPrompt(status==='released'?'Release back to sellable stock — inspection note:':'DISPOSE — method/witness note (compliance record):','')||'').trim();
+  if(note===''&&status==='disposed'&&!await uiConfirm('No disposal note — record anyway?'))return;
   try{
     const {data:r}=await SB.from('quarantine').select('*').eq('id',id).maybeSingle();
     if(!r||r.status!=='held')return;
@@ -1797,7 +1802,7 @@ async function quarDecide(id,status){
     }
     audit('quarantine.'+status,{q:r.id,sku:r.sku,qty:r.qty});
     renderQuarantine();
-  }catch(e){alert('Could not update: '+(e.message||e));}
+  }catch(e){uiAlert('Could not update: '+(e.message||e));}
 }
 
 /* ── WAREHOUSE KPIs: measurable the moment the ledger is authoritative ── */
@@ -1841,63 +1846,94 @@ async function renderWhKpi(){
 }
 
 /* ── COMPLAINTS LOG: quality reports with batch reference, feeding the recall trace ── */
+/* Two logs in one page (Verna, 2026-09-08): complaints CUSTOMERS raise with us
+   (quality reports — batch on record, one tap into the recall trace) and complaints
+   WE raise with SUPPLIERS (short shipments, damaged goods, wrong batch, expiry too
+   close, documentation). The supplier side carries the supplier and the PO /
+   shipment reference and feeds the supplier scorecard. */
+let CP_DIR=null;
+function cpDir(){return CP_DIR||(window._cpDir||'customer');}
+function cpSetDir(d){window._cpDir=d;CP_DIR=d;renderComplaints();}
 async function renderComplaints(){
   if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in first.</div>';return;}
   loadingHint();
-  let rows=[];
-  try{const {data,error}=await SB.from('complaints').select('*').order('id',{ascending:false}).limit(200);if(error)throw error;rows=data||[];}
+  let all=[];
+  try{const {data,error}=await SB.from('complaints').select('*').order('id',{ascending:false}).limit(400);if(error)throw error;all=data||[];}
   catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Needs the complaints SQL (SUPABASE-SETUP.md): '+esc(e.message||e)+'</div>';return;}
+  const dir=cpDir(),sup=dir==='supplier';
+  const rows=all.filter(r=>(r.direction||'customer')===dir);
   const open=rows.filter(r=>r.status!=='closed');
   const canM=roleIn('admin','manager','supply_chain');
-  const pill=r=>r.status==='closed'?'<span class="pill pgr">closed</span>':r.status==='investigating'?'<span class="pill pbl">investigating</span>':'<span class="pill prd">OPEN</span>';
+  const canFileSup=roleIn('admin','supply_chain','finance')||(typeof isSuper==='function'&&isSuper());
+  const pill=r=>r.status==='closed'?'<span class="pill pgr">closed</span>':r.status==='investigating'?'<span class="pill pbl">'+(sup?'with supplier':'investigating')+'</span>':'<span class="pill prd">OPEN</span>';
   const inp='style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:9px 10px;font-size:13px"';
   const lbl='style="font-size:10.5px;color:var(--tx3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin:8px 0 3px"';
+  const nC=all.filter(r=>(r.direction||'customer')==='customer'&&r.status!=='closed').length,nS=all.filter(r=>r.direction==='supplier'&&r.status!=='closed').length;
+  const pf=window._cpPrefill||{};window._cpPrefill=null;
+  let sups=[];try{sups=(typeof SUPPLIERS!=='undefined'&&SUPPLIERS)?SUPPLIERS.map(x=>x.name):[];}catch(e){}
+  if(!sups.length)sups=[...new Set((DATA||[]).map(p=>p.supplier).filter(Boolean))].sort();
   $('content').innerHTML=
+    '<div class="tabs" style="margin-bottom:12px"><div class="tab'+(sup?'':' active')+'" onclick="cpSetDir(\'customer\')">From customers ('+nC+' open)</div><div class="tab'+(sup?' active':'')+'" onclick="cpSetDir(\'supplier\')">To our suppliers ('+nS+' open)</div></div>'+
     '<div class="metrics" style="margin-bottom:14px">'+
-    '<div class="met '+(open.length?'rd':'gr')+'"><div class="met-lbl">Open complaints</div><div class="met-val">'+open.length+'</div><div class="met-sub">quality reports needing action</div><div class="met-bar"></div></div>'+
-    '<div class="met bl"><div class="met-lbl">All time</div><div class="met-val">'+rows.length+'</div><div class="met-sub">every report kept — the compliance trail</div><div class="met-bar"></div></div>'+
+    '<div class="met '+(open.length?'rd':'gr')+'"><div class="met-lbl">Open</div><div class="met-val">'+open.length+'</div><div class="met-sub">'+(sup?'claims waiting on a supplier':'quality reports needing action')+'</div><div class="met-bar"></div></div>'+
+    '<div class="met bl"><div class="met-lbl">All time</div><div class="met-val">'+rows.length+'</div><div class="met-sub">'+(sup?'every claim kept — it feeds the supplier scorecard':'every report kept — the compliance trail')+'</div><div class="met-bar"></div></div>'+
     '</div>'+
     '<div class="g2" style="align-items:start;gap:14px">'+
-    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>#</th><th>Account</th><th>Product / batch</th><th>What happened</th><th>Filed by</th><th>Status</th>'+(canM?'<th></th>':'')+'</tr></thead><tbody>'+
-    (rows.length?rows.map(r=>'<tr><td class="mu">'+CX_NO(r.id)+'</td><td style="font-weight:600">'+esc(r.account||'—')+'</td>'+
-      '<td>'+esc(r.sku||'—')+(r.batch?' <span class="pill pbl" style="cursor:pointer" onclick="showView(\'recall\',null)" title="Trace this batch in Batch recall trace">'+esc(r.batch)+'</span>':'')+'</td>'+
+    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>#</th><th>'+(sup?'Supplier':'Account')+'</th><th>'+(sup?'Product / batch · PO':'Product / batch')+'</th><th>'+(sup?'Issue':'What happened')+'</th><th>Filed by</th><th>Status</th>'+(canM?'<th></th>':'')+'</tr></thead><tbody>'+
+    (rows.length?rows.map(r=>'<tr><td class="mu">'+CX_NO(r.id)+'</td><td style="font-weight:600">'+esc(sup?(r.supplier||'—'):(r.account||'—'))+'</td>'+
+      '<td>'+esc(r.sku||'—')+(r.batch?' <span class="pill pbl" style="cursor:pointer" onclick="showView(\'recall\',null)" title="Trace this batch in Batch recall trace">'+esc(r.batch)+'</span>':'')+(sup&&r.po_ref?'<div class="mu" style="font-size:10.5px">'+esc(r.po_ref)+'</div>':'')+(sup&&r.kind?'<div class="mu" style="font-size:10.5px">'+esc(r.kind)+'</div>':'')+'</td>'+
       '<td style="font-size:11.5px;max-width:240px">'+esc(r.description||'')+(r.resolution?'<br><span style="color:var(--gr)">→ '+esc(r.resolution)+'</span>':'')+'</td>'+
       '<td class="mu" style="font-size:11px">'+esc(r.created_name||'')+'<br>'+esc((r.created_at||'').slice(0,10))+'</td><td>'+pill(r)+'</td>'+
-      (canM?'<td style="white-space:nowrap;font-size:11.5px">'+(r.status!=='closed'?(r.status==='open'?'<a href="#" onclick="complaintSet('+r.id+',\'investigating\');return false" style="color:var(--ac)">investigate</a> · ':'')+'<a href="#" onclick="complaintSet('+r.id+',\'closed\');return false" style="color:var(--gr)">close</a>':'')+delLink('complaints',r.id)+'</td>':'')+
-      '</tr>').join(''):'<tr><td colspan="7" class="mu">No complaints on record.</td></tr>')+
-    '</tbody></table></div><div class="tfooter"><span>Every complaint keeps its batch reference — one tap into the recall trace shows every other clinic that received the same lot · closing requires a resolution note</span></div></div>'+
-    '<div class="panel" style="padding:16px"><div class="phd">File a complaint</div>'+
+      (canM?'<td style="white-space:nowrap;font-size:11.5px">'+(r.status!=='closed'?(r.status==='open'?'<a href="#" onclick="complaintSet('+r.id+',\'investigating\');return false" style="color:var(--ac)">'+(sup?'sent to supplier':'investigate')+'</a> · ':'')+'<a href="#" onclick="complaintSet('+r.id+',\'closed\');return false" style="color:var(--gr)">close</a>':'')+'</td>':'')+
+      '</tr>').join(''):'<tr><td colspan="7" class="mu">'+(sup?'No supplier claims on record.':'No complaints on record.')+'</td></tr>')+
+    '</tbody></table></div><div class="tfooter"><span>'+(sup?'A claim names the supplier, the PO or shipment, the product and batch · closing needs the outcome (credit, replacement, accepted) · open and closed claims count on the supplier scorecard':'Every complaint keeps its batch reference — one tap into the recall trace shows every other clinic that received the same lot · closing requires a resolution note')+'</span></div></div>'+
+    (sup?(canFileSup?'<div class="panel" style="padding:16px"><div class="phd">Raise a claim with a supplier</div>'+
+      '<label '+lbl+'>Supplier</label><input id="cp-sup" list="cp-sups" value="'+esc(pf.supplier||'')+'" '+inp+'><datalist id="cp-sups">'+sups.map(n=>'<option value="'+esc(n)+'">').join('')+'</datalist>'+
+      '<label '+lbl+'>PO / shipment reference</label><input id="cp-po" placeholder="PO-12 · RCV-3 · invoice no." value="'+esc(pf.po_ref||'')+'" '+inp+'>'+
+      '<label '+lbl+'>Kind</label><select id="cp-kind" '+inp+'>'+['Short shipment','Damaged goods','Wrong item / batch','Expiry too close','Documentation','Quality defect','Late delivery','Other'].map(k=>'<option'+(k===pf.kind?' selected':'')+'>'+k+'</option>').join('')+'</select>'+
+      '<label '+lbl+'>Product (SKU or name)</label><input id="cp-sku" '+inp+'>'+
+      '<label '+lbl+'>Batch / lot</label><input id="cp-batch" '+inp+'>'+
+      '<label '+lbl+'>Issue</label><textarea id="cp-desc" rows="3" '+inp+'>'+esc(pf.desc||'')+'</textarea>'+
+      '<div id="cp-msg" style="min-height:14px;font-size:11px;margin:8px 0 4px"></div>'+
+      '<button onclick="complaintAdd(\'supplier\')" style="width:100%;background:var(--am);color:#fff;border:none;border-radius:8px;padding:11px;font-size:13px;font-weight:600;cursor:pointer">Raise claim</button>'+
+      '<div style="font-size:10.5px;color:var(--tx3);margin-top:8px">Finance is pinged (a credit or replacement may be due) and the claim shows on the supplier scorecard.</div></div>'
+      :'<div class="panel" style="padding:16px"><div class="phd">Supplier claims</div><div class="mu" style="font-size:12px">The warehouse, finance and admins raise claims with suppliers.</div></div>')
+    :'<div class="panel" style="padding:16px"><div class="phd">File a complaint</div>'+
     '<label '+lbl+'>Account / clinic</label><input id="cp-acct" list="cp-accts" '+inp+'>'+
     '<datalist id="cp-accts">'+acctList().map(r=>'<option value="'+esc(r.name)+'">').join('')+'</datalist>'+
     '<label '+lbl+'>Product (SKU or name)</label><input id="cp-sku" '+inp+'>'+
     '<label '+lbl+'>Batch / lot (from the box)</label><input id="cp-batch" '+inp+'>'+
     '<label '+lbl+'>What happened</label><textarea id="cp-desc" rows="3" '+inp+'></textarea>'+
     '<div id="cp-msg" style="min-height:14px;font-size:11px;margin:8px 0 4px"></div>'+
-    '<button onclick="complaintAdd()" style="width:100%;background:var(--rd);color:#fff;border:none;border-radius:8px;padding:11px;font-size:13px;font-weight:600;cursor:pointer">File complaint</button>'+
-    '<div style="font-size:10.5px;color:var(--tx3);margin-top:8px">Supply chain and management are pinged immediately.</div></div>'+
+    '<button onclick="complaintAdd(\'customer\')" style="width:100%;background:var(--rd);color:#fff;border:none;border-radius:8px;padding:11px;font-size:13px;font-weight:600;cursor:pointer">File complaint</button>'+
+    '<div style="font-size:10.5px;color:var(--tx3);margin-top:8px">Supply chain and management are pinged immediately.</div></div>')+
     '</div>';
 }
-async function complaintAdd(){
+async function complaintAdd(direction){
+  direction=direction||'customer';const sup=direction==='supplier';
   const g=id=>($(id)&&$(id).value||'').trim();const msg=$('cp-msg');
-  if(!g('cp-acct')||!g('cp-desc')){if(msg){msg.style.color='var(--rd)';msg.textContent='Need at least the account and what happened.';}return;}
+  const who=sup?g('cp-sup'):g('cp-acct');
+  if(!who||!g('cp-desc')){if(msg){msg.style.color='var(--rd)';msg.textContent='Need at least the '+(sup?'supplier':'account')+' and what happened.';}return;}
   const p=DATA.find(x=>x.sku.toLowerCase()===g('cp-sku').toLowerCase())||DATA.find(x=>x.name.toLowerCase().startsWith(g('cp-sku').toLowerCase()));
   try{
-    const {data,error}=await SB.from('complaints').insert({account:g('cp-acct'),sku:p?p.sku:(g('cp-sku')||null),batch:g('cp-batch')||null,description:g('cp-desc'),created_by:SBUSER.id,created_name:(SBPROFILE&&SBPROFILE.name)||''}).select().single();
+    const row={direction,account:sup?null:who,supplier:sup?who:null,po_ref:sup?(g('cp-po')||null):null,kind:sup?(g('cp-kind')||null):null,sku:p?p.sku:(g('cp-sku')||null),batch:g('cp-batch')||null,description:g('cp-desc'),created_by:SBUSER.id,created_name:(SBPROFILE&&SBPROFILE.name)||''};
+    const {data,error}=await SB.from('complaints').insert(row).select().single();
     if(error)throw error;
-    audit('complaint.file',{c:data.id,account:g('cp-acct'),sku:p?p.sku:g('cp-sku'),batch:g('cp-batch')});
-    notify({roles:['supply_chain']},'auto','Complaint '+CX_NO(data.id)+': '+g('cp-acct'),(p?p.name:g('cp-sku'))+(g('cp-batch')?' · batch '+g('cp-batch'):'')+' — '+g('cp-desc').slice(0,120),'#/v/complaints');
+    audit(sup?'complaint.supplier.file':'complaint.file',{c:data.id,who,sku:row.sku,batch:row.batch,po:row.po_ref});
+    if(sup)notify({roles:['finance']},'auto','Supplier claim '+CX_NO(data.id)+': '+who,(row.kind||'')+(row.po_ref?' · '+row.po_ref:'')+(p?' · '+p.name:'')+' — '+g('cp-desc').slice(0,120),'#/v/complaints');
+    else notify({roles:['supply_chain']},'auto','Complaint '+CX_NO(data.id)+': '+who,(p?p.name:g('cp-sku'))+(g('cp-batch')?' · batch '+g('cp-batch'):'')+' — '+g('cp-desc').slice(0,120),'#/v/complaints');
     renderComplaints();
-  }catch(e){if(msg){msg.style.color='var(--rd)';msg.textContent=(e.message||e)+(String(e.message||'').includes('complaints')?' (run the complaints SQL)':'');}}
+  }catch(e){if(msg){msg.style.color='var(--rd)';msg.textContent=(e.message||e)+(String(e.message||'').includes('direction')||String(e.message||'').includes('supplier')?' (run the complaints-split SQL from SUPABASE-SETUP.md)':'');}}
 }
 async function complaintSet(id,status){
   if(!roleIn('admin','manager','supply_chain'))return;
   let resolution=null;
-  if(status==='closed'){resolution=prompt('Resolution (what was found / done):');if(resolution===null)return;if(!resolution.trim())return alert('Closing needs a resolution note — it\'s the compliance record.');}
+  if(status==='closed'){resolution=await uiPrompt(cpDir()==='supplier'?'Outcome (credit note, replacement, accepted as is…):':'Resolution (what was found / done):','',{required:true,type:'textarea'});if(resolution===null)return;if(!resolution.trim())return uiAlert('Closing needs a resolution note — it\'s the compliance record.');}
   try{
     const upd={status};if(resolution)upd.resolution=resolution.trim();if(status==='closed')upd.closed_at=new Date().toISOString();
     const {error}=await SB.from('complaints').update(upd).eq('id',id);if(error)throw error;
     audit('complaint.'+status,{c:id});renderComplaints();
-  }catch(e){alert(e.message||e);}
+  }catch(e){uiAlert(e.message||e);}
 }
 
 
@@ -1969,27 +2005,28 @@ async function supEdit(id){
   const {data}=await SB.from('suppliers').select('*').eq('id',id).maybeSingle();
   if(data)await supForm(data);
 }
+async function ccAbandon(){if(await uiConfirm('Abandon this count? Nothing is saved.',{ok:'Abandon',danger:true})){CCS=null;renderCycleCounts();}}
 async function supForm(cur){
   if(!canWarehouse()&&!roleIn('finance'))return;
-  const g=(label,v)=>{const r=prompt(label+':',v==null?'':String(v));return r===null?undefined:r.trim();};
-  const name=g('Supplier name',cur&&cur.name);if(name===undefined||!name)return;
-  const currency=g('Currency (PHP / USD / EUR…)',cur?cur.currency:'USD');if(currency===undefined)return;
-  const terms=g('Payment terms (e.g. 50% DP, 50% before ship)',cur&&cur.terms);if(terms===undefined)return;
-  const lead=g('Lead time in days (order → warehouse)',cur&&cur.lead_time_days);if(lead===undefined)return;
-  const contact=g('Contact person',cur&&cur.contact);if(contact===undefined)return;
-  const email=g('Email',cur&&cur.email);if(email===undefined)return;
-  const notes=g('Notes',cur&&cur.notes);if(notes===undefined)return;
+  const g=async (label,v)=>{const r=await uiPrompt(label+':',v==null?'':String(v));return r===null?undefined:r.trim();};
+  const name=await g('Supplier name',cur&&cur.name);if(name===undefined||!name)return;
+  const currency=await g('Currency (PHP / USD / EUR…)',cur?cur.currency:'USD');if(currency===undefined)return;
+  const terms=await g('Payment terms (e.g. 50% DP, 50% before ship)',cur&&cur.terms);if(terms===undefined)return;
+  const lead=await g('Lead time in days (order → warehouse)',cur&&cur.lead_time_days);if(lead===undefined)return;
+  const contact=await g('Contact person',cur&&cur.contact);if(contact===undefined)return;
+  const email=await g('Email',cur&&cur.email);if(email===undefined)return;
+  const notes=await g('Notes',cur&&cur.notes);if(notes===undefined)return;
   try{
     const rec={name,currency:currency||'PHP',terms:terms||null,lead_time_days:parseInt(lead,10)||null,contact:contact||null,email:email||null,notes:notes||null};
     if(cur){const {error}=await SB.from('suppliers').update(rec).eq('id',cur.id);if(error)throw error;}
     else{rec.created_by=SBUSER.id;const {error}=await SB.from('suppliers').insert(rec);if(error)throw error;}
     audit(cur?'supplier.update':'supplier.create',{name});
     renderSuppliers();
-  }catch(e){alert('Could not save: '+(e.message||e));}
+  }catch(e){uiAlert('Could not save: '+(e.message||e));}
 }
 async function supToggle(id,on){
   if(!canWarehouse()&&!roleIn('finance'))return;
-  try{const {error}=await SB.from('suppliers').update({active:on}).eq('id',id);if(error)throw error;renderSuppliers();}catch(e){alert(e.message||e);}
+  try{const {error}=await SB.from('suppliers').update({active:on}).eq('id',id);if(error)throw error;renderSuppliers();}catch(e){uiAlert(e.message||e);}
 }
 
 /* ── LANDED COST & INVENTORY VALUATION (admin + finance only — this is the costs page) ── */
@@ -2060,31 +2097,31 @@ async function renderValuation(){
 }
 
 async function valFreeze(month){
-  if(!roleIn('admin','finance'))return alert('Finance and admin only.');
+  if(!roleIn('admin','finance'))return uiAlert('Finance and admin only.');
   const rows=window._VALROWS||[];
-  if(!rows.length)return alert('Nothing costed to snapshot yet.');
+  if(!rows.length)return uiAlert('Nothing costed to snapshot yet.');
   const basis=(typeof flagOn==='function'&&flagOn('ledger_is_truth'))?'ledger':'sheet';
   const units=Math.round(rows.reduce((a,r)=>a+(r.stock||0),0)); // bigint column
   const total=Math.round(window._VALTOT||0);
   // honesty check: this snapshots stock and costs AS THEY ARE NOW, labelled as that month
   const monthEnd=(function(){const [y,m]=month.split('-').map(Number);return new Date(Date.UTC(y,m,0));})();
   const daysLate=Math.round((Date.now()-monthEnd.getTime())/864e5);
-  if(!confirm('Freeze '+month+' at '+fmtPeso(total)+' across '+rows.length+' costed SKUs ('+units.toLocaleString()+' units, stock basis: '+basis+')?\n\nThis becomes the permanent month-end figure. Later cost edits will not change it.'+
+  if(!await uiConfirm('Freeze '+month+' at '+fmtPeso(total)+' across '+rows.length+' costed SKUs ('+units.toLocaleString()+' units, stock basis: '+basis+')?\n\nThis becomes the permanent month-end figure. Later cost edits will not change it.'+
      (daysLate>5?'\n\nNOTE: it is '+daysLate+' days past the end of '+month+'. This records TODAY\u2019s stock and costs under that month\u2019s label — the further past month end, the less true that is.':'')))return;
   const lines=rows.map(r=>({sku:r.sku,name:r.name,units:r.stock,cost:Math.round(r.cost||0),value:Math.round(r.value||0)}));
   try{
     const {error}=await SB.from('valuation_snapshots').insert({month,basis,total_value:total,total_units:units,sku_count:rows.length,lines,taken_by:(SBPROFILE&&SBPROFILE.name)||''});
     if(error){
       if(String(error.message||'').match(/duplicate|unique/i)){
-        if(!(typeof isSuper==='function'&&isSuper()))return alert(month+' is already frozen. Re-freezing a month is a super-admin decision.');
-        if(!confirm(month+' is already frozen. RE-FREEZE it with today\u2019s numbers? The previous figure is overwritten.'))return;
+        if(!(typeof isSuper==='function'&&isSuper()))return uiAlert(month+' is already frozen. Re-freezing a month is a super-admin decision.');
+        if(!await uiConfirm(month+' is already frozen. RE-FREEZE it with today\u2019s numbers? The previous figure is overwritten.'))return;
         const {error:e2}=await SB.from('valuation_snapshots').update({basis,total_value:total,total_units:units,sku_count:rows.length,lines,taken_at:new Date().toISOString(),taken_by:(SBPROFILE&&SBPROFILE.name)||''}).eq('month',month);
         if(e2)throw e2;
         audit('valuation.refreeze',{month,total});
       }else throw error;
     }else audit('valuation.freeze',{month,total,units,basis});
     renderValuation();
-  }catch(e){alert('Could not freeze: '+(e.message||e)+'\n\n(Run the accounting-integrity SQL from SUPABASE-SETUP.md.)');}
+  }catch(e){uiAlert('Could not freeze: '+(e.message||e)+'\n\n(Run the accounting-integrity SQL from SUPABASE-SETUP.md.)');}
 }
 
 /* ── MOBILE SUGGESTION SHIM: iOS Safari barely renders <datalist>, especially as a PWA.
@@ -2175,17 +2212,17 @@ async function renderTransfers(){
       '</tr>';}).join(''):'<tr><td colspan="7" class="mu">No transfers yet.</td></tr>')+
     '</tbody></table></div><div class="tfooter"><span>Dispatch writes FEFO batch-stamped outbound movements (ref TR-n) into the ledger — the same trail the recall trace reads · per-branch on-hand still isn\'t tracked (by design); delivered just closes the document</span></div></div>';
 }
-function trNew(){
+async function trNew(){
   if(!canFulfil())return;
-  const br=(prompt('Transfer to which branch? (BGC / Vertis North / GH Mall / other)','BGC')||'').trim();
+  const br=(await uiPrompt('Transfer to which branch? (BGC / Vertis North / GH Mall / other)','BGC')||'').trim();
   if(!br)return;
   TCART=[];
   for(;;){
-    const skuIn=(prompt('SKU or product (blank = done adding lines):','')||'').trim();
+    const skuIn=(await uiPrompt('SKU or product (blank = done adding lines):','')||'').trim();
     if(!skuIn)break;
     const p=DATA.find(x=>x.sku.toLowerCase()===skuIn.toLowerCase())||DATA.find(x=>x.name.toLowerCase().startsWith(skuIn.toLowerCase()));
-    if(!p){alert('Unknown SKU/product: '+skuIn);continue;}
-    const qty=parseInt(prompt('Quantity of '+p.name+':','1')||'0',10);
+    if(!p){uiAlert('Unknown SKU/product: '+skuIn);continue;}
+    const qty=parseInt(await uiPrompt('Quantity of '+p.name+':','1')||'0',10);
     if(!qty||qty<1)continue;
     TCART.push({sku:p.sku,name:p.name,qty});
   }
@@ -2200,13 +2237,13 @@ async function trSave(br){
     if(e2)throw e2;
     audit('transfer.create',{tr:TR_NO(t.id),to:br,lines:TCART.length});
     TCART=[];renderTransfers();
-  }catch(e){alert('Could not save: '+(e.message||e));}
+  }catch(e){uiAlert('Could not save: '+(e.message||e));}
 }
 async function trDispatch(id){
   if(!canFulfil())return;
   const {data:t}=await SB.from('transfers').select('*,transfer_lines(*)').eq('id',id).maybeSingle();
   if(!t||t.status!=='draft')return;
-  if(!confirm('Dispatch '+TR_NO(id)+' to '+t.to_branch+'?\n\nEvery line is written as an outbound FEFO movement in the ledger (batch-stamped).'))return;
+  if(!await uiConfirm('Dispatch '+TR_NO(id)+' to '+t.to_branch+'?\n\nEvery line is written as an outbound FEFO movement in the ledger (batch-stamped).'))return;
   try{
     const rows=[];
     for(const l of (t.transfer_lines||[])){
@@ -2220,16 +2257,16 @@ async function trDispatch(id){
     if(error)throw error;
     audit('transfer.dispatch',{tr:TR_NO(id),to:t.to_branch,moves:rows.length});
     renderTransfers();
-  }catch(e){alert('Could not dispatch: '+(e.message||e));}
+  }catch(e){uiAlert('Could not dispatch: '+(e.message||e));}
 }
 async function trDelivered(id){
   if(!canFulfil())return;
-  try{const {error}=await SB.from('transfers').update({status:'delivered',delivered_at:new Date().toISOString()}).eq('id',id);if(error)throw error;audit('transfer.delivered',{tr:TR_NO(id)});renderTransfers();}catch(e){alert(e.message||e);}
+  try{const {error}=await SB.from('transfers').update({status:'delivered',delivered_at:new Date().toISOString()}).eq('id',id);if(error)throw error;audit('transfer.delivered',{tr:TR_NO(id)});renderTransfers();}catch(e){uiAlert(e.message||e);}
 }
 async function trDelete(id){
   if(!canFulfil())return;
-  if(!confirm('Delete this DRAFT transfer? (Dispatched transfers are permanent — the ledger already moved.)'))return;
-  try{const {error}=await SB.from('transfers').delete().eq('id',id).eq('status','draft');if(error)throw error;renderTransfers();}catch(e){alert(e.message||e);}
+  if(!await uiConfirm('Delete this DRAFT transfer? (Dispatched transfers are permanent — the ledger already moved.)'))return;
+  try{const {error}=await SB.from('transfers').delete().eq('id',id).eq('status','draft');if(error)throw error;renderTransfers();}catch(e){uiAlert(e.message||e);}
 }
 
 
@@ -2245,6 +2282,7 @@ const VIEW_WRITERS={
   catalog:{roles:['finance'],label:'finance'},
   regs:{roles:['finance'],label:'finance (on the item master)'},
   po:{roles:['supply_chain','finance'],label:'supply chain (finance fills the AP and import fields)'},
+  receiving:{roles:['supply_chain'],label:'the warehouse (supply chain) — finance reads the costs and due dates'},
   suppliers:{roles:['supply_chain','finance'],label:'supply chain and finance'},
   scan:{roles:['supply_chain'],label:'the warehouse team'},
   cyclecount:{roles:['supply_chain'],label:'the warehouse team'},
@@ -2319,7 +2357,7 @@ function mbarToggle(btn){
   const i=window._mbarSel.indexOf(v);
   if(i>=0)window._mbarSel.splice(i,1);
   else{
-    if(window._mbarSel.length>=(window._mbarMax||4)){alert('That’s '+(window._mbarMax||4)+' already — unpick one first.');return;}
+    if(window._mbarSel.length>=(window._mbarMax||4)){uiAlert('That’s '+(window._mbarMax||4)+' already — unpick one first.');return;}
     window._mbarSel.push(v);
   }
   const on=window._mbarSel.includes(v);
@@ -2579,7 +2617,7 @@ function plSpendCSV(){
         c==null?'':c,c==null?'':c*(l.qty||0),r.released_at?String(r.released_at).slice(0,10):'',r.booked_ref||'',r.purpose||'']);
     }
   }
-  if(!out.length)return alert('Nothing to export for '+ym+'.');
+  if(!out.length)return uiAlert('Nothing to export for '+ym+'.');
   const h=['Pull-out no.','Date requested','Status','Fund source (class)','Reason','Product line','Requested by','Approved by','SKU','Product','Qty','Unit','Unit cost','Value at cost','Released','Booked ref','Purpose'];
   const csv=[h,...out].map(r=>r.map(v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"').join(',')).join('\n');
   const blob=new Blob([csv],{type:'text/csv'});
@@ -2600,9 +2638,9 @@ function plAddLine(){
   plKeep();
   const raw=(($('pl-sku')||{}).value||'').trim();
   const qty=parseInt((($('pl-qty')||{}).value||'0'),10);
-  if(!raw||!qty||qty<1)return alert('Pick a product and a quantity.');
+  if(!raw||!qty||qty<1)return uiAlert('Pick a product and a quantity.');
   const p=(DATA||[]).find(x=>x.sku.toLowerCase()===raw.toLowerCase())||(DATA||[]).find(x=>x.name.toLowerCase()===raw.toLowerCase())||(DATA||[]).find(x=>x.name.toLowerCase().startsWith(raw.toLowerCase()));
-  if(!p)return alert('Unknown product: '+raw);
+  if(!p)return uiAlert('Unknown product: '+raw);
   const uom=(($('pl-uom')||{}).value||'').trim()||'pc';
   window._plCart=window._plCart||[];
   const ex=window._plCart.find(l=>l.sku===p.sku);
@@ -2613,19 +2651,19 @@ function plAddLine(){
 function plDropLine(i){plKeep();window._plCart.splice(i,1);renderPullouts(true);}
 async function plSubmit(){
   const cart=window._plCart||[];
-  if(!cart.length)return alert('Add at least one item.');
+  if(!cart.length)return uiAlert('Add at least one item.');
   const cls=(($('pl-fund')||{}).value||'');
   const reason=(($('pl-reason')||{}).value||'');
   const line=(($('pl-line')||{}).value||'');
   const needed=(($('pl-needed')||{}).value||'');
   const purpose=(($('pl-purpose')||{}).value||'').trim();
-  if(!cls)return alert('Pick the fund source — that decides who approves it.');
-  if(!reason)return alert('Pick a reason for the pull-out.');
+  if(!cls)return uiAlert('Pick the fund source — that decides who approves it.');
+  if(!reason)return uiAlert('Pick a reason for the pull-out.');
   const f=fundOf(cls);
-  if(f&&!f.approver_id&&!confirm(cls+' has no approver set yet, so nobody will be notified. Submit anyway and ask an admin to set one?'))return;
+  if(f&&!f.approver_id&&!await uiConfirm(cls+' has no approver set yet, so nobody will be notified. Submit anyway and ask an admin to set one?'))return;
   // honest warning, not a block: internal issues can legitimately go negative-ish
   const short=cart.filter(l=>{const p=(DATA||[]).find(x=>x.sku===l.sku);const on=p?(stk(p)||0):0;return on-(typeof reservedQty==='function'?reservedQty(l.sku):0)<l.qty;});
-  if(short.length&&!confirm('Not enough available to promise for: '+short.map(l=>l.sku).join(', ')+'.\n\nSubmit anyway? The warehouse will see the shortfall when they release.'))return;
+  if(short.length&&!await uiConfirm('Not enough available to promise for: '+short.map(l=>l.sku).join(', ')+'.\n\nSubmit anyway? The warehouse will see the shortfall when they release.'))return;
   try{
     const {data,error}=await SB.from('pullouts').insert({
       requester_id:SBUSER.id,requester_name:(SBPROFILE&&SBPROFILE.name)||'',requester_email:(SBUSER&&SBUSER.email)||'',
@@ -2647,17 +2685,17 @@ async function plSubmit(){
     window._plCart=[];window._plForm=null; // clean slate after a successful submit
     await loadReservations(true); // the new reservation applies immediately
     renderPullouts();
-    alert(PL_NO(data.id)+' submitted.'+(f&&f.approver_name?' '+f.approver_name+' has been notified.':''));
-  }catch(e){alert('Could not submit: '+(e.message||e));}
+    uiAlert(PL_NO(data.id)+' submitted.'+(f&&f.approver_name?' '+f.approver_name+' has been notified.':''));
+  }catch(e){uiAlert('Could not submit: '+(e.message||e));}
 }
 async function plDecide(id,decision){
   const {data:r}=await SB.from('pullouts').select('*').eq('id',id).maybeSingle();
   if(!r||r.status!=='pending')return renderPullouts();
-  if(!canDecidePullout(r))return alert('Only the fund source for '+r.fund_class+' can decide this one.');
-  const note=(prompt(decision==='approved'
+  if(!canDecidePullout(r))return uiAlert('Only the fund source for '+r.fund_class+' can decide this one.');
+  const note=(await uiPrompt(decision==='approved'
     ?'Approve '+PL_NO(id)+' — note for the record (optional):'
     :'Reject '+PL_NO(id)+' — why? (this goes back to the requester)','')||'').trim();
-  if(decision==='rejected'&&!note&&!confirm('Reject with no reason given?'))return;
+  if(decision==='rejected'&&!note&&!await uiConfirm('Reject with no reason given?'))return;
   try{
     const {error}=await SB.from('pullouts').update({status:decision,approver_name:(SBPROFILE&&SBPROFILE.name)||'',decided_at:new Date().toISOString(),decision_note:note||null}).eq('id',id);
     if(error)throw error;
@@ -2674,24 +2712,24 @@ async function plDecide(id,decision){
     }catch(e){}
     if(decision==='rejected')await loadReservations(true); // reservation freed
     renderPullouts();
-  }catch(e){alert('Could not save the decision: '+(e.message||e));}
+  }catch(e){uiAlert('Could not save the decision: '+(e.message||e));}
 }
 async function plCancel(id){
-  if(!confirm('Cancel '+PL_NO(id)+'? The reserved units are released back to available stock.'))return;
+  if(!await uiConfirm('Cancel '+PL_NO(id)+'? The reserved units are released back to available stock.'))return;
   try{
     const {error}=await SB.from('pullouts').update({status:'cancelled'}).eq('id',id);
     if(error)throw error;
     audit('pullout.cancel',{no:PL_NO(id)});
     await loadReservations(true);renderPullouts();
-  }catch(e){alert('Could not cancel: '+(e.message||e));}
+  }catch(e){uiAlert('Could not cancel: '+(e.message||e));}
 }
 async function plRelease(id){
-  if(!canWarehouse())return alert('Releasing stock is the warehouse team and admin.');
+  if(!canWarehouse())return uiAlert('Releasing stock is the warehouse team and admin.');
   const {data:r}=await SB.from('pullouts').select('*').eq('id',id).maybeSingle();
   if(!r||r.status!=='approved')return renderPullouts();
   const {data:ls}=await SB.from('pullout_lines').select('*').eq('pullout_id',id);
-  if(!ls||!ls.length)return alert('No lines on this request.');
-  if(!confirm('Release '+PL_NO(id)+' — '+ls.reduce((a,l)=>a+(l.qty-(l.released_qty||0)),0)+' unit(s)?\n\nThis writes the stock ledger now (earliest expiry first) and ends the reservation.'))return;
+  if(!ls||!ls.length)return uiAlert('No lines on this request.');
+  if(!await uiConfirm('Release '+PL_NO(id)+' — '+ls.reduce((a,l)=>a+(l.qty-(l.released_qty||0)),0)+' unit(s)?\n\nThis writes the stock ledger now (earliest expiry first) and ends the reservation.'))return;
   try{
     // ORDER MATTERS: build every movement, write the ledger, THEN stamp the lines
     // and the header. Stamping first meant a failed ledger write left lines marked
@@ -2706,7 +2744,7 @@ async function plRelease(id){
       for(const pk of picks)moves.push({sku:l.sku,qty:-Math.abs(pk.take),kind:'pick',ref:PL_NO(id),batch:pk.batch||null,note:'pull-out · '+(r.fund_class||'')});
       stamps.push({id:l.id,qty:l.qty,batch:picks.map(x=>x.batch).filter(Boolean).join(', ')||null});
     }
-    if(!moves.length)return alert('Every line on '+PL_NO(id)+' is already released — nothing left to hand over.');
+    if(!moves.length)return uiAlert('Every line on '+PL_NO(id)+' is already released — nothing left to hand over.');
     if(typeof ledgerAdd==='function')await ledgerAdd(moves); // throws → nothing below runs, retry stays clean
     for(const st of stamps)await SB.from('pullout_lines').update({released_qty:st.qty,batch:st.batch}).eq('id',st.id);
     const {error}=await SB.from('pullouts').update({status:'released',released_at:new Date().toISOString(),released_by:(SBPROFILE&&SBPROFILE.name)||''}).eq('id',id);
@@ -2717,19 +2755,19 @@ async function plRelease(id){
       notify({roles:['finance']},'auto','Pull-out released: '+PL_NO(id),r.fund_class+' — book it against the class; the specialist still records it in Shopify during the parallel run','#/v/pullouts');
     }catch(e){}
     await loadReservations(true);renderPullouts();
-  }catch(e){alert('Could not release: '+(e.message||e));}
+  }catch(e){uiAlert('Could not release: '+(e.message||e));}
 }
 async function plBooked(id){
-  const ref=(prompt('Reference it was booked under (Shopify order no. / HS number):','')||'').trim();
+  const ref=(await uiPrompt('Reference it was booked under (Shopify order no. / HS number):','')||'').trim();
   if(!ref)return;
   try{
     const {error}=await SB.from('pullouts').update({booked_ref:ref}).eq('id',id);
     if(error)throw error;
     audit('pullout.booked',{no:PL_NO(id),ref});renderPullouts();
-  }catch(e){alert('Could not save: '+(e.message||e));}
+  }catch(e){uiAlert('Could not save: '+(e.message||e));}
 }
 async function plSetApprover(cls,isBackup,userId){
-  if(!roleIn('admin'))return alert('Admins set fund-source approvers.');
+  if(!roleIn('admin'))return uiAlert('Admins set fund-source approvers.');
   const u=(window._PLUSERS||[]).find(x=>x.id===userId)||null;
   try{
     const patch=isBackup?{backup_id:u?u.id:null,backup_name:u?(u.name||u.email||''):null}
@@ -2739,7 +2777,7 @@ async function plSetApprover(cls,isBackup,userId){
     if(error)throw error;
     audit('fundsource.set',{class:cls,who:u?(u.name||u.email):'(cleared)',backup:!!isBackup});
     await loadFunds(true);renderPullouts();
-  }catch(e){alert('Could not save: '+(e.message||e));await loadFunds(true);renderPullouts();}
+  }catch(e){uiAlert('Could not save: '+(e.message||e));await loadFunds(true);renderPullouts();}
 }
 async function plToggleFund(cls,active){
   if(!roleIn('admin'))return;
@@ -2748,7 +2786,7 @@ async function plToggleFund(cls,active){
     if(error)throw error;
     audit('fundsource.'+(active?'activate':'deactivate'),{class:cls});
     await loadFunds(true);renderPullouts();
-  }catch(e){alert('Could not save: '+(e.message||e));}
+  }catch(e){uiAlert('Could not save: '+(e.message||e));}
 }
 
 /* ══════════════════ APP-WIDE TABLE SORTING ══════════════════
@@ -2881,19 +2919,19 @@ const ARCH_KINDS={ // table → how to describe it, and which children travel wi
 };
 /* archiveRecord(table, id) — the one entry point. Returns true when archived. */
 async function archiveRecord(table,id,noOverride){
-  if(!isSuper())return alert('Deleting records is reserved to the super admin.'),false;
+  if(!isSuper())return uiAlert('Deleting records is reserved to the super admin.'),false;
   const K=ARCH_KINDS[table];
-  if(!K)return alert('That record type is not set up for archiving yet.'),false;
+  if(!K)return uiAlert('That record type is not set up for archiving yet.'),false;
   let row=null;
   try{const {data,error}=await SB.from(table).select('*').eq(table==='fund_sources'?'class':'id',id).maybeSingle();if(error)throw error;row=data;}
-  catch(e){return alert('Could not read the record: '+(e.message||e)),false;}
-  if(!row)return alert('That record no longer exists.'),false;
+  catch(e){return uiAlert('Could not read the record: '+(e.message||e)),false;}
+  if(!row)return uiAlert('That record no longer exists.'),false;
   const no=noOverride||K.no(row);
-  const typed=prompt('DELETE '+K.label+' '+no+'\n\n'+(K.sum(row)||'')+
+  const typed=await uiPrompt('DELETE '+K.label+' '+no+'\n\n'+(K.sum(row)||'')+
     '\n\nIt will be archived — hidden everywhere, restorable from Admin → Archive.\n\nType '+no+' to confirm:','');
   if(typed===null)return false;
-  if(String(typed).trim()!==String(no)){alert('That did not match "'+no+'" — nothing was deleted.');return false;}
-  const reason=(prompt('Why is this being deleted? (goes on the record)','')||'').trim();
+  if(String(typed).trim()!==String(no)){uiAlert('That did not match "'+no+'" — nothing was deleted.');return false;}
+  const reason=(await uiPrompt('Why is this being deleted? (goes on the record)','')||'').trim();
   try{
     const children={};
     for(const c of (K.children||[])){
@@ -2913,9 +2951,9 @@ async function archiveRecord(table,id,noOverride){
       throw new Error(eD?('Could not delete it: '+(eD.message||eD)):'The database refused the delete (nothing was removed, and the archive entry was rolled back). Run the super-admin delete policies from SUPABASE-SETUP.md.');
     }
     audit('archive.delete',{table,no,reason});
-    alert(no+' deleted. You can restore it from Admin → Archive.');
+    uiAlert(no+' deleted. You can restore it from Admin → Archive.');
     return true;
-  }catch(e){alert(e.message||e);return false;}
+  }catch(e){uiAlert(e.message||e);return false;}
 }
 async function renderArchive(){
   if(!isSuper()){$('content').innerHTML='<div class="empty" style="margin-top:40px">The archive is super-admin only.</div>';return;}
@@ -2950,9 +2988,9 @@ async function renderArchive(){
 async function archRestore(binId){
   if(!isSuper())return;
   let b=null;
-  try{const {data,error}=await SB.from('archive_bin').select('*').eq('id',binId).maybeSingle();if(error)throw error;b=data;}catch(e){return alert('Could not read it: '+(e.message||e));}
+  try{const {data,error}=await SB.from('archive_bin').select('*').eq('id',binId).maybeSingle();if(error)throw error;b=data;}catch(e){return uiAlert('Could not read it: '+(e.message||e));}
   if(!b||b.restored_at)return renderArchive();
-  if(!confirm('Restore '+b.label+'?\n\n'+(b.summary||'')+'\n\nIt is re-created from the archived copy. Note: it may come back with a new id, and links from other records to the old one are not rebuilt.'))return;
+  if(!await uiConfirm('Restore '+b.label+'?\n\n'+(b.summary||'')+'\n\nIt is re-created from the archived copy. Note: it may come back with a new id, and links from other records to the old one are not rebuilt.'))return;
   try{
     const row=Object.assign({},(b.payload&&b.payload.row)||{});
     const isFS=b.src_table==='fund_sources';
@@ -2969,25 +3007,25 @@ async function archRestore(binId){
     }
     await SB.from('archive_bin').update({restored_at:new Date().toISOString(),restored_by:(SBPROFILE&&SBPROFILE.name)||''}).eq('id',binId);
     audit('archive.restore',{table:b.src_table,label:b.label,newId:String(newId)});
-    alert(b.label+' restored.');
+    uiAlert(b.label+' restored.');
     renderArchive();
-  }catch(e){alert('Could not restore: '+(e.message||e));}
+  }catch(e){uiAlert('Could not restore: '+(e.message||e));}
 }
 async function archPurge(binId){
   if(!isSuper())return;
   let b=null;
   try{const {data}=await SB.from('archive_bin').select('id,label,summary').eq('id',binId).maybeSingle();b=data;}catch(e){}
   if(!b)return renderArchive();
-  if(!confirm('PURGE '+b.label+' from the archive?\n\n'+(b.summary||'')+'\n\nThis removes the archived copy for good. Only last night’s backup would still have it.'))return;
-  const typed=prompt('This is permanent. Type '+b.label+' once more to purge it:','');
+  if(!await uiConfirm('PURGE '+b.label+' from the archive?\n\n'+(b.summary||'')+'\n\nThis removes the archived copy for good. Only last night’s backup would still have it.'))return;
+  const typed=await uiPrompt('This is permanent. Type '+b.label+' once more to purge it:','');
   if(typed===null)return;
-  if(String(typed).trim()!==String(b.label))return alert('That did not match — nothing was purged.');
+  if(String(typed).trim()!==String(b.label))return uiAlert('That did not match — nothing was purged.');
   try{
     const {error}=await SB.from('archive_bin').delete().eq('id',binId);
     if(error)throw error;
     audit('archive.purge',{label:b.label});
     renderArchive();
-  }catch(e){alert('Could not purge: '+(e.message||e));}
+  }catch(e){uiAlert('Could not purge: '+(e.message||e));}
 }
 
 /* ── DOCUMENT NUMBERING (super admin) — one panel for every series ── */
@@ -3017,25 +3055,25 @@ async function renderNumbering(){
 async function numEdit(kind){
   if(!isSuper())return;
   let r=null;try{const {data}=await SB.from('doc_formats').select('*').eq('kind',kind).maybeSingle();r=data;}catch(e){}
-  if(!r)return alert('Unknown series.');
-  const prefix=prompt('Prefix for '+(r.label||kind)+' (e.g. HS- · blank for none):',r.prefix||'');
+  if(!r)return uiAlert('Unknown series.');
+  const prefix=await uiPrompt('Prefix for '+(r.label||kind)+' (e.g. HS- · blank for none):',r.prefix||'');
   if(prefix===null)return;
-  const pad=prompt('Pad the number to how many digits? (0 = no padding)\n\ne.g. pad 4 shows 7 as 0007',String(r.pad||0));
+  const pad=await uiPrompt('Pad the number to how many digits? (0 = no padding)\n\ne.g. pad 4 shows 7 as 0007',String(r.pad||0));
   if(pad===null)return;
-  const off=prompt('The series should appear to start at which number?\n\n(Internally records are still 1,2,3… — this only shifts what is printed. Currently the first is '+((r.offset_no||0)+1)+'.)',String((r.offset_no||0)+1));
+  const off=await uiPrompt('The series should appear to start at which number?\n\n(Internally records are still 1,2,3… — this only shifts what is printed. Currently the first is '+((r.offset_no||0)+1)+'.)',String((r.offset_no||0)+1));
   if(off===null)return;
   const padN=parseInt(pad,10),offN=parseInt(off,10);
-  if(isNaN(padN)||padN<0||padN>12)return alert('Padding must be 0–12.');
-  if(isNaN(offN)||offN<0)return alert('The starting number must be 0 or more.');
+  if(isNaN(padN)||padN<0||padN>12)return uiAlert('Padding must be 0–12.');
+  if(isNaN(offN)||offN<0)return uiAlert('The starting number must be 0 or more.');
   let ex=String(offN);while(ex.length<padN)ex='0'+ex;
-  if(!confirm('Numbers for '+(r.label||kind)+' will read '+prefix.trim()+ex+' onwards.\n\nThis changes how EXISTING documents of this type display too. Continue?'))return;
+  if(!await uiConfirm('Numbers for '+(r.label||kind)+' will read '+prefix.trim()+ex+' onwards.\n\nThis changes how EXISTING documents of this type display too. Continue?'))return;
   try{
     const {error}=await SB.from('doc_formats').update({prefix:prefix.trim(),pad:padN,offset_no:offN-1}).eq('kind',kind);
     if(error)throw error;
     audit('numbering.set',{kind,prefix:prefix.trim(),pad:padN,starts:offN});
     await loadDocFormats(true);
     renderNumbering();
-  }catch(e){alert('Could not save: '+(e.message||e));}
+  }catch(e){uiAlert('Could not save: '+(e.message||e));}
 }
 
 /* ══════════════════ ATTACHMENTS ══════════════════
@@ -3135,10 +3173,10 @@ async function attOpen(fileId,name){
     const w=window.open(url,'_blank');
     if(!w){const a=document.createElement('a');a.href=url;a.download=name||'file';a.click();}
     setTimeout(()=>URL.revokeObjectURL(url),60000);
-  }catch(e){alert('Could not open it: '+(e.message||e));}
+  }catch(e){uiAlert('Could not open it: '+(e.message||e));}
 }
 async function attRemove(rowId,fileId){
-  if(!confirm('Remove this attachment? It is deleted from Drive too.'))return;
+  if(!await uiConfirm('Remove this attachment? It is deleted from Drive too.'))return;
   try{
     /* The server owns this now. Deleting the row from the browser looked like it
        worked even when RLS filtered it to nothing — PostgREST answers a 0-row
@@ -3150,7 +3188,7 @@ async function attRemove(rowId,fileId){
     if(!r.ok||d.error)throw new Error(d.error||('Could not remove it ('+r.status+')'));
     audit('attachment.remove',{file:fileId});
     if(typeof reRender==='function')reRender();
-  }catch(e){alert('Could not remove it: '+(e.message||e));}
+  }catch(e){uiAlert('Could not remove it: '+(e.message||e));}
 }
 /* super admin: is Drive actually wired up? shown on the Cutover page */
 async function attCheck(){
@@ -3158,9 +3196,9 @@ async function attCheck(){
     const r=await fetch('/.netlify/functions/upload',{method:'POST',headers:await sbAuthHeaders({'Content-Type':'application/json'}),
       body:JSON.stringify({action:'check'})});
     const j=await r.json();
-    alert(j.ok?('Drive is connected.\n\nFolder: '+(j.folder||'?')+(j.sharedDrive?'\nOn a Shared Drive ✓':'\n\nWARNING: this folder is NOT on a Shared Drive. A service account has no storage of its own, so uploads will fail with a quota error. Move the folder into a Shared Drive.'))
+    uiAlert(j.ok?('Drive is connected.\n\nFolder: '+(j.folder||'?')+(j.sharedDrive?'\nOn a Shared Drive ✓':'\n\nWARNING: this folder is NOT on a Shared Drive. A service account has no storage of its own, so uploads will fail with a quota error. Move the folder into a Shared Drive.'))
       :('Drive is not working yet:\n\n'+(j.error||'unknown')));
-  }catch(e){alert('Could not reach the upload function: '+(e.message||e));}
+  }catch(e){uiAlert('Could not reach the upload function: '+(e.message||e));}
 }
 
 /* ══════════════════ FINANCE FORMS ══════════════════
@@ -3528,19 +3566,19 @@ async function finSubmit(){
   const kind=window._finKind,S=FIN_SPEC[kind],vals=window._finVals||{};
   const shown=S.fields.filter(f=>finVisible(f,vals));
   for(const f of shown){
-    if(f.req&&!String(vals[f.k]||'').trim())return alert('“'+f.l+'” is required.');
+    if(f.req&&!String(vals[f.k]||'').trim())return uiAlert('“'+f.l+'” is required.');
   }
   const lines=(S.lines&&finVisible(S.lines,vals))?(window._finLines||[]).filter(l=>Object.values(l).some(v=>String(v||'').trim())):[];
-  if(S.lines&&finVisible(S.lines,vals)&&!lines.length&&kind!=='reimburse')return alert('Add at least one row under “'+S.lines.label+'”.');
+  if(S.lines&&finVisible(S.lines,vals)&&!lines.length&&kind!=='reimburse')return uiAlert('Add at least one row under “'+S.lines.label+'”.');
   // the money on the lines should agree with the total the person typed
   if(lines.length&&vals.amount&&S.lines.cols.some(c=>c.k==='amount')){
     const sum=lines.reduce((a,l)=>a+(parseFloat(l.amount)||0),0);
-    if(Math.abs(sum-parseFloat(vals.amount||0))>1&&!confirm('The rows add up to '+fmtPeso(sum)+' but the total says '+fmtPeso(parseFloat(vals.amount)||0)+'.\n\nSubmit anyway?'))return;
+    if(Math.abs(sum-parseFloat(vals.amount||0))>1&&!await uiConfirm('The rows add up to '+fmtPeso(sum)+' but the total says '+fmtPeso(parseFloat(vals.amount)||0)+'.\n\nSubmit anyway?'))return;
   }
   const staged=window._finFiles||[];
-  if(FIN_ATT_REQUIRED[kind]&&!staged.length)return alert('Add at least one receipt (photo or PDF) — finance cannot process a '+S.title.toLowerCase()+' without one.');
+  if(FIN_ATT_REQUIRED[kind]&&!staged.length)return uiAlert('Add at least one receipt (photo or PDF) — finance cannot process a '+S.title.toLowerCase()+' without one.');
   const st=finSteps(kind,Math.round(parseFloat(vals.amount||0)));
-  if(!st.length&&!confirm('No approval route is set for this form, so nobody will be notified. Submit anyway and ask an admin to configure one?'))return;
+  if(!st.length&&!await uiConfirm('No approval route is set for this form, so nobody will be notified. Submit anyway and ask an admin to configure one?'))return;
   const row={kind,requester_id:SBUSER.id,requester_name:(SBPROFILE&&SBPROFILE.name)||'',requester_email:(SBUSER&&SBUSER.email)||'',
     status:'pending',step:1,data:{}};
   for(const f of shown){ // only what the form actually showed — a field hidden by
@@ -3572,10 +3610,10 @@ async function finSubmit(){
     }
     await finNotifyStep(data,st[0]);
     window._finVals={};window._finLines=[];window._finFiles=[];
-    alert(FIN_NO(kind,data.num)+' submitted.'+(st[0]?' Sent to '+finStepWho(st[0],data)+'.':'')+
+    uiAlert(FIN_NO(kind,data.num)+' submitted.'+(st[0]?' Sent to '+finStepWho(st[0],data)+'.':'')+
       (failed.length?'\n\nCould not upload: '+failed.join(', ')+'. Use + Attach on the row in the register to add them.':''));
     renderFinForm(kind);
-  }catch(e){alert('Could not submit: '+(e.message||e));}
+  }catch(e){uiAlert('Could not submit: '+(e.message||e));}
 }
 async function finNotifyStep(req,step){
   if(!step)return;
@@ -3595,10 +3633,10 @@ async function finNotifyStep(req,step){
 async function finDecide(id,what){
   const {data:r}=await SB.from('fin_requests').select('*').eq('id',id).maybeSingle();
   if(!r||r.status!=='pending')return renderFinForm(window._finKind);
-  if(!canDecideFin(r))return alert('This one is waiting on '+finStepWho(finStepOf(r),r)+'.');
+  if(!canDecideFin(r))return uiAlert('This one is waiting on '+finStepWho(finStepOf(r),r)+'.');
   const no=FIN_NO(r.kind,r.num);
-  const note=(prompt((what==='approve'?'Approve ':'Reject ')+no+' — note for the record'+(what==='reject'?' (goes back to the requester)':' (optional)')+':','')||'').trim();
-  if(what==='reject'&&!note&&!confirm('Reject with no reason given?'))return;
+  const note=(await uiPrompt((what==='approve'?'Approve ':'Reject ')+no+' — note for the record'+(what==='reject'?' (goes back to the requester)':' (optional)')+':','')||'').trim();
+  if(what==='reject'&&!note&&!await uiConfirm('Reject with no reason given?'))return;
   const steps=finSteps(r.kind,r.amount);
   const decisions=(r.decisions||[]).concat([{step:r.step,by:(SBUSER&&SBUSER.id)||'',name:(SBPROFILE&&SBPROFILE.name)||'',at:new Date().toISOString(),decision:what,note:note||''}]);
   const last=(r.step||1)>=steps.length;
@@ -3620,11 +3658,11 @@ async function finDecide(id,what){
         notify({roles:['finance']},'auto',FIN_SPEC[r.kind].title+' approved: '+no,(r.payee||r.requester_name||'')+' · '+fmtPeso(r.amount||0)+' — ready to action','#/v/'+r.kind);
     }catch(e){}
     renderFinForm(r.kind);
-  }catch(e){alert('Could not save the decision: '+(e.message||e));}
+  }catch(e){uiAlert('Could not save the decision: '+(e.message||e));}
 }
 async function finSettle(id){ // the money actually moved — closes the loop for finance
   if(!roleIn('admin','finance'))return;
-  const ref=(prompt('Mark settled — reference (voucher no., bank ref, cheque no.):','')||'').trim();
+  const ref=(await uiPrompt('Mark settled — reference (voucher no., bank ref, cheque no.):','')||'').trim();
   if(ref===null)return;
   try{
     const {data:done,error}=await SB.from('fin_requests').update({status:'settled',ref_no:ref||null,updated_at:new Date().toISOString()}).eq('id',id).eq('status','approved').select();
@@ -3633,16 +3671,16 @@ async function finSettle(id){ // the money actually moved — closes the loop fo
     audit('fin.settle',{id,ref});
     try{const r=done[0];if(r.requester_id)notify({user_id:r.requester_id},'decision','Settled: '+FIN_NO(r.kind,r.num),'Finance has released the payment'+(ref?' ('+ref+')':'')+'.','#/v/'+r.kind);}catch(e){}
     renderFinForm(window._finKind);
-  }catch(e){alert('Could not mark it settled: '+(e.message||e));}
+  }catch(e){uiAlert('Could not mark it settled: '+(e.message||e));}
 }
 async function finCancel(id){
-  if(!confirm('Cancel this request?'))return;
+  if(!await uiConfirm('Cancel this request?'))return;
   try{
     const {data:done,error}=await SB.from('fin_requests').update({status:'cancelled',updated_at:new Date().toISOString()}).eq('id',id).eq('status','pending').select();
     if(error)throw error;
     if(!done||!done.length)throw new Error('The database refused it.');
     audit('fin.cancel',{id});renderFinForm(window._finKind);
-  }catch(e){alert('Could not cancel: '+(e.message||e));}
+  }catch(e){uiAlert('Could not cancel: '+(e.message||e));}
 }
 
 /* ── code lists: the dropdowns finance keeps changing ── */
@@ -3683,17 +3721,17 @@ async function clAdd(){
     if(error)throw error;
     audit('codelist.add',{list:which,code:v});
     await loadCodes(true);renderCodeLists();
-  }catch(e){alert(String(e.message||e).match(/duplicate|unique/i)?'That one is already in the list.':'Could not add: '+(e.message||e));}
+  }catch(e){uiAlert(String(e.message||e).match(/duplicate|unique/i)?'That one is already in the list.':'Could not add: '+(e.message||e));}
 }
 async function clRename(id,cur){
-  const v=(prompt('Rename this option. It changes on existing requests too, because they store the code itself:',cur)||'').trim();
+  const v=(await uiPrompt('Rename this option. It changes on existing requests too, because they store the code itself:',cur)||'').trim();
   if(!v||v===cur)return;
   try{
     const {error}=await SB.from('code_lists').update({label:v,code:v,updated_at:new Date().toISOString(),updated_by:(SBUSER&&SBUSER.id)||null}).eq('id',id);
     if(error)throw error;
     audit('codelist.rename',{id,from:cur,to:v});
     await loadCodes(true);renderCodeLists();
-  }catch(e){alert('Could not rename: '+(e.message||e));}
+  }catch(e){uiAlert('Could not rename: '+(e.message||e));}
 }
 async function clToggle(id,active){
   try{
@@ -3701,7 +3739,7 @@ async function clToggle(id,active){
     if(error)throw error;
     audit('codelist.'+(active?'activate':'retire'),{id});
     await loadCodes(true);renderCodeLists();
-  }catch(e){alert('Could not save: '+(e.message||e));}
+  }catch(e){uiAlert('Could not save: '+(e.message||e));}
 }
 
 /* ── approval routes: who signs off which form ──
@@ -3752,21 +3790,21 @@ async function routeSet(id,field,value){ // one field, saved at once
   else if(field==='min')patch={min_amount:Math.max(0,Math.round(parseFloat(value)||0))};
   try{const {data,error}=await SB.from('approval_routes').update(patch).eq('id',id).select('id');if(error)throw error;if(!data||!data.length)throw new Error('nothing saved \u2014 refresh and try again');
     audit('route.edit',{id,field});await loadRoutes(true);if(field==='who')renderRoutes();}
-  catch(e){alert('Could not save: '+(e.message||e));renderRoutes();}
+  catch(e){uiAlert('Could not save: '+(e.message||e));renderRoutes();}
 }
 async function routeAdd(kind){
   if(!roleIn('admin')||!FIN_SPEC[kind])return;
   const steps=((ROUTES||{})[kind]||[]);const step=steps.reduce((m,r)=>Math.max(m,r.step),0)+1;
   try{const {error}=await SB.from('approval_routes').insert({kind,step,label:null,min_amount:0,active:true,use_fund_source:step===1,approver_id:null,approver_name:null,approver_role:null});
     if(error)throw error;audit('route.add',{kind,step});await loadRoutes(true);renderRoutes();}
-  catch(e){alert('Could not add: '+(e.message||e));}
+  catch(e){uiAlert('Could not add: '+(e.message||e));}
 }
 async function routeDrop(id){
   if(!roleIn('admin'))return;
-  if(!confirm('Remove this approval step? Requests already waiting on it fall to the next step.'))return;
+  if(!await uiConfirm('Remove this approval step? Requests already waiting on it fall to the next step.'))return;
   try{const {data,error}=await SB.from('approval_routes').delete().eq('id',id).select('id');if(error)throw error;
     audit('route.remove',{id});await loadRoutes(true);renderRoutes();}
-  catch(e){alert('Could not remove: '+(e.message||e));}
+  catch(e){uiAlert('Could not remove: '+(e.message||e));}
 }
 
 /* ══════════════════ FAVOURITES ══════════════════
@@ -3826,7 +3864,7 @@ function favToggleCurrent(){
   const list=favGet(),i=list.indexOf(v);
   if(i>=0)list.splice(i,1);
   else{
-    if(list.length>=FAV_MAX)return alert('That is '+FAV_MAX+' favourites already — remove one first (the star on that page, or Choose favourites).');
+    if(list.length>=FAV_MAX)return uiAlert('That is '+FAV_MAX+' favourites already — remove one first (the star on that page, or Choose favourites).');
     list.push(v);
   }
   favSet(list);favPaint();
@@ -3907,7 +3945,7 @@ function favToggle(btn){
   const i=window._favSel.indexOf(v);
   if(i>=0)window._favSel.splice(i,1);
   else{
-    if(window._favSel.length>=FAV_MAX){alert('That is '+FAV_MAX+' already — unpick one first.');return;}
+    if(window._favSel.length>=FAV_MAX){uiAlert('That is '+FAV_MAX+' already — unpick one first.');return;}
     window._favSel.push(v);
   }
   const on=window._favSel.includes(v);

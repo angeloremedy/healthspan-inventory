@@ -388,6 +388,12 @@
   },
   {
    "sec": "Logistics",
+   "view": "receiving",
+   "title": "Receiving",
+   "desc": "Inbound shipments from suppliers, one record per delivery against a PO: carrier, tracking, ETD/ETA, customs, broker; the count at the door per line (batch, expiry, bin, QA hold) that writes the stock ledger and the PO; the supplier’s terms turned into a payment due date; and the landed-cost calculator — invoice × FX plus freight, insurance, duty, VAT (recoverable by default), brokerage, arrastre, storage, trucking, bank charges — allocated to a real ₱ cost per unit and applied to the PO for valuation. Short or over counts raise a claim with the supplier in one tap."
+  },
+  {
+   "sec": "Logistics",
    "view": "suppliers",
    "title": "Suppliers & imports",
    "desc": "The supplier master: currencies, payment terms, lead times, contacts — plus every PO on the water with its ETD, ETA, and customs status in one list."
@@ -912,6 +918,12 @@
   },
   {
    "sec": "Logistics",
+   "view": "receiving",
+   "title": "Receiving",
+   "desc": "Inbound shipments from suppliers, one record per delivery against a PO: carrier, tracking, ETD/ETA, customs, broker; the count at the door per line (batch, expiry, bin, QA hold) that writes the stock ledger and the PO; the supplier’s terms turned into a payment due date; and the landed-cost calculator — invoice × FX plus freight, insurance, duty, VAT (recoverable by default), brokerage, arrastre, storage, trucking, bank charges — allocated to a real ₱ cost per unit and applied to the PO for valuation. Short or over counts raise a claim with the supplier in one tap."
+  },
+  {
+   "sec": "Logistics",
    "view": "suppliers",
    "title": "Suppliers & imports",
    "desc": "The supplier master: currencies, payment terms, lead times, contacts — plus every PO on the water with its ETD, ETA, and customs status in one list."
@@ -1421,6 +1433,12 @@
    "view": "po",
    "title": "Purchase orders",
    "desc": "Purchase orders and receiving. Draft the PO, add lines, mark it ordered; when stock arrives, receive per line — batch and expiry captured at the door, written straight into the stock ledger."
+  },
+  {
+   "sec": "Logistics",
+   "view": "receiving",
+   "title": "Receiving",
+   "desc": "Inbound shipments from suppliers, one record per delivery against a PO: carrier, tracking, ETD/ETA, customs, broker; the count at the door per line (batch, expiry, bin, QA hold) that writes the stock ledger and the PO; the supplier’s terms turned into a payment due date; and the landed-cost calculator — invoice × FX plus freight, insurance, duty, VAT (recoverable by default), brokerage, arrastre, storage, trucking, bank charges — allocated to a real ₱ cost per unit and applied to the PO for valuation. Short or over counts raise a claim with the supplier in one tap."
   },
   {
    "sec": "Logistics",
@@ -2460,6 +2478,12 @@
   },
   {
    "sec": "Logistics",
+   "view": "receiving",
+   "title": "Receiving",
+   "desc": "Inbound shipments from suppliers, one record per delivery against a PO: carrier, tracking, ETD/ETA, customs, broker; the count at the door per line (batch, expiry, bin, QA hold) that writes the stock ledger and the PO; the supplier’s terms turned into a payment due date; and the landed-cost calculator — invoice × FX plus freight, insurance, duty, VAT (recoverable by default), brokerage, arrastre, storage, trucking, bank charges — allocated to a real ₱ cost per unit and applied to the PO for valuation. Short or over counts raise a claim with the supplier in one tap."
+  },
+  {
+   "sec": "Logistics",
    "view": "suppliers",
    "title": "Suppliers & imports",
    "desc": "The supplier master: currencies, payment terms, lead times, contacts — plus every PO on the water with its ETD, ETA, and customs status in one list."
@@ -3059,6 +3083,12 @@
    "view": "po",
    "title": "Purchase orders",
    "desc": "Purchase orders and receiving. Draft the PO, add lines, mark it ordered; when stock arrives, receive per line — batch and expiry captured at the door, written straight into the stock ledger."
+  },
+  {
+   "sec": "Logistics",
+   "view": "receiving",
+   "title": "Receiving",
+   "desc": "Inbound shipments from suppliers, one record per delivery against a PO: carrier, tracking, ETD/ETA, customs, broker; the count at the door per line (batch, expiry, bin, QA hold) that writes the stock ledger and the PO; the supplier’s terms turned into a payment due date; and the landed-cost calculator — invoice × FX plus freight, insurance, duty, VAT (recoverable by default), brokerage, arrastre, storage, trucking, bank charges — allocated to a real ₱ cost per unit and applied to the PO for valuation. Short or over counts raise a claim with the supplier in one tap."
   },
   {
    "sec": "Logistics",

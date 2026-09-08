@@ -166,21 +166,21 @@ function serHistoryPanel(s,svc){
 }
 async function serWarranty(id){
   const s=(SERIALS||[]).find(x=>x.id===id);if(!s||!canSerials())return;
-  const d=prompt('Warranty end date for '+s.serial+' (YYYY-MM-DD, blank to clear):',s.warranty_end||'');if(d===null)return;
-  const v=d.trim();if(v&&!/^\d{4}-\d{2}-\d{2}$/.test(v))return alert('Use YYYY-MM-DD.');
-  const note=prompt('Warranty note (supplier, terms, claim contact) — optional:',s.warranty_note||'');if(note===null)return;
+  const d=await uiPrompt('Warranty end date for '+s.serial+' (YYYY-MM-DD, blank to clear):',s.warranty_end||'');if(d===null)return;
+  const v=d.trim();if(v&&!/^\d{4}-\d{2}-\d{2}$/.test(v))return uiAlert('Use YYYY-MM-DD.');
+  const note=await uiPrompt('Warranty note (supplier, terms, claim contact) — optional:',s.warranty_note||'');if(note===null)return;
   try{const {data:up,error}=await SB.from('serials').update({warranty_end:v||null,warranty_note:note.trim()||null,updated_at:new Date().toISOString()}).eq('id',id).select('id');
     if(error)throw new Error(error.message);if(!up||!up.length)throw new Error('No change saved — permissions?');
     audit('serial.warranty',{serial:s.serial,end:v||null});keepScroll();renderSerials();
-  }catch(e){alert('Could not save: '+(e.message||e)+(/warranty_end/.test(String(e.message))?' — run the serial warranty SQL from SUPABASE-SETUP.md.':''));}
+  }catch(e){uiAlert('Could not save: '+(e.message||e)+(/warranty_end/.test(String(e.message))?' — run the serial warranty SQL from SUPABASE-SETUP.md.':''));}
 }
 async function serHolder(id){
   const s=(SERIALS||[]).find(x=>x.id===id);if(!s||!canSerials())return;
-  const h=prompt('Which clinic / account has '+s.serial+' now? (blank = warehouse)',s.holder||'');if(h===null)return;
+  const h=await uiPrompt('Which clinic / account has '+s.serial+' now? (blank = warehouse)',s.holder||'');if(h===null)return;
   try{const {data:up,error}=await SB.from('serials').update({holder:h.trim()||null,updated_at:new Date().toISOString()}).eq('id',id).select('id');
     if(error)throw new Error(error.message);if(!up||!up.length)throw new Error('No change saved — permissions?');
     audit('serial.holder',{serial:s.serial,holder:h.trim()||null});keepScroll();renderSerials();
-  }catch(e){alert('Could not save: '+(e.message||e));}
+  }catch(e){uiAlert('Could not save: '+(e.message||e));}
 }
 async function svcAdd(serialId){
   const s=(SERIALS||[]).find(x=>x.id===serialId);const msg=$('svc-msg');if(!s||!canSerials())return;
@@ -194,10 +194,10 @@ async function svcAdd(serialId){
   }catch(e){if(msg){msg.style.color='var(--rd)';msg.textContent='Could not log: '+(e.message||e)+(/serial_service/.test(String(e.message))?' — run the serial service SQL from SUPABASE-SETUP.md.':'');}}
 }
 async function svcRemove(id,serialId){
-  if(!canSerials()||!confirm('Remove this history entry?'))return;
+  if(!canSerials()||!await uiConfirm('Remove this history entry?'))return;
   try{const {data:up,error}=await SB.from('serial_service').delete().eq('id',id).select('id');if(error)throw new Error(error.message);
     if(!up||!up.length)throw new Error('Not removed — only the warehouse, admin or super admin can.');
-    audit('serial.service.remove',{id});keepScroll();renderSerials();}catch(e){alert('Could not remove: '+(e.message||e));}
+    audit('serial.service.remove',{id});keepScroll();renderSerials();}catch(e){uiAlert('Could not remove: '+(e.message||e));}
 }
 async function serAdd(){
   const msg=$('ser-msg');
@@ -220,9 +220,9 @@ async function serMark(id,status){
   const s=(SERIALS||[]).find(x=>x.id===id);if(!s)return;
   let ref=null;
   let holder=null;
-  if(status==='sold'){ref=prompt('Order / DR reference for the sale of '+s.serial+':');if(ref===null)return;
-    holder=prompt('Which clinic / account has '+s.serial+' now? (for warranty and service calls)',s.holder||'');if(holder===null)return;holder=holder.trim()||null;}
-  if(status==='disposed'&&!confirm('Mark '+s.serial+' disposed?'))return;
+  if(status==='sold'){ref=await uiPrompt('Order / DR reference for the sale of '+s.serial+':');if(ref===null)return;
+    holder=await uiPrompt('Which clinic / account has '+s.serial+' now? (for warranty and service calls)',s.holder||'');if(holder===null)return;holder=holder.trim()||null;}
+  if(status==='disposed'&&!await uiConfirm('Mark '+s.serial+' disposed?'))return;
   try{
     // guard on the CURRENT status so a console call cannot stomp an open loan,
     // and check the row count — RLS answers a refused update with 0 rows, no error
@@ -233,7 +233,7 @@ async function serMark(id,status){
     if(!up||!up.length)throw new Error('No change — the unit is not in a state that allows this (refresh the page).');
     audit('serial.'+status,{serial:s.serial,sku:s.sku,ref});
     keepScroll();renderSerials();
-  }catch(e){alert('Could not update: '+(e.message||e));}
+  }catch(e){uiAlert('Could not update: '+(e.message||e));}
 }
 
 /* ── DEMO / LOANER UNITS — a serial checked out to a clinic ── */
@@ -321,7 +321,7 @@ async function loanOut(){
 }
 async function loanReturn(id){
   const l=(LOANS||[]).find(x=>x.id===id);if(!l)return;
-  const cond=prompt('Condition at return of '+l.serial+' (from '+l.account+'):','complete, good condition');
+  const cond=await uiPrompt('Condition at return of '+l.serial+' (from '+l.account+'):','complete, good condition');
   if(cond===null)return;
   try{
     const today=todayISO();
@@ -329,14 +329,14 @@ async function loanReturn(id){
     if(error)throw new Error(error.message);
     if(!up||!up.length)throw new Error('This loan is already closed — refresh.');
     const {data:sr}=await SB.from('serials').update({status:'in_stock',holder:null,updated_at:new Date().toISOString()}).eq('id',l.serial_id).eq('status','on_loan').select('id');
-    if(!sr||!sr.length)alert('The loan is closed, but the serial did not move back to stock (permissions or state). Tell the warehouse or an admin to check '+l.serial+'.');
+    if(!sr||!sr.length)uiAlert('The loan is closed, but the serial did not move back to stock (permissions or state). Tell the warehouse or an admin to check '+l.serial+'.');
     audit('loan.return',{loan:loanNo(id),serial:l.serial,cond});
     keepScroll();renderLoans();
-  }catch(e){alert('Could not record the return: '+(e.message||e));}
+  }catch(e){uiAlert('Could not record the return: '+(e.message||e));}
 }
 async function loanConvert(id){
   const l=(LOANS||[]).find(x=>x.id===id);if(!l)return;
-  const ref=prompt('The demo closed — order / DR reference for the sale of '+l.serial+' to '+l.account+':');
+  const ref=await uiPrompt('The demo closed — order / DR reference for the sale of '+l.serial+' to '+l.account+':');
   if(ref===null)return;
   try{
     const today=todayISO();
@@ -344,23 +344,23 @@ async function loanConvert(id){
     if(error)throw new Error(error.message);
     if(!up||!up.length)throw new Error('This loan is already closed — refresh.');
     const {data:sr}=await SB.from('serials').update({status:'sold',sold_ref:(ref||'').trim()||null,holder:l.account||null,updated_at:new Date().toISOString()}).eq('id',l.serial_id).eq('status','on_loan').select('id');
-    if(!sr||!sr.length)alert('The loan is converted, but the serial did not move to sold (permissions or state). Tell the warehouse or an admin to check '+l.serial+'.');
+    if(!sr||!sr.length)uiAlert('The loan is converted, but the serial did not move to sold (permissions or state). Tell the warehouse or an admin to check '+l.serial+'.');
     audit('loan.convert',{loan:loanNo(id),serial:l.serial,account:l.account,ref});
     keepScroll();renderLoans();
-  }catch(e){alert('Could not convert: '+(e.message||e));}
+  }catch(e){uiAlert('Could not convert: '+(e.message||e));}
 }
 
 /* ── WAVE PICKING — several orders, one walk of the warehouse ── */
 const waveNo=id=>docNo('wave',id);
 async function waveRelease(){
   const ids=[...document.querySelectorAll('.wv-pick:checked')].map(c=>c.value);
-  if(ids.length<2){alert('Pick at least two orders — a single order already has its own pick list.');return;}
+  if(ids.length<2){uiAlert('Pick at least two orders — a single order already has its own pick list.');return;}
   try{
     const {data,error}=await SB.from('waves').insert({order_ids:ids,created_by:(SBUSER&&SBUSER.id)||null,created_name:(SBPROFILE&&SBPROFILE.name)||''}).select().single();
     if(error)throw new Error(error.message);
     audit('wave.release',{wave:waveNo(data.id),orders:ids.length});
     showWavePick(data.id);
-  }catch(e){alert('Could not release the wave: '+(e.message||e));}
+  }catch(e){uiAlert('Could not release the wave: '+(e.message||e));}
 }
 async function showWavePick(waveId){
   currentView='wavepick';

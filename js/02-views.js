@@ -17,7 +17,8 @@ function viewAllowed(v){
   // approvers are viewers. Stated as a rule so no future CIRCLE_BLOCK edit can revoke it.
   // FIN_KINDS lives in js/10; viewAllowed can run before that file has loaded
   if(v==='pullouts'||(typeof FIN_KINDS!=='undefined'&&FIN_KINDS.indexOf(v)>=0))return true; // anyone may file a finance form; the approval route is the control
-  if(v==='savedreports')return ROLE!=='viewer';                 // every source inside gates itself by role
+  if(v==='savedreports')return ROLE!=='viewer';
+  if(v==='receiving')return ['admin','supply_chain','finance','manager'].includes(ROLE); // shipments carry costs; managers read without them                 // every source inside gates itself by role
   if(v==='routes')return ROLE==='admin';
   if(v==='codelists')return ROLE==='admin'||ROLE==='finance';
   if(v==='qbo')return ROLE==='admin'||ROLE==='finance';        // QuickBooks sync: books, so finance + admin
@@ -54,7 +55,7 @@ function showView(v,el){
            simpromo:'Promo rescue simulator',simbudget:'Budget optimizer',simservice:'Service-level simulator',simsurge:'Campaign surge simulator',
            simmonte:'Monte Carlo stockout risk',simproject:'12-month projection',simcash:'Cash-flow timeline',simbulk:'Bulk-buy trade-off',simbranch:'Remedy branch rebalancing',
            aged:'Aged inventory',shrinkage:'Shrinkage tracker',cashexpiry:'Cash in expiring stock',branchtransfer:'Remedy branch shipments',branchexpiry:'Remedy branch expiry watch',
-           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt',targets:'Set targets',fcastacc:'Forecast accuracy',campaigns:'Campaign calendar',planreview:'AI planning review',salespace:'Leaderboard & pace',pdc:'PDC register',salesdue:'Reorder due',catalog:'Item master',returns:'Returns & credit memos',scan:'Scan — receive / pick / count',cutover:'Cutover switches',creditmemo:'Credit memo',scorecards:'Review scorecards',scanpick:'Scan to pick',recall:'Batch recall trace',pipeline:'Pipeline',po:'Purchase orders',approvals:'Approvals',commissions:'Commissions',salesevents:'Events calendar',quotes:'Quotations',promos:'Promotions',regs:'Product registrations',cyclecount:'Cycle counts',cashflow:'Cash-flow forecast',quarantine:'Quarantine & disposal',pullouts:'Pull-out requests',archive:'Archive — deleted records',numbering:'Document numbering',codelists:'Option lists',routes:'Approval routes',voucher:'Voucher for approval',orderpay:'Request to order / pay',proofpay:'Proof of payment',replenish:'Request for replenishment',reimburse:'Expense reimbursement',cashadvance:'Request for cash advance',expreport:'Expense report (revolving fund)',shortdated:'Short-dated stock',serials:'Serial numbers',loans:'Demo / loaner units',profile:'My profile',wavepick:'Wave pick list',crmstats:'CRM activity',poscore:'Receiving & supplier scorecard',whkpi:'Warehouse KPIs',complaints:'Complaints log',suppliers:'Suppliers & imports',valuation:'Landed cost & valuation',transfers:'Transfer orders',manual:'Your manual'};
+           salesoverview:'Sales overview',salesfree:'Free items',salestarget:'Sales vs target',salesspec:'Sales per specialist',salesdeals:'Deals vs à la carte',salesrecon:'Vs accounting',salesfield:'Field coverage',logvisit:'Log a visit',followups:'Follow-ups & planned visits',account:'Account profile',neworder:'New order',orders:'Orders',order:'Order',spec:'Specialist',fulfillq:'Fulfillment queue',pickslip:'Pick list',ar:'AR aging — receivables',users:'Team & access',home:'Home',audit:'Activity log',statement:'Statement of account',delivery:'Delivery receipt',targets:'Set targets',fcastacc:'Forecast accuracy',campaigns:'Campaign calendar',planreview:'AI planning review',salespace:'Leaderboard & pace',pdc:'PDC register',salesdue:'Reorder due',catalog:'Item master',returns:'Returns & credit memos',scan:'Scan — receive / pick / count',cutover:'Cutover switches',creditmemo:'Credit memo',scorecards:'Review scorecards',scanpick:'Scan to pick',recall:'Batch recall trace',pipeline:'Pipeline',po:'Purchase orders',receiving:'Receiving',approvals:'Approvals',commissions:'Commissions',salesevents:'Events calendar',quotes:'Quotations',promos:'Promotions',regs:'Product registrations',cyclecount:'Cycle counts',cashflow:'Cash-flow forecast',quarantine:'Quarantine & disposal',pullouts:'Pull-out requests',archive:'Archive — deleted records',numbering:'Document numbering',codelists:'Option lists',routes:'Approval routes',voucher:'Voucher for approval',orderpay:'Request to order / pay',proofpay:'Proof of payment',replenish:'Request for replenishment',reimburse:'Expense reimbursement',cashadvance:'Request for cash advance',expreport:'Expense report (revolving fund)',shortdated:'Short-dated stock',serials:'Serial numbers',loans:'Demo / loaner units',profile:'My profile',wavepick:'Wave pick list',crmstats:'CRM activity',poscore:'Receiving & supplier scorecard',whkpi:'Warehouse KPIs',complaints:'Complaints log',suppliers:'Suppliers & imports',valuation:'Landed cost & valuation',transfers:'Transfer orders',manual:'Your manual'};
   $('ptitle').textContent=T[v]||v;
   try{if(typeof favPaint==='function')favPaint();}catch(e){} // star reflects this page
   try{if(typeof mbarPaint==='function')mbarPaint();}catch(e){} // bottom bar follows too
@@ -121,6 +122,7 @@ function showView(v,el){
   else if(v==='recall') renderRecall();
   else if(v==='pipeline') renderPipeline();
   else if(v==='po') renderPOs();
+  else if(v==='receiving') renderReceiving();
   else if(v==='approvals') renderApprovals();
   else if(v==='commissions') renderCommissions();
   else if(v==='salesevents') renderEvents();
@@ -479,7 +481,7 @@ function openSpecDrawer(name){
   // case-insensitive: the visit log's spelling may differ from the Shopify tag
   const key=specs[name]?name:Object.keys(specs).find(k=>k.toLowerCase()===String(name||'').toLowerCase());
   const sp=key?specs[key]:null;
-  if(!sp){alert('No Shopify sales recorded under "'+name+'" yet — only visit-log activity.');return;}
+  if(!sp){uiAlert('No Shopify sales recorded under "'+name+'" yet — only visit-log activity.');return;}
   const hideInt=SEXT&&hasIntSplit();
   const t=netPeriod(sp,SPERIOD,'');
   const ymNow=monthISO();
@@ -605,8 +607,8 @@ function specNames(){ // picker options: Shopify tags, else Targets tab, so it's
   return s.sort((a,b)=>a.localeCompare(b));
 }
 async function specAdd(){
-  if(!canManage())return alert('Admins and sales managers only.');
-  const n=prompt('New product specialist name (as it will appear on orders/visits):','');
+  if(!canManage())return uiAlert('Admins and sales managers only.');
+  const n=await uiPrompt('New product specialist name (as it will appear on orders/visits):','');
   if(!n||!n.trim())return;
   try{
     const {error}=await SB.from('spec_roster').upsert({spec:n.trim(),active:true,updated_by:(SBUSER&&SBUSER.id)||null,updated_at:new Date().toISOString()});
@@ -614,18 +616,18 @@ async function specAdd(){
     audit('specialist.add',{spec:n.trim()});
     await loadSpecRoster(true);
     if(currentView==='targets')renderTargets();
-  }catch(e){alert('Could not add: '+(e.message||e)+(String(e.message||'').includes('spec_roster')?'\n\n(Run the spec_roster SQL from SUPABASE-SETUP.md.)':''));}
+  }catch(e){uiAlert('Could not add: '+(e.message||e)+(String(e.message||'').includes('spec_roster')?'\n\n(Run the spec_roster SQL from SUPABASE-SETUP.md.)':''));}
 }
 async function specDeact(n){
-  if(ROLE!=='admin')return alert('Admins only.');
-  if(!confirm('Deactivate '+n+'?\n\nThey disappear from target setting and the order/visit pickers. All their history stays, and you can reactivate anytime.'))return;
+  if(ROLE!=='admin')return uiAlert('Admins only.');
+  if(!await uiConfirm('Deactivate '+n+'?\n\nThey disappear from target setting and the order/visit pickers. All their history stays, and you can reactivate anytime.'))return;
   try{
     const {error}=await SB.from('spec_roster').upsert({spec:n,active:false,updated_by:(SBUSER&&SBUSER.id)||null,updated_at:new Date().toISOString()});
     if(error)throw error;
     audit('specialist.deactivate',{spec:n});
     await loadSpecRoster(true);
     if(currentView==='targets')renderTargets();
-  }catch(e){alert('Could not deactivate: '+(e.message||e));}
+  }catch(e){uiAlert('Could not deactivate: '+(e.message||e));}
 }
 async function specReact(n){
   if(ROLE!=='admin')return;
@@ -635,7 +637,7 @@ async function specReact(n){
     audit('specialist.reactivate',{spec:n});
     await loadSpecRoster(true);
     if(currentView==='targets')renderTargets();
-  }catch(e){alert(e.message||e);}
+  }catch(e){uiAlert(e.message||e);}
 }
 function renderLogVisit(){
   if(!SHOPIFY)try{loadShopify().then(()=>{if(currentView==='logvisit')renderLogVisit();});}catch(e){}
@@ -850,11 +852,11 @@ function renderNewOrder(){
 async function editOrder(id){
   if(!SB)return;
   const {data:o}=await SB.from('orders').select('*,order_lines(*)').eq('id',id).maybeSingle();
-  if(!o)return alert('Order not found.');
-  if(o.source==='shopify')return alert('This order came from Shopify — edit it there; the sync brings changes over.');
-  if(o.status!=='pending')return alert('Only pending orders can be edited — unfulfill/reopen it first.');
+  if(!o)return uiAlert('Order not found.');
+  if(o.source==='shopify')return uiAlert('This order came from Shopify — edit it there; the sync brings changes over.');
+  if(o.status!=='pending')return uiAlert('Only pending orders can be edited — unfulfill/reopen it first.');
   const own=SBUSER&&o.user_id===SBUSER.id;
-  if(!canManage()&&!own)return alert('You can only edit your own orders.');
+  if(!canManage()&&!own)return uiAlert('You can only edit your own orders.');
   window._EDITORD={id:o.id,label:ordLabel(o),account:o.account,spec:o.spec,date:o.date,notes:o.notes||'',paid:o.paid||0};
   CART=(o.order_lines||[]).map(l=>({sku:l.sku,name:l.name,qty:l.qty,price:l.price,amount:l.amount,is_free:l.is_free,deal:l.deal}));
   showView('neworder',null);
@@ -892,7 +894,7 @@ function noProdChanged(){
     }
   }catch(e){}
 }
-function addCartLine(){
+async function addCartLine(){
   const p=noProdResolve();
   const sku=p?p.sku:'';
   const msg=$('no-msg');
@@ -911,7 +913,7 @@ function addCartLine(){
       if(addUnits>atp){
         const info='Only '+Math.max(0,atp)+' available to promise — '+onHand+' on hand, '+promised+' already promised to pending orders'+(inCart?', '+inCart+' in this order':'')+'.';
         if(!canManage()){if(msg){msg.style.color='var(--rd)';msg.textContent=info+' Reduce the quantity or check with your manager.';}return;}
-        if(!confirm(info+'\n\nAdd anyway? (manager override — the shortfall is recorded as a BACKORDER and auto-releases when stock arrives)'))return;
+        if(!await uiConfirm(info+'\n\nAdd anyway? (manager override — the shortfall is recorded as a BACKORDER and auto-releases when stock arrives)'))return;
         window._boShort=window._boShort||{};window._boShort[sku]=(window._boShort[sku]||0)+(addUnits-Math.max(0,atp));
       }
     }
@@ -1103,7 +1105,7 @@ async function renderOrdersServer(){
     '<div style="display:flex;gap:8px">'+
     (isAdmin?'<button onclick="window._ordTrash='+(trash?'false':'true')+';window._ordPage=1;renderOrders()" style="background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:9px 14px;font-size:12.5px;cursor:pointer">'+(trash?'← Back to orders':'Trash ('+trashN+')')+'</button>':'')+
     (trash&&trashN?'<button onclick="emptyOrderTrash()" style="background:var(--rd);color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12.5px;font-weight:600;cursor:pointer">Empty trash</button>':'')+
-    (!trash?'<button onclick="showView(\'neworder\',null)" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer">+ New order</button>':'')+
+    (!trash&&viewAllowed('neworder')?'<button onclick="showView(\'neworder\',null)" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer">+ New order</button>':'')+
     '</div></div>'+
     (rows.length?'<div class="tcard"><div class="tscroll"><table><thead><tr><th>Order</th><th>DR</th><th>Date</th><th>Account</th><th>Specialist</th><th style="text-align:right">Total</th><th>Status</th>'+(trash?'<th></th>':'')+'</tr></thead><tbody>'+
     rows.map(o=>'<tr'+(trash?'':' onclick="showOrderPage(\''+jsq(String(o.id))+'\')" style="cursor:pointer"')+'><td style="font-weight:700">'+esc(ordLabel(o))+'</td><td class="mu" style="font-size:11px">'+esc(o.dr_no||'—')+'</td><td class="mu">'+esc(o.date)+'</td>'+
@@ -1156,7 +1158,7 @@ async function renderOrdersLocal(){
     '<div style="display:flex;gap:8px">'+
     (isAdmin?'<button onclick="window._ordTrash='+(trash?'false':'true')+';window._ordPage=1;renderOrders()" style="background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:9px 14px;font-size:12.5px;cursor:pointer">'+(trash?'← Back to orders':'Trash ('+trashN+')')+'</button>':'')+
     (trash&&trashN?'<button onclick="emptyOrderTrash()" style="background:var(--rd);color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12.5px;font-weight:600;cursor:pointer">Empty trash</button>':'')+
-    (!trash?'<button onclick="showView(\'neworder\',null)" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer">+ New order</button>':'')+
+    (!trash&&viewAllowed('neworder')?'<button onclick="showView(\'neworder\',null)" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer">+ New order</button>':'')+
     '</div></div>'+
     (shown.length?'<div class="tcard"><div class="tscroll"><table><thead><tr><th>Order</th><th>Date</th><th>Account</th><th>Specialist</th><th style="text-align:right">Items</th><th style="text-align:right">Total</th><th>Status</th>'+(trash?'<th></th>':'')+'</tr></thead><tbody>'+
     shown.map(o=>'<tr'+(trash?'':' onclick="showOrderPage(\''+jsq(String(o.ref))+'\')" style="cursor:pointer"')+'><td style="font-weight:700">'+esc(o.label)+'</td><td class="mu">'+esc(o.date)+'</td>'+
@@ -1164,7 +1166,7 @@ async function renderOrdersLocal(){
       '<td class="r mu">'+(o.items==null?'—':o.items)+'</td><td class="r" style="font-weight:600">'+fmtPeso(o.total)+'</td><td>'+stPill(o.status)+'</td>'+
       (trash?'<td><button onclick="orderRestore(\''+(o.native?'native':'shopify')+'\',\''+jsq(String(o.ref))+'\')" style="background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer">Restore</button></td>':'')+'</tr>').join('')+
     '</tbody></table></div>'+(trash?'<div class="tfooter"><span>Restore puts an order back in the register · Empty trash is permanent for orders entered here; Shopify imports keep a tombstone so they never reappear</span></div>':'')+'</div>'+pager:
-    '<div class="empty" style="margin-top:30px">'+(trash?'Trash is empty.':'No orders yet — tap “+ New order” to take the first one.')+'</div>');
+    '<div class="empty" style="margin-top:30px">'+(trash?'Trash is empty.':(viewAllowed('neworder')?'No orders yet — tap “+ New order” to take the first one.':'No orders yet.'))+'</div>');
 }
 function showOrderPage(ref){
   if(currentView!=='order')ORDER_BACK=currentView||'orders';
@@ -1238,13 +1240,14 @@ async function renderOrderPage(){
     (src==='native'?(function(){
       const inp='style="flex:1;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;font-size:12.5px;min-width:100px"';
       const chip=(lbl,val,fld)=>val
-        ?'<div class="drow"><span class="dlbl">'+lbl+'</span><span class="dval"><span class="pill pgr">'+esc(val)+'</span>'+(canManage()?' <a href="#" onclick="shipUnmark(\''+o.id+'\',\''+fld+'\');return false" style="color:var(--tx3);font-size:10px">undo</a>':'')+'</span></div>'
-        :(canManage()&&!inTrash?'<button onclick="shipMark(\''+o.id+'\',\''+fld+'\')" style="width:100%;background:var(--bl);color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:600;cursor:pointer;margin-top:6px">Mark '+(fld==='dispatched_at'?'dispatched':'delivered')+' today</button>':'<div class="drow"><span class="dlbl">'+lbl+'</span><span class="dval mu">—</span></div>');
+        ?'<div class="drow"><span class="dlbl">'+lbl+'</span><span class="dval"><span class="pill pgr">'+esc(val)+'</span>'+(canShip()?' <a href="#" onclick="shipUnmark(\''+o.id+'\',\''+fld+'\');return false" style="color:var(--tx3);font-size:10px">undo</a>':'')+'</span></div>'
+        :(canShip()&&!inTrash?'<button onclick="shipMark(\''+o.id+'\',\''+fld+'\')" style="width:100%;background:var(--bl);color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:600;cursor:pointer;margin-top:6px">Mark '+(fld==='dispatched_at'?'dispatched':'delivered')+' today</button>':'<div class="drow"><span class="dlbl">'+lbl+'</span><span class="dval mu">—</span></div>');
       return '<div class="panel" style="padding:14px;margin-top:14px;max-width:480px"><div class="phd">Shipment</div>'+
-        (canManage()&&!inTrash
-          ?'<div style="display:flex;gap:8px;margin-bottom:8px"><input id="sh-courier" placeholder="Courier (e.g. LBC, Lalamove)" value="'+esc(o.courier||'')+'" '+inp+'><input id="sh-waybill" placeholder="Waybill / tracking no." value="'+esc(o.waybill||'')+'" '+inp+'>'+
+        (canShip()&&!inTrash
+          ?'<div style="display:flex;gap:8px;margin-bottom:8px"><input id="sh-courier" placeholder="Courier (e.g. LBC, Lalamove)" value="'+esc(o.courier||'')+'" '+inp+'><input id="sh-waybill" placeholder="Waybill / tracking no." value="'+esc(o.waybill||'')+'" '+inp+'>'+(canSeeDeliveryCost()?'<input id="sh-cost" type="number" step="0.01" min="0" placeholder="Delivery cost ₱ (ours)" title="What we paid the courier — internal, never printed on the DR" value="'+esc(o.delivery_cost==null?'':o.delivery_cost)+'" '+inp+' style="max-width:150px">':'')+
            '<button onclick="shipSave(\''+o.id+'\')" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer">Save</button></div>'
           :((o.courier||o.waybill)?'<div class="drow"><span class="dlbl">Courier</span><span class="dval">'+esc(o.courier||'—')+'</span></div><div class="drow"><span class="dlbl">Waybill</span><span class="dval">'+esc(o.waybill||'—')+'</span></div>':''))+
+        (canSeeDeliveryCost()&&o.delivery_cost!=null?'<div class="drow"><span class="dlbl">Delivery cost <span class="mu" style="font-weight:400">(ours · not on the DR)</span></span><span class="dval">'+fmtPeso(o.delivery_cost)+'</span></div>':'')+
         chip('Dispatched',o.dispatched_at,'dispatched_at')+
         chip('Delivered',o.delivered_at,'delivered_at')+
         '</div>';})():'');
@@ -1262,11 +1265,11 @@ async function orderAct(src,ref,action){
   if(action==='trash'&&ROLE!=='admin')return;
   if(!roleIn('admin','supply_chain'))return;
   const labels={fulfilled:'Mark this order fulfilled?',pending:'Reopen this order (back to pending)?',cancelled:'Cancel this order?',trash:'Move this order to the trash?'};
-  if(!confirm(labels[action]||'Proceed?'))return;
+  if(!await uiConfirm(labels[action]||'Proceed?'))return;
   // period close: fulfilment is operational and stays open; cancelling or trashing changes booked revenue
   if(typeof periodClosed==='function'&&(action==='cancelled'||action==='trash'||action==='pending')){
     const _o=(NORDERS||[]).find(x=>String(x.id)===String(ref)||String(x.ext_ref||'')===String(ref));
-    if(_o&&periodClosed(_o.date)){alert('The books are closed through '+closedThrough()+'. '+(action==='pending'?'Reopening':'Cancelling or trashing')+' an order dated '+String(_o.date).slice(0,10)+' would change a signed-off month — record a credit memo instead.');return;}
+    if(_o&&periodClosed(_o.date)){uiAlert('The books are closed through '+closedThrough()+'. '+(action==='pending'?'Reopening':'Cancelling or trashing')+' an order dated '+String(_o.date).slice(0,10)+' would change a signed-off month — record a credit memo instead.');return;}
   }
   try{
     if(src==='native'){
@@ -1284,25 +1287,25 @@ async function orderAct(src,ref,action){
     audit('order.'+action,{order:ref.slice(0,12),src});
     NORDERS=null;OVR=null;
     if(action==='trash')showView('orders',null);else renderOrderPage();
-  }catch(e){alert('Could not update: '+e.message);}
+  }catch(e){uiAlert('Could not update: '+e.message);}
 }
 async function orderRestore(src,ref){
   if(!SB||ROLE!=='admin')return;
   if(typeof periodClosed==='function'){
     const _o=(NORDERS||[]).find(x=>String(x.id)===String(ref)||String(x.ext_ref||'')===String(ref));
-    if(_o&&periodClosed(_o.date))return alert('The books are closed through '+closedThrough()+' — an order dated '+String(_o.date).slice(0,10)+' cannot be restored from the trash.');
+    if(_o&&periodClosed(_o.date))return uiAlert('The books are closed through '+closedThrough()+' — an order dated '+String(_o.date).slice(0,10)+' cannot be restored from the trash.');
   }
   try{
     if(src==='native'){const {error}=await SB.from('orders').update({deleted_at:null}).eq('id',ref);if(error)throw new Error(error.message);}
     else{const {error}=await SB.from('order_overrides').update({deleted_at:null}).eq('ref',ref);if(error)throw new Error(error.message);}
     audit('order.restore',{order:String(ref).slice(0,12)});
     NORDERS=null;OVR=null;renderOrders();
-  }catch(e){alert('Could not restore: '+e.message);}
+  }catch(e){uiAlert('Could not restore: '+e.message);}
 }
 async function emptyOrderTrash(){
   if(!SB||ROLE!=='admin')return;
-  if(!confirm('Permanently delete everything in the trash? This cannot be undone.'))return;
-  if(!confirm('Really sure? Native orders and their lines are erased forever.'))return;
+  if(!await uiConfirm('Permanently delete everything in the trash? This cannot be undone.'))return;
+  if(!await uiConfirm('Really sure? Native orders and their lines are erased forever.'))return;
   try{
     const os=await loadNativeOrders();
     let delIds=os.filter(o=>o.deleted_at).map(o=>o.id);
@@ -1311,11 +1314,11 @@ async function emptyOrderTrash(){
       const frozen=os.filter(o=>o.deleted_at&&periodClosed(o.date));
       if(frozen.length){
         delIds=delIds.filter(id=>!frozen.some(f=>f.id===id));
-        alert(frozen.length+' trashed order(s) are dated inside the closed period (through '+closedThrough()+') and will be kept. The rest will be purged.');
+        uiAlert(frozen.length+' trashed order(s) are dated inside the closed period (through '+closedThrough()+') and will be kept. The rest will be purged.');
       }
     }
     if(delIds.length){const {error}=await SB.from('orders').delete().in('id',delIds);if(error)throw new Error(error.message);}
     audit('trash.empty',{purged:delIds.length});
     NORDERS=null;OVR=null;window._ordTrash=false;renderOrders();
-  }catch(e){alert('Could not empty the trash: '+e.message);}
+  }catch(e){uiAlert('Could not empty the trash: '+e.message);}
 }

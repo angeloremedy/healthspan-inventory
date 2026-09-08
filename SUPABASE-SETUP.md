@@ -3044,3 +3044,105 @@ create policy "runs read" on public.report_runs for select to authenticated
 ```
 
 `public.hs_role()` comes from the security-hardening block above — run that first.
+
+## Verna's batch (2026-09-08): delivery cost, supplier claims, Receiving
+
+```sql
+-- 1 · delivery cost per order — what WE paid the courier. Internal: never printed
+--     on the delivery receipt; shown to admin, finance and the warehouse only.
+alter table public.orders add column if not exists delivery_cost numeric(12,2);
+
+-- 2 · complaints log split: complaints customers raise with us, and claims we raise
+--     with suppliers (short shipments, damage, wrong batch, expiry, documentation)
+alter table public.complaints add column if not exists direction text not null default 'customer'
+  check (direction in ('customer','supplier'));
+alter table public.complaints add column if not exists supplier text;
+alter table public.complaints add column if not exists po_ref text;
+alter table public.complaints add column if not exists kind text;
+create index if not exists complaints_direction on public.complaints (direction, status);
+-- supplier claims are raised by the warehouse, finance and admins (customer complaints: anyone)
+drop policy if exists "cmp insert" on public.complaints;
+create policy "cmp insert" on public.complaints for insert to authenticated
+  with check (auth.uid() = created_by
+    and (direction = 'customer' or public.hs_role() in ('super','admin','supply_chain','finance')));
+drop policy if exists "cmp update" on public.complaints;
+create policy "cmp update" on public.complaints for update to authenticated
+  using (public.hs_role() in ('super','admin','manager','supply_chain'));
+
+-- 3 · Receiving: inbound shipments against purchase orders
+create table if not exists public.shipments (
+  id bigint generated always as identity primary key,
+  po_id bigint references public.pos(id) on delete set null,
+  supplier text not null,
+  ref text,                                    -- supplier invoice / packing list no.
+  status text not null default 'expected'
+    check (status in ('expected','shipped','in_customs','arrived','counting','received','closed')),
+  carrier text, tracking_no text,
+  etd date, eta date, arrived_at date, received_at date,
+  customs_status text, broker text,
+  terms_days int,                              -- supplier terms, days from receipt → due date
+  currency text default 'PHP',
+  fx_rate numeric(12,4),                       -- ₱ per unit of currency, at payment
+  invoice_total numeric(14,2),                 -- in currency
+  fees jsonb not null default '{"vat_recoverable":true}'::jsonb,  -- freight, insurance, duty, vat_import, brokerage, arrastre, storage, trucking, bank, other
+  alloc_method text not null default 'value' check (alloc_method in ('value','qty')),
+  landed_total numeric(14,2),                  -- goods ₱ + counted fees
+  landed_total_fees numeric(14,2),             -- the fees part (what the PO's landed_cost add-on carries)
+  landed_applied_at timestamptz,
+  notes text,
+  created_by uuid references auth.users, created_name text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz
+);
+create index if not exists shipments_po on public.shipments (po_id);
+create index if not exists shipments_status on public.shipments (status, eta);
+create table if not exists public.shipment_lines (
+  id bigint generated always as identity primary key,
+  shipment_id bigint not null references public.shipments(id) on delete cascade,
+  po_line_id bigint references public.po_lines(id) on delete set null,
+  sku text not null, name text,
+  qty_expected int not null default 0,
+  qty_counted int,
+  batch text, expiry text, bin text,
+  qa_hold boolean not null default false,
+  unit_cost numeric(12,4),                     -- in the shipment's currency (from the PO line)
+  landed_unit_cost numeric(12,2),              -- ₱, after the calculator is applied
+  received boolean not null default false,     -- posted to the ledger / quarantine
+  received_at timestamptz
+);
+create index if not exists shipment_lines_ship on public.shipment_lines (shipment_id);
+alter table public.shipments enable row level security;
+alter table public.shipment_lines enable row level security;
+-- read: the roles that may open the page (managers see it without cost columns — the app strips them)
+drop policy if exists "ship read" on public.shipments;
+create policy "ship read" on public.shipments for select to authenticated
+  using (public.hs_role() in ('super','admin','supply_chain','finance','manager'));
+drop policy if exists "shipl read" on public.shipment_lines;
+create policy "shipl read" on public.shipment_lines for select to authenticated
+  using (public.hs_role() in ('super','admin','supply_chain','finance','manager'));
+-- write: the warehouse and admins (finance may fill the money fields)
+drop policy if exists "ship write" on public.shipments;
+create policy "ship write" on public.shipments for insert to authenticated
+  with check (public.hs_role() in ('super','admin','supply_chain'));
+drop policy if exists "ship update" on public.shipments;
+create policy "ship update" on public.shipments for update to authenticated
+  using (public.hs_role() in ('super','admin','supply_chain','finance'))
+  with check (public.hs_role() in ('super','admin','supply_chain','finance'));
+drop policy if exists "shipl write" on public.shipment_lines;
+create policy "shipl write" on public.shipment_lines for insert to authenticated
+  with check (public.hs_role() in ('super','admin','supply_chain'));
+drop policy if exists "shipl update" on public.shipment_lines;
+create policy "shipl update" on public.shipment_lines for update to authenticated
+  using (public.hs_role() in ('super','admin','supply_chain'))
+  with check (public.hs_role() in ('super','admin','supply_chain'));
+drop policy if exists "ship delete super" on public.shipments;
+create policy "ship delete super" on public.shipments for delete to authenticated
+  using (public.hs_role() = 'super');
+```
+
+Posting a shipment's counted lines writes `stock_moves` (kind `receive`, ref
+`RCV-n PO-n`) or `quarantine` for QA-hold lines, updates `po_lines.received`
+and the PO status — the same effects receiving on the PO page had. Applying the
+landed-cost calculator sets `shipments.landed_total`, each line's
+`landed_unit_cost`, and pushes the fees to `pos.landed_cost` and the rate to
+`pos.fx_rate`, which is what Landed cost & valuation already reads.

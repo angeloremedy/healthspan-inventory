@@ -14,6 +14,10 @@
    "v": "<b>1 · Getting started</b>"
   },
   {
+   "t": "p",
+   "v": "HQ never uses the browser’s own pop-up boxes any more. Every question, confirmation and message appears as an HQ dialog inside the app — Enter confirms, Escape cancels, and a form asks its questions in one box instead of one after another."
+  },
+  {
    "t": "h2",
    "v": "<b>Sign in</b>"
   },
@@ -362,6 +366,10 @@
    "t": "step",
    "v": "Tap an order for its full page: lines, status, shipment panel (courier, waybill, dispatched/delivered), payment panel (paid, balance, terms), notes.",
    "n": "2"
+  },
+  {
+   "t": "step",
+   "v": "<b>Delivery cost</b> — next to the courier and waybill the shipment block takes what <i>we</i> paid the courier. It is an internal figure that never prints on the delivery receipt and is not shown to your role."
   },
   {
    "t": "step",
@@ -1393,6 +1401,32 @@
   {
    "t": "p",
    "v": "Something looks wrong? Check Data health first (feed freshness and reconciliation), then tell the super admin. The app ships improvements weekly — if a step in this manual moved, it moved somewhere better."
+  },
+  {
+   "t": "h1",
+   "v": "<b>Receiving — inbound shipments, counts, terms, landed cost</b>"
+  },
+  {
+   "t": "p",
+   "v": "Logistics → <b>Receiving</b> is the page for everything coming in from a supplier. A purchase order says what we ordered; a <b>shipment</b> is what the supplier actually sent — one PO can arrive in several. Each shipment carries its papers and tracking (supplier invoice or packing list no., carrier, tracking / AWB / BL, ETD, ETA, customs status, broker) and walks a pipeline: expected → on the water → in customs → arrived → counting → received → closed. A shipment past its ETA pings the warehouse nightly."
+  },
+  {
+   "t": "h2",
+   "v": "<b>Reading a shipment</b>"
+  },
+  {
+   "t": "step",
+   "n": 1,
+   "v": "You can open every shipment: status, tracking, the count at the door versus the PO, and whether it has been posted to stock. Cost columns (invoice, FX, landed cost, terms) are not shown to your role."
+  },
+  {
+   "t": "step",
+   "n": 2,
+   "v": "Shipments are created, counted and posted by the warehouse; finance fills the money fields. Short or over counts turn into supplier claims on the complaints log."
+  },
+  {
+   "t": "callout",
+   "v": "WHY A SEPARATE PAGE — receiving used to be a button on the PO line. A shipment is its own record now, so the papers, the tracking, the count, the claim, the due date and the landed cost all hang off the thing that actually arrived — and one PO can arrive in three boxes across two months without losing track of any of it."
   }
  ],
  "pages": 11

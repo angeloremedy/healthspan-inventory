@@ -408,7 +408,7 @@ async function bizSnapshot(){
   try{const {error}=await SB.from('review_snapshots').insert({month:BIZ.ym,as_of:BIZ.R.asOf,data:bizSnapSlim(BIZ.R),notes:BIZ.notes,
       created_by:(SBUSER&&SBUSER.id)||null,created_name:(SBPROFILE&&SBPROFILE.name)||''});
     if(error)throw error;audit('review.snapshot',{month:BIZ.ym,asOf:BIZ.R.asOf});await loadBizSnaps();renderBizReview();}
-  catch(e){alert('Could not save the snapshot: '+(e.message||e)+(String(e.message||'').includes('review_snapshots')?' — run the review_snapshots SQL from SUPABASE-SETUP.md first.':''));if(b){b.disabled=false;b.textContent='Save snapshot';}}}
+  catch(e){uiAlert('Could not save the snapshot: '+(e.message||e)+(String(e.message||'').includes('review_snapshots')?' — run the review_snapshots SQL from SUPABASE-SETUP.md first.':''));if(b){b.disabled=false;b.textContent='Save snapshot';}}}
 /* ── automatic checkpoints: the 15th and the month-end ─────────────────────────
    "Since last report" used to depend on somebody remembering to press Save
    snapshot. Now the first admin or manager whose app opens on or after the 15th
@@ -474,7 +474,7 @@ async function bizAiDraft(section){
   catch(e){if(st)st.textContent='AI draft failed: '+(e.message||e);}}
 
 /* ── the page ──────────────────────────────────────────────────────────── */
-function bizSetMonth(ym){const dirty=bizDirty();if(dirty.length&&!confirm(dirty.length+' commentary box'+(dirty.length>1?'es have':' has')+' unsaved text. Switch month and lose it?')){const sel=document.querySelector('#content select');if(sel)sel.value=BIZ.ym;return;}BIZ.ym=ym;renderBizReview();}
+async function bizSetMonth(ym){const dirty=bizDirty();if(dirty.length&&!await uiConfirm(dirty.length+' commentary box'+(dirty.length>1?'es have':' has')+' unsaved text. Switch month and lose it?')){const sel=document.querySelector('#content select');if(sel)sel.value=BIZ.ym;return;}BIZ.ym=ym;renderBizReview();}
 function bizKpi(l,v,sub,tone){return '<div class="met '+(tone||'')+'"><div class="met-lbl">'+esc(l)+'</div><div class="met-val" style="font-size:15px">'+v+'</div>'+(sub?'<div class="mu" style="font-size:11px;margin-top:2px">'+sub+'</div>':'')+'</div>';}
 function bizTrendHTML(T){const ic={up:'▲',down:'▼',flat:'▶',info:'●'},col={up:'var(--gr)',down:'var(--rd)',flat:'var(--am)',info:'var(--bl)'};
   return '<div style="display:grid;gap:6px">'+T.map(t=>'<div style="display:flex;gap:10px;align-items:flex-start;font-size:13px"><span style="color:'+col[t.tone]+';font-size:11px;padding-top:3px;width:12px">'+ic[t.tone]+'</span><span>'+esc(t.t)+'</span></div>').join('')+'</div>';}
@@ -506,7 +506,7 @@ async function bizSaveForecast(tag){
     const tot=document.getElementById('fc-tot-'+tag.replace(/[^a-z0-9]/gi,'_'));if(tot)tot.textContent=fmtPeso(Object.values(F).reduce((a,b)=>a+b,0));
     if(st)st.textContent='Saved · '+row.updated_name+' · just now';}
   catch(e){if(st)st.textContent='Could not save: '+(e.message||e);}}
-function bizAddForecastRow(tag){const name=prompt('Account name (as it appears on orders):');if(!name||!name.trim())return;
+async function bizAddForecastRow(tag){const name=await uiPrompt('Account name (as it appears on orders):');if(!name||!name.trim())return;
   const sec=bizPsSec(tag,'forecast');const id=sec.replace(/[^a-z0-9]/gi,'_');const box=document.getElementById('sec-'+id);const tb=box&&box.querySelector('tbody');if(!tb)return;
   const tr=document.createElement('tr');tr.innerHTML='<td>'+esc(name.trim())+'</td><td class="r">—</td><td class="r">—</td><td class="r"><input type="number" min="0" step="1000" data-fc="'+esc(name.trim())+'" style="width:110px;font:inherit;font-size:12px;padding:4px 6px;border:1px solid var(--bd);border-radius:6px;text-align:right"></td>';
   tb.insertBefore(tr,tb.lastElementChild);tr.querySelector('input').focus();}

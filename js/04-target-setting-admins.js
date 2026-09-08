@@ -62,13 +62,13 @@ async function tgSaveAll(){
 }
 async function tgClear(spec){
   if(!canManage()||!SB)return;
-  if(!confirm('Remove the in-app target for '+spec+' ('+window._tgSetYm+')? The sheet value (if any) takes over again.'))return;
+  if(!await uiConfirm('Remove the in-app target for '+spec+' ('+window._tgSetYm+')? The sheet value (if any) takes over again.'))return;
   try{
     const {error}=await SB.from('spec_targets').delete().eq('spec',spec).eq('month',window._tgSetYm);
     if(error)throw error;
     audit('targets.clear',{month:window._tgSetYm,spec});
     await loadSpecTargets(true);renderTargets();
-  }catch(e){alert(e.message||e);}
+  }catch(e){uiAlert(e.message||e);}
 }
 function tgCopyPrev(){
   const ym=window._tgSetYm;
@@ -82,35 +82,42 @@ function tgCopyPrev(){
   const msg=$('tg-msg');if(msg){msg.style.color='var(--tx3)';msg.textContent=n?n+' filled from '+prev+' — review, then Save all.':'No '+prev+' targets to copy.';}
 }
 
-/* ── SHIPMENT TRACKING (courier / waybill / dispatched / delivered) ── */
+/* ── SHIPMENT TRACKING (courier / waybill / dispatched / delivered / delivery cost) ──
+   The warehouse dispatches, so supply chain shares this with admins and managers.
+   Delivery cost is what WE paid the courier — an internal figure: it never prints
+   on the delivery receipt and follows the cost rule (admin, finance, warehouse). */
+function canShip(){return roleIn('admin','manager','supply_chain')||(typeof isSuper==='function'&&isSuper());}
+function canSeeDeliveryCost(){return roleIn('admin','finance','supply_chain')||(typeof isSuper==='function'&&isSuper());}
 async function shipSave(id){
-  if(!canManage())return alert('Admins and sales managers only.');
+  if(!canShip())return uiAlert('Admins, sales managers and the warehouse only.');
   const courier=(($('sh-courier')||{}).value||'').trim(),waybill=(($('sh-waybill')||{}).value||'').trim();
+  const patch={courier:courier||null,waybill:waybill||null};
+  if(canSeeDeliveryCost()&&$('sh-cost')){const c=String($('sh-cost').value||'').replace(/[₱,\s]/g,'');patch.delivery_cost=c===''?null:Math.round(parseFloat(c)*100)/100;if(patch.delivery_cost!=null&&!(patch.delivery_cost>=0))return uiAlert('Delivery cost must be a number.');}
   try{
-    const {error}=await SB.from('orders').update({courier:courier||null,waybill:waybill||null}).eq('id',id);
+    const {error}=await SB.from('orders').update(patch).eq('id',id);
     if(error)throw error;
-    audit('shipment.details',{order:id.slice(0,8),courier,waybill});
+    audit('shipment.details',{order:id.slice(0,8),courier,waybill,delivery_cost:patch.delivery_cost});
     NORDERS=null;renderOrderPage();
-  }catch(e){alert('Could not save: '+(e.message||e)+(String(e.message||'').includes('courier')?'\n\n(Run the shipment-columns SQL from SUPABASE-SETUP.md first.)':''));}
+  }catch(e){uiAlert('Could not save: '+(e.message||e)+(String(e.message||'').includes('courier')?'\n\n(Run the shipment-columns SQL from SUPABASE-SETUP.md first.)':''));}
 }
 async function shipMark(id,field){
-  if(!canManage())return;
+  if(!canShip())return;
   const label=field==='dispatched_at'?'dispatched':'delivered';
-  if(!confirm('Mark this order '+label+' today?'))return;
+  if(!await uiConfirm('Mark this order '+label+' today?'))return;
   try{
     const patch={};patch[field]=todayISO();
     const {error}=await SB.from('orders').update(patch).eq('id',id);
     if(error)throw error;
     audit('shipment.'+label,{order:id.slice(0,8)});
     NORDERS=null;renderOrderPage();
-  }catch(e){alert('Could not update: '+(e.message||e));}
+  }catch(e){uiAlert('Could not update: '+(e.message||e));}
 }
 async function shipUnmark(id,field){
-  if(!canManage())return;
+  if(!canShip())return;
   try{const patch={};patch[field]=null;
     const {error}=await SB.from('orders').update(patch).eq('id',id);if(error)throw error;
     NORDERS=null;renderOrderPage();
-  }catch(e){alert(e.message||e);}
+  }catch(e){uiAlert(e.message||e);}
 }
 
 /* ── DELIVERY RECEIPT (printable → PDF via the browser print dialog) ── */
@@ -218,7 +225,7 @@ async function showStatement(name){
 function acctExportCSV(){
   const from=($('ax-from')||{}).value||'2000-01-01',to=($('ax-to')||{}).value||'2099-12-31';
   const os=(NORDERS||[]).filter(o=>!o.deleted_at&&o.date>=from&&o.date<=to).sort((a,b)=>a.date<b.date?-1:1);
-  if(!os.length)return alert('No orders in that date range.');
+  if(!os.length)return uiAlert('No orders in that date range.');
   const h=['Order','Ext ref','Date','Account','Specialist','Status','Pay status','Terms (days)','Total (VAT inc)','VATable (net)','VAT 12%','Paid','Balance','Source'];
   const rows=os.map(o=>{const net=Math.round((o.total||0)/1.12);
     return [ordLabel(o),o.ext_ref||'',o.date,o.account||'',o.spec||'',o.status,o.pay_status||'',o.terms_days||'',o.total||0,net,(o.total||0)-net,o.paid||0,o.balance||0,o.source||'native']
@@ -332,36 +339,36 @@ function findAcctByName(t){
   return c.length===1?c[0]:null;
 }
 async function linkAccount(fromName,kind,toName){
-  if(!canManage())return alert('Admins and sales managers only.');
-  if(!SB)return alert('Sign in first.');
+  if(!canManage())return uiAlert('Admins and sales managers only.');
+  if(!SB)return uiAlert('Sign in first.');
   let t=toName;
-  if(!t){t=prompt((kind==='merge'?'Merge "'+fromName+'" into which account?':'Which account is the PARENT of "'+fromName+'"?')+'\nType the account name as it appears in the Accounts list:','');if(!t)return;}
+  if(!t){t=await uiPrompt((kind==='merge'?'Merge "'+fromName+'" into which account?':'Which account is the PARENT of "'+fromName+'"?')+'\nType the account name as it appears in the Accounts list:','');if(!t)return;}
   const target=findAcctByName(t);
-  if(!target)return alert('No single account matches "'+t+'" — check the exact spelling in the Accounts list.');
+  if(!target)return uiAlert('No single account matches "'+t+'" — check the exact spelling in the Accounts list.');
   const fk=custNorm(acctDedup(fromName));
-  if(custNorm(target.name)===fk)return alert('That’s the same account.');
+  if(custNorm(target.name)===fk)return uiAlert('That’s the same account.');
   const msg=kind==='merge'
     ?'Merge "'+fromName+'" into "'+target.name+'"?\n\nAll its orders, shipments, and visits will show under '+target.name+'. You can undo this from the account page.'
     :'Make "'+fromName+'" a branch of "'+target.name+'"?\n\nIt stays its own account but rolls up into the parent. You can undo this from the account page.';
-  if(!confirm(msg))return;
+  if(!await uiConfirm(msg))return;
   try{
     const {error}=await SB.from('account_links').upsert({from_key:fk,from_name:fromName,to_name:target.name,kind,created_by:(SBUSER&&SBUSER.id)||null});
     if(error)throw error;
     audit('account.'+kind,{from:fromName,to:target.name});
     await loadAcctLinks(true);
     showAccountPage(target.name);
-  }catch(e){alert('Could not save the link: '+(e.message||e)+(String(e.message||'').includes('account_links')?'\n\n(The account_links table may not exist yet — run the SQL from SUPABASE-SETUP.md.)':''));}
+  }catch(e){uiAlert('Could not save the link: '+(e.message||e)+(String(e.message||'').includes('account_links')?'\n\n(The account_links table may not exist yet — run the SQL from SUPABASE-SETUP.md.)':''));}
 }
 async function unlinkAccount(fromKey,goName){
   if(!canManage())return;
-  if(!confirm('Remove this link? The account becomes standalone again.'))return;
+  if(!await uiConfirm('Remove this link? The account becomes standalone again.'))return;
   try{
     const {error}=await SB.from('account_links').delete().eq('from_key',fromKey);
     if(error)throw error;
     audit('account.unlink',{key:fromKey});
     await loadAcctLinks(true);
     showAccountPage(goName);
-  }catch(e){alert('Could not remove: '+(e.message||e));}
+  }catch(e){uiAlert('Could not remove: '+(e.message||e));}
 }
 // Aggregate an entity + its branches (for the parent's cards and list row)
 function acctAgg(e){
@@ -734,7 +741,7 @@ async function fuMark(id,field){
     const {error}=await SB.from('visits').update(upd).eq('id',id);
     if(error)throw new Error(error.message);
     VISITS=null;renderFollowups();
-  }catch(e){alert('Could not update: '+e.message);}
+  }catch(e){uiAlert('Could not update: '+e.message);}
 }
 async function renderFollowups(){
   if(!SB){$('content').innerHTML='<div class="empty" style="margin-top:40px">Follow-ups need the account sign-in (Supabase) — available once you log in with your Healthspan account.</div>';return;}

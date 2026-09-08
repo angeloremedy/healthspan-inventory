@@ -14,6 +14,10 @@
    "v": "<b>1 · Getting started</b>"
   },
   {
+   "t": "p",
+   "v": "HQ never uses the browser’s own pop-up boxes any more. Every question, confirmation and message appears as an HQ dialog inside the app — Enter confirms, Escape cancels, and a form asks its questions in one box instead of one after another."
+  },
+  {
    "t": "h2",
    "v": "<b>Sign in</b>"
   },
@@ -566,6 +570,10 @@
   {
    "t": "h1",
    "v": "<b>Complaints log — quality reports with teeth</b>"
+  },
+  {
+   "t": "p",
+   "v": "The log has <b>two tabs</b>. <b>From customers</b> is the quality log described below. <b>To our suppliers</b> is the mirror image — claims we raise against a supplier (short shipment, damaged goods, wrong item or batch, expiry too close, documentation, quality defect, late delivery) with the supplier, the PO or shipment reference and the kind; finance is pinged, closing needs the outcome, and every claim shows in a Claims column on the supplier scorecard. Supplier claims are raised by the warehouse, finance and admins; you can read them."
   },
   {
    "t": "step",

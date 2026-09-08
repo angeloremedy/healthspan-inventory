@@ -25,6 +25,15 @@ at cutover; the accounting export CSV remains the fallback); it does not replace
 
 ## ✅ Shipped so far (everything, from the start)
 
+**Verna's batch — Receiving, landed cost, supplier claims, delivery cost; in-app dialogs (Sep 8, second build)**
+- ✅ **Receiving** (Logistics → Receiving): one record per inbound shipment against a PO — carrier, tracking, ETD/ETA, customs, broker, status pipeline (expected → on the water → in customs → arrived → counting → received → closed); the count at the door per line (batch, expiry, bin, QA hold) posts to the stock ledger or quarantine and updates the PO's received quantities and status; short/over counts are flagged and raise a supplier claim in one tap; supplier **terms in days from receipt → payment due date**, finance pinged on receipt. Nightly rule 13 pings the warehouse when a shipment passes its ETA
+- ✅ **Landed cost calculator** on each shipment: invoice × FX + freight, insurance, customs duty, import VAT (recoverable by default → excluded), brokerage, arrastre/wharfage, storage/demurrage, trucking, bank charges, other → landed total and a landed ₱/unit per line, allocated by value or quantity; Apply writes the lines and the PO (landed_cost add-on, fx_rate), so Landed cost & valuation reads it unchanged
+- ✅ **Complaints log split**: complaints customers raise with us (as before) and **claims we raise with suppliers** (short shipment, damage, wrong batch, expiry, documentation…) with supplier, PO/shipment ref and kind; finance pinged; a Claims column on the supplier scorecard
+- ✅ **Delivery cost per order** — what we paid the courier, captured with the shipment details, visible to admin/finance/warehouse only, never on the delivery receipt; the warehouse can now mark dispatched/delivered
+- ✅ **No more browser pop-ups**: every prompt / confirm / alert (≈370) replaced by in-app dialogs (uiPrompt, uiConfirm, uiAlert, uiForm) — styled, keyboard-friendly, one at a time, iOS-safe
+- ✅ "+ New order" hidden for roles that cannot take orders (supply chain, finance, marketing, viewers)
+- ✅ Scope boundaries written down: QuickBooks stays the book of record, Sprout stays HRIS/payroll
+
 **Saved reports, warranties & service history, review checkpoints, receipts while filing, security audit (Sep 8)**
 - ✅ **Saved reports** (Sales analytics → Saved reports): the reporting layer — pick a source (stock, batches, sales lines, HQ orders and lines, accounts, visits, quotations, payments, POs with costs, finance forms, serials, loaners), tick columns, filters (text / number / date incl. last N days, this month, last month), group + count/sum/avg/min/max, sort, cap; live preview; save, export CSV, share. **Schedules** (daily / weekly / monthly incl. last day) run at 6am Manila on the server with the same engine (`js/15-report-engine.js` runs in both places), CSV into Blobs, `report_runs` row, bell notification; "Run on the server now" proves a schedule. Every source gates by role; specialists get own rows; cost columns stripped for non-cost roles — preview and file alike
 - ✅ **Serial numbers**: warranty end date (green / amber ≤60d / red lapsed, a Warranty due tab), where the unit is (follows loans, sales, returns), and a per-unit **service & repair history** (service / repair / calibration / inspection, vendor, cost — cost only for admin, finance, warehouse — next due). Nightly rule 12 pings the warehouse 30 days before a warranty lapses, when it has, and when a service falls due
@@ -376,15 +385,15 @@ at cutover; the accounting export CSV remains the fallback); it does not replace
 - ✅ **Batch recall trace** — shipped (OUT-sheet history + ledger picks; survives sheet retirement)
 - ✅ **Product registration tracking** — shipped (CPR/FDA number + expiry per SKU on the item master; expired/expiring-soon float to the top with red/amber flags)
 - ✅ **Customer license capture** — shipped (LTO + PRC numbers with expiry dates on the account; red/amber expiry pills)
-- ✅ **Complaints log** — shipped (field-filed with batch on record, one tap into the recall trace; closing requires a resolution note)
+- ✅ **Complaints log** — shipped (field-filed with batch on record, one tap into the recall trace; closing requires a resolution note). Split Sep 8: customer complaints + our claims to suppliers
 
 ### Procure-to-pay
 - ✅ **Supplier master** — shipped (Logistics → Suppliers & imports: currencies, terms, lead times, contacts, active/inactive)
 - ✅ **Purchase orders** — shipped (Logistics → Purchase orders); expected-arrivals→forecast link still to wire
 - ✅ **Receiving against PO** — shipped (batch + expiry at the door → stock ledger)
-- ✅ **Landed cost & inventory valuation** — shipped (Finance → Landed cost & valuation: latest PO cost × payment FX + landed allocation, real margins per SKU, inventory value at cost; admin+finance only)
+- ✅ **Landed cost & inventory valuation** — shipped (Finance → Landed cost & valuation: latest PO cost × payment FX + landed allocation, real margins per SKU, inventory value at cost; admin+finance only). The **landed cost calculator** on Receiving (Sep 8) now produces the PO's add-on and FX rate from the shipment's real fees
 - ✅ **Supplier bills / AP** — shipped (terms, proforma ref, currency, FX total, amount paid, peso value on each PO; open-payables total). QBO export format to agree with accounting
-- ✅ **Import shipment tracking** — shipped (ETD/ETA/customs/broker per PO + "on the water" list sorted by ETA)
+- ✅ **Import shipment tracking** — shipped (ETD/ETA/customs/broker per PO + "on the water" list sorted by ETA); superseded by **Receiving** (Sep 8): one record per shipment, counts, terms, landed cost
 - ✅ **Multi-currency POs** — shipped (currency + FX totals existed; payment FX rate added and drives ₱ valuation)
 
 ## Workstream B — CRM (the Zoho replacement)
@@ -459,6 +468,7 @@ at cutover; the accounting export CSV remains the fallback); it does not replace
 - ✅ **Reporting layer** — shipped (Saved reports: definitions, live preview, CSV, sharing, daily/weekly/monthly schedules run server-side with the same engine; Sep 8)
 - ✅ **Forecast accuracy tracking (MAPE)** — shipped (Planning → Forecast accuracy; monthly freeze + self-grading)
 - ▢ Disable legacy Supabase JWT keys (after confirming new keys) · rotate service keys on a schedule
+- ▢ Sprout seams (small): commissions CSV in Sprout's variable-pay import layout · monthly roster check (Sprout active list vs HQ profiles → flag departed staff still holding a login) · scorecards export for appraisals
 - ▢ Flip the CSP from report-only to enforced after a week of clean consoles (netlify.toml) · replace the remaining `prompt()`/`alert()` multi-field flows with drawers · table-driven role×view matrix test · tests for admin-users.mjs / upload.mjs
 
 ---
@@ -476,8 +486,27 @@ at cutover; the accounting export CSV remains the fallback); it does not replace
 - ✅ Commissions-as-payroll-input — shipped (Commissions view CSV export)
 - ✗ Employee directory, leave management, geo-check-in attendance — decided against
 
-## Deliberately NOT building
-- General ledger, financial statements, BIR/tax filing, payroll → QBO
+## Deliberately NOT building — the two scope boundaries (decided 2026-09-08)
+
+HQ replaces the three *operational* systems (Shopify, Zoho, Verna's sheet) because
+HQ already holds better data than they do and the users are our own team. Two
+systems stay bought, not built, because outside parties hold the company
+accountable through them and their value is being recognised, not being clever:
+
+- **QuickBooks Online stays the book of record.** General ledger, financial
+  statements, bank reconciliation, fixed assets, BIR compliance (books of
+  accounts, VAT relief, 2307/1601-EQ/alphalists, e-invoicing when it applies).
+  HQ is the sub-ledger — AR, payments, PDCs, credit memos, AP, landed cost,
+  valuation, commissions, period close — and feeds QBO through the connector.
+  If QBO ever stops fitting, the move is to another accounting product behind
+  the same connector, never to HQ.
+- **Sprout stays HRIS and payroll.** Withholding tables, SSS/PhilHealth/Pag-IBIG,
+  13th month, holiday/OT/night-differential rules, 2316, final pay, 201 files,
+  leave, attendance, employee self-service — compliance that changes by circular
+  and personal data under the Data Privacy Act. HQ computes anything with a
+  sales-data origin (commissions, incentive payouts from gamification) and hands
+  it to Sprout; it never pays anyone itself. Employee directory, leave and
+  attendance stay out (HR decision, Aug 2026).
 - Payment processing → collections stay bank-transfer + accounting
 - Sales-stats switchover before cutover (native orders fold into sales views only at cutover — no double-counting during the parallel run)
 
