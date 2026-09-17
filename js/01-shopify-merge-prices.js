@@ -203,10 +203,10 @@ function sumPeriod(S,mode){
   const out={u:0,f:0,v:0,d:0,dv:0};
   const add=c=>{out.u+=c.u||0;out.f+=c.f||0;out.v+=c.v||0;out.d+=c.d||0;out.dv+=c.dv||0;};
   const today=todayISO();
-  const cutoff=d=>new Date(Date.now()-d*864e5).toISOString().slice(0,10);
+  const cutoff=d=>daysISO(-d);
   const ymNow=today.slice(0,7);
   if(mode==='today'){const c=(S.daily||{})[today];if(c)add(c);}
-  else if(mode==='yest'){const y=new Date(Date.now()-864e5).toISOString().slice(0,10);const c=(S.daily||{})[y];if(c)add(c);}
+  else if(mode==='yest'){const y=daysISO(-1);const c=(S.daily||{})[y];if(c)add(c);}
   else if(mode==='custom'){for(const d in (S.daily||{}))if((!SFROM||d>=SFROM)&&(!STO||d<=STO))add((S.daily||{})[d]);}
   else if(mode==='7d'||mode==='30d'){const lim=cutoff(mode==='7d'?7:30);for(const d in (S.daily||{}))if(d>=lim)add((S.daily||{})[d]);}
   else if(mode==='mtd'){const c=(S.monthly||{})[ymNow];if(c)add(c);}
@@ -659,6 +659,11 @@ function keepScroll(){ // remember .main's scroll, restore it WHEN the repaint l
    the current day. The server jobs already reckon in Manila; now the browser does too. */
 function todayISO(){return new Date(Date.now()+8*3600e3).toISOString().slice(0,10);}
 function monthISO(){return todayISO().slice(0,7);}
+/* a date N days from Manila-today (negative = ago), as YYYY-MM-DD — the one way to build
+   "last 30 days" / "due in 7 days" so a UTC midnight never shifts the window (2026-09-17) */
+function daysISO(n){const d=new Date(todayISO()+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+(+n||0));return d.toISOString().slice(0,10);}
+/* YYYY-MM for N months from this Manila month (negative = back) */
+function monthsISO(n){const [y,m]=monthISO().split('-').map(Number);const d=new Date(Date.UTC(y,m-1+(+n||0),1));return d.toISOString().slice(0,7);}
 function jsq(s){return esc(String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"));}
 function esc(s){return String(s==null||s===false?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function isReorderAlert(p){

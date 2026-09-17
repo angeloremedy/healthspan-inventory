@@ -1349,7 +1349,7 @@
   },
   {
    "t": "p",
-   "v": "Raw scan/ledger writes (supply chain) · PO/PDC/item-master edits (read-only) · payments (finance) · costs & margins wherever they appear — the valuation page, PO unit costs, and the supplier scorecard (finance/admin/warehouse) · the Activity log (admin only) · user management (admin; IT for specialist accounts) · cutover (super admin). Your sidebar only ever shows pages you can open."
+   "v": "Raw scan/ledger writes (supply chain) · PO/PDC/item-master edits (read-only) · commissions (finance/admin) · payments (finance) · costs & margins wherever they appear — the valuation page, PO unit costs, and the supplier scorecard (finance/admin/warehouse) · the Activity log (admin only) · user management (admin; IT for specialist accounts) · cutover (super admin). Your sidebar only ever shows pages you can open."
   },
   {
    "t": "h1",

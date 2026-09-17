@@ -309,7 +309,7 @@
   },
   {
    "t": "step",
-   "v": "Every post-dated cheque: account, order ref, bank, cheque no., amount, maturity date, status.",
+   "v": "Every post-dated cheque: account, order ref, bank, cheque no., amount, maturity date, status. Finance records cheques and moves them through the statuses (deposit, cleared, bounced, redeposit); sales managers read the register without those controls.",
    "n": "1"
   },
   {
@@ -362,7 +362,7 @@
   },
   {
    "t": "step",
-   "v": "Apply to order balance (admin) settles the memo against what the clinic owes.",
+   "v": "Apply to order balance (finance or admin) settles the memo against what the clinic owes. Recording a return is open to finance, admins and sales managers; the warehouse reads the register to know what came back and whether it restocks.",
    "n": "3"
   },
   {
@@ -644,7 +644,7 @@
   {
    "t": "step",
    "n": 2,
-   "v": "Shipments are created, counted and posted by the warehouse; finance fills the money fields. Short or over counts turn into supplier claims on the complaints log."
+   "v": "Shipments are created, counted and posted by the warehouse; finance fills the money fields — invoice total, FX rate, every fee line, the import-VAT switch and the allocation method are editable for finance on the landed-cost calculator. Applying the result to the lines and the PO stays with the warehouse."
   },
   {
    "t": "callout",

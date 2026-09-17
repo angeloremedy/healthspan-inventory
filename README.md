@@ -1209,6 +1209,33 @@ nightly backup; and the site ships security headers with a Content-Security-Poli
 in report-only mode for a week before it is enforced. PERMISSIONS.md has the
 detail; SUPABASE-SETUP.md has the SQL.
 
+## 10.5a The 2026-09-17 app-wide audit
+
+Three passes were run on the whole app — a mechanical one (every identifier the
+scripts reference is declared; no duplicate declarations; no browser dialogs; no
+"today" derived from UTC), a runtime one (every page rendered as every role in a
+headless browser against an empty database), and two independent reviews of the
+server functions and of the views' escaping and permission handling.
+
+What it found and what changed. **A request storm**: six pages re-rendered
+themselves the moment the sales cache finished loading, and re-rendering asked
+for the cache again — when the feed was down, building, or the phone had no
+signal, the app looped, hammering the server and the battery. They now re-render
+only when the cache actually changed. **Permissions that disagreed with the
+database**: the PDC register refused finance and showed sales managers buttons the
+database then rejected; the returns page turned finance and the warehouse away;
+"Record payment" showed to finance but silently did nothing; campaigns refused
+marketing; any admin could approve any finance step regardless of the route; a
+sales manager's sidebar listed Commissions. All now match PERMISSIONS.md and the
+RLS policies. **Server hardening**: a target id sent to the user-admin function
+must be a UUID; a shared saved-report run opens only when every column in it is
+allowed for the person opening it; deck sharing can only touch decks HQ created;
+attachment links check RLS like downloads do; the retired visits endpoint is gone.
+**Dates**: every "today", "yesterday", "last 30 days" and "this month" now comes
+from the Manila helpers (`todayISO`, `daysISO`, `monthsISO`) — a UTC evening on
+the last day of the month used to show last month's pace. Two new test suites keep
+all of it closed: the role × view matrix and the audit pins.
+
 ## 10.6 What HQ will never be: the two scope boundaries
 
 HQ replaces the systems where it already holds better data than they do and the

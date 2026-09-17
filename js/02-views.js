@@ -39,7 +39,7 @@ function viewAllowed(v){
   if(ROLE==='sales')return SALES_PREFIX_OK.includes(v)||SALES_VIEWS.includes(v);
   if(['supply_chain','finance','marketing','viewer'].includes(ROLE))
     return !(CIRCLE_BLOCK_COMMON.includes(v)||(CIRCLE_BLOCK[ROLE]||[]).includes(v));
-  if(ROLE==='manager')return v!=='scan'; // raw scan/ledger writes are warehouse-only
+  if(ROLE==='manager')return !['scan','commissions'].includes(v); // raw scan/ledger writes are warehouse-only; commissions are finance/admin (PERMISSIONS)
   return true; // admin
 }
 function showView(v,el){
@@ -595,12 +595,10 @@ async function loadVisits(force){
   if(VISITS&&!force)return VISITS;
   try{
     if(SB){
-      const since=new Date(Date.now()-120*864e5).toISOString().slice(0,10);
+      const since=daysISO(-120);
       const {data}=await SB.from('visits').select('id,date,spec,account,type,outcome,notes,status,fu_done,user_id').gte('date',since).order('date',{ascending:false}).limit(2000);
       VISITS=data||[];
-    }else{
-      const r=await fetch('/.netlify/functions/visits?months=4',{headers:await sbAuthHeaders()});const d=await r.json();VISITS=d.visits||[];
-    }
+    }else VISITS=VISITS||[]; // never leave it null: callers re-render when it is, and would loop
   }catch(e){VISITS=VISITS||[];}
   return VISITS;
 }
@@ -657,7 +655,7 @@ async function specReact(n){
   }catch(e){uiAlert(e.message||e);}
 }
 function renderLogVisit(){
-  if(!SHOPIFY)try{loadShopify().then(()=>{if(currentView==='logvisit')renderLogVisit();});}catch(e){}
+  if(!SHOPIFY)try{window._shopWaitRef=SHOPIFY;loadShopify().then(()=>{if(window._shopWaitRef!==SHOPIFY&&currentView==='logvisit')renderLogVisit();});}catch(e){}
   const specs=specNames();
   const accounts=[...new Set([...Object.keys((SHOPIFY&&SHOPIFY.customers)||{}),...(CUSTOMERS||[]).map(c=>c.name)])].filter(a=>a&&!/pull\s*-?\s*out/i.test(a)).sort();
   const today=todayISO();
@@ -757,12 +755,7 @@ async function submitVisit(){
       const {data:vrow,error}=await SB.from('visits').insert({spec,account,type:g('lv-type'),outcome:planned?'Planned':g('lv-out'),date:dt,notes:g('lv-notes'),products:prods,user_id:SBUSER.id,status:planned?'planned':'done'}).select().single();
       if(error)throw new Error(error.message);
       window._lastVisit=vrow?{id:vrow.id,account:account}:null; // so a photo can be attached to it
-    }else{
-      const r=await fetch('/.netlify/functions/visits',{method:'POST',headers:await sbAuthHeaders({'Content-Type':'application/json'}),
-        body:JSON.stringify({spec,account,type:g('lv-type'),outcome:g('lv-out'),date:g('lv-date'),notes:g('lv-notes')})});
-      const d=await r.json();
-      if(d.error)throw new Error(d.error);
-    }
+    }else throw new Error('Sign in first');
     localStorage.setItem('hs_visit_spec',spec);
     if(msg){
       msg.style.color='var(--gr)';
@@ -819,7 +812,7 @@ const ordItems=o=>Array.isArray(o.order_lines)?(o.order_lines.length&&o.order_li
 let CART=[];
 function renderNewOrder(){
   if(!SB||!SBUSER){$('content').innerHTML='<div class="empty" style="margin-top:40px">Sign in with your Healthspan account to take orders.</div>';return;}
-  if(!SHOPIFY)try{loadShopify().then(()=>{if(currentView==='neworder')renderNewOrder();});}catch(e){}
+  if(!SHOPIFY)try{window._shopWaitRef=SHOPIFY;loadShopify().then(()=>{if(window._shopWaitRef!==SHOPIFY&&currentView==='neworder')renderNewOrder();});}catch(e){}
   if(!NORDERS)loadNativeOrders().then(()=>{if(currentView==='neworder')noAcctChanged();}); // credit check data
   try{if(SB)loadPromos();}catch(e){} // live promos auto-apply on add-to-order
   try{if(SB)loadReservations();}catch(e){} // ATP: stock already promised to pending orders

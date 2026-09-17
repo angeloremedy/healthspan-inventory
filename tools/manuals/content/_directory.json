@@ -502,12 +502,6 @@
   },
   {
    "sec": "Finance",
-   "view": "commissions",
-   "title": "Commissions",
-   "desc": "Finance computes incentives here instead of by hand — on external sales only, never on Remedy or Healthspan-internal orders: per specialist, booked vs target, the rate tier reached, and the commission — any month, exportable as the payroll input. Rate tiers are editable (finance/admin) and every change is audited."
-  },
-  {
-   "sec": "Finance",
    "view": "aged",
    "title": "Aged inventory",
    "desc": "Products that haven’t sold in a while, grouped into aging, slow, and dead stock — candidates for a promo or clear-out."

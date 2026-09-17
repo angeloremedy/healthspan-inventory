@@ -74,7 +74,7 @@ export const handler = async (event) => {
     if (action === 'search') {
       const term = String(qs.q || '').trim(); if (term.length < 2) return out(200, { rows: [] });
       const tok = await refreshIfNeeded(await loadTokens()); const api = client(tok);
-      const r = await api.query("select Id, DisplayName from Customer where DisplayName like '%" + term.replace(/'/g, "\\'").replace(/%/g, '') + "%' maxresults 20");
+      const r = await api.query("select Id, DisplayName from Customer where DisplayName like '%" + term.replace(/\\/g, '').replace(/'/g, "\\'").replace(/%/g, '') + "%' maxresults 20");
       return out(200, { rows: (r.Customer || []).map(c => ({ id: c.Id, name: c.DisplayName })) });
     }
     if (action === 'log') {
@@ -92,7 +92,7 @@ export const handler = async (event) => {
     }
     if (action === 'confirm') {
       const kind = String(body.kind || ''), key = String(body.hq_key || ''); if (!kind || !key) return out(400, { error: 'kind and hq_key required' });
-      const cur = (await sb('qbo_map?select=*&kind=eq.' + kind + '&hq_key=eq.' + encodeURIComponent(key)))[0];
+      const cur = (await sb('qbo_map?select=*&kind=eq.' + encodeURIComponent(kind) + '&hq_key=eq.' + encodeURIComponent(key)))[0];
       if (!cur && !body.qbo_id) return out(404, { error: 'No such mapping' });
       const row = await mapSet(kind, key, body.qbo_id || cur.qbo_id, body.qbo_name || (body.qbo_id ? null : cur.qbo_name), true, null, who.id);
       // invoices held on this customer go back to pending so the next run posts them
@@ -107,7 +107,7 @@ export const handler = async (event) => {
       return out(200, { ok: true });
     }
     if (action === 'run') {
-      const base = process.env.URL || ('https://' + (event.headers.host || 'hq.healthspan.ph'));
+      const base = process.env.URL || 'https://hq.healthspan.ph'; // never the Host header: the job key travels to this origin
       const r = await fetch(base + '/.netlify/functions/qbo-sync-background', { method: 'POST', headers: { 'x-job-key': process.env.JOB_KEY || '', 'Content-Type': 'application/json' }, body: JSON.stringify({ by: who.name || 'manual', force: !!body.force }) });
       if (!r.ok && r.status !== 202) return out(502, { error: 'The sync worker did not start (' + r.status + ')' });
       await audit(who, 'qbo.run', { force: !!body.force });

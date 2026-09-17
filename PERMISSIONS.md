@@ -73,18 +73,18 @@ therefore a floor — implementation grants the full circle read to all three.
 | Leaderboard & pace, reorder-due | ✅ | ✅ | ✅ own | ✖ | ✖ | ✖ |
 | Set targets, review scorecards | ✅ | ✅ | ✖ (sees own targets) | ✖ | ✖ | ✖ |
 | AR aging, statements | ✅ | ✅ | ✖ | ✖ | ✅ | ✖ |
-| PDC register | ✅ | 👁* | ✖ | ✖ | ✅ | ✖ |
+| PDC register | ✅ | 👁* | ✖ | ✖ | ✅ (record, deposit, clear, bounce, delete) | ✖ — the UI matches the DB policy since 2026-09-17 (it was inverted: finance refused, managers shown buttons the DB rejected) |
 | Payments recording | ✅ | ✖ | ✖ | ✖ | ✅ | ✖ |
-| Returns & credit memos | ✅ | ✅ | ✖ | 👁 (restock) | ✅ | ✖ |
+| Returns & credit memos | ✅ | ✅ record | ✖ | 👁 (restock) | ✅ record + apply to balance | ✖ — page opens for admin, manager, finance, supply_chain; apply CM = admin + finance (2026-09-17) |
 | Accounting export (VAT CSV) | ✅ | ✅ | ✖ | ✖ | ✅ | ✖ |
 | Item master (prices, deals) — costs/margins hidden outside admin+finance | ✅ | 👁* no costs | ✖ | 👁 no costs | ✅ incl. costs | 👁 no costs |
-| Campaign calendar | ✅ | ✅ | 👁 | 👁 | 👁 | ✅ |
+| Campaign calendar | ✅ | ✅ | 👁 | 👁 | 👁 | ✅ — add / remove for admin, manager, marketing (the DB policy); everyone else on the page reads (2026-09-17) |
 | Forecasting suite, MAPE, AI planning review | ✅ | ✅ | ✖ | ✅ | 👁 | 👁 |
 | Ask Healthspan (drawer and full page; saved chats are owner-only — no role, not even super admin, can read another person's) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Activity log (audit) | ✅ (admin + super ONLY — tightened 2026-08-28; RLS matched to it 2026-09-08) | ✖ | ✖ | ✖ | ✖ | ✖ |
 | Approvals queue (credit/threshold holds) | ✅ decide | ✅ decide | auto-request | ✖ | 👁 | ✖ |
 | Credit limits (set per account) | ✅ | 👁 | 👁 own accts | ✖ | ✅ | ✖ |
-| Commissions (tiers, monthly compute, CSV) | ✅ | ✖ | ✖ | ✖ | ✅ | ✖ |
+| Commissions (tiers, monthly compute, CSV) | ✅ | ✖ (not in the sidebar since 2026-09-17) | ✖ | ✖ | ✅ | ✖ |
 | Supplier bills / AP (terms, proforma, FX, payments on POs) | ✅ | ✖ (2026-09-08: the AP block and open-payables total were still painted for managers — closed) | ✖ | 👁 | ✅ | ✖ |
 | Events calendar | ✅ | ✅ | ✅ own | ✅ | ✅ | ✅ |
 | Quotations (create, send, convert to order) | ✅ | ✅ | ✅ own | 👁 | 👁 | 👁 |
@@ -240,6 +240,28 @@ Bank/treasury balances, disbursement approvals (RTPs), supplier bill payments,
 BIR filings, payroll → QBO + bank portals (finance reports these from there).
 Website/social analytics → GA/Meta (Maria's tools).
 
+
+## 2026-09-17 audit — what changed in the enforcement
+
+- **Server**: `admin-users` accepts a target `id` only when it is a UUID (a crafted
+  id could add its own `&select=` to the protective lookups). A **shared saved-report
+  run** opens for a non-owner only when every column it carries is allowed for the
+  caller's role (a manager could download an admin's CSV with `delivery_cost`). Deck
+  sharing only reaches decks this app created (stamped `hq_by`) in the reports folder,
+  a specialist only their own. Attachment links go through the same RLS-as-caller
+  check as downloads. QuickBooks OAuth state uses a constant-time compare and refuses
+  when the client secret is unset. No function derives its own origin from the `Host`
+  header. The legacy `visits` blob endpoint (any signed-in account could read every
+  specialist's notes and post as anyone) is retired — 410.
+- **App**: PDC register gate matched to the DB (finance writes, managers read).
+  Returns page opens for finance and the warehouse; apply-CM is finance + admin.
+  Record payment: function gate = button gate (finance). Campaigns: marketing writes.
+  Finance steps: an admin approves only when the route names them (super admin
+  unsticks). PO write controls are painted for the warehouse only. Managers no longer
+  see Commissions. Finance edits the money fields on Receiving's calculator.
+- **Tests**: `tools/test/role-view-matrix.test.js` renders every page as every role
+  against an empty database — nothing may throw, a refused page must land on Home;
+  `tools/test/audit-2026-09-17.test.js` pins each fix above.
 
 ## 2026-09-08 audit — what changed in the enforcement
 

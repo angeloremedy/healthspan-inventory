@@ -428,7 +428,7 @@ async function renderAR(){
     '<div class="met" style="border-left:3px solid var(--rd)"><div class="met-lbl">Over 90 days</div><div class="met-val" style="font-size:15px;color:var(--rd)">'+fmtPeso(T2.d90)+'</div><div class="met-sub">collection risk</div><div class="met-bar"></div></div>'+
     '</div>'+
     '<div style="font-size:11.5px;color:var(--tx3);margin-bottom:12px">Collection rate all-time: <b>'+(booked?(collected/booked*100).toFixed(1):0)+'%</b> ('+fmtPeso(collected)+' of '+fmtPeso(booked)+' booked) · payment statuses sync from Shopify via the backfill; ages count from order date + terms days where noted (e.g. “PDC 30 days”)</div>'+
-    (canManage()?(function(){const m0=new Date();const from=new Date(m0.getFullYear(),m0.getMonth(),1).toISOString().slice(0,10);const to=todayISO();
+    (canManage()?(function(){const from=monthISO()+'-01';const to=todayISO();
       const di='style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:7px 9px;font-size:12px"';
       return '<div class="panel" style="padding:10px 14px;margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:12px">Accounting export</b>'+
       '<input type="date" id="ax-from" value="'+from+'" '+di+'> <span style="font-size:12px;color:var(--tx3)">to</span> <input type="date" id="ax-to" value="'+to+'" '+di+'>'+
@@ -445,7 +445,7 @@ async function renderAR(){
     '<div class="empty" style="margin-top:30px">No outstanding balances — everything collected. 🎉</div>');
 }
 async function recordPayment(id){
-  if(!SB||ROLE!=='admin')return;
+  if(!SB||!canFinance())return; // finance records payments (the button already said so; the database's pay-write policy agrees)
   const os=await loadNativeOrders();const o=os.find(x=>x.id===id);if(!o)return;
   const amt=parseFloat(await uiPrompt('Amount received (balance '+fmtPeso(o.balance||0)+'):','')||'');
   if(!amt||amt<=0)return;
@@ -537,8 +537,8 @@ async function renderSpecPage(){
   const mc=nmSp[ymNow]||{u:0,v:0};
   const tg=(TARGETS||[]).find(x=>x.month===ymNow&&x.scope==='SPECIALIST'&&specCanon(x.name||'').toLowerCase()===name.toLowerCase());
   const fus=myVisits.filter(v=>v.status!=='planned'&&v.outcome==='Follow-up needed'&&!v.fu_done);
-  const custs30=new Set(myOrders.filter(o=>o.date>=new Date(Date.now()-30*864e5).toISOString().slice(0,10)).map(o=>acctDedup(o.account||'')).filter(Boolean));
-  for(const v of myVisits)if(v.date>=new Date(Date.now()-30*864e5).toISOString().slice(0,10)&&v.status!=='planned')custs30.add(acctDedup(v.account||''));
+  const custs30=new Set(myOrders.filter(o=>o.date>=daysISO(-30)).map(o=>acctDedup(o.account||'')).filter(Boolean));
+  for(const v of myVisits)if(v.date>=daysISO(-30)&&v.status!=='planned')custs30.add(acctDedup(v.account||''));
   // ── calendar data for the shown month
   CAL_YM=CAL_YM||ymNow;
   const [cy,cm]=CAL_YM.split('-').map(Number);
@@ -711,7 +711,7 @@ async function showPickSlip(ref){
 /* ── FIELD COVERAGE — Veeva-style specialist activity, computed from bookings ── */
 function fieldPeriodRange(){
   const today=todayISO();
-  const back=d=>new Date(Date.now()-d*864e5).toISOString().slice(0,10);
+  const back=d=>daysISO(-d);
   if(SPERIOD==='today')return[today,today];
   if(SPERIOD==='yest'){const y=back(1);return[y,y];}
   if(SPERIOD==='7d')return[back(7),today];

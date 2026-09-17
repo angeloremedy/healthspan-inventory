@@ -118,7 +118,7 @@ function renderBranchTransfer(){
     branches.map(b=>'<div class="met bl"><div class="met-lbl">'+b+'</div><div class="met-val">'+( stats[b]?stats[b].qty.toLocaleString():0)+'</div><div class="met-sub">'+(stats[b]?stats[b].orders:0)+' shipments (2025+)</div><div class="met-bar"></div></div>').join('')+
     '</div>'+
     '<div class="tabs" style="margin-bottom:12px">'+
-    ['all',...branches].map(b=>'<div class="tab'+(branchFilter===b?' active':'')+'" onclick="window._branchFilter=\''+b+'\';renderBranchTransfer()">'+( b==='all'?'All branches':b)+'</div>').join('')+
+    ['all',...branches].map(b=>'<div class="tab'+(branchFilter===b?' active':'')+'" onclick="window._branchFilter=\''+jsq(b)+'\';renderBranchTransfer()">'+( b==='all'?'All branches':esc(b))+'</div>').join('')+
     '</div>'+
     '<div class="tcard"><div class="tscroll"><table><thead><tr>'+
     '<th>Branch</th><th>SKU</th><th>Product</th><th>Line</th><th style="text-align:right">Qty</th><th>Batch</th><th>Expiry</th><th>Order #</th></tr></thead><tbody>'+

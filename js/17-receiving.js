@@ -80,7 +80,7 @@ async function renderReceiving(){
   const onWater=S.filter(s=>['shipped','in_customs'].includes(s.status)), arrived=S.filter(s=>['arrived','counting'].includes(s.status)), late=S.filter(s=>isOpen(s)&&s.eta&&s.eta<today);
   const recvMonth=S.filter(s=>s.received_at&&String(s.received_at).slice(0,7)===today.slice(0,7));
   const next=S.filter(s=>isOpen(s)&&s.eta&&s.eta>=today).sort((a,b)=>a.eta<b.eta?-1:1)[0];
-  const cost=shipCanCost(), run=shipCanRun();
+  const cost=shipCanCost(), run=shipCanRun(), money=run||roleIn('finance'); // finance edits the money fields only (PERMISSIONS; the shipments update policy includes finance)
   const tabs=[['open','Open ('+S.filter(isOpen).length+')'],['late','Past ETA ('+late.length+')'],['received','Received'],['all','All ('+S.length+')']];
   let h=(typeof roBanner==='function'?roBanner('receiving'):'')+
     '<div class="metrics" style="margin-bottom:14px">'+
@@ -151,11 +151,11 @@ function shipPanel(s,L){
     const f=s.fees||{};
     h+='<div class="phd" style="margin:14px 0 4px">Landed cost calculator</div>'+
       '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px 12px;align-items:end">'+
-      '<label><div class="mu" style="font-size:10px">Invoice total ('+esc(s.currency||'PHP')+')</div><input type="number" step="0.01" value="'+esc(s.invoice_total==null?'':s.invoice_total)+'" '+(run?'onchange="shipSet('+s.id+',\'invoice_total\',this.value)"':'disabled')+' '+inp+' style="width:100%;box-sizing:border-box"></label>'+
-      '<label><div class="mu" style="font-size:10px">FX rate (₱ per '+esc(s.currency||'unit')+')</div><input type="number" step="0.0001" value="'+esc(s.fx_rate==null?'':s.fx_rate)+'" '+(run?'onchange="shipSet('+s.id+',\'fx_rate\',this.value)"':'disabled')+' '+inp+' style="width:100%;box-sizing:border-box"></label>'+
-      SHIP_FEES.map(([k,l])=>'<label><div class="mu" style="font-size:10px">'+l+' ₱</div><input type="number" step="0.01" value="'+esc(f[k]==null?'':f[k])+'" '+(run?'onchange="shipFee('+s.id+',\''+k+'\',this.value)"':'disabled')+' '+inp+' style="width:100%;box-sizing:border-box"></label>').join('')+
-      '<label style="display:flex;gap:6px;align-items:center;font-size:12px"><input type="checkbox" '+(lc.vatRecoverable?'checked':'')+' '+(run?'onchange="shipFee('+s.id+',\'vat_recoverable\',this.checked)"':'disabled')+'> Import VAT is recoverable (input tax — not a cost)</label>'+
-      '<label><div class="mu" style="font-size:10px">Allocate fees by</div><select '+(run?'onchange="shipSet('+s.id+',\'alloc_method\',this.value)"':'disabled')+' '+inp+' style="width:100%"><option value="value"'+(s.alloc_method!=='qty'?' selected':'')+'>line value</option><option value="qty"'+(s.alloc_method==='qty'?' selected':'')+'>quantity</option></select></label>'+
+      '<label><div class="mu" style="font-size:10px">Invoice total ('+esc(s.currency||'PHP')+')</div><input type="number" step="0.01" value="'+esc(s.invoice_total==null?'':s.invoice_total)+'" '+(money?'onchange="shipSet('+s.id+',\'invoice_total\',this.value)"':'disabled')+' '+inp+' style="width:100%;box-sizing:border-box"></label>'+
+      '<label><div class="mu" style="font-size:10px">FX rate (₱ per '+esc(s.currency||'unit')+')</div><input type="number" step="0.0001" value="'+esc(s.fx_rate==null?'':s.fx_rate)+'" '+(money?'onchange="shipSet('+s.id+',\'fx_rate\',this.value)"':'disabled')+' '+inp+' style="width:100%;box-sizing:border-box"></label>'+
+      SHIP_FEES.map(([k,l])=>'<label><div class="mu" style="font-size:10px">'+l+' ₱</div><input type="number" step="0.01" value="'+esc(f[k]==null?'':f[k])+'" '+(money?'onchange="shipFee('+s.id+',\''+k+'\',this.value)"':'disabled')+' '+inp+' style="width:100%;box-sizing:border-box"></label>').join('')+
+      '<label style="display:flex;gap:6px;align-items:center;font-size:12px"><input type="checkbox" '+(lc.vatRecoverable?'checked':'')+' '+(money?'onchange="shipFee('+s.id+',\'vat_recoverable\',this.checked)"':'disabled')+'> Import VAT is recoverable (input tax — not a cost)</label>'+
+      '<label><div class="mu" style="font-size:10px">Allocate fees by</div><select '+(money?'onchange="shipSet('+s.id+',\'alloc_method\',this.value)"':'disabled')+' '+inp+' style="width:100%"><option value="value"'+(s.alloc_method!=='qty'?' selected':'')+'>line value</option><option value="qty"'+(s.alloc_method==='qty'?' selected':'')+'>quantity</option></select></label>'+
       '</div>'+
       '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-top:10px;font-size:12.5px">'+
       '<span>Goods ₱ <b>'+fmtPeso(lc.goods)+'</b></span><span>Fees counted ₱ <b>'+fmtPeso(lc.feesTotal)+'</b>'+(lc.vatRecoverable&&(+f.vat_import||0)?' <span class="mu">(VAT '+fmtPeso(+f.vat_import)+' excluded)</span>':'')+'</span><span>Landed total ₱ <b style="font-size:14px">'+fmtPeso(lc.landed)+'</b></span>'+
@@ -221,8 +221,8 @@ async function shipAdvance(id,status){
   if(status==='closed'){const L=SHIP_LINES[id]||[];if(L.some(l=>!l.received&&(+l.qty_expected||0)>0)&&!await uiConfirm('Some lines were never posted to stock. Close anyway? (Whatever was not received stays outstanding on the PO.)',{ok:'Close',danger:true}))return;}
   await shipPatch(id,patch,'shipment.'+status);
 }
-async function shipSet(id,k,v){const p={};p[k]=v===''?null:(k==='alloc_method'?v:Math.round(parseFloat(v)*10000)/10000);p.updated_at=new Date().toISOString();await shipPatch(id,p,null);}
-async function shipFee(id,k,v){const s=(SHIPMENTS||[]).find(x=>x.id===id);if(!s)return;const fees=Object.assign({},s.fees||{});if(k==='vat_recoverable')fees[k]=!!v;else fees[k]=v===''?null:Math.round(parseFloat(v)*100)/100;await shipPatch(id,{fees,updated_at:new Date().toISOString()},null);}
+async function shipSet(id,k,v){if(!(shipCanRun()||roleIn('finance')))return;const p={};p[k]=v===''?null:(k==='alloc_method'?v:Math.round(parseFloat(v)*10000)/10000);p.updated_at=new Date().toISOString();await shipPatch(id,p,null);}
+async function shipFee(id,k,v){if(!(shipCanRun()||roleIn('finance')))return;const s=(SHIPMENTS||[]).find(x=>x.id===id);if(!s)return;const fees=Object.assign({},s.fees||{});if(k==='vat_recoverable')fees[k]=!!v;else fees[k]=v===''?null:Math.round(parseFloat(v)*100)/100;await shipPatch(id,{fees,updated_at:new Date().toISOString()},null);}
 async function shipLineSet(lineId,k,v){
   const p={};p[k]=k==='qa_hold'?!!v:(k==='qty_counted'?(v===''?null:parseInt(v,10)):(String(v).trim()||null));
   try{const {data,error}=await SB.from('shipment_lines').update(p).eq('id',lineId).select('id,shipment_id');if(error)throw error;if(!data||!data.length)throw new Error('No change saved — permissions?');

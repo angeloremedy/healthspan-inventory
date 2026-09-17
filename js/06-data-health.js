@@ -74,7 +74,7 @@ function renderProspects(){
   };
   const withM=pros.map(r=>({...r,m:match(r.name)}));
   const dupes=withM.filter(r=>r.m),fresh=withM.filter(r=>!r.m);
-  const y1=new Date(Date.now()-365*864e5).toISOString().slice(0,10);
+  const y1=daysISO(-365);
   const active=fresh.filter(r=>(r.last||'')>=y1);
   window._PROSPECTS=withM;
   const pill=r=>r.src==='prospect'?'<span class="pill" style="background:rgba(127,119,221,.15);color:var(--pu)">visit log only</span>':

@@ -11,7 +11,7 @@ Read `README.md` (what it does), `ARCHITECTURE.md` (how), `PERMISSIONS.md` (who 
 - Backend: Netlify Functions in `netlify/functions/*.mjs` (+ `lib/`), Supabase (Postgres,
   RLS on every table), Netlify Blobs for caches. SQL lives ONLY in `SUPABASE-SETUP.md`
   (append a dated section; it is run by hand in the Supabase SQL editor).
-- Tests: Node + jsdom, `npm test` (8 suites, ~490 checks). Build smoke: `npm run build`.
+- Tests: Node + jsdom, `npm test` (10 suites, ~540 checks). Build smoke: `npm run build`.
 - Manuals: `tools/manuals/` (Python + reportlab) — see its README; every feature batch
   rebuilds all nine PDFs into `manuals/` (`directory.js` → `compose.py` → `pagecheck.py`
   → `coverage.js`).

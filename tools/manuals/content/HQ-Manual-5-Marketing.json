@@ -232,7 +232,7 @@
   },
   {
    "t": "step",
-   "v": "Each campaign: name, window, expected uplift, SKUs. It is a demand signal: the stockout forecast banners it and the AI review weighs it.",
+   "v": "Each campaign: name, window, expected uplift, SKUs. Marketing adds and removes campaigns here alongside admins and sales managers; everyone else sees the calendar read-only. It is a demand signal: the stockout forecast banners it and the AI review weighs it.",
    "n": "1"
   },
   {

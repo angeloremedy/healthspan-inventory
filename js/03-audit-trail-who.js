@@ -100,30 +100,32 @@ async function loadCampaigns(force){
   if(SB){try{const {data}=await SB.from('campaigns').select('*').order('from_date',{ascending:false}).limit(200);CAMPAIGNS=data||[];}catch(e){}}
   return CAMPAIGNS;
 }
+/* campaigns are written by admin, sales managers and marketing (the database's policy);
+   everyone else the page is open to reads the calendar (audit 2026-09-17) */
+function canCampaign(){return roleIn('admin','manager','marketing');}
 async function renderCampaigns(){
-  if(!canManage()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only.</div>';return;}
   loadingHint();
   await loadCampaigns(true);
   const today=todayISO();
   const inp='style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;font-size:12.5px"';
   const state=c=>c.to_date<today?'<span class="pill pgy">done</span>':c.from_date>today?'<span class="pill pbl">upcoming</span>':'<span class="pill pgr">running</span>';
   $('content').innerHTML=(typeof roBanner==='function'?roBanner('campaigns'):'')+
-    '<div class="panel" style="padding:14px 16px;margin-bottom:14px"><div class="phd">Add campaign / promo</div>'+
+    (canCampaign()?'<div class="panel" style="padding:14px 16px;margin-bottom:14px"><div class="phd">Add campaign / promo</div>'+
     '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+
     '<input id="cp-name" placeholder="Name (e.g. Anniversary 10+8)" '+inp+' style="flex:1;min-width:160px;'+inp.slice(7,-1)+'">'+
     '<input id="cp-from" type="date" '+inp+'><span style="font-size:12px;color:var(--tx3)">to</span><input id="cp-to" type="date" '+inp+'>'+
     '<input id="cp-skus" placeholder="SKUs / lines affected (free text)" '+inp+' style="flex:1;min-width:160px;'+inp.slice(7,-1)+'">'+
     '<input id="cp-up" type="number" placeholder="expected uplift %" '+inp+' style="width:130px;'+inp.slice(7,-1)+'">'+
-    '<button onclick="campaignAdd()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer">Add</button></div></div>'+
+    '<button onclick="campaignAdd()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer">Add</button></div></div>':'')+
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Campaign</th><th>Runs</th><th>Status</th><th>SKUs / lines</th><th style="text-align:right">Expected uplift</th><th></th></tr></thead><tbody>'+
     ((CAMPAIGNS||[]).map(c=>'<tr><td style="font-weight:600">'+esc(c.name)+'</td><td class="mu" style="font-size:11.5px">'+esc(c.from_date)+' → '+esc(c.to_date)+'</td><td>'+state(c)+'</td>'+
       '<td class="mu" style="font-size:11.5px;max-width:240px;overflow:hidden;text-overflow:ellipsis">'+esc(c.skus||'all')+'</td>'+
       '<td class="r">'+(c.uplift_pct!=null?'+'+c.uplift_pct+'%':'—')+'</td>'+
-      '<td><a href="#" onclick="campaignDel('+c.id+');return false" style="color:var(--rd);font-size:11px">remove</a></td></tr>').join('')||'<tr><td colspan="6"><div class="empty">No campaigns yet — add the next promo so the forecast and the AI review can see it coming.</div></td></tr>')+
+      '<td>'+(canCampaign()?'<a href="#" onclick="campaignDel('+c.id+');return false" style="color:var(--rd);font-size:11px">remove</a>':'')+'</td></tr>').join('')||'<tr><td colspan="6"><div class="empty">No campaigns yet — add the next promo so the forecast and the AI review can see it coming.</div></td></tr>')+
     '</tbody></table></div><div class="tfooter"><span>Active & upcoming campaigns show as a banner on the stockout forecast and feed the AI planning review · precursor to the full promotions engine on the roadmap</span></div></div>';
 }
 async function campaignAdd(){
-  if(!canManage()||!SB)return;
+  if(!canCampaign()||!SB)return;
   const g=id=>($(id)&&$(id).value||'').trim();
   if(!g('cp-name')||!g('cp-from')||!g('cp-to'))return uiAlert('Need a name and both dates.');
   try{
@@ -134,7 +136,7 @@ async function campaignAdd(){
   }catch(e){uiAlert('Could not save: '+(e.message||e)+(String(e.message||'').includes('campaigns')?'\n\n(Run the campaigns SQL from SUPABASE-SETUP.md.)':''));}
 }
 async function campaignDel(id){
-  if(!canManage()||!SB||!await uiConfirm('Remove this campaign?'))return;
+  if(!canCampaign()||!SB||!await uiConfirm('Remove this campaign?'))return;
   try{const {error}=await SB.from('campaigns').delete().eq('id',id);if(error)throw error;renderCampaigns();}catch(e){uiAlert(e.message||e);}
 }
 
@@ -205,7 +207,7 @@ function scQuarters(){
 }
 async function renderScorecards(){
   if(!canManage()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only.</div>';return;}
-  if(!SHOPIFY||!SHOPIFY.specialists){$('content').innerHTML='<div class="empty" style="margin-top:40px">Waiting for the sales cache…</div>';try{loadShopify().then(()=>{if(currentView==='scorecards')renderScorecards();});}catch(e){}return;}
+  if(!SHOPIFY||!SHOPIFY.specialists){$('content').innerHTML='<div class="empty" style="margin-top:40px">Waiting for the sales cache…</div>';try{window._shopWaitRef=SHOPIFY;loadShopify().then(()=>{if(window._shopWaitRef!==SHOPIFY&&currentView==='scorecards')renderScorecards();});}catch(e){}return;}
   if(!VISITS){loadVisits().then(()=>{if(currentView==='scorecards')renderScorecards();});}
   const qs=scQuarters();
   const sel=window._scQ&&qs.some(q=>q.key===window._scQ)?window._scQ:qs[0].key;window._scQ=sel;
@@ -317,7 +319,7 @@ function blockIfClosed(d,what){ // returns true when the caller should stop
 async function setClosedThrough(){
   if(!isSuper())return uiAlert('Closing an accounting period is a super-admin decision.');
   const cur=closedThrough();
-  const v=await uiPrompt('Close the books through which date? (YYYY-MM-DD)\n\nEverything dated on or before it freezes: order amounts, dates, credit memos, cheques and targets. Payments and shipping stay open.\n\nBlank = no period close.',cur||new Date(Date.now()-864e5).toISOString().slice(0,10));
+  const v=await uiPrompt('Close the books through which date? (YYYY-MM-DD)\n\nEverything dated on or before it freezes: order amounts, dates, credit memos, cheques and targets. Payments and shipping stay open.\n\nBlank = no period close.',cur||daysISO(-1));
   if(v===null)return;
   const t=v.trim();
   if(t&&!/^\d{4}-\d{2}-\d{2}$/.test(t))return uiAlert('Use the form 2026-07-31 — nothing changed.');
@@ -525,7 +527,7 @@ async function catalogAdd(){
 // ── REORDER-DUE ALERTS: each account's buying rhythm vs the calendar
 function renderSalesDue(){
   const recent=(SHOPIFY&&SHOPIFY.recent)||[];
-  if(!recent.length){$('content').innerHTML='<div class="empty" style="margin-top:40px">Waiting for the sales cache…</div>';try{loadShopify().then(()=>{if(currentView==='salesdue')renderSalesDue();});}catch(e){}return;}
+  if(!recent.length){$('content').innerHTML='<div class="empty" style="margin-top:40px">Waiting for the sales cache…</div>';try{window._shopWaitRef=SHOPIFY;loadShopify().then(()=>{if(window._shopWaitRef!==SHOPIFY&&currentView==='salesdue')renderSalesDue();});}catch(e){}return;}
   const byC={};
   for(const o of recent){
     const c=acctDedup(o.c||'');if(!c||/pull\s*-?\s*out/i.test(c))continue;
@@ -580,8 +582,9 @@ function renderSalesDue(){
 }
 
 // ── RETURNS & CREDIT MEMOS (shadow: also process in Shopify while parallel)
+function canReturnAdd(){return roleIn('admin','manager','finance');}   // the database's insert policy
 async function renderReturns(){
-  if(!canManage()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only.</div>';return;}
+  if(!roleIn('admin','manager','finance','supply_chain')){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins, sales managers, finance and the warehouse only.</div>';return;}
   loadingHint();
   await loadFlags();
   let rows=[];
@@ -591,7 +594,7 @@ async function renderReturns(){
   const inp='style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;font-size:12.5px"';
   $('content').innerHTML=(typeof roBanner==='function'?roBanner('returns'):'')+
     (!flagOn('native_only_orders')?'<div class="panel" style="padding:9px 14px;margin-bottom:12px;border-left:3px solid var(--am);font-size:12px">Parallel run: record the return here <b>and</b> process the refund/return in Shopify — this register becomes the only one at cutover.</div>':'')+
-    '<div class="panel" style="padding:12px 16px;margin-bottom:14px"><div class="phd">Record a return / credit memo</div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+
+    (canReturnAdd()?'<div class="panel" style="padding:12px 16px;margin-bottom:14px"><div class="phd">Record a return / credit memo</div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+
     '<input id="rt-acct" list="rt-accts" placeholder="Account" '+inp+' style="flex:1;min-width:150px;'+inp.slice(7,-1)+'"><datalist id="rt-accts">'+acctOpts+'</datalist>'+
     '<input id="rt-ref" placeholder="Order ref (opt.)" '+inp+' style="width:110px;'+inp.slice(7,-1)+'">'+
     '<input id="rt-items" placeholder="Items returned (e.g. 2× TD042)" '+inp+' style="flex:1;min-width:150px;'+inp.slice(7,-1)+'">'+
@@ -601,7 +604,7 @@ async function renderReturns(){
     '<input id="rt-date" type="date" value="'+todayISO()+'" title="Which month this credit memo belongs to" '+inp+' style="width:150px;'+inp.slice(7,-1)+'">'+
     '<input id="rt-spec" list="rt-specs" placeholder="Specialist (nets their month)" '+inp+' style="width:170px;'+inp.slice(7,-1)+'"><datalist id="rt-specs">'+(typeof specNames==='function'?specNames():[]).map(x=>'<option value="'+esc(x)+'">').join('')+'</datalist>'+
     '<label style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--tx3)" title="During the parallel run a return refunded in Shopify is ALREADY out of booked sales — tick this so it is not deducted twice"><input type="checkbox" id="rt-shop"> already refunded in Shopify</label>'+
-    '<button onclick="returnAdd()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer">Record</button></div></div>'+
+    '<button onclick="returnAdd()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer">Record</button></div></div>':'')+
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>CM no.</th><th>Date</th><th>Account</th><th>Specialist</th><th>Items</th><th style="text-align:right">Amount</th><th>Disposition</th><th>Reason</th><th></th></tr></thead><tbody>'+
     (rows.length?rows.map(r=>'<tr><td style="font-weight:700">CM-'+String(1000+r.id)+'</td><td class="mu" style="font-size:11px">'+esc(String(r.date||r.created_at||'').slice(0,10))+(r.date&&String(r.date).slice(0,10)!==String(r.created_at||'').slice(0,10)?'<div style="font-size:9.5px">entered '+esc(String(r.created_at||'').slice(0,10))+'</div>':'')+'</td>'+
       '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis"><a href="#" onclick="showAccountPage(\''+jsq(r.account)+'\');return false" style="color:var(--ac)">'+esc(r.account)+'</a></td>'+
@@ -611,12 +614,12 @@ async function renderReturns(){
       '<td>'+(r.action==='restock'?'<span class="pill pgr">restocked</span>':'<span class="pill prd">written off</span>')+(r.applied?' <span class="pill pbl">applied to AR</span>':'')+'</td>'+
       '<td class="mu" style="font-size:11.5px">'+esc(r.reason||'')+'</td>'+
       '<td style="white-space:nowrap"><a href="#" onclick="printCM('+r.id+');return false" style="color:var(--ac);font-size:11px">🖨 CM</a>'+
-      (!r.applied&&r.order_ref&&ROLE==='admin'?' · <a href="#" onclick="applyCM('+r.id+');return false" style="color:var(--gr);font-size:11px">apply to order balance</a>':'')+'</td></tr>').join(''):
+      (!r.applied&&r.order_ref&&canFinance()?' · <a href="#" onclick="applyCM('+r.id+');return false" style="color:var(--gr);font-size:11px">apply to order balance</a>':'')+'</td></tr>').join(''):
       '<tr><td colspan="9"><div class="empty">No returns recorded yet.</div></td></tr>')+
     '</tbody></table></div><div class="tfooter"><span>CM numbers are permanent · "apply to order balance" (admin) reduces the linked native order’s balance by the CM amount · restocked items re-enter the shadow ledger; write-offs are logged for the disposal trail</span></div></div>';
 }
 async function returnAdd(){
-  if(!canManage())return;
+  if(!canReturnAdd())return;
   const g=id=>($(id)&&$(id).value||'').trim();
   if(!g('rt-acct')||!g('rt-amt'))return uiAlert('Need at least the account and the CM amount.');
   const cmDate=g('rt-date')||todayISO();
@@ -635,7 +638,7 @@ async function returnAdd(){
   }catch(e){uiAlert('Could not record: '+(e.message||e));}
 }
 async function applyCM(id){
-  if(ROLE!=='admin')return;
+  if(!canFinance())return;
   try{
     const {data:r}=await SB.from('returns').select('*').eq('id',id).maybeSingle();
     if(!r||r.applied)return;
@@ -1108,12 +1111,11 @@ function healthOf(r,arSet){
 // Leaderboard & pace: MTD race + projected month-end attainment per specialist
 function renderSalesPace(){
   const recent=(SHOPIFY&&SHOPIFY.recent)||[];
-  if(!recent.length){$('content').innerHTML='<div class="empty" style="margin-top:40px">Waiting for the sales cache…</div>';try{loadShopify().then(()=>{if(currentView==='salespace')renderSalesPace();});}catch(e){}return;}
+  if(!recent.length){$('content').innerHTML='<div class="empty" style="margin-top:40px">Waiting for the sales cache…</div>';try{window._shopWaitRef=SHOPIFY;loadShopify().then(()=>{if(window._shopWaitRef!==SHOPIFY&&currentView==='salespace')renderSalesPace();});}catch(e){}return;}
   if(!VISITS){loadVisits().then(()=>{if(currentView==='salespace')renderSalesPace();});}
-  const now=new Date();
-  const ym=now.toISOString().slice(0,7);
-  const dim=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
-  const elapsed=Math.min(1,Math.max(0.03,now.getDate()/dim));
+  const ym=monthISO(); // Manila month — a UTC evening on the 30th/31st used to show last month's pace
+  const dim=new Date(Date.UTC(+ym.slice(0,4),+ym.slice(5,7),0)).getUTCDate();
+  const elapsed=Math.min(1,Math.max(0.03,(+todayISO().slice(8,10))/dim));
   const S={},disp={};
   for(const o of recent){
     const raw=specCanon(o.t||'');
@@ -1193,15 +1195,19 @@ async function acDelContact(id,key,name){
 
 // PDC register: every post-dated cheque, tracked to maturity
 const PDC_ST={on_hand:'on hand',deposited:'deposited',cleared:'cleared',bounced:'bounced'};
+/* who may WRITE cheques: the same set the database policy allows (admin, finance — 2026-08-27
+   tightening). Managers read. The page used to be gated the other way round, so finance saw
+   a refusal and managers saw buttons the database then rejected (audit 2026-09-17). */
+function canPDC(){return canFinance();}
 async function renderPDC(){
-  if(!canManage()){$('content').innerHTML='<div class="empty" style="margin-top:40px">Admins and sales managers only.</div>';return;}
+  if(!roleIn('admin','manager','finance')){$('content').innerHTML='<div class="empty" style="margin-top:40px">Finance, admins and sales managers only.</div>';return;}
   loadingHint();
   let rows=[];
   try{const {data}=await SB.from('pdcs').select('*').order('maturity');rows=data||[];}
   catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Could not load — has the pdcs table been created? (SUPABASE-SETUP.md)</div>';return;}
   const today=todayISO();
-  const wk=new Date(Date.now()+7*864e5).toISOString().slice(0,10);
-  const d30=new Date(Date.now()+30*864e5).toISOString().slice(0,10);
+  const wk=daysISO(7);
+  const d30=daysISO(30);
   const open=rows.filter(r=>r.status==='on_hand'||r.status==='deposited');
   const sum=a=>a.reduce((x,r)=>x+(r.amount||0),0);
   const pill=s=>s==='cleared'?'<span class="pill pgr">cleared</span>':s==='bounced'?'<span class="pill prd">bounced</span>':s==='deposited'?'<span class="pill pbl">deposited</span>':'<span class="pill" style="background:var(--am-bg);color:var(--am)">on hand</span>';
@@ -1212,6 +1218,7 @@ async function renderPDC(){
     if(r.status==='on_hand')L.push(['deposited','deposit']);
     if(r.status==='deposited'){L.push(['cleared','cleared ✓']);L.push(['bounced','bounced ✗']);}
     if(r.status==='bounced')L.push(['deposited','redeposit']);
+    if(!canPDC())return '<span class="mu" style="font-size:11px">view only</span>';
     return L.map(([s,l])=>'<a href="#" onclick="pdcSet('+r.id+',\''+s+'\');return false" style="color:'+(s==='bounced'?'var(--rd)':'var(--ac)')+';font-size:11px">'+l+'</a>').join(' · ')+
       ' · <a href="#" onclick="pdcDel('+r.id+');return false" style="color:var(--tx3);font-size:11px">del</a>';
   };
@@ -1222,14 +1229,14 @@ async function renderPDC(){
     '<div class="met gr"><div class="met-lbl">Next 30 days</div><div class="met-val" style="font-size:15px">'+fmtPeso(sum(open.filter(r=>r.maturity<=d30)))+'</div><div class="met-sub">expected collections</div><div class="met-bar"></div></div>'+
     '<div class="met" style="border-left:3px solid var(--rd)"><div class="met-lbl">Bounced (open)</div><div class="met-val" style="font-size:15px;color:var(--rd)">'+fmtPeso(sum(rows.filter(r=>r.status==='bounced')))+'</div><div class="met-sub">chase or replace</div><div class="met-bar"></div></div>'+
     '</div>'+
-    '<div class="panel" style="padding:12px 16px;margin-bottom:14px"><div class="phd">Record a cheque</div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+
+    (canPDC()?'<div class="panel" style="padding:12px 16px;margin-bottom:14px"><div class="phd">Record a cheque</div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+
     '<input id="pd-acct" list="pd-accts" placeholder="Account" '+inp+' style="flex:1;min-width:150px;'+inp.slice(7,-1)+'"><datalist id="pd-accts">'+acctOpts+'</datalist>'+
     '<input id="pd-bank" placeholder="Bank" '+inp+' style="width:110px;'+inp.slice(7,-1)+'">'+
     '<input id="pd-no" placeholder="Cheque no." '+inp+' style="width:110px;'+inp.slice(7,-1)+'">'+
     '<input id="pd-amt" type="number" placeholder="Amount ₱" '+inp+' style="width:120px;'+inp.slice(7,-1)+'">'+
     '<input id="pd-mat" type="date" title="Maturity date" '+inp+'>'+
     '<input id="pd-ref" placeholder="Order ref (opt.)" '+inp+' style="width:120px;'+inp.slice(7,-1)+'">'+
-    '<button onclick="pdcAdd()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer">Add</button></div></div>'+
+    '<button onclick="pdcAdd()" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer">Add</button></div></div>':'')+
     '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Maturity</th><th>Account</th><th>Bank · cheque no.</th><th style="text-align:right">Amount</th><th>Status</th><th>Order</th><th></th></tr></thead><tbody>'+
     (rows.length?rows.map(r=>'<tr'+(r.status!=='cleared'&&r.maturity<=today?' style="background:var(--am-bg)"':'')+'><td style="font-weight:600">'+esc(r.maturity)+(r.status!=='cleared'&&r.status!=='bounced'&&r.maturity<=today?' <span class="pill prd" style="font-size:9px">due</span>':'')+'</td>'+
       '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis"><a href="#" onclick="showAccountPage(\''+jsq(r.account)+'\');return false" style="color:var(--ac)">'+esc(r.account)+'</a></td>'+
@@ -1242,7 +1249,7 @@ async function renderPDC(){
 }
 async function pdcAdd(){
   // friendly refusal before the trigger raises
-  if(!canManage()||!SB)return;
+  if(!canPDC()||!SB)return;
   const g=id=>($(id)&&$(id).value||'').trim();
   if(!g('pd-acct')||!g('pd-amt')||!g('pd-mat'))return uiAlert('Need at least the account, amount, and maturity date.');
   if(typeof blockIfClosed==='function'&&blockIfClosed(g('pd-mat'),'Cheque not recorded'))return;
@@ -1254,7 +1261,7 @@ async function pdcAdd(){
   }catch(e){uiAlert('Could not save: '+(e.message||e)+(String(e.message||'').includes('pdcs')?'\n\n(Run the pdcs SQL from SUPABASE-SETUP.md.)':''));}
 }
 async function pdcSet(id,status){
-  if(!canManage()||!SB)return;
+  if(!canPDC()||!SB)return;
   if(status==='bounced'&&!await uiConfirm('Mark this cheque bounced?'))return;
   try{
     const {error}=await SB.from('pdcs').update({status,updated_at:new Date().toISOString()}).eq('id',id);
@@ -1264,6 +1271,6 @@ async function pdcSet(id,status){
   }catch(e){uiAlert(e.message||e);}
 }
 async function pdcDel(id){
-  if(!canManage()||!SB||!await uiConfirm('Delete this cheque record?'))return;
+  if(!canPDC()||!SB||!await uiConfirm('Delete this cheque record?'))return;
   try{const {error}=await SB.from('pdcs').delete().eq('id',id);if(error)throw error;audit('pdc.delete',{id});renderPDC();}catch(e){uiAlert(e.message||e);}
 }

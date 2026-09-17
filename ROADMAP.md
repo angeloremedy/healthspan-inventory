@@ -25,6 +25,11 @@ at cutover; the accounting export CSV remains the fallback); it does not replace
 
 ## ✅ Shipped so far (everything, from the start)
 
+**App-wide audit (Sep 17–18)**
+- ✅ Static pass (declared vs referenced identifiers, duplicates, dialog/date rules), runtime pass (role × view matrix: every page as every role, now a permanent suite), two independent reviews (server functions; views' escaping/costs/permissions)
+- ✅ Fixed: the render→load→render hot loop when the sales cache is down (request storm); PDC / returns / record-payment / campaigns / finance-step / PO-controls / Commissions permission mismatches vs PERMISSIONS + RLS; `admin-users` id injection; shared-report cost leak; deck-sharing scope; attachment link check; QBO OAuth hardening; Host-header origin fallbacks; legacy visits endpoint retired; Slack `/stock` 401 break; all UTC "today/this month" → Manila helpers; two escaping nits
+- ▢ Left for later (low): `items` / `pos` `select('*')` pull cost columns into browser memory for non-cost roles (not painted; column-level RLS or explicit selects); error bodies from upstream services trimmed to fixed messages; CORS `*` on four functions (bearer-only, no CSRF); rate limits on Ask/upload
+
 **Search everything; the phone drawer trap (Sep 17)**
 - ✅ **Smart search**: the sidebar box (menu box on phones) finds records, not just pages — orders (HS-/HG-), accounts, specialists, SKUs and batches, quotations, POs, shipments, transfers, pull-outs, complaints, serials, loaners, suppliers, cheques, credit memos, wave picks and all seven finance forms by number. Grouped hits, ⌘K, keyboard; kinds follow `viewAllowed`, rows follow RLS; no amounts in result lines; opens audited
 - ✅ **Drawer back-navigation** (Alex): a product panel on a phone can no longer trap you — ←, the edge swipe, the phone's back, the panel's ← Back / ✕ and every tab or page change close it; the close row is sticky; on phones the panel sits between the top bar and the tabs

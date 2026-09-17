@@ -642,6 +642,34 @@ the drawer is open — closes the drawer and returns without re-rendering.
 CSS: `.dhead` is sticky; on phones `body.authed .drawer` spans from below the
 top bar to above the bottom tabs.
 
+### 4.15 Dates — `todayISO / monthISO / daysISO / monthsISO` (js/01)
+
+Manila is the only clock. `todayISO()` shifts `Date.now()` by +8 h and slices;
+`daysISO(n)` and `monthsISO(n)` step from that in UTC arithmetic so a window like
+"last 30 days" never moves with the browser's zone or a UTC midnight. The audit
+test greps for the old `new Date(...).toISOString().slice(0,10|7)` idioms and fails
+on any new one.
+
+### 4.16 The "wait for the cache" re-render guard (js/02, js/03, js/10)
+
+Pages that need `SHOPIFY` and find it null call `loadShopify()` and re-render in
+`.then`. Since 2026-09-17 they record `window._shopWaitRef=SHOPIFY` first and
+re-render only if `SHOPIFY` changed — `loadShopify()` resolves without data when
+the feed errors, is `building`, or the device is offline, and the old unguarded
+re-render → load → re-render was a hot loop (an OOM in jsdom; a request storm on
+a phone). `loadVisits()` likewise never leaves `VISITS` null.
+
+### 4.17 The role × view matrix test — `tools/test/role-view-matrix.test.js`
+
+Boots the app once per role in jsdom with a fake Supabase that answers `[]` to
+everything, then calls `showView` for every view the dispatch in js/02 knows
+(regex over `v==='…'`). Collected per (role, view): exceptions (window `error`,
+`unhandledrejection`, process-level rejections, jsdom errors), a refused page that
+rendered itself, a page left on the loading placeholder. The app and the driver are
+evaluated in ONE `eval` so `let`/`const` globals are visible. A deliberate throw in
+one renderer is caught and attributed to its (role, view) — verified when the
+suite was written.
+
 ## 5. Supabase schema (see SUPABASE-SETUP.md for exact SQL)
 
 | Table | Purpose | Key columns |

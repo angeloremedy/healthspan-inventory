@@ -238,7 +238,7 @@ function bizCompute(ym){
     if(v.account)s.touched.add(custNorm(v.account));}
   R.activity={visits:0,calls:0,demos:0,ordered:0,opened:0,partial:(VISITS||[]).length?false:true};
   for(const lk in specs){const s=specs[lk];R.activity.visits+=s.visits;R.activity.calls+=s.calls;R.activity.demos+=s.demos;R.activity.ordered+=s.ordered;R.activity.opened+=s.opened;}
-  const winStart=new Date(Date.now()-120*864e5).toISOString().slice(0,10);R.activity.window=winStart;R.activity.complete=ym+'-01'>=winStart;
+  const winStart=daysISO(-120);R.activity.window=winStart;R.activity.complete=ym+'-01'>=winStart;
 
   /* machines: any SKU with a serial number is equipment */
   const eq=new Set((SERIALS||[]).map(s=>s.sku));

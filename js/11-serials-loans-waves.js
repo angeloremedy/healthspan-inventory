@@ -269,7 +269,7 @@ async function renderLoans(){
       (free.length?'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
       '<div><label '+flbl+'>UNIT</label><select id="ln-ser" '+fld+'>'+
         free.map(s=>{const p=DATA.find(x=>x.sku===s.sku);return '<option value="'+s.id+'">'+esc(s.serial)+' — '+esc((p&&p.name)||s.sku)+'</option>';}).join('')+'</select></div>'+
-      '<div><label '+flbl+'>DUE BACK</label><input id="ln-due" type="date" value="'+new Date(Date.now()+30*864e5).toISOString().slice(0,10)+'" '+fld+'></div></div>'+
+      '<div><label '+flbl+'>DUE BACK</label><input id="ln-due" type="date" value="'+daysISO(30)+'" '+fld+'></div></div>'+
       '<label '+flblT+'>ACCOUNT / CLINIC</label>'+
       '<input id="ln-acct" placeholder="Start typing…" '+fld+'>'+
       '<label '+flblT+'>CONDITION / NOTES AT CHECK-OUT</label>'+
@@ -426,10 +426,10 @@ async function renderCrmStats(){
   const periods=[['7d','7 days'],['mtd','This month'],['30d','30 days'],['3m','3 months'],['all','All (≈4 months)']];
   const per=window._crmP||'mtd';
   const today=todayISO();
-  const from=per==='7d'?new Date(Date.now()-7*864e5).toISOString().slice(0,10)
+  const from=per==='7d'?daysISO(-7)
     :per==='mtd'?today.slice(0,8)+'01'
-    :per==='30d'?new Date(Date.now()-30*864e5).toISOString().slice(0,10)
-    :per==='3m'?new Date(Date.now()-90*864e5).toISOString().slice(0,10):'0000';
+    :per==='30d'?daysISO(-30)
+    :per==='3m'?daysISO(-90):'0000';
   const vs=(VISITS||[]).filter(v=>v.status!=='planned'&&(v.date||'')>=from&&(v.date||'')<=today);
   const CALL=/call|viber|follow-?up/i;
   const S={},disp={};

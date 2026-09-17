@@ -59,6 +59,10 @@ export const handler = async (event) => {
   let p = {};
   try { p = JSON.parse(event.body || '{}'); } catch (e) {}
   const act = p.action;
+  // a target id is a UUID or nothing: it is spliced into PostgREST filters and GoTrue
+  // paths below, and a crafted value could otherwise add its own &select=… to the
+  // protective lookups or walk the path (audit 2026-09-17)
+  if (p.id != null && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(p.id))) return out(400, { error: 'Bad id' });
 
   // ── scoped PS-admin (can_manage_ps): only list/create/disable/enable, and only specialists
   if (callerScoped) {

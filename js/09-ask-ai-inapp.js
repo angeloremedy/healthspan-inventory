@@ -212,7 +212,7 @@ function askPaintList(){
     const day=iso=>{const d=new Date(iso),n=new Date();const dd=Math.floor((Date.UTC(n.getFullYear(),n.getMonth(),n.getDate())-Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()))/864e5);return dd<=0?'Today':dd===1?'Yesterday':dd<7?'This week':dd<30?'This month':'Earlier';};
     let h='',grp='';
     for(const c of rows){const g=day(c.updated_at);if(g!==grp){grp=g;h+='<div class="askgrp">'+g+'</div>';}
-      h+='<div class="askitem'+(c.id===ASK_CUR.id?' on':'')+'" onclick="askOpenChat(\''+c.id+'\')"><span class="askit">'+esc(c.title||'Untitled')+'</span><span class="askops"><a href="#" title="Rename" onclick="event.stopPropagation();askRenameChat(\''+c.id+'\');return false">✎</a><a href="#" title="Delete" onclick="event.stopPropagation();askDeleteChat(\''+c.id+'\');return false">×</a></span></div>';}
+      h+='<div class="askitem'+(c.id===ASK_CUR.id?' on':'')+'" onclick="askOpenChat(\''+jsq(c.id)+'\')"><span class="askit">'+esc(c.title||'Untitled')+'</span><span class="askops"><a href="#" title="Rename" onclick="event.stopPropagation();askRenameChat(\''+jsq(c.id)+'\');return false">✎</a><a href="#" title="Delete" onclick="event.stopPropagation();askDeleteChat(\''+jsq(c.id)+'\');return false">×</a></span></div>';}
     el.innerHTML=h;});}
 function askToggleList(){const p=document.querySelector('.askpg');if(p)p.classList.toggle('listopen');}
 async function renderAskPage(){

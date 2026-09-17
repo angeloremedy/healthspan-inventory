@@ -1284,7 +1284,7 @@
   },
   {
    "t": "step",
-   "v": "Approval routes (admin) set who signs off which form, in order. A step can point at a named person, at anyone holding a role — which survives someone leaving — or at the request’s own fund source, so marketing spend goes to the marketing approver without needing a step each.",
+   "v": "Approval routes (admin) set who signs off which form, in order. A step can point at a named person, at anyone holding a role — which survives someone leaving — or at the request’s own fund source, so marketing spend goes to the marketing approver without needing a step each. Being an admin does not by itself let you approve a step: the route has to name you, your role, or the fund source you own. The super admin is the one exception, so a stuck request can always be moved — and that decision is on the record like any other.",
    "n": "2"
   },
   {

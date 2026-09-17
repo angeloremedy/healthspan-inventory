@@ -35,7 +35,7 @@ export const handler = async (event) => {
   }
 
   // Hand off to the background worker (background functions ack immediately with 202).
-  const base = process.env.URL || ('https://' + event.headers.host);
+  const base = process.env.URL || 'https://hq.healthspan.ph'; // never the Host header: the job key travels to this origin
   await fetch(base + '/.netlify/functions/stockbot-work-background', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-job-key': process.env.JOB_KEY || '' },

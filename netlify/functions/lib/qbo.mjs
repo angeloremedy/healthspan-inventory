@@ -112,10 +112,10 @@ export function qboError(j, status) {
   return 'QBO HTTP ' + status + (j && j.raw ? ': ' + String(j.raw).slice(0, 160) : '');
 }
 // QBO's query language takes single-quoted strings; a name with an apostrophe must be doubled
-export const q = s => String(s || '').replace(/'/g, "\\'");
+export const q = s => String(s || '').replace(/\\/g, '').replace(/'/g, "\\'"); // a trailing backslash would un-escape the quote
 
 // ── Reference data: find in qbo_map → find in QBO → create ─────────────────
-export async function mapGet(kind, key) { const r = await sb('qbo_map?select=*&kind=eq.' + kind + '&hq_key=eq.' + encodeURIComponent(key)); return r[0] || null; }
+export async function mapGet(kind, key) { const r = await sb('qbo_map?select=*&kind=eq.' + encodeURIComponent(kind) + '&hq_key=eq.' + encodeURIComponent(key)); return r[0] || null; }
 export async function mapSet(kind, key, qboId, qboName, confirmed = true, candidates = null, by = null) {
   await sb('qbo_map?on_conflict=kind,hq_key', 'POST', { kind, hq_key: key, qbo_id: String(qboId), qbo_name: qboName || null, confirmed, candidates, updated_by: by, updated_at: new Date().toISOString() });
   return { kind, hq_key: key, qbo_id: String(qboId), qbo_name: qboName, confirmed };

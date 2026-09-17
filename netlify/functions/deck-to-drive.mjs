@@ -64,7 +64,9 @@ export const handler = async (event) => {
     if (act === 'session') {
       const name = String(body.name || 'Sales review').replace(/[\r\n"\\]/g, '').slice(0, 180);
       // mimeType = Google Slides asks Drive to convert the incoming .pptx on arrival
-      const meta = { name, parents: [FOLDER_ID], mimeType: 'application/vnd.google-apps.presentation' };
+      // stamp who made it: `share` checks the stamp, so a caller can only share a deck
+      // that was minted through this function — never another file the service account can see
+      const meta = { name, parents: [FOLDER_ID], mimeType: 'application/vnd.google-apps.presentation', appProperties: { hq_by: String(who.id || ''), hq_tag: String(body.tag || '').slice(0, 40) } };
       const r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true&fields=id,name,webViewLink', {
         method: 'POST',
         headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json; charset=UTF-8',
@@ -76,6 +78,11 @@ export const handler = async (event) => {
     }
     if (act === 'share') {
       const id = String(body.id || ''); if (!/^[A-Za-z0-9_-]{10,}$/.test(id)) return out(400, { error: 'Bad file id' });
+      // only a deck this function created, in the reports folder; a specialist only their own (audit 2026-09-17)
+      const fm = await fetch('https://www.googleapis.com/drive/v3/files/' + id + '?fields=parents,appProperties,mimeType&supportsAllDrives=true', { headers: { Authorization: 'Bearer ' + tok } }).then(r => r.ok ? r.json() : null).catch(() => null);
+      const ap = (fm && fm.appProperties) || {};
+      if (!fm || !(fm.parents || []).includes(FOLDER_ID) || !ap.hq_by) return out(403, { error: 'Not a deck made from HQ' });
+      if (own && ap.hq_by !== String(who.id || '')) return out(403, { error: 'You can only share your own deck' });
       const asked = [...new Set((Array.isArray(body.emails) ? body.emails : []).concat([who.email]).map(e => String(e || '').trim().toLowerCase()).filter(e => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)))].slice(0, 25);
       // company decks go to company people: only addresses that hold an HQ login
       // (or share the caller's own domain) — never an arbitrary outside mailbox

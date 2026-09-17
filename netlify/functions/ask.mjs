@@ -74,7 +74,7 @@ export const handler = async (event) => {
   if (!catalog) return { statusCode: 400, headers: HDRS, body: JSON.stringify({ error: 'No catalog - wait for the dashboard to finish syncing' }) };
 
   const id = crypto.randomUUID();
-  const base = process.env.URL || ('https://' + event.headers.host);
+  const base = process.env.URL || 'https://hq.healthspan.ph'; // never the Host header: the job key travels to this origin
   try {
     // Background functions ack with 202 immediately; the await is quick.
     const t = await fetch(base + '/.netlify/functions/ask-work-background', {

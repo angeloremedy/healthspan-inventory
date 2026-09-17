@@ -3,6 +3,8 @@
 // answer from the full dataset, and posts the answer back to Slack.
 import { llm, hasKey, isHardQuestion, provider, setProviderPref } from './lib/llm.mjs';
 import { requireJobKey, isSlackHook } from './lib/guard.mjs';
+import { connectLambda, getStore } from '@netlify/blobs';
+import { buildSnapshot } from './refresh.mjs';
 
 function serialDate(ds) {
   if (!ds || typeof ds !== 'number') return '';
@@ -132,15 +134,14 @@ export const handler = async (event) => {
 
   let usedModel = provider();
   try {
-    const base = process.env.URL;
-    const [r, rs] = await Promise.all([
-      fetch(base + '/.netlify/functions/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }),
-      fetch(base + '/api/shopify').catch(() => null)
-    ]);
-    if (!r.ok) throw new Error('inventory feed returned ' + r.status);
-    const data = await r.json();
-    let shop = null;
-    try { if (rs && rs.ok) shop = await rs.json(); } catch (e) {}
+    // read the same Blobs snapshots the app reads — /refresh and /api/shopify need a
+    // signed-in session since the 2026-09-08 audit, and this worker has none (2026-09-17)
+    try { connectLambda(event); } catch (e) {}
+    let data = null, shop = null;
+    try { data = await getStore('sync').get('data', { type: 'json' }); } catch (e) {}
+    if (!data || !Array.isArray(data.products)) { try { data = await buildSnapshot(process.env.GOOGLE_API_KEY || ''); } catch (e) {} }
+    if (!data || !Array.isArray(data.products)) throw new Error('inventory snapshot unavailable');
+    try { shop = await getStore('shopify').get('data', { type: 'json' }); } catch (e) {}
     const cat = buildData(data) + buildShopifySections(data, shop);
 
     try { const SB_URL = (process.env.SUPABASE_URL || '').replace(/\/$/, ''), SVC = process.env.SUPABASE_SERVICE_KEY || ''; if (SB_URL && SVC) { const r = await fetch(SB_URL + '/rest/v1/app_settings?select=value&key=eq.ai_provider', { headers: { apikey: SVC, Authorization: 'Bearer ' + SVC } }).then(x => x.json()); setProviderPref((r[0] || {}).value || ''); } } catch (e) {}

@@ -145,7 +145,7 @@ async function homeLive(){
     const mine=v=>!myTag||specCanon(v.spec||'').toLowerCase()===specCanon(myTag).toLowerCase();
     const fu=(VISITS||[]).filter(v=>v.status!=='planned'&&v.outcome==='Follow-up needed'&&!v.fu_done&&mine(v)).length;
     const today=todayISO();
-    const wk=new Date(Date.now()+7*864e5).toISOString().slice(0,10);
+    const wk=daysISO(7);
     const plans=(VISITS||[]).filter(v=>v.status==='planned'&&mine(v)&&v.date>=today&&v.date<=wk).length;
     chips.push(chip(String(fu),'open follow-up'+(fu===1?'':'s'),plans?plans+' visits planned this week':'','var(--am)','followups'));
   }
@@ -572,9 +572,9 @@ async function renderPOs(){
       (opened?'<div style="margin-top:10px">'+
         (ls.length?'<div class="tscroll"><table><thead><tr><th>SKU</th><th>Product</th><th style="text-align:right">Ordered</th><th style="text-align:right">Received</th>'+(SHOWCOST?'<th style="text-align:right">Unit cost</th>':'')+'<th></th></tr></thead><tbody>'+
         ls.map(l=>'<tr><td>'+esc(l.sku)+'</td><td style="max-width:220px;overflow:hidden;text-overflow:ellipsis">'+esc(l.name||'')+'</td><td class="r">'+l.qty+'</td><td class="r" style="font-weight:700;color:'+((l.received||0)>=l.qty?'var(--gr)':'var(--tx)')+'">'+(l.received||0)+'</td>'+(SHOWCOST?'<td class="r mu">'+(l.unit_cost?fmtPeso(l.unit_cost):'—')+'</td>':'')+
-        '<td>'+((p.status==='ordered'||p.status==='partial')&&(l.received||0)<l.qty?'<a href="#" onclick="poReceive('+p.id+','+l.id+',\''+esc(l.sku)+'\','+l.qty+','+(l.received||0)+');return false" style="color:var(--gr);font-size:11.5px;font-weight:700">receive…</a>':'')+'</td></tr>').join('')+'</tbody></table></div>':'<div class="mu" style="font-size:12px">No lines yet.</div>')+
+        '<td>'+(canWarehouse()&&(p.status==='ordered'||p.status==='partial')&&(l.received||0)<l.qty?'<a href="#" onclick="poReceive('+p.id+','+l.id+',\''+esc(l.sku)+'\','+l.qty+','+(l.received||0)+');return false" style="color:var(--gr);font-size:11.5px;font-weight:700">receive…</a>':'')+'</td></tr>').join('')+'</tbody></table></div>':'<div class="mu" style="font-size:12px">No lines yet.</div>')+
         (SHOWCOST?apBlock(p):'')+
-        '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">'+
+        (canWarehouse()?'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">'+
         (p.status==='draft'?'<input id="pl-sku-'+p.id+'" list="pl-skus" placeholder="SKU" '+inp+' style="width:150px;'+inp.slice(7,-1)+'"><datalist id="pl-skus">'+skuOpts+'</datalist>'+
           '<input id="pl-qty-'+p.id+'" type="number" placeholder="Qty" '+inp+' style="width:90px;'+inp.slice(7,-1)+'">'+
           (SHOWCOST?'<input id="pl-cost-'+p.id+'" type="number" placeholder="Unit cost ₱ (opt.)" '+inp+' style="width:150px;'+inp.slice(7,-1)+'">':'')+
@@ -582,7 +582,7 @@ async function renderPOs(){
           (ls.length?'<button onclick="poStatus('+p.id+',\'ordered\')" style="background:var(--ac);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer">Mark ordered →</button>':'')
         :'')+
         (p.status!=='cancelled'&&p.status!=='received'?'<a href="#" onclick="poStatus('+p.id+',\'cancelled\');return false" style="color:var(--rd);font-size:11px">cancel PO</a>':'')+
-        '</div></div>':'')+
+        '</div>':'')+'</div>':'')+
       '</div>';}).join(''):'<div class="empty" style="margin-top:20px">No purchase orders yet — create the first draft above.</div>')+
     '<div style="font-size:11px;color:var(--tx3);margin-top:8px">Receiving asks for batch + expiry at the door and writes straight into the stock ledger'+(flagOn('ledger_is_truth')?'':' (shadow — the sheet stays stock truth until cutover)')+' · unit costs flow toward margin reporting</div>';
 }
@@ -784,9 +784,9 @@ async function loadCommRules(){
 }
 async function renderCommissions(){
   if(!roleIn('admin','finance')){$('content').innerHTML='<div class="empty" style="margin-top:40px">Finance and admin only.</div>';return;}
-  if(!SHOPIFY||!SHOPIFY.specialists){$('content').innerHTML='<div class="empty" style="margin-top:40px">Waiting for the sales cache…</div>';try{loadShopify().then(()=>{if(currentView==='commissions')renderCommissions();});}catch(e){}return;}
+  if(!SHOPIFY||!SHOPIFY.specialists){$('content').innerHTML='<div class="empty" style="margin-top:40px">Waiting for the sales cache…</div>';try{window._shopWaitRef=SHOPIFY;loadShopify().then(()=>{if(window._shopWaitRef!==SHOPIFY&&currentView==='commissions')renderCommissions();});}catch(e){}return;}
   const rules=await loadCommRules();
-  const yms=[];const d=new Date();for(let i=0;i<13;i++){yms.push(d.toISOString().slice(0,7));d.setMonth(d.getMonth()-1);}
+  const yms=[];for(let i=0;i<13;i++)yms.push(monthsISO(-i));
   const ym=window._commYm&&yms.includes(window._commYm)?window._commYm:yms[1]||yms[0]; // default: last complete month
   window._commYm=ym;
   // merged per-specialist booked for the month
@@ -1044,7 +1044,7 @@ function quoteNew(){
   const inp='style="width:100%;box-sizing:border-box;background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:11px;font-size:14px"';
   const lbl='style="font-size:11.5px;color:var(--tx3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin:12px 0 5px;display:block"';
   const prodOpts=DATA.filter(p=>p.price>0).map(p=>'<option value="'+esc(p.name)+' ('+esc(p.sku)+')">'+fmtPeso(p.price)+'</option>').join('');
-  const exp=new Date(Date.now()+30*864e5).toISOString().slice(0,10);
+  const exp=daysISO(30);
   $('content').innerHTML='<div style="max-width:680px">'+
     '<div class="panel" style="padding:18px;margin-bottom:14px"><div class="phd">New quotation</div>'+
     '<label '+lbl+'>Account / clinic</label><input id="qt-acct" list="qt-accts" placeholder="Start typing…" '+inp+'>'+
@@ -1431,7 +1431,7 @@ async function sdPlan(sku,batch){
   const keys=Object.keys(SD_PLANS);const plan=keys[parseInt(pick,10)-1];
   if(!plan)return;
   const own=(await uiPrompt('Who owns this action? (specialist tag or name — blank = the warehouse team)','')||'').trim();
-  const target=(await uiPrompt('Target date to have it done (YYYY-MM-DD):',new Date(Date.now()+14*864e5).toISOString().slice(0,10))||'').trim();
+  const target=(await uiPrompt('Target date to have it done (YYYY-MM-DD):',daysISO(14))||'').trim();
   if(target&&!/^\d{4}-\d{2}-\d{2}$/.test(target))return uiAlert('Target date must look like 2026-09-15 — nothing saved.');
   const notes=(await uiPrompt('Note (e.g. which account, what discount):','')||'').trim();
   try{
@@ -2066,7 +2066,7 @@ async function renderValuation(){
   window._VALROWS=rows; window._VALTOT=totV;  // the freeze action snapshots exactly what is on screen
   let snaps=[];
   try{const {data}=await SB.from('valuation_snapshots').select('month,taken_at,taken_by,basis,total_value,total_units,sku_count').order('month',{ascending:false}).limit(13);snaps=data||[];}catch(e){}
-  const lastMonth=(function(){const d=new Date();d.setDate(0);return d.toISOString().slice(0,7);})();
+  const lastMonth=monthsISO(-1);
   const haveLast=snaps.some(x=>x.month===lastMonth);
   const byLine={};rows.forEach(r=>{byLine[r.line||'—']=(byLine[r.line||'—']||0)+(r.value||0);});
   const lowM=rows.filter(r=>r.margin!=null&&r.margin<30).length;
@@ -2547,7 +2547,7 @@ function plPaint(rows,byPl){
     ((roleIn('admin','finance'))?(function(){
       const ym=window._plYm||monthISO();
       const inRange=r=>String(r.date_requested||'').slice(0,7)===ym;
-      const yms=[];{const d=new Date();for(let i=0;i<13;i++){yms.push(d.toISOString().slice(0,7));d.setMonth(d.getMonth()-1);}}
+      const yms=[];for(let i=0;i<13;i++)yms.push(monthsISO(-i));
       const costOf=sku=>{const it=(ITEMS||{})[sku];return (it&&it.cost!=null)?it.cost:null;};
       const agg={};let unknownCost=0;
       for(const r of rows){
@@ -3391,7 +3391,8 @@ function canDecideFin(req){ // may I decide the step it is sitting on?
   const me0=(SBUSER&&SBUSER.id)||'';
   if(typeof isSuper==='function'&&isSuper())return true;
   if(req.requester_id&&req.requester_id===me0)return false;
-  if(roleIn('admin'))return true;
+  // no blanket admin pass: a step is decided by whoever the route names (a person, a role,
+  // or the fund source) — PERMISSIONS.md; the super admin above is the one exception (audit 2026-09-17)
   const r=finStepOf(req);if(!r)return false;
   const me=(SBUSER&&SBUSER.id)||'';
   if(r.approver_id&&r.approver_id===me)return true;

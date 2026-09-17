@@ -167,6 +167,12 @@ export const handler = async (event) => {
     if (body.action === 'link') {
       const id = String(body.id || '');
       if (!/^[A-Za-z0-9_-]{10,}$/.test(id)) return out(400, { error: 'Bad file id' });
+      // same rule as GET: only an attachment HQ knows AND this person may see (RLS as the caller) — audit 2026-09-17
+      try {
+        const chk = await fetch(SB_URL + '/rest/v1/attachments?select=id&limit=1&file_id=eq.' + encodeURIComponent(id), { headers: { apikey: SVC, Authorization: 'Bearer ' + who._token } });
+        const rows = await chk.json();
+        if (!Array.isArray(rows) || !rows.length) return out(404, { error: 'Not an HQ attachment you can open' });
+      } catch (e) { return out(500, { error: 'Could not verify the file' }); }
       const r = await fetch('https://www.googleapis.com/drive/v3/files/' + id + '?fields=webViewLink,name&supportsAllDrives=true',
         { headers: { Authorization: 'Bearer ' + tok } });
       const j = await r.json();

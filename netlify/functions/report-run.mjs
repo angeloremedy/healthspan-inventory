@@ -16,7 +16,18 @@ const out = (code, body, headers) => ({ statusCode: code, headers: { 'Content-Ty
 function mayOpen(rep, u) {
   const role = u.super ? 'super' : u.role;
   if (u.super || role === 'admin' || rep.owner_id === u.id) return true;
-  return !!rep.shared && E.rptSourceAllowed((rep.def || {}).source, role);
+  if (!rep.shared) return false;
+  const def = rep.def || {};
+  if (!E.rptSourceAllowed(def.source, role)) return false;
+  // a shared run was produced with the OWNER's columns. If the caller's role may not
+  // see one of them (a cost column), the file is not theirs to open — the owner can
+  // share a version without costs instead. (audit 2026-09-17)
+  const allowed = new Set(E.rptAllowedCols(def.source, role));
+  const S = E.RPT_SOURCES[def.source] || {};
+  const used = new Set([...(def.columns || []), ...((def.group && def.group.by) ? [def.group.by] : []), ...(((def.group || {}).aggs) || []).map(a => a.col).filter(Boolean)]);
+  if (!(def.columns || []).length && !(def.group && def.group.by)) Object.keys(S.cols || {}).slice(0, 8).forEach(c => used.add(c)); // "first eight" default
+  for (const c of used) if (!allowed.has(c)) return false;
+  return true;
 }
 
 export const handler = async (event) => {

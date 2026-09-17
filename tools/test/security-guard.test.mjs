@@ -50,7 +50,8 @@ ok('ask.mjs: answers are readable only by the person who asked', /res\.uid && re
 ok('ask.mjs auth fails closed (sessionUser)', /sessionUser\(event\)/.test(F('ask.mjs')) && !/don't brick the app/.test(F('ask.mjs')));
 ok('stockbot dispatcher carries the key; the worker only posts to Slack', /'x-job-key': process\.env\.JOB_KEY/.test(F('stockbot.mjs')) && /isSlackHook\(response_url\)/.test(F('stockbot-work-background.mjs')));
 ok('asklog: workers write with the key, admins read with a session', /requireJobKeyReq\(req\)/.test(F('asklog.mjs')) && /u\.super \|\| u\.role === 'admin'/.test(F('asklog.mjs')) && !/ASKLOG_KEY/.test(F('asklog.mjs')));
-for (const f of ['refresh.mjs', 'shopify.mjs', 'visits.mjs']) ok(f + ' fails closed when Supabase env is missing', /code:\s*503/.test(F(f)) && !/don't brick the app/.test(F(f)));
+for (const f of ['refresh.mjs', 'shopify.mjs']) ok(f + ' fails closed when Supabase env is missing', /code:\s*503/.test(F(f)) && !/don't brick the app/.test(F(f)));
+ok('visits.mjs is retired (410 stub, no storage, no auth surface)', /statusCode: 410/.test(F('visits.mjs')) && !/getStore|requireUser/.test(F('visits.mjs')));
 ok('upload.mjs: the attachment lookup runs as the caller (RLS decides)', /Authorization: 'Bearer ' \+ who\._token/.test(F('upload.mjs')) && /u\._token = token/.test(F('upload.mjs')));
 ok('admin-users: only the super admin resets another admin', /Only the super admin can reset another admin/.test(F('admin-users.mjs')) && /t\[0\]\.role === 'admin' \|\| t\[0\]\.is_super/.test(F('admin-users.mjs')));
 ok('deck-to-drive: shares only with HQ accounts or the company domain', /hq\.has\(e\) \|\| \(myDom && e\.endsWith/.test(F('deck-to-drive.mjs')));

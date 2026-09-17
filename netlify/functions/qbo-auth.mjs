@@ -29,17 +29,19 @@ async function caller(event) {
     return { id: u.id, role: p.role || 'viewer', super: !!p.is_super };
   } catch (e) { return null; }
 }
-function sign(s) { return crypto.createHmac('sha256', process.env.QBO_CLIENT_SECRET || 'x').update(s).digest('base64url'); }
+function sign(s) { return crypto.createHmac('sha256', process.env.QBO_CLIENT_SECRET || '').update(s).digest('base64url'); }
+function safeEq(a, b) { const A = Buffer.from(String(a)), B = Buffer.from(String(b)); return A.length === B.length && crypto.timingSafeEqual(A, B); }
 function makeState(uid) { const body = uid + '|' + (Date.now() + 10 * 60 * 1000) + '|' + crypto.randomBytes(6).toString('hex'); return Buffer.from(body).toString('base64url') + '.' + sign(body); }
 function readState(state) {
   const [b, sig] = String(state || '').split('.'); if (!b || !sig) return null;
-  const body = Buffer.from(b, 'base64url').toString(); if (sign(body) !== sig) return null;
+  const body = Buffer.from(b, 'base64url').toString(); if (!process.env.QBO_CLIENT_SECRET || !safeEq(sign(body), sig)) return null;
   const [uid, exp] = body.split('|'); if (+exp < Date.now()) return null; return { uid };
 }
 
 export const handler = async (event) => {
   const qs = event.queryStringParameters || {};
   if (event.httpMethod === 'GET' && qs.code && qs.realmId) {
+    if (!process.env.QBO_CLIENT_ID || !process.env.QBO_CLIENT_SECRET) return { statusCode: 503, headers: { 'Content-Type': 'text/plain' }, body: 'QuickBooks is not configured on this site.' };
     // ── Intuit callback: no session header here (it is a top-level navigation), the signed state is the proof
     const st = readState(qs.state);
     const back = (msg, ok) => ({ statusCode: 302, headers: { Location: appUrl() + '/#/v/qbo?' + (ok ? 'connected=1' : 'error=' + encodeURIComponent(msg)) }, body: '' });

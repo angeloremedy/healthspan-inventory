@@ -33,7 +33,7 @@ async function docFormats() { try { const rows = await sb('doc_formats?select=ki
 async function specDir() { // tag → { name, team } from the same function the app uses
   try { const rows = await sb('rpc/spec_directory', 'POST', {}); const m = {}; for (const r of rows || []) m[String(r.tag || '').toLowerCase()] = { name: r.name || r.tag, team: r.team || '' }; return m; } catch (e) { return {}; }
 }
-async function syncRows(kind) { const rows = await sb('qbo_sync?select=*&kind=eq.' + kind + '&limit=5000'); const m = {}; for (const r of rows) m[r.hq_ref] = r; return m; }
+async function syncRows(kind) { const rows = await sb('qbo_sync?select=*&kind=eq.' + encodeURIComponent(kind) + '&limit=5000'); const m = {}; for (const r of rows) m[r.hq_ref] = r; return m; }
 async function upsertSync(row) { row.updated_at = new Date().toISOString(); return sb('qbo_sync?on_conflict=kind,hq_ref', 'POST', row); }
 const errText = e => String((e && e.message) || e).slice(0, 900);
 
