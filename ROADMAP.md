@@ -25,6 +25,11 @@ at cutover; the accounting export CSV remains the fallback); it does not replace
 
 ## ✅ Shipped so far (everything, from the start)
 
+**Search everything; the phone drawer trap (Sep 17)**
+- ✅ **Smart search**: the sidebar box (menu box on phones) finds records, not just pages — orders (HS-/HG-), accounts, specialists, SKUs and batches, quotations, POs, shipments, transfers, pull-outs, complaints, serials, loaners, suppliers, cheques, credit memos, wave picks and all seven finance forms by number. Grouped hits, ⌘K, keyboard; kinds follow `viewAllowed`, rows follow RLS; no amounts in result lines; opens audited
+- ✅ **Drawer back-navigation** (Alex): a product panel on a phone can no longer trap you — ←, the edge swipe, the phone's back, the panel's ← Back / ✕ and every tab or page change close it; the close row is sticky; on phones the panel sits between the top bar and the tabs
+- ✅ Git is the only deploy path; `check.yml` on every push; Claude subscription auth proven on the runner (`claude-preflight.yml`)
+
 **Verna's batch — Receiving, landed cost, supplier claims, delivery cost; in-app dialogs (Sep 8, second build)**
 - ✅ **Receiving** (Logistics → Receiving): one record per inbound shipment against a PO — carrier, tracking, ETD/ETA, customs, broker, status pipeline (expected → on the water → in customs → arrived → counting → received → closed); the count at the door per line (batch, expiry, bin, QA hold) posts to the stock ledger or quarantine and updates the PO's received quantities and status; short/over counts are flagged and raise a supplier claim in one tap; supplier **terms in days from receipt → payment due date**, finance pinged on receipt. Nightly rule 13 pings the warehouse when a shipment passes its ETA
 - ✅ **Landed cost calculator** on each shipment: invoice × FX + freight, insurance, customs duty, import VAT (recoverable by default → excluded), brokerage, arrastre/wharfage, storage/demurrage, trucking, bank charges, other → landed total and a landed ₱/unit per line, allocated by value or quantity; Apply writes the lines and the PO (landed_cost add-on, fx_rate), so Landed cost & valuation reads it unchanged
@@ -507,6 +512,11 @@ minus approved leave and HR-recorded absences; OT entered by HR.
 - ✅ Notifications (in-app): bell + badge; held orders ping managers, decisions ping the specialist, approved orders ping the warehouse, fulfillments ping the order owner. Email later if needed
 - ✅ **Reporting layer** — shipped (Saved reports: definitions, live preview, CSV, sharing, daily/weekly/monthly schedules run server-side with the same engine; Sep 8)
 - ✅ **Forecast accuracy tracking (MAPE)** — shipped (Planning → Forecast accuracy; monthly freeze + self-grading)
+- ✅ **Git + CI** — shipped Sep 17: repo `angeloremedy/healthspan-inventory` is the source of truth (drag-drop deploys retired); `check.yml` runs tests + build smoke + manual coverage on every push; `manuals.yml` rebuilds the PDFs nightly and opens a PR when they change
+- ✅ **Claude on the runner (subscription auth)** — Sep 17: `CLAUDE_CODE_OAUTH_TOKEN` stored as a repo secret (Team subscription, no API billing); `claude-preflight.yml` (manual) proves Claude Code authenticates on a GitHub runner — green in 14 s. This is the prerequisite for the remedy-loop levels below
+- ▢ **remedy-loop, Level 1 — Observer**: nightly Claude run reads `check.yml`/`manuals.yml` results, console errors and the ROADMAP, files GitHub issues with a proposed fix (no code changes). Start here; watch a week of issues for signal before Level 2
+- ▢ **remedy-loop, Level 2 — Repair**: `agent:ready` label on an issue → Claude Code fixes on a branch, runs `npm test` + build + coverage, opens a PR; human merges. Change classes allowed: test fixes, manual paragraphs, copy, `viewAllowed` rows, small bugs. Protected paths in CLAUDE.md stay human-only
+- ▢ **remedy-loop, Level 3 — SPEC-driven build**: first candidate is the payroll engine (Workstream E 1b) — SPEC.md + acceptance tests written first, Planner/Builder/Judge iterate to a passing PR
 - ▢ Disable legacy Supabase JWT keys (after confirming new keys) · rotate service keys on a schedule
 - ▢ Flip the CSP from report-only to enforced after a week of clean consoles (netlify.toml) · replace the remaining `prompt()`/`alert()` multi-field flows with drawers · table-driven role×view matrix test · tests for admin-users.mjs / upload.mjs
 

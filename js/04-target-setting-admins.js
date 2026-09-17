@@ -431,6 +431,8 @@ function acctList(){
 let CUR_ACCT=null,ACCT_BACK='customers';
 let ROUTING=false; // true while applying a route from the URL (prevents push loops)
 function pushRoute(h){
+  // a page change while a drawer is open closes the drawer — the page must never move underneath it
+  try{if(typeof drawerIsOpen==='function'&&drawerIsOpen())closeDrawer(true);}catch(e){}
   if(ROUTING)return;
   // the first route after sign-in (no hash yet) REPLACES the entry instead of pushing one:
   // otherwise Home would show a ← that only leads back to the login screen
@@ -469,6 +471,11 @@ function backPaint(){
   },{passive:true});
 })();
 function applyRoute(){
+  // the ✕ on a drawer already walked history back one step: the page did not change
+  if(window._drawerPopSkip){window._drawerPopSkip=false;return;}
+  // ←, the edge swipe or the phone's own back while a drawer is open: close the
+  // drawer and keep the page — that is the step the opener pushed
+  if(typeof drawerIsOpen==='function'&&drawerIsOpen()){closeDrawer(true);return;}
   const h=location.hash||'';
   ROUTING=true;
   // every deep link runs through the same permission truth as the sidebar. A page

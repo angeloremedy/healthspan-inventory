@@ -143,6 +143,7 @@ therefore a floor — implementation grants the full circle read to all three.
 | Business review — Mixexpert list (tag accounts as source = Mixexpert) | ✅ | ✅ | ✖ | ✖ | ✖ | ✖ |
 | Reports — Copy for Notion (Sales block) | ✅ | ✅ | ✖ | ✖ | 👁 copy | 👁 copy | figures only, no costs |
 | Reports — Copy for Notion (Supply chain block) | ✅ | ✅ | ✖ | ✅ | ✖ | ✖ | inventory at Healthspan price, not cost |
+| Search (sidebar / menu box) — which record kinds answer | all kinds | all but cost pages (no POs, shipments, valuation) | own orders, quotations, clinics, complaints, pull-outs, own finance requests; no SKUs, POs, serials, cheques | SKUs, batches, POs, shipments, transfers, serials, loaners, suppliers, complaints, orders, accounts | orders, accounts, cheques, POs, shipments, suppliers, credit memos, all finance forms | pages, SKUs, accounts, specialists, orders (read), pull-outs, own requests — rows are what RLS returns; result lines never show amounts; viewers: pages, read-only orders, own requests |
 | Team & access — edit name, e-mail, role, tag, team, order (one form) | ✅ (another admin: super only) | ✖ | ✖ | ✖ | ✖ | ✖ — e-mail changed in Auth with email_confirm |
 | Team & access — per-person page access (grant / deny individual pages) | ✅ (another admin: super only) | ✖ | ✖ | ✖ | ✖ | ✖ — deny always wins; cost & system pages never grantable; specialists cannot be granted warehouse/finance/all-team sales pages |
 | Team & access — Order (presenting order) on a specialist | ✅ | ✖ | ✖ | ✖ | ✖ | ✖ — same gate as Team |

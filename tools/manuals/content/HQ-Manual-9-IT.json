@@ -70,6 +70,10 @@
   },
   {
    "t": "p",
+   "v": "Search — the box above the sidebar list finds pages and, for the records this account may open, the matching rows (an order number such as HS-1042, an account, a product, a finance request you filed). Hits appear grouped. Pick a result to open it: orders, accounts and specialists open their own page, a product opens its detail panel, and a list record lands on its list with the row scrolled into view and flashed. ⌘K (Ctrl+K on Windows) puts the cursor in the box. On a phone the box is at the top of the Menu; a detail panel closes with ← in the top bar, its own ← Back / ✕, a left-edge swipe, or any bottom tab — none of them can leave you stuck on it."
+  },
+  {
+   "t": "p",
    "v": "HQ paints from the copy saved on your device and refreshes quietly behind it, so a second visit is near-instant even on clinic wifi."
   },
   {

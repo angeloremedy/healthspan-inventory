@@ -703,5 +703,34 @@ function saveReorder(sku){
   refreshSidebar();
   if(currentView==='all'||currentView==='reorder') drawRows();
 }
-function closeDrawer(){$('overlay').classList.remove('open');$('drawer').classList.remove('open');}
+/* ── Closing the drawer: many ways in, one way out (2026-09-17). On a phone the ✕
+   scrolled away with the content, the ← in the top bar walked the PAGE behind the
+   drawer instead, and the bottom tabs changed the page underneath while the drawer
+   stayed on top — a specialist was stuck on a SKU. Opening any drawer (SKU, sales,
+   customer, specialist, notifications) now pushes one history entry, so ←, the
+   left-edge swipe, the phone's own back and the ✕ all close it; every navigation
+   closes it too; the ✕ is sticky. ── */
+function closeDrawer(silent){
+  $('overlay').classList.remove('open');$('drawer').classList.remove('open');
+  if(window._drawerHist){
+    window._drawerHist=false;
+    // the ✕ (or the overlay) walks back the entry the opener pushed, so the browser's
+    // own history matches what is on screen; applyRoute skips that popstate
+    if(!silent){window._drawerPopSkip=true;window._navDepth=Math.max(0,(window._navDepth||0)-1);try{history.back();}catch(e){}}
+  }
+  try{if(typeof backPaint==='function')backPaint();}catch(e){}
+}
+function drawerIsOpen(){const el=document.getElementById('drawer');return !!(el&&el.classList.contains('open'));}
+(function(){ // every opener adds .open to #drawer — one observer instead of six edits
+  const el=document.getElementById('drawer');if(!el||typeof MutationObserver==='undefined')return;
+  new MutationObserver(()=>{
+    const open=el.classList.contains('open');
+    if(open&&!window._drawerHist){
+      window._drawerHist=true;window._navDepth=(window._navDepth||0)+1;
+      try{history.pushState({hsDrawer:1},'',location.href);}catch(e){}
+      el.scrollTop=0; // the ✕ and the title are at the top of a freshly opened drawer
+      try{if(typeof backPaint==='function')backPaint();}catch(e){}
+    }else if(!open&&window._drawerHist){window._drawerHist=false;} // closed by a direct class removal
+  }).observe(el,{attributes:true,attributeFilter:['class']});
+})();
 

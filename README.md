@@ -1096,6 +1096,43 @@ open one form.
 **+ New order** appears only for roles that may take an order. Supply chain,
 finance, marketing and viewers see the register without the button.
 
+## 9.27 Search — one box, everything you may open
+
+The box above the sidebar list (on a phone: the box at the top of the Menu)
+used to find pages only. It now finds records too. Type any part of a page
+name, an order number (`HS-1042`, or the migrated Shopify `HG-10142`), an
+account, a specialist, a SKU code or product name, a batch number, a quotation
+(`QT-0007`), a PO (`PO-1005`), a shipment (`RCV-12` or its tracking number), a
+transfer (`TR-1003`), a pull-out (`PL-1003`), a complaint (`C-5`), a serial
+number, a loaner (`LN-104`), a supplier, a cheque number, a credit memo
+(`CM-1003`), a wave pick (`WV-104`) or any of the seven finance forms by number
+(`V-`, `RO-`, `PP-`, `RP-`, `RE-`, `CA-`, `ER-`). Hits appear grouped as you
+type — what is already loaded answers instantly, the database answers a moment
+later. ⌘K / Ctrl+K puts the cursor in the box; arrows move, Enter opens,
+Escape closes.
+
+Picking a hit opens the record the way HQ already does: orders, accounts and
+specialists open their page, a product opens its detail panel, and a record
+that lives on a list (a PO, a request, a cheque) lands on that list with its row
+scrolled into view and flashed; a PO or shipment also expands.
+
+Two truths, unchanged. `viewAllowed()` decides which *kinds* of record a person
+may even look for — a specialist is never offered a PO, a viewer never a cheque,
+and a person's page grants and denies from Team & access apply. RLS decides
+which *rows* come back — a specialist's order search returns only their orders
+because that is all the database gives them; their account hits are the clinics
+on those orders. Result lines carry no amounts or costs. Every open from a
+result is written to the Activity log (`search.open`).
+
+**Detail panels on a phone (Alex's report).** A product panel used to trap you:
+its ✕ scrolled away, the ← in the top bar moved the *page* behind the panel,
+and the bottom tabs changed the page underneath while the panel stayed on top.
+Opening any panel now adds one step to the phone's history, so ←, a left-edge
+swipe, the phone's own back gesture and the panel's own **← Back / ✕** all close
+it; any navigation (a tab, the menu, a search result) closes it too; the close
+row is sticky, and on phones the panel sits between the top bar and the tabs
+instead of sliding underneath them.
+
 ## 9.23 Saved reports — the reporting layer
 
 Sales analytics → **Saved reports** is what people who came from NetSuite mean by

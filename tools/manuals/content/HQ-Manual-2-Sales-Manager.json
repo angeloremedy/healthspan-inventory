@@ -185,7 +185,7 @@
   },
   {
    "t": "step",
-   "v": "Sidebar search: type in the box above the list to find any page by name — results come from every area, not just the one you are in; clear the box to return to it. Sections collapse and remember their state (Product lines starts collapsed).",
+   "v": "Search — the box above the sidebar list finds pages AND records. Type part of a page name, an order number (HS-1042 or the Shopify HG- number), an account, a specialist, a product (code or name), a quotation (QT-0007), a complaint, a pull-out or a finance request number (V-, RO-, PP-, RP-, RE-, CA-, ER-) and the hits appear grouped — every specialist's orders and accounts, as on the register. Cost pages are not part of the search for this role. Pick a result to open it: orders, accounts and specialists open their own page, a product opens its detail panel, and a list record lands on its list with the row scrolled into view and flashed. ⌘K (Ctrl+K on Windows) puts the cursor in the box. On a phone the box is at the top of the Menu; a detail panel closes with ← in the top bar, its own ← Back / ✕, a left-edge swipe, or any bottom tab — none of them can leave you stuck on it.",
    "n": "1"
   },
   {

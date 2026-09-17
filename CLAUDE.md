@@ -5,13 +5,13 @@ Read `README.md` (what it does), `ARCHITECTURE.md` (how), `PERMISSIONS.md` (who 
 `ROADMAP.md` (what is next and what is deliberately NOT built) before changing anything.
 
 ## Stack
-- Front end: `index.html` shell + classic scripts `js/00-…` to `js/17-…` sharing ONE global
+- Front end: `index.html` shell + classic scripts `js/00-…` to `js/18-…` sharing ONE global
   lexical scope (no modules, no bundler at dev time). `tools/build.mjs` concatenates them
   in `index.html` tag order into `dist/app.<hash>.js` (esbuild, identifiers untouched).
 - Backend: Netlify Functions in `netlify/functions/*.mjs` (+ `lib/`), Supabase (Postgres,
   RLS on every table), Netlify Blobs for caches. SQL lives ONLY in `SUPABASE-SETUP.md`
   (append a dated section; it is run by hand in the Supabase SQL editor).
-- Tests: Node + jsdom, `npm test` (7 suites, ~470 checks). Build smoke: `npm run build`.
+- Tests: Node + jsdom, `npm test` (8 suites, ~490 checks). Build smoke: `npm run build`.
 - Manuals: `tools/manuals/` (Python + reportlab) — see its README; every feature batch
   rebuilds all nine PDFs into `manuals/` (`directory.js` → `compose.py` → `pagecheck.py`
   → `coverage.js`).

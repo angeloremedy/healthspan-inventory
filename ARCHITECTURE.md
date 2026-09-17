@@ -610,6 +610,38 @@ codemod (`tools/dedialog.mjs`, acorn) rewrote every `prompt()` / `confirm()` /
 functions that were not yet `async`. Rule going forward: never call the browser
 dialogs — the serials test fails if one appears.
 
+### 4.13 Search — `js/18-search.js`
+
+`srRun(q, onPaint)` paints twice: first from memory (sidebar labels + `DESC`,
+`DATA`, `BATCHES`, `acctNames()`, `specNames()`, `SHOPIFY.recent`), then after
+`Promise.allSettled` over one RLS-scoped, `limit`ed PostgREST query per record
+kind. `srKinds()` maps each kind to the `viewAllowed()` page that owns it, so
+the permission truth is reused rather than restated; `srDocParse()` turns a
+printed number back into `{kind, n}` using `DOCFMT` / `DOCFMT_DEFAULT` (prefix,
+padding, offset — dash optional, any case), so `HS-1042` queries `num = 42` and
+`RE-1007` queries `(kind = reimburse, num = 7)`. Openers reuse `showOrderPage`,
+`showAccountPage`, `showSpecPage`, `openDrawer`, `showWavePick`; list records go
+through `showView` + `srHighlight(text)` (polls `#content` for up to 4 s, scrolls
+the row into view, flashes `.sr-hl`), with `window._poOpen` / `SHIP_OPEN`
+pre-set so the PO or shipment arrives expanded. Desktop UI: `#srpanel` floats
+beside `#navq` (`srInput` debounced 160 ms, `srKey` for arrows/Enter/Escape);
+phones: `buildMobileMenu` is wrapped so a query ≥ 2 chars prepends `#sr-mobile`.
+Specialists: `srMine()` filters cached specialists/quotes/Shopify orders to the
+own tag, and their account hits come from their own `orders` rows rather than
+`accounts`. No result line formats money.
+
+### 4.14 Drawer history — `js/06` + `js/04`
+
+A `MutationObserver` on `#drawer`'s class pushes one `history` entry
+(`{hsDrawer:1}`, same URL) the first time any opener adds `.open`, bumping
+`_navDepth` so the mobile ← appears. `closeDrawer(silent)`: the ✕/overlay path
+sets `_drawerPopSkip` and calls `history.back()`; `applyRoute` (the `popstate`
+listener) consumes that flag and does nothing, or — for a back that arrives while
+the drawer is open — closes the drawer and returns without re-rendering.
+`pushRoute` closes an open drawer silently, so every navigation dismisses it.
+CSS: `.dhead` is sticky; on phones `body.authed .drawer` spans from below the
+top bar to above the bottom tabs.
+
 ## 5. Supabase schema (see SUPABASE-SETUP.md for exact SQL)
 
 | Table | Purpose | Key columns |
