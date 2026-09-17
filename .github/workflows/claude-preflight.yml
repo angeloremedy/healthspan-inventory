@@ -1,0 +1,30 @@
+# Proves Claude Code can authenticate on a GitHub runner with the Team-subscription
+# token (secret CLAUDE_CODE_OAUTH_TOKEN). Manual trigger only; costs one short prompt.
+# Run: gh workflow run claude-preflight.yml && gh run watch
+name: claude-preflight
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: claude
+  cancel-in-progress: false
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+    steps:
+      - name: Install Claude Code CLI
+        run: |
+          curl -fsSL https://claude.ai/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Preflight
+        run: |
+          set -e
+          claude --version
+          [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ] || { echo "::error::CLAUDE_CODE_OAUTH_TOKEN secret missing"; exit 1; }
+          out=$(claude -p "reply with exactly: LOOP-READY" 2>&1 || true); echo "$out" | tail -3
+          echo "$out" | grep -q LOOP-READY || { echo "::error::Claude could not authenticate on the runner"; exit 1; }
+          echo "Claude Code authenticated on the runner with the subscription token."
