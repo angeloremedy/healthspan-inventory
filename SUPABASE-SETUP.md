@@ -3146,3 +3146,19 @@ and the PO status — the same effects receiving on the PO page had. Applying th
 landed-cost calculator sets `shipments.landed_total`, each line's
 `landed_unit_cost`, and pushes the fees to `pos.landed_cost` and the rate to
 `pos.fx_rate`, which is what Landed cost & valuation already reads.
+
+## Team & access: e-mail changes and per-person page access (2026-09-10)
+
+Admins edit an account's name, e-mail, role, tag, team and order in one form
+(the e-mail change is made in Auth by `admin-users.mjs` with `email_confirm`, so
+it works at the next sign-in). **Page access** grants or denies individual pages
+beyond the role: a deny always wins; a grant opens a page the role lacks, except
+the cost and system pages (valuation, supplier scorecard, QuickBooks, Team &
+access, activity log, cutover, archive, numbering, routes, option lists,
+commissions, payments), which no override can reach. Only the super admin may
+change another admin's role, e-mail or page access.
+
+```sql
+alter table public.profiles add column if not exists view_grants jsonb not null default '[]'::jsonb;
+alter table public.profiles add column if not exists view_denies jsonb not null default '[]'::jsonb;
+```

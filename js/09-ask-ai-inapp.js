@@ -373,8 +373,8 @@ function splashHide(){
 }
 async function sbLoadProfile(user){
   SBUSER=user;
-  try{const {data}=await SB.from('profiles').select('name,role,specialist_tag,is_super,can_manage_ps').eq('id',user.id).single();SBPROFILE=data||null;}
-  catch(e){try{const {data}=await SB.from('profiles').select('name,role,specialist_tag').eq('id',user.id).single();SBPROFILE=data||null;}catch(e2){SBPROFILE=null;}}
+  try{const {data,error}=await SB.from('profiles').select('name,role,specialist_tag,is_super,can_manage_ps,view_grants,view_denies').eq('id',user.id).single();if(error)throw error;SBPROFILE=data||null;}
+  catch(e0){try{const {data}=await SB.from('profiles').select('name,role,specialist_tag,is_super,can_manage_ps').eq('id',user.id).single();SBPROFILE=data||null;}catch(e1){SBPROFILE=null;}}
   ROLE=(SBPROFILE&&SBPROFILE.role)||'viewer'; // no profile = least access, never a guess at 'sales'
   try{localStorage.setItem('hs_role_cache',ROLE);localStorage.setItem('hs_name_cache',(SBPROFILE&&SBPROFILE.name)||'');}catch(e){}
   const g=$('rolegate');if(g)g.style.display='none';

@@ -296,13 +296,14 @@ async function renderUsers(){
       '<td style="white-space:nowrap">'+
       ((u.is_super&&u.id!==(SBUSER&&SBUSER.id))||(psOnly&&u.role!=='sales')?'<span class="pill pbl" title="Outside your scope">'+(u.is_super?'🛡 protected':'—')+'</span>':
       psOnly?((u.banned?'<a href="#" onclick="userToggle(\''+u.id+'\',\'enable\');return false" style="color:var(--gr);font-size:11.5px">enable</a>':'<a href="#" onclick="userToggle(\''+u.id+'\',\'disable\');return false" style="color:var(--rd);font-size:11.5px">disable</a>')):
-      '<a href="#" onclick="userEdit(\''+u.id+'\',\''+jsq(u.name)+'\',\''+esc(u.role)+'\',\''+jsq(u.tag)+'\','+(u.ps?1:0)+',\''+jsq(u.team||'')+'\','+(u.order!==''&&u.order!=null?u.order:'null')+');return false" style="color:var(--ac);font-size:11.5px">edit</a> · '+
+      '<a href="#" onclick="userEdit(\''+u.id+'\',\''+jsq(u.name)+'\',\''+esc(u.role)+'\',\''+jsq(u.tag)+'\','+(u.ps?1:0)+',\''+jsq(u.team||'')+'\','+(u.order!==''&&u.order!=null?u.order:'null')+',\''+jsq(u.email||'')+'\');return false" style="color:var(--ac);font-size:11.5px">edit</a> · '+
+      (u.is_super?'':'<a href="#" onclick="userPages(\''+u.id+'\',\''+jsq(u.name||u.email)+'\',\''+esc(u.role)+'\','+JSON.stringify(u.grants||[]).replace(/"/g,'&quot;')+','+JSON.stringify(u.denies||[]).replace(/"/g,'&quot;')+');return false" style="color:var(--ac);font-size:11.5px">pages'+((u.grants||[]).length||(u.denies||[]).length?' ('+(u.grants||[]).length+'+ '+(u.denies||[]).length+'−)':'')+'</a> · ')+
       '<a href="#" onclick="userPass(\''+u.id+'\',\''+jsq(u.name||u.email)+'\');return false" style="color:var(--ac);font-size:11.5px">password</a> · '+
       (isSuper()&&u.id!==(SBUSER&&SBUSER.id)?'<a href="#" onclick="userDelete(\''+u.id+'\',\''+jsq(u.name||u.email)+'\');return false" style="color:var(--rd);font-size:11.5px;font-weight:700">delete</a> · ':'')+
       (u.banned?'<a href="#" onclick="userToggle(\''+u.id+'\',\'enable\');return false" style="color:var(--gr);font-size:11.5px">enable</a>':
       '<a href="#" onclick="userToggle(\''+u.id+'\',\'disable\');return false" style="color:var(--rd);font-size:11.5px">disable</a>'))+
       '</td></tr>').join('')+
-    '</tbody></table></div><div class="tfooter"><span>'+users.length+' accounts · disabling blocks sign-in immediately (data is kept) · you can’t disable yourself</span></div></div>'+
+    '</tbody></table></div><div class="tfooter"><span>'+users.length+' accounts · edit changes name, e-mail, role, tag, team · pages grants or denies individual pages beyond the role · disabling blocks sign-in immediately (data is kept) · you can’t disable yourself</span></div><div id="uperm-panel"></div></div>'+
     '<div class="panel" style="padding:16px"><div class="phd">Add account</div>'+
     '<label '+lbl+'>Name</label><input id="au-name" '+inp+'>'+
     '<label '+lbl+'>Email</label><input id="au-email" type="email" '+inp+'>'+
@@ -324,15 +325,58 @@ async function userCreate(){
     renderUsers();
   }catch(e){if(msg){msg.style.color='var(--rd)';msg.textContent=e.message;}}
 }
-async function userEdit(id,name,role,tag,ps,team,order){
-  const nn=await uiPrompt('Name:',name);if(nn===null)return;
-  let nr=await uiPrompt('Role (admin / manager / sales / supply_chain / finance / marketing / viewer / it):',ps?'it':(role==='(no profile)'?'sales':role));if(nr===null)return;
-  nr=nr.trim().toLowerCase();
-  const nt=nr==='sales'?await uiPrompt('Specialist tag (blank = manager, sees all):',tag||''):'';
-  if(nt===null)return;
-  let tm='',od='';if(nr==='sales'&&(nt||'').trim()){tm=await uiPrompt('Team (as printed on the Business review, e.g. Team 1 / Team 2 / Key accounts — blank = none):',team||'');if(tm===null)return;
-    od=await uiPrompt('Presenting order on the Business review (1 = first; blank = after everyone with a number):',order==null?'':String(order));if(od===null)return;}
-  try{await adminUsers('update',{id,name:nn.trim(),role:nr==='it'?'viewer':nr,can_manage_ps:nr==='it',tag:(nt||'').trim(),team:(tm||'').trim(),order:(od||'').trim()});renderUsers();}
+async function userEdit(id,name,role,tag,ps,team,order,email){
+  const ROLES=[{v:'sales',l:'Product specialist'},{v:'manager',l:'Sales manager'},{v:'supply_chain',l:'Supply chain / warehouse'},{v:'finance',l:'Finance'},{v:'marketing',l:'Marketing'},{v:'viewer',l:'Viewer (read-only)'},{v:'it',l:'IT — viewer + specialist accounts'},{v:'admin',l:'Admin'}];
+  const v=await uiForm('Edit account — '+(name||email||''),[
+    {k:'name',l:'Name',v:name||'',req:1},
+    {k:'email',l:'E-mail (sign-in)',t:'email',v:email||'',req:1,hint:'Changing it takes effect at their next sign-in; no confirmation mail is sent.'},
+    {k:'role',l:'Role',t:'select',opts:ROLES,v:ps?'it':(role==='(no profile)'?'sales':role)},
+    {k:'tag',l:'Specialist tag (product specialists; blank for a manager who sees all)',v:tag||''},
+    {k:'team',l:'Team (Business review grouping — Team 1 / Team 2 / Key accounts)',v:team||''},
+    {k:'order',l:'Presenting order on the Business review (1 = first)',t:'number',v:order==null?'':String(order)}
+  ],{ok:'Save'});
+  if(!v)return;
+  const nr=String(v.role||'').toLowerCase();
+  const patch={id,name:v.name.trim(),role:nr==='it'?'viewer':nr,can_manage_ps:nr==='it',tag:nr==='sales'?(v.tag||'').trim():'',team:nr==='sales'?(v.team||'').trim():'',order:nr==='sales'?String(v.order||'').trim():''};
+  if((v.email||'').trim().toLowerCase()!==String(email||'').toLowerCase())patch.email=v.email.trim();
+  try{await adminUsers('update',patch);renderUsers();}
+  catch(e){uiAlert(e.message);}
+}
+/* ── per-person page access: three states per page — role default / always allow / always deny ── */
+let UPERM=null;
+function userPages(id,name,role,grants,denies){
+  UPERM={id,name,role,grants:(grants||[]).slice(),denies:(denies||[]).slice()};
+  userPagesPaint();
+  const el=$('uperm-panel');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function userPagesPaint(){
+  const P=UPERM;const host=$('uperm-panel');if(!host||!P)return;
+  // every sidebar page, under its section, as the person's role would see it
+  const saved={ROLE,SBPROFILE};
+  const items=[];let sec='Home';
+  document.querySelectorAll('.nav > *').forEach(el=>{
+    if(el.classList.contains('nlbl')){sec=el.textContent.replace(/[▾▸]/g,'').trim();return;}
+    const m=(el.getAttribute('onclick')||'').match(/showView\('([a-z0-9_]+)'/);if(m&&m[1]!=='home')items.push({sec,v:m[1],title:el.textContent.trim()});
+  });
+  let byRole={};
+  try{ROLE=P.role==='(no profile)'?'viewer':P.role;SBPROFILE={};for(const it of items)byRole[it.v]=viewAllowed(it.v);}finally{ROLE=saved.ROLE;SBPROFILE=saved.SBPROFILE;}
+  const secs=[...new Set(items.map(i=>i.sec))];
+  host.innerHTML='<div class="panel" style="padding:14px 16px;margin-top:14px"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px"><div class="phd" style="margin:0;flex:1">Page access — '+esc(P.name||'')+' <span class="mu" style="font-weight:400;font-size:11px">role: '+esc(P.role)+'</span></div>'+
+    '<a href="#" class="abtn t-gr" onclick="userPagesSave();return false">Save</a><a href="#" class="abtn" onclick="UPERM=null;$(\'uperm-panel\').innerHTML=\'\';return false">Close</a></div>'+
+    '<div class="mu" style="font-size:11.5px;margin-bottom:10px">Click a page to cycle: <span class="pill pgy">role default</span> → <span class="pill pgr">always allow</span> → <span class="pill prd">always deny</span>. Pages the role already has show a ✓. Cost and system pages cannot be granted to anyone — those rules are the company\'s. Denies always win.</div>'+
+    secs.map(sn=>'<div class="mu" style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin:8px 0 4px">'+esc(sn)+'</div><div style="display:flex;gap:5px;flex-wrap:wrap">'+
+      items.filter(i=>i.sec===sn).map(i=>{const g=P.grants.includes(i.v),d=P.denies.includes(i.v),locked=NEVER_GRANT.includes(i.v)&&!byRole[i.v];
+        const cls=d?'prd':g?'pgr':(byRole[i.v]?'pbl':'pgy');
+        return '<span class="pill '+cls+'" style="cursor:'+(locked?'not-allowed':'pointer')+';opacity:'+(locked?.5:1)+'" title="'+(locked?'Cost / system page — not grantable':(d?'always deny':g?'always allow':byRole[i.v]?'allowed by role':'not in role'))+'" onclick="'+(locked?'':'userPagesCycle(\''+i.v+'\')')+'">'+(byRole[i.v]&&!d?'✓ ':'')+esc(i.title)+'</span>';}).join('')+'</div>').join('')+'</div>';
+}
+function userPagesCycle(v){const P=UPERM;if(!P)return;
+  if(P.denies.includes(v)){P.denies=P.denies.filter(x=>x!==v);}           // deny → default
+  else if(P.grants.includes(v)){P.grants=P.grants.filter(x=>x!==v);P.denies.push(v);} // allow → deny
+  else P.grants.push(v);                                                   // default → allow
+  userPagesPaint();
+}
+async function userPagesSave(){const P=UPERM;if(!P)return;
+  try{await adminUsers('update',{id:P.id,grants:P.grants,denies:P.denies});UPERM=null;$('uperm-panel').innerHTML='';renderUsers();}
   catch(e){uiAlert(e.message);}
 }
 async function userPass(id,who){

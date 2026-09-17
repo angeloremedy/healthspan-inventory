@@ -143,6 +143,8 @@ therefore a floor — implementation grants the full circle read to all three.
 | Business review — Mixexpert list (tag accounts as source = Mixexpert) | ✅ | ✅ | ✖ | ✖ | ✖ | ✖ |
 | Reports — Copy for Notion (Sales block) | ✅ | ✅ | ✖ | ✖ | 👁 copy | 👁 copy | figures only, no costs |
 | Reports — Copy for Notion (Supply chain block) | ✅ | ✅ | ✖ | ✅ | ✖ | ✖ | inventory at Healthspan price, not cost |
+| Team & access — edit name, e-mail, role, tag, team, order (one form) | ✅ (another admin: super only) | ✖ | ✖ | ✖ | ✖ | ✖ — e-mail changed in Auth with email_confirm |
+| Team & access — per-person page access (grant / deny individual pages) | ✅ (another admin: super only) | ✖ | ✖ | ✖ | ✖ | ✖ — deny always wins; cost & system pages never grantable; specialists cannot be granted warehouse/finance/all-team sales pages |
 | Team & access — Order (presenting order) on a specialist | ✅ | ✖ | ✖ | ✖ | ✖ | ✖ — same gate as Team |
 | Team & access — Team field on a specialist | ✅ | ✖ | ✖ | ✖ | ✖ | ✖ — via admin-users.mjs, same gate as editing a user |
 | Business review — Draft with AI | ✅ | ✅ | own box | ✖ | ✖ | ✖ — same gate as editing the box; goes through the existing Ask AI job with the report figures as its data |

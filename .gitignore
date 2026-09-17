@@ -1,0 +1,12 @@
+node_modules/
+.env
+.env.*
+.netlify/
+.DS_Store
+*.log
+dist/
+manuals-new/
+runs/
+*.pyc
+__pycache__/
+tools/manuals/__pycache__/

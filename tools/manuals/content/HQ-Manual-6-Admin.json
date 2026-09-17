@@ -2086,6 +2086,25 @@
    "n": "5"
   },
   {
+   "t": "h2",
+   "v": "<b>Editing a person, and page access</b>"
+  },
+  {
+   "t": "step",
+   "n": 1,
+   "v": "<b>edit</b> on a row opens one form — name, sign-in e-mail, role, specialist tag, team and presenting order. An e-mail change is made immediately (no confirmation mail); it works at their next sign-in."
+  },
+  {
+   "t": "step",
+   "n": 2,
+   "v": "<b>pages</b> opens the page-access panel: every page in the sidebar, grouped as the sidebar is. Click a page to cycle role default → always allow → always deny. A deny always wins; a grant opens a page the role does not normally have."
+  },
+  {
+   "t": "step",
+   "n": 3,
+   "v": "Cost and system pages (valuation, supplier scorecard, QuickBooks, Team &amp; access, activity log, cutover, archive, numbering, routes, option lists, commissions, payments) cannot be granted to anyone, and a specialist cannot be granted warehouse, finance or all-team sales pages — those rules are the company’s. Only the super admin may change another admin’s role, e-mail or page access."
+  },
+  {
    "t": "h1",
    "v": "<b>The audit trail (Activity log)</b>"
   },

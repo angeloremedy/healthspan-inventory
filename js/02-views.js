@@ -7,11 +7,19 @@ const CIRCLE_BLOCK={finance:['scan','scanpick','fulfillq','recall','cyclecount',
 // pages a product specialist may open that happen to start with "sales" — an explicit
 // list, so a future sales* page is not granted to specialists by its name alone
 const SALES_PREFIX_OK=['salesoverview','salesspec','salesbrand','salesaccounts','salesweekly','salesmonthly','salespace','salesevents','salesdeals','salesdue','salesfield','salesfree','salestarget']; // not salesrecon — that is accounting's reconciliation
+// pages an admin can never hand out person-by-person: costs and system administration
+const NEVER_GRANT=['valuation','poscore','qbo','users','audit','cutover','archive','numbering','routes','codelists','commissions','payments'];
 function viewAllowed(v){
   // before the profile has resolved nobody is anybody: only the landing pages open.
   // (The last-known role is cached on the device purely to avoid a repaint flicker;
   // every data read is still decided by the database, not by this function.)
   if(typeof ROLE==='undefined'||!ROLE)return ['home','settings','profile','manual'].includes(v);
+  // per-person overrides set on Team & access: a deny always wins; a grant opens a
+  // page the role lacks, except the cost/system pages, which no override can reach
+  const P=(typeof SBPROFILE!=='undefined'&&SBPROFILE)||{};
+  if(Array.isArray(P.view_denies)&&P.view_denies.includes(v)&&!['home','settings','profile','manual'].includes(v))return false;
+  if(Array.isArray(P.view_grants)&&P.view_grants.includes(v)&&!NEVER_GRANT.includes(v)&&ROLE!=='sales')return true;
+  if(Array.isArray(P.view_grants)&&P.view_grants.includes(v)&&!NEVER_GRANT.includes(v)&&ROLE==='sales'&&!/^sales|^scan|statement|delivery/.test(v)&&!['po','pdc','returns','fulfillq','cyclecount','quarantine','suppliers','transfers','approvals','receiving','serials','loans'].includes(v))return true;
   // Pull-outs are company-wide: anyone may file one, and anyone named as a fund-source
   // approver must be able to decide regardless of their access level elsewhere — several
   // approvers are viewers. Stated as a rule so no future CIRCLE_BLOCK edit can revoke it.
@@ -428,14 +436,23 @@ function renderSalesTarget(){
     '<span style="font-size:11px;color:var(--tx3)">external sales only — Remedy and Healthspan-internal orders never count toward a target</span>'+'</div>';
   for(const[scope,title] of groups){
     const rs=rowsT.filter(t=>t.scope===scope).map(mkRow).sort((a,b)=>b.pct-a.pct);
-    if(!rs.length)continue;
+    /* Lines that SOLD this month but have no LINE row in the Targets tab are listed
+       too, greyed, so a missing target reads as "not set" instead of vanishing
+       (Sep 2026: Inno had ₱6M+ of sales and no row — the page simply hid it). */
+    let untargeted=[];
+    if(scope==='LINE'){const named=new Set(rs.map(r=>String(r.t.name||'').toLowerCase()));
+      untargeted=Object.keys(actLine).filter(L=>!named.has(L.toLowerCase())&&(actLine[L].v>0||actLine[L].u>0)).sort((a,b)=>actLine[b].v-actLine[a].v);}
+    if(!rs.length&&!untargeted.length)continue;
+    const lineSum=scope==='LINE'?rs.reduce((a,r)=>a+(r.t.value||0),0):0;const totalT=(rowsT.find(t=>t.scope==='TOTAL')||{}).value||0;
     html+='<div class="tcard" style="margin-bottom:14px"><div class="tscroll"><table><thead><tr><th>'+title+'</th><th style="text-align:right">Actual ₱</th><th style="text-align:right">Target ₱</th><th style="min-width:130px">Attainment (₱)</th><th style="text-align:right">Actual u</th><th style="text-align:right">Target u</th><th style="min-width:130px">Attainment (u)</th></tr></thead><tbody>'+
       rs.map(r=>'<tr><td style="font-weight:600;max-width:240px;overflow:hidden;text-overflow:ellipsis">'+esc(r.label)+'</td>'+
         '<td class="r" style="font-weight:600">'+fmtPeso(r.act.v)+'</td><td class="r mu">'+(r.t.value>0?fmtPeso(r.t.value):'—')+'</td>'+
         '<td>'+(r.pctV!==null?attBar(r.pctV):'<span class="mu">—</span>')+'</td>'+
         '<td class="r">'+r.act.u.toLocaleString()+'</td><td class="r mu">'+(r.t.units>0?r.t.units.toLocaleString():'—')+'</td>'+
         '<td>'+(r.pctU!==null?attBar(r.pctU):'<span class="mu">—</span>')+'</td></tr>').join('')+
-      '</tbody></table></div></div>';}
+      untargeted.map(L=>'<tr style="opacity:.75"><td style="font-weight:600;max-width:240px;overflow:hidden;text-overflow:ellipsis">'+esc(L)+' <span class="pill pam" title="This line sold this month but has no LINE row for '+esc(ym)+' in the sheet\'s Targets tab">no target set</span></td>'+
+        '<td class="r" style="font-weight:600">'+fmtPeso(actLine[L].v)+'</td><td class="r mu">—</td><td><span class="mu">—</span></td><td class="r">'+actLine[L].u.toLocaleString()+'</td><td class="r mu">—</td><td><span class="mu">—</span></td></tr>').join('')+
+      '</tbody></table></div>'+(scope==='LINE'&&(untargeted.length||(totalT&&lineSum&&Math.abs(totalT-lineSum)>1))?'<div class="tfooter"><span>'+(untargeted.length?untargeted.length+' line'+(untargeted.length>1?'s':'')+' with sales but no target row ('+untargeted.map(esc).join(', ')+') — add a LINE row for '+esc(ym)+' in the Targets tab and press Sync now. ':'')+(totalT&&lineSum?'Line targets add up to '+fmtPeso(lineSum)+' of the '+fmtPeso(totalT)+' company total.':'')+'</span></div>':'')+'</div>';}
   html+='<div style="font-size:11px;color:var(--tx3)">Actuals are booked Shopify sales for '+ym+' · targets come from the sheet’s Targets tab · edit them there and re-sync</div>';
   $('content').innerHTML=html;}
 

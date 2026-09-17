@@ -32,7 +32,9 @@ at cutover; the accounting export CSV remains the fallback); it does not replace
 - ✅ **Delivery cost per order** — what we paid the courier, captured with the shipment details, visible to admin/finance/warehouse only, never on the delivery receipt; the warehouse can now mark dispatched/delivered
 - ✅ **No more browser pop-ups**: every prompt / confirm / alert (≈370) replaced by in-app dialogs (uiPrompt, uiConfirm, uiAlert, uiForm) — styled, keyboard-friendly, one at a time, iOS-safe
 - ✅ "+ New order" hidden for roles that cannot take orders (supply chain, finance, marketing, viewers)
-- ✅ Scope boundaries written down: QuickBooks stays the book of record, Sprout stays HRIS/payroll
+- ✅ Team & access: one edit form (name, e-mail, role, tag, team, order) and per-person page access (grant / deny individual pages; cost & system pages never grantable; deny wins)
+- ✅ Sales vs target lists lines that sold without a target row ("no target set") instead of hiding them
+- ✅ Scope boundary written down: QuickBooks stays the book of record. Sprout: reversed the same week — HR module planned as Workstream E
 
 **Saved reports, warranties & service history, review checkpoints, receipts while filing, security audit (Sep 8)**
 - ✅ **Saved reports** (Sales analytics → Saved reports): the reporting layer — pick a source (stock, batches, sales lines, HQ orders and lines, accounts, visits, quotations, payments, POs with costs, finance forms, serials, loaners), tick columns, filters (text / number / date incl. last N days, this month, last month), group + count/sum/avg/min/max, sort, cap; live preview; save, export CSV, share. **Schedules** (daily / weekly / monthly incl. last day) run at 6am Manila on the server with the same engine (`js/15-report-engine.js` runs in both places), CSV into Blobs, `report_runs` row, bell notification; "Run on the server now" proves a schedule. Every source gates by role; specialists get own rows; cost columns stripped for non-cost roles — preview and file alike
@@ -454,6 +456,44 @@ at cutover; the accounting export CSV remains the fallback); it does not replace
 - ✅ **Warehouse KPIs** — shipped (median/avg cycle time from the new fulfilled_at stamp, ≤48h share, fill rate vs backorders, queue age, units picked)
 - ▢ **Multi-bin putaway rules** — several bins per SKU with putaway suggestions
 
+## Workstream E — HR (the Sprout replacement; decided 2026-09-10 with Agnes)
+
+Decisions taken: Phase 1 = leave & holidays · payroll engine + payslips · BIR &
+government forms · performance. Phase 2 = timekeeping (clock in/out for logistics
+staff only — the rest are on fixed schedules), recruitment & onboarding, engagement
+& announcements. Not building: earned-wage access, benefits/HMO admin (for now).
+Payroll is semi-monthly (15th / 30th): finance prepares the run, HR approves,
+finance releases the bank file and payslips. Attendance in Phase 1 = schedule
+minus approved leave and HR-recorded absences; OT entered by HR.
+
+### Phase 1a — People & leave
+- ▢ **Employee master (201 file)**: one row per employee linked to the HQ login (or not — warehouse helpers may have no login): employment details, dates (hired, regularised, separated), position, department, manager, pay basis, bank account, government IDs (TIN, SSS, PhilHealth, Pag-IBIG), dependents, documents via attachments. New role **hr**; salary and IDs visible to hr, finance and super admin only
+- ▢ **Leave**: leave types with accrual rules (VL/SL by tenure, half-day allowed), balances, HR credits/adjustments, apply → manager approves/rejects (approval routes), team calendar, PH holiday calendar (regular / special non-working, per year), carry-over/conversion rules; self-service on phone; bell pings
+- ▢ **Attendance record**: absences, tardiness, undertime, OT hours entered/approved by HR per cutoff (fixed schedules); phone clock in/out for logistics staff only (Phase 2)
+
+### Phase 1b — Payroll
+- ▢ **Pay structure**: basic (monthly / daily), allowances (taxable / non-taxable, de minimis caps), recurring deductions, loans with amortisation (SSS, Pag-IBIG, company), one-off adjustments
+- ▢ **Statutory tables with effective dates** (editable by finance, versioned): withholding tax (semi-monthly/monthly graduated tables + annualisation), SSS (incl. MPF/WISP), PhilHealth, Pag-IBIG; night differential, OT and holiday premium rates; 13th-month rule; final pay
+- ▢ **Payroll run** per cutoff: compute → review (per-person drill-down, variance vs last run) → HR approves → finance releases: payslips (PDF, per employee, in their profile), bank disbursement file, journal summary for QuickBooks; locked after release; audited
+- ▢ **Commissions and incentives** flow in from the existing Commissions view instead of the CSV
+
+### Phase 1c — BIR & government
+- ▢ **BIR 2316** per employee (PDF, the official layout) with annualised figures; **1601-C** monthly; **1604-C alphalist** (DAT/CSV); SSS R3/R5, PhilHealth RF-1, Pag-IBIG MCRF contribution files
+- ▢ **Parallel run**: two full cycles beside Sprout, per-person reconciliation report, accountant sign-off recorded before Sprout is cancelled
+
+### Phase 1d — Performance
+- ▢ Goals/OKRs per person, review cycles (quarterly/annual) with ratings and comments, manager + self review, extends the sales scorecards to every role; ties into the gamification work
+
+### Phase 2
+- ▢ Timekeeping for logistics staff (phone clock in/out with selfie + location) feeding tardiness/undertime/OT
+- ▢ Recruitment & onboarding (job posts, pipeline, offers, onboarding checklist that creates the account and 201 file)
+- ▢ Engagement & announcements (announcements, pulse surveys, recognition)
+
+### Inputs needed from HR / finance before 1a starts
+- Sprout exports: employee master, 2026 year-to-date payroll register per employee (for annualisation and 2316), leave balances, loan schedules
+- Pay policies: cutoff dates, allowance list with taxability, OT/holiday/night-diff rates in use, leave types and accrual rules, 13th-month practice, probation/regularisation rules
+- The 2026 holiday list the company observes; bank file format the bank accepts
+
 ## Workstream D — Platform & engineering (parallel track)
 
 - ✅ **Close public endpoints** — shipped (session-verified server-side; JOB_KEY jobs; access codes removed)
@@ -468,7 +508,6 @@ at cutover; the accounting export CSV remains the fallback); it does not replace
 - ✅ **Reporting layer** — shipped (Saved reports: definitions, live preview, CSV, sharing, daily/weekly/monthly schedules run server-side with the same engine; Sep 8)
 - ✅ **Forecast accuracy tracking (MAPE)** — shipped (Planning → Forecast accuracy; monthly freeze + self-grading)
 - ▢ Disable legacy Supabase JWT keys (after confirming new keys) · rotate service keys on a schedule
-- ▢ Sprout seams (small): commissions CSV in Sprout's variable-pay import layout · monthly roster check (Sprout active list vs HQ profiles → flag departed staff still holding a login) · scorecards export for appraisals
 - ▢ Flip the CSP from report-only to enforced after a week of clean consoles (netlify.toml) · replace the remaining `prompt()`/`alert()` multi-field flows with drawers · table-driven role×view matrix test · tests for admin-users.mjs / upload.mjs
 
 ---
@@ -500,13 +539,12 @@ accountable through them and their value is being recognised, not being clever:
   valuation, commissions, period close — and feeds QBO through the connector.
   If QBO ever stops fitting, the move is to another accounting product behind
   the same connector, never to HQ.
-- **Sprout stays HRIS and payroll.** Withholding tables, SSS/PhilHealth/Pag-IBIG,
-  13th month, holiday/OT/night-differential rules, 2316, final pay, 201 files,
-  leave, attendance, employee self-service — compliance that changes by circular
-  and personal data under the Data Privacy Act. HQ computes anything with a
-  sales-data origin (commissions, incentive payouts from gamification) and hands
-  it to Sprout; it never pays anyone itself. Employee directory, leave and
-  attendance stay out (HR decision, Aug 2026).
+- ~~Sprout stays HRIS and payroll~~ — **reversed 2026-09-10**: Agnes (HR) confirmed Healthspan wants
+  HRIS and payroll in HQ. See **Workstream E — HR (the Sprout replacement)** below.
+  The guard-rails from the original reasoning stay: HQ payroll runs in parallel
+  with Sprout for at least two full cycles, the accountant signs off the 2316 /
+  1601-C output before Sprout is cancelled, statutory tables live in one editable
+  place with effective dates, and salary data is the most restricted data in HQ.
 - Payment processing → collections stay bank-transfer + accounting
 - Sales-stats switchover before cutover (native orders fold into sales views only at cutover — no double-counting during the parallel run)
 

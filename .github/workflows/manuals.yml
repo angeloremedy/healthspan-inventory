@@ -1,0 +1,52 @@
+name: manuals
+# Rebuild the nine role manuals on demand (and nightly, 2am Manila) so a manual can
+# never drift from the app: directory from the live sidebar, compose, pagination lint,
+# coverage. Opens a PR when a PDF changed; a human merges it.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 18 * * *"
+permissions:
+  contents: write
+  pull-requests: write
+concurrency:
+  group: manuals
+  cancel-in-progress: false
+jobs:
+  manuals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: npm ci
+      - run: pip install --quiet reportlab pdfplumber
+      - name: Rebuild
+        run: |
+          node tools/manuals/directory.js
+          cd tools/manuals
+          python3 compose.py ../../manuals-new
+          python3 pagecheck.py ../../manuals-new
+          cd ../..
+          node tools/manuals/coverage.js | tee -a "$GITHUB_STEP_SUMMARY"
+          cp manuals-new/*.pdf manuals/
+          rm -rf manuals-new
+      - name: Open a PR if anything changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "hq-manuals-bot"
+          git config user.email "hq-manuals-bot@users.noreply.github.com"
+          if git diff --quiet -- manuals tools/manuals/content/_directory.json; then echo "manuals unchanged" >> "$GITHUB_STEP_SUMMARY"; exit 0; fi
+          b="manuals/$(date -u +%Y%m%d-%H%M)"
+          git checkout -b "$b"
+          git add manuals tools/manuals/content/_directory.json
+          git commit -m "Manuals: nightly rebuild"
+          git push -u origin "$b"
+          gh pr create --base main --title "Manuals: nightly rebuild" --body "Automatic rebuild of the nine role manuals (directory from the live sidebar, pagination lint clean, coverage complete). Review the PDFs, then merge."

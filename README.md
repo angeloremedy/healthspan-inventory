@@ -1177,11 +1177,32 @@ detail; SUPABASE-SETUP.md has the SQL.
 HQ replaces the systems where it already holds better data than they do and the
 users are our own team — Shopify, Zoho, Verna's sheet. Two systems stay bought:
 **QuickBooks Online** is the book of record (general ledger, statements, BIR),
-fed by HQ's sub-ledgers through the connector; **Sprout** is HRIS and payroll,
-fed by HQ's commissions and incentive computations. Both exist so that outside
-parties — BIR, the auditor, DOLE, the bank — can hold the company accountable
-through something they recognise; that is not a feature HQ can build. Decided
-2026-09-08; the reasoning is in ROADMAP → Deliberately NOT building.
+fed by HQ's sub-ledgers through the connector. It exists so that outside
+parties — BIR, the auditor, the bank — can hold the company accountable
+through something they recognise. Decided 2026-09-08.
+
+**Sprout** was the second boundary for two days; on 2026-09-10 HR (Agnes)
+confirmed the company wants HRIS and payroll inside HQ, so it is now
+Workstream E in the roadmap: leave & holidays, a payroll engine with payslips,
+BIR and government forms, and performance in Phase 1; timekeeping for the
+logistics staff, recruitment and engagement in Phase 2. The guard-rails stay:
+two parallel payroll cycles beside Sprout and an accountant's sign-off on the
+2316 / 1601-C output before Sprout is cancelled.
+
+## 10.7 Team & access — editing people, and page access per person
+
+Admin → **Team & access**: *edit* on any row opens one form — name, sign-in
+e-mail, role, specialist tag, team and presenting order. An e-mail change is
+made in Auth immediately (no confirmation mail; it works at the next sign-in).
+*pages* opens the page-access panel: every page in the sidebar, grouped as the
+sidebar is, with three states — role default, always allow, always deny. A deny
+always wins; a grant opens a page the role does not normally have. Cost and
+system pages (valuation, supplier scorecard, QuickBooks, Team & access, activity
+log, cutover, archive, numbering, routes, option lists, commissions, payments)
+cannot be granted to anyone — those rules belong to the company, not to an
+admin — and a specialist cannot be granted warehouse, finance or all-team sales
+pages. Only the super admin may change another admin's role, e-mail or page
+access.
 
 ## 11. Odds and ends
 

@@ -63,7 +63,9 @@ SHOPIFY=JSON.parse(JSON.stringify(FULL)); SPERIOD='mtd'; SLINE=''; mergeShopify(
 
 const txt=()=>$('content').textContent;
 const pesos=()=>[...txt().matchAll(/₱([\\d,]+)/g)].map(m=>+m[1].replace(/,/g,''));
-const pcts=()=>[...txt().matchAll(/(\\d+)%/g)].map(m=>+m[1]).filter(p=>p>=50&&p<=250);
+// the "month is N% elapsed — on pace means roughly N%" hint is not an attainment figure;
+// strip it first (it broke the suite on the 15th of the month when N crossed 50)
+const pcts=()=>[...txt().replace(/month is \\d+% elapsed[^%]*%/g,'').matchAll(/(\\d+)%/g)].map(m=>+m[1]).filter(p=>p>=50&&p<=250);
 /* the value of a named metric card, so an assertion cannot be satisfied by some
    other peso figure that happens to share the number */
 const card=(label)=>{
@@ -90,6 +92,13 @@ for(const ext of [true,false]){
   const bad=pcts().filter(p=>p!==100);
   ok('targets all 100% (toggle '+(ext?'external':'all')+')', bad.length===0 && pcts().length>=4, pcts());
 }
+
+// 2b. a line that sold but has no LINE target row is listed as "no target set", not hidden (Inno, Sep 2026)
+{ const keep=TARGETS.slice(); TARGETS=TARGETS.filter(t=>t.scope!=='LINE');
+  currentView='salestarget'; window._tgMonth=ym; renderSalesTarget();
+  ok('untargeted line still appears, flagged', /Meline/.test(txt())&&/no target set/.test(txt())&&/no target row/.test(txt()), txt().slice(0,120));
+  TARGETS=keep; renderSalesTarget();
+  ok('with the row back the flag goes away', !/no target set/.test(txt())); }
 
 // 3. per-specialist attainment is forced; its revenue column follows
 for(const ext of [true,false]){

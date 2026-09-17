@@ -87,7 +87,8 @@ export const handler = async (event) => {
   try {
     if (act === 'list') {
       const users = await svc('/auth/v1/admin/users?per_page=200');
-      const profs = await svc('/rest/v1/profiles?select=id,name,role,specialist_tag,is_super,can_manage_ps,team,sort_order');
+      let profs = await svc('/rest/v1/profiles?select=id,name,role,specialist_tag,is_super,can_manage_ps,team,sort_order,view_grants,view_denies');
+      if (!Array.isArray(profs)) profs = await svc('/rest/v1/profiles?select=id,name,role,specialist_tag,is_super,can_manage_ps,team,sort_order'); // before the page-access SQL
       const pm = {}; for (const x of (profs || [])) pm[x.id] = x;
       const list = ((users && users.users) || []).map(u => ({
         id: u.id, email: u.email,
@@ -98,6 +99,7 @@ export const handler = async (event) => {
         order: (pm[u.id] && pm[u.id].sort_order != null) ? pm[u.id].sort_order : '',
         is_super: !!(pm[u.id] && pm[u.id].is_super),
         ps: !!(pm[u.id] && pm[u.id].can_manage_ps),
+        grants: (pm[u.id] && pm[u.id].view_grants) || [], denies: (pm[u.id] && pm[u.id].view_denies) || [],
         last: u.last_sign_in_at || '',
         banned: !!(u.banned_until && new Date(u.banned_until) > new Date())
       })).sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email));
@@ -117,17 +119,40 @@ export const handler = async (event) => {
     if (act === 'update') {
       const { id, name, role, tag, team, order } = p;
       if (!id) return out(400, { error: 'Need id' });
+      // an admin may reshape staff access, never another admin's (super admin only) — same rule as passwords
+      if (id !== caller.id && !callerSuper && (role != null || p.email != null || p.grants !== undefined || p.denies !== undefined)) {
+        try { const t = await svc('/rest/v1/profiles?id=eq.' + id + '&select=role,is_super');
+          if (t && t[0] && (t[0].role === 'admin' || t[0].is_super)) { await log('user.PROTECTED', { attempted: 'update', target: id.slice(0, 8) }); return out(403, { error: 'Only the super admin can change another admin’s role, email or page access.' }); }
+        } catch (e) { return out(403, { error: 'Target check failed' }); }
+      }
+      // e-mail lives in Auth, not profiles
+      if (p.email != null) {
+        const em = String(p.email).trim().toLowerCase();
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) return out(400, { error: 'That is not an e-mail address' });
+        const r = await fetch(SB_URL + '/auth/v1/admin/users/' + id, { method: 'PUT', headers: { apikey: SVC, Authorization: 'Bearer ' + SVC, 'Content-Type': 'application/json' }, body: JSON.stringify({ email: em, email_confirm: true }) });
+        if (!r.ok) { const t = await r.text(); return out(400, { error: /already/i.test(t) ? 'That e-mail is already used by another account' : ('Auth refused the e-mail change: ' + t.slice(0, 160)) }); }
+        await log('user.email', { id: id.slice(0, 8), email: em });
+      }
       const patch = {};
+      // per-person page overrides: grant a page the role lacks, or deny one it has.
+      // Cost and system pages are never grantable — those rules are the company's, not the admin's.
+      const NEVER_GRANT = ['valuation', 'poscore', 'qbo', 'users', 'audit', 'cutover', 'archive', 'numbering', 'routes', 'codelists', 'commissions', 'payments'];
+      const cleanViews = (a) => Array.isArray(a) ? [...new Set(a.map(v => String(v || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40)).filter(Boolean))].slice(0, 200) : [];
+      if (p.grants !== undefined) patch.view_grants = cleanViews(p.grants).filter(v => !NEVER_GRANT.includes(v));
+      if (p.denies !== undefined) patch.view_denies = cleanViews(p.denies);
       if (team !== undefined) patch.team = String(team || '').trim() || null;
       if (order !== undefined) { const n = parseInt(order, 10); patch.sort_order = isNaN(n) ? null : n; }
       if (name != null) patch.name = name;
       if (role != null) { if (!['admin','manager','sales','supply_chain','finance','marketing','viewer'].includes(role)) return out(400, { error: 'Bad role' }); patch.role = role; }
       if (tag !== undefined) patch.specialist_tag = tag || null;
       if (p.can_manage_ps !== undefined && !callerScoped) patch.can_manage_ps = !!p.can_manage_ps && (role == null || role === 'viewer');
-      await fetch(SB_URL + '/rest/v1/profiles?id=eq.' + id, {
-        method: 'PATCH', headers: { apikey: SVC, Authorization: 'Bearer ' + SVC, 'Content-Type': 'application/json' }, body: JSON.stringify(patch)
-      });
-      await log('user.update', { id: id.slice(0, 8), ...patch });
+      if (Object.keys(patch).length) {
+        const pr = await fetch(SB_URL + '/rest/v1/profiles?id=eq.' + id, {
+          method: 'PATCH', headers: { apikey: SVC, Authorization: 'Bearer ' + SVC, 'Content-Type': 'application/json', Prefer: 'return=representation' }, body: JSON.stringify(patch)
+        });
+        if (!pr.ok) { const t = await pr.text(); return out(400, { error: /view_grants|view_denies/.test(t) ? 'Run the page-access SQL from SUPABASE-SETUP.md first (profiles.view_grants / view_denies).' : ('Could not save the profile: ' + t.slice(0, 160)) }); }
+        await log('user.update', { id: id.slice(0, 8), ...patch });
+      }
       return out(200, { ok: true });
     }
     if (act === 'password') {

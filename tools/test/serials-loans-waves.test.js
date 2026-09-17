@@ -420,12 +420,26 @@ ok('no browser dialog call is left in the app', ['prompt(','confirm(','alert('].
 // complaints split + delivery cost (source checks — the pages need live tables)
 ok('complaints: two directions, supplier tab with PO ref and kind, scorecard Claims column', __src.indexOf("cpSetDir('supplier')")>=0&&__src.indexOf("direction,account:sup?null:who,supplier:sup?who:null,po_ref")>=0&&__src.indexOf('<th class="r">Claims</th>')>=0);
 ok('delivery cost: saved with shipment details, cost roles only, never in the DR', __src.indexOf("patch.delivery_cost=")>=0&&__src.indexOf("canSeeDeliveryCost()")>=0&&!/delivery_cost/.test(__src.slice(__src.indexOf('async function showDeliveryReceipt'),__src.indexOf('async function showDeliveryReceipt')+6000))&&__src.indexOf("function canShip(){return roleIn('admin','manager','supply_chain')")>=0);
+// ── per-person page access (Team & access, 2026-09-10) ──
+{ const keepP=SBPROFILE;
+  ROLE='finance';SBPROFILE={name:'Tal',view_grants:['neworder','valuation'],view_denies:['pdc']};
+  ok('a grant opens a page the role lacks (finance → New order)', viewAllowed('neworder'));
+  ok('a deny closes a page the role has (finance → PDC register)', !viewAllowed('pdc'));
+  ok('cost / system pages cannot be granted (valuation stays finance/admin — finance already has it, so try a manager)', (ROLE='manager',SBPROFILE={view_grants:['valuation','users','audit']},!viewAllowed('valuation')&&!viewAllowed('users')&&!viewAllowed('audit')));
+  ROLE='sales';SBPROFILE={specialist_tag:'Rhas',view_grants:['campaigns','po','salesrecon']};
+  ok('a specialist can be granted a CRM page but never a warehouse, finance or all-team sales page', viewAllowed('campaigns')&&!viewAllowed('po')&&!viewAllowed('salesrecon'));
+  ROLE='viewer';SBPROFILE={view_denies:['home','settings']};
+  ok('home and settings cannot be denied', viewAllowed('home')&&viewAllowed('settings'));
+  SBPROFILE=keepP;ROLE='supply_chain';
+  ok('admin-users: e-mail change goes to Auth; grants strip never-grantable pages; admin targets are super-only', window.__adminUsersSrc.indexOf("email_confirm: true")>=0&&window.__adminUsersSrc.indexOf("filter(v => !NEVER_GRANT.includes(v))")>=0&&window.__adminUsersSrc.indexOf("Only the super admin can change another admin’s role, email or page access.")>=0);
+  ok('Team page: one edit form with e-mail, and a pages link per row', __src.indexOf("{k:'email',l:'E-mail (sign-in)'")>=0&&__src.indexOf('userPages(')>=0&&typeof userPagesCycle==='function');
+}
 ok('New order button follows viewAllowed(neworder)', __src.indexOf("(!trash&&viewAllowed('neworder')?'<button")>=0);
 ok('wave pick loads its orders in one query', __src.indexOf("SB.from('orders').select('*,order_lines(*)').in('id',ids)")>=0);
 window.__done=true;
 })().catch(e=>{window.__err=(e&&e.stack)||String(e);window.__done=true;});
 `;
-w.__src=app;w.__autoHasShiplate=/shiplate/.test(fs.readFileSync('netlify/functions/automations-background.mjs','utf8'));
+w.__src=app;w.__adminUsersSrc=fs.readFileSync('netlify/functions/admin-users.mjs','utf8');w.__autoHasShiplate=/shiplate/.test(fs.readFileSync('netlify/functions/automations-background.mjs','utf8'));
 w.eval(app+'\n;\n'+test);
 setTimeout(()=>{
   if(w.__err){console.error(w.__err);process.exit(1);}
