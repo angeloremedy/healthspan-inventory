@@ -220,6 +220,14 @@
   },
   {
    "t": "h2",
+   "v": "<b>Org chart — who reports to whom</b>"
+  },
+  {
+   "t": "p",
+   "v": "Org chart (right under My profile in the sidebar) shows who reports to whom across Healthspan Global — names, titles and the reporting line, as the People team keeps it; colours mark co-founders, managers, leads, associates, part-timers and interns, and a dashed box is a vacant post. Tap any name to open the person's card: their title, who they report to, who reports to them, and the pages HQ has for them (a product specialist's sales page, for those who may open it). Find a name or title with the box above the chart; on a phone the chart is an indented list, and Tree / List switches the layout anywhere. It carries no pay and no costs — names and titles only. Until the HR module owns people records, the chart is updated with the app."
+  },
+  {
+   "t": "h2",
    "v": "<b>My profile — your own page</b>"
   },
   {
@@ -1838,7 +1846,7 @@
   },
   {
    "t": "p",
-   "v": "QuickBooks stays the ledger; HQ now feeds it directly. When an order is fulfilled (the DR moment) it becomes a QuickBooks Invoice — HS number as the document number, due date from the order’s terms, VAT 12% inclusive, one item per SKU, deal “+1” and FOC lines at ₱0. Each payment recorded in HQ becomes a Payment on that invoice; a credit memo becomes a CreditMemo applied to the invoice it names; a cancelled order voids its invoice and an edited one updates it. Payments that accounting records directly in QuickBooks come back into HQ, so AR aging and the credit gate stay true whichever side the cash was entered on."
+   "v": "QuickBooks stays the ledger; HQ is becoming the one system that feeds it — for orders entered in HQ and, once switched, for Shopify orders too. An order becomes a QuickBooks Invoice the moment it exists: its printed number as the document number (HS-… for HQ orders, HG-… for Shopify ones), the invoice date and due date from the order’s own terms (30 days when it carries none), every line at LIST price with the discount shown once as QuickBooks’ own Discount row (a percentage when it is one), VAT 12% inclusive on VAT lines and “No VAT” on Termosalud, Mark-Vu, Line-Vu and GTG lines, and class Sales on the header and every line — exactly the invoice the Shopify connector produced, so the books read the same whichever system wrote them. A cancelled order that is still unpaid is voided only in the same month as its invoice; a later cancellation, or one with money received, is left for a credit note by hand. An edited order updates its invoice unless money has already been applied against a different total — then HQ refuses and says so. Returns become CreditMemos applied to the invoice they name. Payments are NOT sent to QuickBooks: Collections records them there after confirming the money, and every payment recorded in QuickBooks comes back into HQ, so AR aging and the credit gate stay true. HQ also refuses to leave a wrong invoice behind — if QuickBooks totals a document differently from the order, the invoice is removed at once and the row shows both figures."
   },
   {
    "t": "p",
@@ -1846,13 +1854,17 @@
   },
   {
    "t": "step",
-   "v": "Open Finance → QuickBooks sync. Five panels: Connection (which company, which environment, how long the link is good for), Settings, Last run, Customer matches to confirm, and the Sync ledger.",
+   "v": "Open Finance → QuickBooks sync. Six panels: Connection (which company, which environment, how long the link is good for), Settings, Shadow reconciliation, Last run, Customer matches to confirm, and the Sync ledger.",
    "n": "1"
   },
   {
    "t": "step",
-   "v": "Read Last run first: mode (Preview or Live), invoices posted or “would post”, payments sent and pulled back, and any errors with QuickBooks’ own reason text.",
+   "v": "Read Last run first: mode (Preview or Live), invoices posted or “would post”, payments pulled back (and whether sending is off), and any errors with QuickBooks’ own reason text.",
    "n": "2"
+  },
+  {
+   "t": "p",
+   "v": "Shadow reconciliation: before Shopify orders are switched over, HQ proves it produces the same invoice the Shopify connector did. For every Shopify order imported since the cutoff date it builds the invoice it would post and compares it with the invoice QuickBooks already holds under the same HG number — total, VAT, class, customer, due date, number of lines and the discount row. Nothing is written to QuickBooks. The panel shows how many orders were compared, how many are identical, how many differ or are missing, and how many clean runs in a row there have been; Reconcile now runs one immediately, and it also runs every night. Every row that differs must be fixed or explained before the switch; a week of clean runs is the signal."
   },
   {
    "t": "step",
@@ -1861,7 +1873,7 @@
   },
   {
    "t": "step",
-   "v": "Sync ledger: every document the sync has touched — search by HS number, filter by status (pending, posted, updated, error, voided, skipped). A row that has failed five times stops retrying until you press Retry. Negative correction payments are skipped and listed: reverse those in QuickBooks by hand.",
+   "v": "Sync ledger: every document the sync has touched — search by HS or HG number, filter by status (pending, posted, updated, error, voided, skipped). Pending rows in preview say what would be posted and how the discount would appear; skipped rows say why (internal or test account, cancelled before posting, cancelled in a later month — credit note by hand). A row that has failed five times stops retrying until you press Retry.",
    "n": "4"
   },
   {

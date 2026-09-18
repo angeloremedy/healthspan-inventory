@@ -26,6 +26,12 @@ export default async () => {
     });
     results.backup = r.status;
   } catch (e) { results.backup = 'error: ' + e.message; }
+  try { // QuickBooks shadow reconciliation: HQ's invoice vs the one in the books, per Shopify order (reads only)
+    const r = await fetch(base + '/.netlify/functions/qbo-reconcile-background', {
+      method: 'POST', headers: { 'x-job-key': key, 'Content-Type': 'application/json' }, body: JSON.stringify({ by: 'nightly' })
+    });
+    results.qboReconcile = r.status;
+  } catch (e) { results.qboReconcile = 'error: ' + e.message; }
   try {
     const r = await fetch(base + '/.netlify/functions/automations-background', {
       method: 'POST', headers: { 'x-job-key': key }

@@ -151,6 +151,7 @@ therefore a floor — implementation grants the full circle read to all three.
 | Business review — Draft with AI | ✅ | ✅ | own box | ✖ | ✖ | ✖ — same gate as editing the box; goes through the existing Ask AI job with the report figures as its data |
 | Expense report (file one) | ✅ | ✅ | ✅ | ✅ | ✅ | any signed-in user; the approval route is the control, same as all finance forms |
 | My profile | ✅ | ✅ | ✅ | ✅ | ✅ | everyone — it only ever shows your own items |
+| Org chart (names, titles, reporting line; a name opens the person's card) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ everyone — view key `orgchart`; no pay, no costs; the card's Sales page / Team & access links appear only when `viewAllowed('spec')` / `viewAllowed('users')` |
 | Account documents (view / add) | ✅ | ✅ | ✅ | ✅ | ✅ | 👁 |
 | Visit photos (on your own visit) | ✅ | ✅ | ✅ | ✅ | ✅ | ✖ | everyone may open a visit's files; only its owner attaches |
 | Pull-out request (file one) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (viewer/IT too — `viewAllowed` returns true for every role by rule) |
@@ -186,6 +187,7 @@ therefore a floor — implementation grants the full circle read to all three.
 | Ask Healthspan (context auto-scoped to role) | ✅ full | ✅ no costs | ✅ own scope | ✅ ops scope | ✅ incl. costs | ✅ circle scope |
 | QuickBooks sync page (view, confirm matches, retry, sync now) | ✅ | ✖ | ✖ | ✖ | ✅ | ✖ — view key `qbo`; viewer has no access either. `viewAllowed` and `qbo-admin.mjs` agree |
 | QuickBooks connect / settings / enable | super admin only | ✖ | ✖ | ✖ | 👁 settings | ✖ — Connect, Disconnect, Save settings and Enable/Disable are refused server-side in `qbo-auth.mjs` and `qbo-admin.mjs` (`settings`) for anyone else; admin and finance see the settings read-only |
+| QuickBooks shadow reconciliation (view, Reconcile now) | ✅ | ✖ | ✖ | ✖ | ✅ | ✖ — `qbo-admin.mjs` `reconcile` / `reconcile-status`, same gate as the page; reads QuickBooks, writes nothing; the result carries order totals and QuickBooks customer names, never costs |
 
 **View-only clarity (2026-08-28):** every read-only view shows a banner naming
 who edits it (from the VIEW_WRITERS map — admin/super never named, that's a
@@ -240,6 +242,20 @@ Bank/treasury balances, disbursement approvals (RTPs), supplier bill payments,
 BIR filings, payroll → QBO + bank portals (finance reports these from there).
 Website/social analytics → GA/Meta (Maria's tools).
 
+
+## 2026-09-18 — HQ as the single QuickBooks writer
+
+- The QuickBooks settings gained finance's rules (post at creation, No-VAT code, class,
+  discount presentation, strict totals, **send payments — default off**, terms, anonymous
+  name, reconciliation date). All remain **super admin only** to write; admin and finance
+  read them. `qbo_use_class` / `qbo_use_location` retired.
+- `orders.qbo_src` (the Shopify snapshot for QuickBooks) is a column of `orders` and follows
+  its RLS (every signed-in role reads orders). It holds the buyer's name, company, e-mail
+  and phone as Shopify has them — contact data the `accounts` table already exposes — and
+  **no cost**. It is not painted anywhere in the app.
+- New background worker `qbo-reconcile-background.mjs`: JOB_KEY, fail closed, listed in the
+  security-guard test with the others. `shopify-recent.mjs` is a schedule that only calls
+  `backfill-background` with the job key.
 
 ## 2026-09-17 audit — what changed in the enforcement
 

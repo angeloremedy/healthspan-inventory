@@ -3,7 +3,7 @@
 **The vision: one system that fully replaces Zoho, Shopify, and Verna's sheet —
 Healthspan's own NetSuite: ERP + CRM + WMS in a single platform.**
 Live at hq.healthspan.ph (installable as an app). The living copy of this plan is
-on Notion — update both as things ship. Last updated: 2026-08-28.
+on Notion — update both as things ship. Last updated: 2026-09-18.
 
 Legend: ✅ done · 🔨 in progress · ⏭ next up · ▢ planned
 
@@ -24,6 +24,17 @@ at cutover; the accounting export CSV remains the fallback); it does not replace
 ---
 
 ## ✅ Shipped so far (everything, from the start)
+
+**HQ as the single QuickBooks writer (Sep 18)**
+- ✅ Finance's invoice rules ported from the Shopify→QBO connector into one pure mapper (`lib/qbo-map.mjs`), proven identical to that connector's code on ten orders; the sync pass rebuilt on it — post at order creation, list price + Discount row, VAT / No-VAT per line, class Sales, strict totals (delete on mismatch), same-month void, no outbound payments unless finance switches it on, Shopify orders from their snapshot with HG- numbers and Shopify customer names, e-mail customer matching
+- ✅ Shopify import: centavos, Manila dates, the QuickBooks snapshot (`orders.qbo_src`), every 15 minutes for recent changes (`shopify-recent.mjs`) plus the nightly full history; page size adapts to Shopify's query cost
+- ✅ Shadow reconciliation on the QuickBooks page: HQ's predicted invoice vs the one already in QuickBooks for every Shopify order since the connector's cutoff — differences named field by field, clean-run streak, Reconcile now, nightly run; a week of clean runs is the switch signal
+- ✅ Settings: invoice at creation / fulfilment, No-VAT code, class, discount presentation, default terms, anonymous name, reconcile-from, strict totals, send payments; `qbo_use_class` / `qbo_use_location` retired. Manuals (finance, admin, super admin) rewritten for the new behaviour; runbook for pausing the GCP connector in README 9.22
+- ▢ Next: watch the reconciliation for a week, then the cutover runbook
+
+**Org chart (Sep 18)**
+- ✅ Company org chart as its own page (under My profile, every role): the People team's Healthspan chart — co-founders, group functions, country sales with teams 1 and 2 — with the level legend and vacant posts; every name opens the person's card (reports to, direct reports, sales page / Team & access where allowed); find box, Tree / List, phone outline. Data in `js/19-orgchart.js` until the HR module owns people records
+
 
 **App-wide audit (Sep 17–18)**
 - ✅ Static pass (declared vs referenced identifiers, duplicates, dialog/date rules), runtime pass (role × view matrix: every page as every role, now a permanent suite), two independent reviews (server functions; views' escaping/costs/permissions)
@@ -65,7 +76,8 @@ at cutover; the accounting export CSV remains the fallback); it does not replace
 - ✅ Scan-based and idempotent — no triggers, no queue; every 15 minutes (`qbo-schedule.mjs` → `qbo-sync-background.mjs`, JOB_KEY), one run at a time, 150 invoices per run, an erroring row stops after 5 attempts until Retry
 - ✅ Tokens in `qbo_tokens`, service key only, never in the UI; refresh tokens rotate and are kept warm. Env: QBO_CLIENT_ID, QBO_CLIENT_SECRET, QBO_ENV (sandbox | production), optional QBO_REDIRECT_URI. 39 checks in `tools/test/qbo-connector.test.mjs` against a fake Intuit + fake Supabase
 - ✅ Built now, **switched on at cutover** (`app_settings.qbo_enabled`): until then every run is a preview — rows written as pending with the amount that would post, nothing posted — and the Shopify→QBO connector keeps carrying Shopify orders
-- ⏭ Switch on at cutover; pull-outs to QBO as journal entries later
+- ✅ **2026-09-18 — HQ becomes the single QuickBooks writer.** Decided with Angelo: replace the Shopify→QBO connector (GCP, live since 09-15) with HQ for every order. Built: `lib/qbo-map.mjs` — finance's rules as one pure mapper (invoice at order creation; `TaxInclusiveAmt`/net, never `UnitPrice`; VAT code per line, No-VAT for Termosalud / Mark-Vu / Line-Vu / GTG; class Sales on header and lines; list price + ONE QuickBooks Discount row, per-line fallback when VAT is mixed; strict totals with delete-on-mismatch; same-Manila-month void only; Shopify's terms / "Due on receipt" / 30 days; Anonymous) — **byte-for-byte identical** to the connector's own code on ten orders (`qbo-parity.test.mjs`, connector frozen under `tools/test/fixtures/qbo-connector/`). `qbo-sync.mjs` rewritten on the mapper; payments NOT sent (`qbo_sync_payments`, default off); Shopify orders posted from `orders.qbo_src`, HG- numbers, Shopify customer names kept; Shopify orders' paid/balance stay the import's. Import: centavos, Manila dates, `qbo_src`, `recent` mode every 15 min (`shopify-recent.mjs`). **Shadow reconciliation** (`qbo-reconcile-background`, nightly + Reconcile now): HQ's invoice vs the one in QuickBooks per Shopify order since 09-14 — total, VAT, class, customer, due date, lines, discount row; clean-run streak on the page. Tests 58 + 39 + parity. Settings: post mode, No-VAT code, class, discount style, strict, payments, terms, anonymous, reconcile-from
+- ⏭ **Cutover of Shopify orders** (runbook in README 9.22): a week of clean reconciliation runs → pause the GCP connector's `processEvent` (keep `syncInventory` until Shopify is retired) → `qbo_sources = all`, post-from = the switch date → Enable. Then `qbo_sources = native` and stop the import when Shopify goes. Pull-outs to QBO as journal entries later
 
 **Data pipeline & sync**
 - ✅ Live Google Sheets sync of Verna's master file (products, batches, IN/OUT movement, pull-outs), auto-refresh every 15 min, localStorage instant-load cache, sync progress UI
@@ -477,7 +489,7 @@ finance releases the bank file and payslips. Attendance in Phase 1 = schedule
 minus approved leave and HR-recorded absences; OT entered by HR.
 
 ### Phase 1a — People & leave
-- ▢ **Employee master (201 file)**: one row per employee linked to the HQ login (or not — warehouse helpers may have no login): employment details, dates (hired, regularised, separated), position, department, manager, pay basis, bank account, government IDs (TIN, SSS, PhilHealth, Pag-IBIG), dependents, documents via attachments. New role **hr**; salary and IDs visible to hr, finance and super admin only
+- ▢ **Employee master (201 file)** — takes over the org chart's data (`js/19-orgchart.js`) so the reporting line lives in the database: one row per employee linked to the HQ login (or not — warehouse helpers may have no login): employment details, dates (hired, regularised, separated), position, department, manager, pay basis, bank account, government IDs (TIN, SSS, PhilHealth, Pag-IBIG), dependents, documents via attachments. New role **hr**; salary and IDs visible to hr, finance and super admin only
 - ▢ **Leave**: leave types with accrual rules (VL/SL by tenure, half-day allowed), balances, HR credits/adjustments, apply → manager approves/rejects (approval routes), team calendar, PH holiday calendar (regular / special non-working, per year), carry-over/conversion rules; self-service on phone; bell pings
 - ▢ **Attendance record**: absences, tardiness, undertime, OT hours entered/approved by HR per cutoff (fixed schedules); phone clock in/out for logistics staff only (Phase 2)
 

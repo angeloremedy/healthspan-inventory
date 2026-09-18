@@ -8,6 +8,12 @@
   },
   {
    "sec": "Home",
+   "view": "orgchart",
+   "title": "Org chart",
+   "desc": "Who reports to whom across Healthspan Global — names, titles and the reporting line, as the People team keeps it. Tap a name for the person's card and their pages in HQ."
+  },
+  {
+   "sec": "Home",
    "view": "ask",
    "title": "Ask Healthspan",
    "desc": "Ask Healthspan as a full page: your saved chats on the left, the conversation on the right. Same brain as the side chat — stock, sales, accounts, targets, in plain language."
@@ -187,6 +193,12 @@
    "view": "profile",
    "title": "My profile",
    "desc": "Your own page — who you are signed in as, the finance forms you have filed and where each one stands, your open follow-ups, loaners you checked out, and the quick actions (password, manual, favourites) without digging through menus."
+  },
+  {
+   "sec": "Home",
+   "view": "orgchart",
+   "title": "Org chart",
+   "desc": "Who reports to whom across Healthspan Global — names, titles and the reporting line, as the People team keeps it. Tap a name for the person's card and their pages in HQ."
   },
   {
    "sec": "Home",
@@ -744,6 +756,12 @@
   },
   {
    "sec": "Home",
+   "view": "orgchart",
+   "title": "Org chart",
+   "desc": "Who reports to whom across Healthspan Global — names, titles and the reporting line, as the People team keeps it. Tap a name for the person's card and their pages in HQ."
+  },
+  {
+   "sec": "Home",
    "view": "ask",
    "title": "Ask Healthspan",
    "desc": "Ask Healthspan as a full page: your saved chats on the left, the conversation on the right. Same brain as the side chat — stock, sales, accounts, targets, in plain language."
@@ -1268,6 +1286,12 @@
   },
   {
    "sec": "Home",
+   "view": "orgchart",
+   "title": "Org chart",
+   "desc": "Who reports to whom across Healthspan Global — names, titles and the reporting line, as the People team keeps it. Tap a name for the person's card and their pages in HQ."
+  },
+  {
+   "sec": "Home",
    "view": "ask",
    "title": "Ask Healthspan",
    "desc": "Ask Healthspan as a full page: your saved chats on the left, the conversation on the right. Same brain as the side chat — stock, sales, accounts, targets, in plain language."
@@ -1546,7 +1570,7 @@
    "sec": "Finance",
    "view": "qbo",
    "title": "QuickBooks sync",
-   "desc": "HQ → QuickBooks Online: fulfilled orders become invoices, payments and credit memos follow, and payments recorded in QuickBooks come back. Preview until enabled at cutover."
+   "desc": "HQ → QuickBooks Online, for HQ and Shopify orders alike: an order becomes an invoice when it is created (list price + Discount row, VAT codes per line, class Sales), returns become credit memos, payments recorded in QuickBooks come back. The shadow reconciliation proves HQ matches the old Shopify connector before the switch."
   },
   {
    "sec": "Finance",
@@ -1801,6 +1825,12 @@
    "view": "profile",
    "title": "My profile",
    "desc": "Your own page — who you are signed in as, the finance forms you have filed and where each one stands, your open follow-ups, loaners you checked out, and the quick actions (password, manual, favourites) without digging through menus."
+  },
+  {
+   "sec": "Home",
+   "view": "orgchart",
+   "title": "Org chart",
+   "desc": "Who reports to whom across Healthspan Global — names, titles and the reporting line, as the People team keeps it. Tap a name for the person's card and their pages in HQ."
   },
   {
    "sec": "Home",
@@ -2268,6 +2298,12 @@
   },
   {
    "sec": "Home",
+   "view": "orgchart",
+   "title": "Org chart",
+   "desc": "Who reports to whom across Healthspan Global — names, titles and the reporting line, as the People team keeps it. Tap a name for the person's card and their pages in HQ."
+  },
+  {
+   "sec": "Home",
    "view": "ask",
    "title": "Ask Healthspan",
    "desc": "Ask Healthspan as a full page: your saved chats on the left, the conversation on the right. Same brain as the side chat — stock, sales, accounts, targets, in plain language."
@@ -2600,7 +2636,7 @@
    "sec": "Finance",
    "view": "qbo",
    "title": "QuickBooks sync",
-   "desc": "HQ → QuickBooks Online: fulfilled orders become invoices, payments and credit memos follow, and payments recorded in QuickBooks come back. Preview until enabled at cutover."
+   "desc": "HQ → QuickBooks Online, for HQ and Shopify orders alike: an order becomes an invoice when it is created (list price + Discount row, VAT codes per line, class Sales), returns become credit memos, payments recorded in QuickBooks come back. The shadow reconciliation proves HQ matches the old Shopify connector before the switch."
   },
   {
    "sec": "Finance",
@@ -2876,6 +2912,12 @@
   },
   {
    "sec": "Home",
+   "view": "orgchart",
+   "title": "Org chart",
+   "desc": "Who reports to whom across Healthspan Global — names, titles and the reporting line, as the People team keeps it. Tap a name for the person's card and their pages in HQ."
+  },
+  {
+   "sec": "Home",
    "view": "ask",
    "title": "Ask Healthspan",
    "desc": "Ask Healthspan as a full page: your saved chats on the left, the conversation on the right. Same brain as the side chat — stock, sales, accounts, targets, in plain language."
@@ -3208,7 +3250,7 @@
    "sec": "Finance",
    "view": "qbo",
    "title": "QuickBooks sync",
-   "desc": "HQ → QuickBooks Online: fulfilled orders become invoices, payments and credit memos follow, and payments recorded in QuickBooks come back. Preview until enabled at cutover."
+   "desc": "HQ → QuickBooks Online, for HQ and Shopify orders alike: an order becomes an invoice when it is created (list price + Discount row, VAT codes per line, class Sales), returns become credit memos, payments recorded in QuickBooks come back. The shadow reconciliation proves HQ matches the old Shopify connector before the switch."
   },
   {
    "sec": "Finance",
@@ -3499,6 +3541,12 @@
    "view": "profile",
    "title": "My profile",
    "desc": "Your own page — who you are signed in as, the finance forms you have filed and where each one stands, your open follow-ups, loaners you checked out, and the quick actions (password, manual, favourites) without digging through menus."
+  },
+  {
+   "sec": "Home",
+   "view": "orgchart",
+   "title": "Org chart",
+   "desc": "Who reports to whom across Healthspan Global — names, titles and the reporting line, as the People team keeps it. Tap a name for the person's card and their pages in HQ."
   },
   {
    "sec": "Home",
@@ -3951,6 +3999,12 @@
    "view": "profile",
    "title": "My profile",
    "desc": "Your own page — who you are signed in as, the finance forms you have filed and where each one stands, your open follow-ups, loaners you checked out, and the quick actions (password, manual, favourites) without digging through menus."
+  },
+  {
+   "sec": "Home",
+   "view": "orgchart",
+   "title": "Org chart",
+   "desc": "Who reports to whom across Healthspan Global — names, titles and the reporting line, as the People team keeps it. Tap a name for the person's card and their pages in HQ."
   },
   {
    "sec": "Home",

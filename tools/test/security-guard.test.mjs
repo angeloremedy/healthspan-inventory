@@ -41,7 +41,7 @@ ok('good token → id, role, name, super flag', u.id === 'u-1' && u.role === 'fi
 
 // ── source checks: the gate is actually used ────────────────────────────────────
 const F = f => fs.readFileSync('netlify/functions/' + f, 'utf8');
-for (const f of ['automations-background.mjs', 'backup-background.mjs', 'backfill-background.mjs', 'shopify-build-background.mjs', 'qbo-sync-background.mjs', 'ask-work-background.mjs', 'stockbot-work-background.mjs']) {
+for (const f of ['automations-background.mjs', 'backup-background.mjs', 'backfill-background.mjs', 'shopify-build-background.mjs', 'qbo-sync-background.mjs', 'qbo-reconcile-background.mjs', 'ask-work-background.mjs', 'stockbot-work-background.mjs']) {
   const s = F(f);
   ok(f + ' gates on requireJobKey', /requireJobKey\(event\)/.test(s) && /from '\.\/lib\/guard\.mjs'/.test(s) && !/JOB_KEY \|\| 'x'/.test(s) && !/if\s*\(\s*_?jk\s*\)\s*\{/.test(s));
 }

@@ -128,6 +128,10 @@ export async function ensureCustomer(api, name, opts = {}) {
   const m = await mapGet('customer', name); if (m) return m;
   let res = await api.query("select Id, DisplayName from Customer where DisplayName = '" + q(name) + "' maxresults 1");
   if (res.Customer && res.Customer[0]) return mapSet('customer', name, res.Customer[0].Id, res.Customer[0].DisplayName, true);
+  if (opts.email) { // a Shopify buyer QuickBooks already knows by e-mail (how the old connector matched them)
+    res = await api.query("select Id, DisplayName from Customer where PrimaryEmailAddr = '" + q(opts.email) + "' maxresults 1");
+    if (res.Customer && res.Customer[0]) return mapSet('customer', name, res.Customer[0].Id, res.Customer[0].DisplayName, true);
+  }
   // fuzzy: pull the customer list once per run (cached on api) and compare normalised names
   if (!api._customers) { const all = []; let start = 1; for (;;) { const r = await api.query('select Id, DisplayName, Active from Customer startposition ' + start + ' maxresults 1000'); const c = r.Customer || []; all.push(...c); if (c.length < 1000) break; start += 1000; } api._customers = all; }
   const n = norm(name); const hits = api._customers.filter(c => norm(c.DisplayName) === n);
@@ -146,9 +150,10 @@ export async function ensureItem(api, sku, name, incomeAccountId, taxCodeId, opt
   if (res.Item && res.Item[0]) return mapSet('item', key, res.Item[0].Id, res.Item[0].Name, false, [{ id: res.Item[0].Id, name: res.Item[0].Name, sku: res.Item[0].Sku || '' }]);
   if (opts.create === false) return null;                                   // preview: report, don't create
   if (!incomeAccountId) throw new Error('No QBO item for ' + key + ' and no income account chosen to create one (QuickBooks sync → Settings).');
-  const body = { Name: String(name || sku).slice(0, 100), Type: 'NonInventory', IncomeAccountRef: { value: String(incomeAccountId) }, Taxable: true };
+  const body = { Name: String(name || sku).slice(0, 100), Type: opts.type === 'Service' ? 'Service' : 'NonInventory', IncomeAccountRef: { value: String(incomeAccountId) } };
+  if (opts.type !== 'Service') body.Taxable = true;
   if (sku) body.Sku = String(sku).slice(0, 100);
-  if (taxCodeId) body.SalesTaxCodeRef = { value: String(taxCodeId) };
+  if (taxCodeId && opts.type !== 'Service') body.SalesTaxCodeRef = { value: String(taxCodeId) };
   const c = await api.post('item', body);
   return mapSet('item', key, c.Item.Id, c.Item.Name, true);
 }
@@ -165,8 +170,8 @@ export const ensureClass = (api, name, opts) => ensureNamed(api, 'class', 'Class
 export const ensureDepartment = (api, name, opts) => ensureNamed(api, 'department', 'Department', 'Department', name, opts);
 
 // ── Documents ────────────────────────────────────────────────────────────────
-// The invoice for an HQ order. lines: [{sku,name,qty,price,amount,is_free,deal}] in pesos, VAT-inclusive.
-export function buildInvoice(order, lines, refs, cfg) {
+// RETIRED 2026-09-18 — invoices are built by lib/qbo-map.mjs (Sean's rules). Kept only so old call sites fail loudly.
+export function buildInvoice_legacy(order, lines, refs, cfg) {
   const L = lines.map(l => {
     const amt = round2(+l.amount || 0);
     const d = { DetailType: 'SalesItemLineDetail', Amount: amt, Description: [l.name, l.deal ? '(' + l.deal + ')' : '', l.is_free || amt === 0 ? '— free' : ''].filter(Boolean).join(' ').slice(0, 4000),
@@ -194,11 +199,13 @@ export function buildPayment(p, customerId, invoiceQboId, cfg) {
 }
 // A credit memo for an HQ return (one line, the CM amount, on the configured returns item)
 export function buildCreditMemo(cm, customerId, itemId, cfg, label) {
-  const amt = round2(+cm.amount);
-  const line = { DetailType: 'SalesItemLineDetail', Amount: amt, Description: ('HQ ' + label + (cm.reason ? ' — ' + cm.reason : '') + (cm.items ? ' · ' + cm.items : '')).slice(0, 4000), SalesItemLineDetail: { ItemRef: { value: String(itemId) }, Qty: 1, UnitPrice: amt } };
+  const amt = round2(+cm.amount); const rate = cfg.vatRate || 0.12;
+  // the same VAT-inclusive shape as an invoice line: gross in TaxInclusiveAmt, net in Amount, no UnitPrice (error 6070)
+  const line = { DetailType: 'SalesItemLineDetail', Amount: round2(amt / (1 + rate)), Description: ('HQ ' + label + (cm.reason ? ' — ' + cm.reason : '') + (cm.items ? ' · ' + cm.items : '')).slice(0, 4000), SalesItemLineDetail: { ItemRef: { value: String(itemId) }, Qty: 1, TaxInclusiveAmt: amt } };
   if (cfg.taxCode) line.SalesItemLineDetail.TaxCodeRef = { value: String(cfg.taxCode) };
-  const body = { CustomerRef: { value: String(customerId) }, TxnDate: cm.date, DocNumber: String(label).slice(0, 21), Line: [line], PrivateNote: ('HQ credit memo ' + label + (cm.order_ref ? ' for ' + cm.order_ref : '')).slice(0, 4000) };
-  if (cfg.taxCode) body.GlobalTaxCalculation = 'TaxInclusive';
+  if (cfg.classId) line.SalesItemLineDetail.ClassRef = { value: String(cfg.classId) };
+  const body = { CustomerRef: { value: String(customerId) }, TxnDate: cm.date, DocNumber: String(label).slice(0, 21), Line: [line], PrivateNote: ('HQ credit memo ' + label + (cm.order_ref ? ' for ' + cm.order_ref : '')).slice(0, 4000), GlobalTaxCalculation: 'TaxInclusive' };
+  if (cfg.classId) body.ClassRef = { value: String(cfg.classId) };
   return body;
 }
 // Applying a credit memo to an invoice = a zero-amount Payment linking both
@@ -212,6 +219,18 @@ export async function voidInvoice(api, id, syncToken) { const j = await api.post
 export async function postPayment(api, body) { const j = await api.post('payment', body); return j.Payment; }
 export async function postCreditMemo(api, body) { const j = await api.post('creditmemo', body); return j.CreditMemo; }
 export async function readInvoice(api, id) { const j = await api.get('invoice/' + encodeURIComponent(id)); return j.Invoice; }
+// strict totals: an invoice QuickBooks computed differently from the order is removed the moment it was created
+export async function deleteInvoice(api, id, syncToken) { const j = await api.post('invoice?operation=delete', { Id: String(id), SyncToken: String(syncToken) }); return j.Invoice; }
+// the invoices QuickBooks holds under these DocNumbers (any writer — ours or the old connector's)
+export async function invoicesByDocNumber(api, docNumbers) {
+  const out = {}; const list = [...new Set(docNumbers.map(d => String(d || '').trim()).filter(Boolean))];
+  for (let i = 0; i < list.length; i += 25) {
+    const chunk = list.slice(i, i + 25);
+    const res = await api.query('select * from Invoice where DocNumber in (' + chunk.map(d => "'" + q(d) + "'").join(', ') + ') maxresults 100');
+    for (const inv of (res.Invoice || [])) out[String(inv.DocNumber)] = inv;
+  }
+  return out;
+}
 
 // ── Payments recorded in QuickBooks → HQ (change data capture) ──────────────
 // Returns every Payment changed since `since` (ISO) that is applied to at least one

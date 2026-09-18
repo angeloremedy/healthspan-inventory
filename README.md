@@ -941,90 +941,146 @@ reader can reach; `coverage.js` fails the build if one ever did.
 
 ## 9.22 QuickBooks Online — the books, fed from HQ
 
-QuickBooks stays the ledger; HQ now feeds it directly instead of through a CSV.
-Today the Shopify→QBO connector carries every Shopify order into the books. Once
-HQ is the order register that connector has nothing to carry, so HQ has to do the
-same job itself — and do it the way accounting already books things, so nothing
-in QuickBooks looks different on the day we switch.
+QuickBooks stays the ledger; HQ feeds it directly. Until 18 September 2026 two
+connectors existed side by side: a Shopify→QuickBooks connector on Google Cloud
+(live since 15 September, carrying every Shopify order into the books the way
+finance decided invoices must look) and HQ's own connector for orders entered
+here, in preview. **HQ is now becoming the one writer for both** — its own orders
+(HS-…) and the imported Shopify orders (HG-…) — using the same document rules the
+Shopify connector used, proven order by order before the switch, so nothing in
+QuickBooks looks different on the day Shopify's connector is paused.
 
-**What posts, and when.** An order becomes a QuickBooks **Invoice** the moment
-it is fulfilled — the DR moment, which is when revenue is recognised. The
-invoice carries the HS number as its DocNumber, a due date computed from the
-order's terms, and VAT 12% inclusive the way a Philippine company books it
-(`GlobalTaxCalculation: TaxInclusive`, one tax code on every line). Each line is
-a per-SKU item, matched by SKU and created on the chosen income account when
-QuickBooks has never seen it; deal "+1" and FOC lines post at ₱0 so the invoice
-still shows what left the warehouse. Class is set to the specialist and Location
-to the team — but only if class or location tracking is switched on in your
-QuickBooks company, which is why they are checkboxes in the settings. Each
-payment recorded in HQ becomes a **Payment** applied to that invoice (deposit
-account configurable; negative correction payments are skipped and listed, so
-you reverse those in QuickBooks by hand). A credit memo for a return becomes a
-**CreditMemo**, applied to the invoice it names. Cancelling an order after it
-posted voids the invoice; editing it re-posts the invoice with the current
-SyncToken, because the sync keeps a hash of exactly what it sent and knows when
-that no longer matches. Internal and test accounts — pull-outs, Remedy,
-Healthspan, anything called test — are skipped, same rule as the sales views.
+**The rules (finance's — every one enforced by `lib/qbo-map.mjs`).** An order
+becomes a QuickBooks **Invoice** the moment it exists (not at fulfilment), dated
+the Manila day it was placed, DocNumber = its printed number, due date from the
+order's own terms ("Due on receipt" honoured; 30 days when it carries none).
+Every product line is posted at **list price** — `TaxInclusiveAmt` = the
+VAT-inclusive amount, `Amount` = the net, never a `UnitPrice` (a 2-dp rate × qty
+rarely equals the amount and QuickBooks rejects the line) — with the VAT tax code
+on VAT lines and the **No-VAT** code on Termosalud, Mark-Vu, Line-Vu and GTG
+lines (the catalog's product line decides for HQ orders; Shopify's own taxable
+flag for imported ones). The discount appears **once**, as QuickBooks' own
+Discount row — a percentage when it is a clean one (50 %), a net amount
+otherwise; when an order mixes VAT and exempt lines, or carries shipping or a
+tip, QuickBooks' prorating would mis-state the VAT base, so the mapper falls back
+by itself to a negative Discount line per product. Class **Sales** is stamped on
+the header and every line. Deal "+1" and FOC lines are list price with a 100 %
+discount inside that one row, so the invoice still shows what left the
+warehouse. Internal and test accounts — pull-outs, Remedy, Healthspan, anything
+called test — are skipped, same rule as the sales views.
 
-**Payments come back too.** When accounting records a payment straight in
+**Strict totals.** Before posting, the mapper predicts the total QuickBooks will
+compute; if the order's lines cannot explain the order's total (to two centavos)
+the row errors and nothing is sent. After posting, if QuickBooks nevertheless
+totals the invoice differently, HQ deletes that invoice on the spot and the row
+shows both figures — a wrong invoice is never left in the books.
+
+**Cancellations and edits.** A cancelled order that is still unpaid is
+**voided only in the same Manila month** as its invoice; cancelled in a later
+month it is left open with "issue a credit note" on the row (a closed month is
+never reopened), and one with money received is left for the refund flow by
+hand. An edited order updates its invoice with the current SyncToken (the sync
+keeps a hash of exactly what it sent) — unless money has already been applied
+and the total would change, which HQ refuses with both totals on the row. A
+return becomes a **CreditMemo** in the same VAT-inclusive shape, applied to the
+invoice it names.
+
+**Payments are not sent.** Finance's rule: Collections confirms the money and
+records the payment in QuickBooks by hand; the invoice stays open until then. The
+switch *Send HQ payments to QuickBooks* exists in Settings for the day that rule
+changes, off by default. Payments **come back**: when accounting records one in
 QuickBooks, the next run pulls it into HQ's `payments` table (change-data-capture
-since the last cursor) with `created_name 'QuickBooks'`, and the order's paid /
-balance / pay_status roll up as if finance had typed it here — so AR aging and
-the credit gate stay true whichever side the cash was recorded on. A payment
-deleted in QuickBooks becomes an offsetting negative row, because payments are
-append-only. Payments HQ sent are never echoed back.
+since the last cursor, `created_name 'QuickBooks'`) and, for HQ orders, the
+order's paid / balance / pay_status roll up as if finance had typed it here.
+Shopify orders keep the paid / balance Shopify reports until Shopify is retired
+— the import owns those fields. A payment deleted in QuickBooks becomes an
+offsetting negative row (payments are append-only); payments HQ sent are never
+echoed back.
 
-**Preview mode.** The connector is built now but **switched on at cutover**
-(`app_settings.qbo_enabled`). Until then every run is a preview: it does the
-whole computation and writes each row to the ledger as *pending* with the amount
-it would post, and writes nothing to QuickBooks — not a document, not a
-customer, not an item. It only looks things up: a clinic or SKU QuickBooks does
-not have yet is reported on the row ("would post — and create the customer …"),
-and every doubtful customer match surfaces on the page before the day.
-Finance can look at the first batch, line by line, before a single invoice
-reaches the books — and the Shopify connector keeps carrying Shopify orders in
-the meantime, so nothing is booked twice.
+**Shopify orders through HQ.** The Shopify import (`backfill-background`) now
+keeps, on every order placed since 1 September 2026, the snapshot the mapper
+needs (`orders.qbo_src`: list prices, discount allocations, per-line VAT, totals,
+company / buyer / e-mail, payment terms, edits, refunds — the same shape the old
+connector consumed), keeps money to the centavo instead of rounding to pesos, and
+dates orders by the Manila calendar. It runs every 15 minutes for the orders
+Shopify changed in the last two days (`shopify-recent`) and the full history
+nightly, so a Shopify order reaches QuickBooks through HQ within minutes. A
+Shopify order whose snapshot has not arrived yet is held on the ledger, not
+errored. Shopify buyers keep the customer names the Shopify connector gave
+them — the company on the order, else "First Last (e-mail)", else Anonymous — and
+QuickBooks customers are matched by e-mail as well as by name, so the books do
+not grow a second customer for every clinic at the switch. HQ's own orders use
+the HQ account name.
 
-**The page** (Finance → **QuickBooks sync**) has five panels. *Connection* shows
-which company is connected, in which environment, and how long the connection is
-good for; Connect and Disconnect are the super admin's, Sync now is finance's.
-*Settings* holds the post-from date (the cutover date — only orders fulfilled on
-or after it are considered), the VAT tax code, the deposit and income accounts
-read live from QuickBooks, which orders to include, the class and location
-checkboxes, and the "hold until confirmed" switch; finance sees it read-only.
-*Last run* is the summary — mode, invoices posted (or "would post"), payments
-sent and pulled, errors with Intuit's own reason text. *Customer matches to
-confirm* is the queue described next. *Sync ledger* is every document the sync
-has touched, searchable by HS number and filterable by status, with a Retry
-button on anything that errored or is pending.
+**Shadow reconciliation — the go signal.** Before Shopify orders are switched
+over, HQ proves it produces the same invoice the Shopify connector did. For every
+Shopify order imported since the cutoff (14 September 2026 17:40 Manila, when
+the connector took over from manual entry) it builds the invoice it would post
+and compares it with the invoice QuickBooks already holds under the same HG
+number — total, VAT, class on every line, customer, due date, number of lines
+and whether there is a Discount row. It writes nothing to QuickBooks. The result
+is on the page (compared / identical / differences / missing / clean runs in a
+row) and every row that differs names the fields with both figures. It runs
+nightly and on demand. **A week of clean runs is the signal to switch.** The same
+mapping is also checked in the test-suite against the Shopify connector's own
+code, frozen under `tools/test/fixtures/qbo-connector/`: ten orders, byte-for-byte
+identical invoice bodies.
+
+**Preview mode.** Until `app_settings.qbo_enabled` is '1' every run is a
+preview: it does the whole computation and writes each row to the ledger as
+*pending* with the amount it would post and how the discount would appear, and
+writes nothing to QuickBooks — not a document, not a customer, not an item. A
+clinic or SKU QuickBooks does not have yet is reported on the row ("would post
+… and create the customer …"), and every doubtful customer match surfaces on the
+page before the day.
+
+**The page** (Finance → **QuickBooks sync**) has six panels. *Connection*: which
+company, which environment, how long the connection is good for; Connect and
+Disconnect are the super admin's, Sync now is finance's. *Settings*: the
+post-from date, invoice at creation or fulfilment, the VAT and No-VAT tax codes,
+the class, the discount presentation, the deposit and income accounts, which
+orders (HQ only, or every order including Shopify's), default terms, the
+anonymous-buyer name, the reconciliation start date, and the three rules (strict
+totals, send payments, hold fuzzy matches); finance sees it read-only. *Shadow
+reconciliation* as above, with **Reconcile now**. *Last run*: mode, invoices
+posted (or "would post"), payments pulled (and whether sending is off), errors
+with Intuit's own reason text. *Customer matches to confirm*: the queue described
+next. *Sync ledger*: every document the sync has touched, searchable by HS or HG
+number, filterable by status, with Retry on anything errored or pending.
 
 **Held, and how finance releases it.** Customers are matched to QuickBooks by
-exact name first, then by a normalised name (case, punctuation, "Inc", "Clinic"
-and the like ignored). An exact match posts. A normalised match is a guess, so
-the invoice is **held** — written to the ledger as pending with the reason
-"customer match needs confirmation" — until someone on finance looks at the
-match on the page and presses **Confirm**, picks one of the other candidates, or
-uses **Search QuickBooks…** to point it at a different customer entirely. No
-match at all creates the customer. Confirmed mappings live in `qbo_map`, so a
-clinic is only ever asked about once; the held invoices post on the next run.
-The switch that makes a fuzzy match hold rather than post is in Settings, on by
-default.
+exact name, then by e-mail (Shopify buyers), then by a normalised name (case,
+punctuation, "Inc", "Clinic" and the like ignored). Exact and e-mail matches
+post. A normalised match is a guess, so the invoice is **held** — pending with
+"customer match needs confirmation" — until someone on finance presses
+**Confirm**, picks another candidate, or uses **Search QuickBooks…**. No match at
+all creates the customer. Confirmed mappings live in `qbo_map`, so a clinic is
+only ever asked about once.
 
-**Runs.** The schedule fires every 15 minutes and Sync now runs one immediately.
-One run at a time (a lock), at most 150 invoices per run, and a row that has
-failed five times stops retrying until someone presses Retry — so a bad account
-cannot hammer Intuit every quarter hour forever. Tokens live in `qbo_tokens`,
-readable by the service key only, and never reach the browser; refresh tokens
-rotate on every use and the schedule keeps them warm.
+**Runs.** The QuickBooks schedule fires every 15 minutes (the Shopify import five
+minutes ahead of it) and Sync now runs one immediately. One run at a time (a
+lock), at most 150 invoices per run, and a row that has failed five times stops
+retrying until someone presses Retry. Tokens live in `qbo_tokens`, readable by
+the service key only, and never reach the browser; refresh tokens rotate on every
+use and the schedule keeps them warm.
 
-**Cutover-day checklist.** In the Shopify→QBO connector, turn off order posting
-for the orders HQ now owns (otherwise the same invoice lands twice). On the
-QuickBooks sync page set the post-from date to the cutover date, check the tax
-code and accounts, save, and read the preview of the first batch in the ledger.
-Then **Enable — start posting** (super admin); the next run goes live. Disable
-puts it straight back to preview. The SQL for the three tables and the Intuit
-app setup (client id, secret, redirect URI, `QBO_ENV`) are in SUPABASE-SETUP.md
-under "QuickBooks Online connector".
+**Switching Shopify orders over — the runbook.**
+1. Watch the reconciliation until it has been clean for a week (every difference
+   fixed in the mapper or explained and accepted by finance).
+2. In Google Cloud, **pause the Shopify connector's posting** — the Pub/Sub
+   subscription that feeds `processEvent` (or the `shopifyWebhook` trigger).
+   Leave `syncInventory` running: QuickBooks → Shopify stock keeps flowing until
+   Shopify itself is retired.
+3. On the QuickBooks sync page: Settings → *Which orders* = every order, *Post
+   orders dated from* = the switch date, save; read the preview rows for the first
+   Shopify orders (they should say "would post … native discount row"); then
+   **Enable — start posting**. From the next run HQ posts HG- and HS- invoices
+   alike; orders the connector already posted are untouched (HQ only posts what
+   its ledger has never seen, and the reconciliation keeps checking them).
+4. When Shopify is retired: *Which orders* = HQ only, stop the Shopify import,
+   switch the connector's stock sync off. The SQL and the Intuit app setup are in
+   SUPABASE-SETUP.md under "QuickBooks Online connector" and "HQ as the single
+   QuickBooks writer (2026-09-18)".
 
 ## 9.24 Receiving — inbound shipments, counts, terms, landed cost
 
@@ -1132,6 +1188,24 @@ swipe, the phone's own back gesture and the panel's own **← Back / ✕** all c
 it; any navigation (a tab, the menu, a search result) closes it too; the close
 row is sticky, and on phones the panel sits between the top bar and the tabs
 instead of sliding underneath them.
+
+## 9.28 Org chart — who reports to whom
+
+**Org chart** sits right under My profile in the sidebar and is open to every
+role. It shows Healthspan Global's reporting line as the People team keeps it —
+the two co-founders at the top, the group functions and the country sales
+organisation beneath, teams 1 and 2 of specialists under the sales manager —
+with colours for co-founders, managers, leads, associates, part-timers /
+consultants and interns, and a dashed box for a vacant post. **Every name is a
+button**: it opens the person's card — title, who they report to, who reports to
+them, their level — and the pages HQ has for that person: a product specialist's
+sales page (for roles that may open it) and Team & access (for those who may).
+A box above the chart finds a name or title (the rest of the chart dims); on a
+phone the chart is an indented list, and Tree / List switches the layout on any
+screen. It carries no pay and no costs — names and titles only — and is read
+from the People team's "Remedy/Healthspan Org Chart" (the Healthspan page, 18
+September 2026). Until the HR module (Workstream E) owns people records the
+data lives in `js/19-orgchart.js` (`ORG_PEOPLE`), updated with the app.
 
 ## 9.23 Saved reports — the reporting layer
 

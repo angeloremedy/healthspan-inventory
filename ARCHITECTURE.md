@@ -207,7 +207,9 @@ formatted as a UUID. Orders upsert `on_conflict=ext_ref` with merge-duplicates;
 lines are delete-then-insert per order. Accounts insert with ignore-duplicates —
 **CRM edits are never overwritten**. Net effect: re-running the backfill
 refreshes statuses/payments without duplicating anything. Job status is written
-to a Netlify Blob (`shopify/backfill`).
+to a Netlify Blob (`shopify/backfill`; `shopify/backfill-recent` for the
+15-minute `recent` mode). Since 2026-09-18 the import keeps centavos, Manila
+dates and the QuickBooks snapshot `orders.qbo_src` — see 4.18.
 
 ### 4.4 `admin-users.mjs` security model
 The browser never holds the service key. The function receives the caller's
@@ -294,8 +296,9 @@ account); `bizNote()` lets the pre-split `ps:<Tag>` row stand in for Key wins.
 ### js/14 — the QuickBooks sync page
 
 `renderQbo()` (view key `qbo`, Finance → QuickBooks sync; `viewAllowed` for
-admin + finance) paints five panels from one `qbo-admin?action=status` call:
-Connection, Settings, Last run, Customer matches to confirm, Sync ledger. Every
+admin + finance) paints six panels from one `qbo-admin?action=status` call
+(plus `reconcile-status` for the reconciliation): Connection, Settings, Shadow
+reconciliation, Last run, Customer matches to confirm, Sync ledger. Every
 write goes through `qboApi()` to `qbo-admin.mjs`; Connect and Disconnect call
 `qbo-auth.mjs`. The page holds no Intuit token and never talks to Intuit.
 Super-admin-only controls (Connect / Disconnect / Save settings / Enable) are
@@ -482,35 +485,67 @@ hard system-prompt rules never to reveal costs/margins outside finance/admin.
 
 **Scan-based and idempotent, not event-driven.** There is no trigger on `orders`
 and no outbox queue. Every run of `runSync()` (`lib/qbo-sync.mjs`) reads what HQ
-has — fulfilled orders on or after `qbo_post_from`, returns, payments — against
-what `qbo_sync` says is already in QuickBooks, and posts only the difference.
-The ledger row is the unit of truth: `qbo_sync` is unique per `(kind, hq_ref)`
-and carries `status` (pending / posted / updated / voided / skipped / error),
-`qbo_id`, `sync_token`, `hash`, `attempts`, `last_error`. A run that dies
-halfway through a batch loses nothing; the next run finds the same rows still
-pending and finishes. Triggers were rejected because a fulfilment click would
-then be blocked on Intuit's latency and error surface; a queue was rejected
+has — approved orders dated on or after `qbo_post_from` (pending, fulfilled or
+cancelled; `qbo_post_mode` can narrow that to fulfilled ones), returns, payments —
+against what `qbo_sync` says is already in QuickBooks, and posts only the
+difference. The ledger row is the unit of truth: `qbo_sync` is unique per
+`(kind, hq_ref)` and carries `status` (pending / posted / updated / voided /
+skipped / error), `qbo_id`, `sync_token`, `hash`, `attempts`, `last_error`. A run
+that dies halfway through a batch loses nothing; the next run finds the same
+rows still pending and finishes. Triggers were rejected because an order click
+would then be blocked on Intuit's latency and error surface; a queue was rejected
 because it is a second source of truth to keep consistent with the ledger, and
 the scan already costs one Supabase query per kind. Four passes in order:
-invoices, credit memos (applied to the invoice they name), HQ payments →
-Payment, then QuickBooks payments → HQ. Guards: a 12-minute lock in
-`app_settings.qbo_lock` so a second trigger inside a running pass is skipped,
-150 invoices per run (well inside the 15-minute background window), and rows
-that have errored `MAX_ATTEMPTS` (5) times are left alone until `retry` resets
-them — so a permanently bad account cannot re-hit Intuit every 15 minutes.
-Internal and test accounts (`INTERNAL_RE`, `TEST_RE` — same rule as the sales
-views) are written as `skipped` once and never revisited.
+invoices, credit memos (applied to the invoice they name), HQ payments → Payment
+(**only when `qbo_sync_payments` is '1'** — finance's rule is that Collections
+records payments by hand, so the default is off), then QuickBooks payments → HQ.
+Guards: a 12-minute lock in `app_settings.qbo_lock` so a second trigger inside a
+running pass is skipped, 150 invoices per run (well inside the 15-minute
+background window), and rows that have errored `MAX_ATTEMPTS` (5) times are left
+alone until `retry` resets them — so a permanently bad account cannot re-hit
+Intuit every 15 minutes. Internal and test accounts (`INTERNAL_RE`, `TEST_RE` —
+same rule as the sales views) are written as `skipped` once and never revisited.
+**A row that carries a `qbo_id` is an existing invoice whatever its last
+status** — an error after posting goes down the update path, never a second
+post (the 2026-09-18 rewrite fixed this).
+
+**The document is the mapper's, not the sync's.** `runSync` no longer builds
+request bodies. It normalises the order (`normalizeOrder`: HQ orders from
+`orders` + `order_lines` + the `items` catalog; Shopify orders from
+`orders.qbo_src`), asks `lib/qbo-map.mjs` for a *plan* (`planInvoice`: the
+lines with item **keys**, the predicted total and VAT, the discount style, the
+list of items that must exist — `needs`), resolves those keys against QuickBooks
+(`ensureCustomer` with the e-mail fallback, `ensureItem` per key; the three
+special items Discount / Shopify Shipping / Shopify Adjustment by SKU or name,
+the Discount one as a Service), then renders the body (`renderInvoice`). Strict
+totals are enforced twice: the plan throws (`code: 'TOTALS'`, the plan attached
+for the ledger row) when the lines cannot explain the order total, and after a
+live post the returned `TotalAmt` is compared with the prediction — a mismatch
+**deletes the invoice** (`invoice?operation=delete`) and errors the row with
+both figures. Section 4.18 has the mapper.
 
 **Update detection is a hash of what we sent.** `fingerprint()` in `lib/qbo.mjs`
 is a stable hash of the fully built Invoice body — customer ref, lines, amounts,
-dates, class, department, tax code. It is stored in `qbo_sync.hash` on post. On
-every later run the body is rebuilt and hashed; equal means nothing to do,
-different means the order changed and the invoice is re-posted as a full
-(non-sparse) update using the `SyncToken` read from QuickBooks at that moment,
-not the one we stored — QuickBooks rejects a stale token, which is exactly what
-we want if accounting edited the invoice by hand in between. A fulfilled order
-that is no longer `fulfilled` (cancelled, reopened) and has a posted invoice is
-voided, not deleted, so the number stays in the books.
+dates, class, tax codes. It is stored in `qbo_sync.hash` on post. On every later
+run the body is rebuilt and hashed; equal means nothing to do, different means
+the order changed and the invoice is re-posted as a full (non-sparse) update
+using the `SyncToken` read from QuickBooks at that moment, not the one we stored
+— QuickBooks rejects a stale token, which is exactly what we want if accounting
+edited the invoice by hand in between. Before updating, the current invoice is
+read: void in QuickBooks → the row becomes `voided` and nothing is rewritten;
+money already applied (`TotalAmt − Balance > 0`) and a changed total → the row
+errors ("adjust it in QuickBooks by hand") — the connector's `allowPaidInvoiceEdit`
+rule.
+
+**Cancellation follows the month.** A cancelled order whose invoice is posted is
+voided only when the invoice is unpaid (`Balance == TotalAmt`) **and** the
+cancellation falls in the same Manila month as the invoice's `TxnDate`
+(`sameMonth()` in the mapper; the cancellation time is Shopify's `cancelled_at`
+from the snapshot, else the order's `updated_at`). A later month leaves the
+invoice open and writes `skipped` with "issue a credit note" — a signed-off month
+is never reopened, the same principle as the period-close triggers. Money
+received → `skipped`, "refund / credit note by hand". Voided, never deleted, so
+the number stays in the books.
 
 **Payments recorded in QuickBooks come back by change-data-capture.** Pass 4
 calls Intuit's CDC endpoint for `Payment` changed since `qbo_cdc_since`, a cursor
@@ -518,31 +553,35 @@ set five minutes before the run started (overlap on purpose; the `payments.qbo_i
 unique key makes a re-read harmless). Only payments linked to an invoice HQ
 posted are taken, and payments HQ itself sent (present in `qbo_sync` kind
 `payment` without the `qbo:` prefix) are ignored so nothing echoes. Each new one
-becomes an HQ `payments` row with `qbo_id`, `created_name 'QuickBooks'`, then
-`rollup()` recomputes `orders.paid / balance / pay_status` from the payments rows
-— the same rule the app uses. A CDC record marked deleted becomes an offsetting
-negative row (`qbo_id` = `<id>:void`), because `payments` is append-only. The
-first live run only sets the cursor; it does not backfill history.
+becomes an HQ `payments` row with `qbo_id`, `created_name 'QuickBooks'`, then —
+for HQ orders — `rollup()` recomputes `orders.paid / balance / pay_status` from
+the payments rows, the same rule the app uses. **Shopify orders are not rolled
+up**: the import owns their `paid / balance` from Shopify's own financial status
+until Shopify is retired, and rolling them up here would flip-flop with the next
+import. A CDC record marked deleted becomes an offsetting negative row (`qbo_id`
+= `<id>:void`), because `payments` is append-only. The first live run only sets
+the cursor; it does not backfill history.
 
 **Preview mode is the same code path with every write skipped.** While
-`app_settings.qbo_enabled` is not `'1'`, pass 1 resolves the customer, the items,
-class and department against QuickBooks read-only — `ensure*` look in `qbo_map`,
-then query QuickBooks, and with `{create:false}` return null instead of creating
-the missing record — so fuzzy matches surface on the page and the ledger row says
-what the live run would create. What it never does is write: it
-builds and hashes the Invoice body and writes the ledger row as `pending` with
-the amount and the reason (`would post`, `would update`, `would void`). Passes
-2–4 are not run in preview because nothing downstream exists yet to apply to.
-Flipping `qbo_enabled` changes no data model — the next run simply carries the
-pending rows through to `posted`. This is why finance can read the whole first
-batch on the page before cutover. Customer matching lives in `ensureCustomer()`:
-exact name, then `norm()`-equal name (which returns `confirmed:false` and the
+`app_settings.qbo_enabled` is not `'1'`, pass 1 plans every order and resolves
+the customer and items against QuickBooks read-only — `ensure*` look in
+`qbo_map`, then query QuickBooks, and with `{create:false}` return null instead
+of creating the missing record — so fuzzy matches surface on the page and the
+ledger row says what the live run would create and how ("would post 95000.00
+(native discount row) — enable the sync to send — and create 1 item"). What it
+never does is write. Passes 2–4 are not run in preview because nothing
+downstream exists yet to apply to. Flipping `qbo_enabled` changes no data model
+— the next run simply carries the pending rows through to `posted`. Customer
+matching lives in `ensureCustomer()`: exact name, then `PrimaryEmailAddr` when
+the caller passes an e-mail (Shopify buyers — how the old connector matched
+them), then `norm()`-equal name (which returns `confirmed:false` and the
 candidate list into `qbo_map`), else create; with `qbo_require_confirm` on
-(default) an unconfirmed match holds the invoice as `pending` until
-`qbo-admin` `confirm` flips the mapping. Tested by
-`tools/test/qbo-connector.test.mjs` (39 checks against a fake Intuit and a fake
-Supabase). The page is `js/14-qbo-sync.js`; it talks only to `qbo-admin.mjs` and
-`qbo-auth.mjs`, never to Intuit.
+(default) an unconfirmed match holds the invoice as `pending` until `qbo-admin`
+`confirm` flips the mapping. Tested by `tools/test/qbo-connector.test.mjs` (58
+checks against a fake Intuit that totals documents the way the real global
+edition does — VAT added on top of an Amount-only VAT line, a Discount row read
+as net and prorated — and a fake Supabase). The page is `js/14-qbo-sync.js`; it
+talks only to `qbo-admin.mjs` and `qbo-auth.mjs`, never to Intuit.
 
 ### 4.8 Saved reports — one engine, two runtimes
 
@@ -630,6 +669,26 @@ Specialists: `srMine()` filters cached specialists/quotes/Shopify orders to the
 own tag, and their account hits come from their own `orders` rows rather than
 `accounts`. No result line formats money.
 
+### 4.13a Org chart — `js/19-orgchart.js`
+
+A nineteenth classic script; nothing before it references it. `ORG_PEOPLE` is a
+flat list — `{id, name, title, boss, level, spec?}` — and the tree is derived:
+`boss` names the person reported to, `'exec'` means the two co-founders jointly
+(rendered side by side as one root), a `level:'group'` row ("Team 1") is a label
+that the reporting line passes through (`orgBossOf` / `orgReports` look through
+it). `renderOrgChart()` paints the tree as nested `<ul>` with CSS border
+connectors (`.org-tree` in index.html); a run of more than two leaves stacks
+vertically under its manager (`.org-stack`), which is what keeps the sales teams
+readable and matches the People team's own layout. Under 900 px, or on the List
+toggle, the same data renders as an indented outline. Each node is an
+`<a class="lnk org-node">` — `lnk` keeps `upgradeButtons()` from turning it into
+a pill — whose click sets `ORG_SEL` and re-renders with the person's card on top;
+the card's "Sales page" appears only when the row carries a `spec` tag **and**
+`viewAllowed('spec')`, "Team & access" only when `viewAllowed('users')`. No
+Supabase, no audit rows (opening a card is not a mutation), no names in the
+manuals. Colours are the legend's (`ORG_LEVEL`), not the theme's, so the chart
+reads the same in dark mode.
+
 ### 4.14 Drawer history — `js/06` + `js/04`
 
 A `MutationObserver` on `#drawer`'s class pushes one `history` entry
@@ -669,6 +728,84 @@ rendered itself, a page left on the loading placeholder. The app and the driver 
 evaluated in ONE `eval` so `let`/`const` globals are visible. A deliberate throw in
 one renderer is caught and attributed to its (role, view) — verified when the
 suite was written.
+
+### 4.18 The QuickBooks mapper and the shadow reconciliation — `lib/qbo-map.mjs`, `lib/qbo-reconcile.mjs`
+
+**One pure module owns the shape of every QuickBooks document.** `qbo-map.mjs`
+has no network and no Supabase: it takes a *normalised order* and returns the
+plan for its invoice. The normalised order is one shape for both sources —
+`normalizeNative(order, lines, items)` from HQ's tables (list price = the
+catalog's, never below what was charged; VAT line from the catalog's product
+line via `EXEMPT_RE`), `normalizeShopify(src)` from the ORDER-CONTRACT-shaped
+snapshot the import stores in `orders.qbo_src` (Shopify REST field names:
+`line_items[].price / quantity / current_quantity / discount_allocations /
+tax_lines`, `total_price / total_tax / total_discounts`, `current_*` on edited
+orders, `refunds`, `payment_terms`, `customer`, `billing_address.company`). The
+rules are the Shopify connector's (`src/sync.js` of `qbo-shopify-connector`,
+ported function by function): `TaxInclusiveAmt` = gross / `Amount` = net / no
+`UnitPrice`; tax code per line; class on header and lines; `discountStyleFor()`
+(native unless VAT treatments are mixed or shipping / tip is present → per-line);
+`productLines()` → `finishLines()` (shipping, the one Discount row — percent when
+`listTotal × pct / 100` reproduces the gross exactly, else net amount — then a
+residual explained by tip / duties becomes an untaxed adjustment line, anything
+else is a **mismatch**); the edited-order probe (Shopify may or may not have
+re-allocated the discount to the remaining units, so both readings are tried and
+the one that reconciles is kept; refunded units are added back because a refund
+is its own document). `planInvoice()` returns `{ lines (item keys), total, vat,
+style, needs, dueDate, customerName, docNumber, mismatch }` and throws
+`code:'TOTALS'` when strict; `renderInvoice()` substitutes ids and adds the header
+(TxnDate, DueDate, BillEmail, CurrencyRef, ClassRef, GlobalTaxCalculation,
+PrivateNote naming the source). `diffInvoice(plan, inv, cfg, {customerId})`
+compares a plan with an invoice QuickBooks holds — DocNumber, total (±0.02), VAT
+(±0.05), class on every line, customer (by mapped id, else normalised name), due
+date, line count, presence of a Discount row — and returns the fields that
+differ. Dates: `dateInTz()` gives the **Manila** calendar date of any timestamp
+(Shopify's GraphQL `createdAt` is UTC — an order at 01:30 Manila on the 1st is
+the 1st, not the 31st); `sameMonth()` decides voids.
+
+**Parity is a test, not a promise.** `tools/test/fixtures/qbo-connector/` holds
+the connector's `sync.js`, `config.js` and `fixtures.js` frozen as handed over on
+2026-09-18, with in-memory stand-ins for its Firestore store and Intuit client.
+`tools/test/qbo-parity.test.mjs` runs ten orders through `createOrUpdateInvoice()`
+there and through `normalizeShopify → planInvoice → renderInvoice` here and
+requires the two Invoice bodies to be **identical** (PrivateNote excepted). The
+mapper's own suite (`qbo-map.test.mjs`, 39 checks) covers the same figures the
+connector's tests assert (HG-10496: 190,000 list, 50 % row, 95,000 / 10,178.57)
+plus HQ-native cases (10+1 deals, exempt lines, catalog list prices, a price rise
+the catalog has not caught up with). If finance changes a rule, change the
+mapper, then retire the affected parity case with a note — never "fix" the
+frozen copy.
+
+**The reconciliation is the mapper pointed at the past.** `runReconcile()`
+(`lib/qbo-reconcile.mjs`, worker `qbo-reconcile-background.mjs`, JOB_KEY-gated,
+nightly from `nightly.mjs` and on demand from the page) reads every Shopify
+order since `qbo_reconcile_from` (default 2026-09-14, the connector's cutoff),
+skips internal / test accounts and counts orders without a snapshot yet, plans
+each (strict totals off — a mismatch is a finding, not a crash), fetches the
+invoices QuickBooks holds under those DocNumbers in one query per 25
+(`invoicesByDocNumber`, `DocNumber in (…)`), and classifies each order: `match`,
+`diff` (with `diffInvoice`'s fields, and "lines" when the plan itself could not
+explain the total), `missing` (no invoice), `voided` / `cancelled` (a cancelled
+order with a void or absent invoice is fine; with an open one it is a diff). It
+writes nothing to QuickBooks. Results go to Netlify Blobs store `qbo`:
+`reconcile` (the latest run with up to 400 rows, differences first) and
+`reconcile-history` (the last 60 summaries); `cleanStreak()` counts consecutive
+clean runs and the days they span, which the page shows as "clean runs in a
+row". `_useStore()` injects a store for tests, as `report-runner` does.
+
+**Why the import had to change.** The old `backfill-background` rounded every
+amount to whole pesos, kept only each line's discounted total, took the UTC date
+and ran nightly — none of which can reproduce a Shopify invoice to the centavo.
+It now keeps money at 2 dp (`orders.total`, `order_lines.price / amount` are
+`numeric`; displays round as before), stores `qbo_src` for orders dated on or
+after `qbo_src_from` (default 2026-09-01), dates by Manila, and has a `recent`
+mode (`?recent=1`: orders Shopify changed in the last two days, sorted by
+`updated_at`, 25 per page) that `shopify-recent.mjs` fires every 15 minutes at
+:05 / :20 / :35 / :50 — five minutes before `qbo-schedule` — so the snapshot is
+in place when the QuickBooks pass runs. Shopify's query-cost limit is handled by
+halving the page size on a cost error and retrying the same page. Closed-period
+orders still receive only collections, shipping and `qbo_src` (which restates
+nothing HQ books). Test: `qbo-map.test.mjs` runs `toQboSrc()` on a GraphQL node.
 
 ## 5. Supabase schema (see SUPABASE-SETUP.md for exact SQL)
 

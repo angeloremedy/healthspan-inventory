@@ -8,13 +8,19 @@
 //   POST {action:'confirm', kind, hq_key, qbo_id?, qbo_name?}   admin/finance  confirms (or re-points) a mapping
 //   POST {action:'retry', id}              admin/finance  a row back to pending
 //   POST {action:'run', force?}            admin/finance  starts the background worker now
+//   POST {action:'reconcile', since?}      admin/finance  starts the shadow reconciliation (reads QBO, writes nothing)
+//   GET  ?action=reconcile-status          admin/finance  the latest reconciliation + history (from Blobs)
+import { connectLambda, getStore } from '@netlify/blobs';
 import { hasClient, qboEnv, loadTokens, refreshIfNeeded, client, sb, mapSet } from './lib/qbo.mjs';
+import { cleanStreak } from './lib/qbo-reconcile.mjs';
 
 const SB_URL = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SVC = process.env.SUPABASE_SERVICE_KEY || '';
 const HDRS = { 'Content-Type': 'application/json' };
 const out = (code, body) => ({ statusCode: code, headers: HDRS, body: JSON.stringify(body) });
-const SETTING_KEYS = ['qbo_enabled', 'qbo_post_from', 'qbo_tax_code', 'qbo_deposit_account', 'qbo_income_account', 'qbo_use_class', 'qbo_use_location', 'qbo_sources', 'qbo_returns_item', 'qbo_require_confirm'];
+// qbo_use_class / qbo_use_location retired 2026-09-18: the class is one fixed "Sales" class (qbo_class_id), no location
+const SETTING_KEYS = ['qbo_enabled', 'qbo_post_from', 'qbo_post_mode', 'qbo_tax_code', 'qbo_non_tax_code', 'qbo_class_id', 'qbo_discount_style', 'qbo_strict', 'qbo_sync_payments', 'qbo_terms_days', 'qbo_anonymous_name',
+  'qbo_deposit_account', 'qbo_income_account', 'qbo_sources', 'qbo_returns_item', 'qbo_require_confirm', 'qbo_src_from', 'qbo_reconcile_from'];
 
 async function caller(event) {
   const token = ((event.headers && (event.headers.authorization || event.headers.Authorization)) || '').replace(/^Bearer\s+/i, '');
@@ -51,11 +57,12 @@ export const handler = async (event) => {
     }
     if (action === 'lists') {
       const tok = await refreshIfNeeded(await loadTokens()); const api = client(tok);
-      const [tax, acc, pm, pref] = await Promise.all([
+      const [tax, acc, pm, pref, cls] = await Promise.all([
         api.query('select Id, Name, Active from TaxCode maxresults 200'),
         api.query("select Id, Name, AccountType, AccountSubType from Account where Active = true maxresults 1000"),
         api.query('select Id, Name from PaymentMethod maxresults 100'),
-        api.preferences().catch(() => ({}))
+        api.preferences().catch(() => ({})),
+        api.query('select Id, Name, Active from Class maxresults 200').catch(() => ({}))
       ]);
       const accounts = (acc.Account || []).map(a => ({ id: a.Id, name: a.Name, type: a.AccountType, sub: a.AccountSubType }));
       return out(200, {
@@ -63,6 +70,7 @@ export const handler = async (event) => {
         depositAccounts: accounts.filter(a => ['Bank', 'Other Current Asset'].includes(a.type)),
         incomeAccounts: accounts.filter(a => a.type === 'Income'),
         paymentMethods: (pm.PaymentMethod || []).map(p => ({ id: p.Id, name: p.Name })),
+        classes: (cls.Class || []).filter(c => c.Active !== false).map(c => ({ id: c.Id, name: c.Name })),
         classTracking: !!(pref.AccountingInfoPrefs && (pref.AccountingInfoPrefs.ClassTrackingPerTxnLine || pref.AccountingInfoPrefs.ClassTrackingPerTxn)),
         locationTracking: !!(pref.AccountingInfoPrefs && pref.AccountingInfoPrefs.TrackDepartments)
       });
@@ -112,6 +120,21 @@ export const handler = async (event) => {
       if (!r.ok && r.status !== 202) return out(502, { error: 'The sync worker did not start (' + r.status + ')' });
       await audit(who, 'qbo.run', { force: !!body.force });
       return out(200, { ok: true, started: true });
+    }
+    if (action === 'reconcile') {
+      const base = process.env.URL || 'https://hq.healthspan.ph';
+      const since = /^\d{4}-\d{2}-\d{2}$/.test(String(body.since || '')) ? body.since : undefined;
+      const r = await fetch(base + '/.netlify/functions/qbo-reconcile-background', { method: 'POST', headers: { 'x-job-key': process.env.JOB_KEY || '', 'Content-Type': 'application/json' }, body: JSON.stringify({ by: who.name || 'manual', since }) });
+      if (!r.ok && r.status !== 202) return out(502, { error: 'The reconciliation worker did not start (' + r.status + ')' });
+      await audit(who, 'qbo.reconcile', { since: since || 'default' });
+      return out(200, { ok: true, started: true });
+    }
+    if (action === 'reconcile-status') {
+      try { connectLambda(event); } catch (e) {}
+      let latest = null, history = [];
+      try { const store = getStore('qbo'); latest = await store.get('reconcile', { type: 'json' }); history = (await store.get('reconcile-history', { type: 'json' })) || []; } catch (e) { return out(200, { latest: null, history: [], streak: { runs: 0, days: 0 }, error: 'Blobs unavailable: ' + String(e.message || e) }); }
+      if (latest) delete latest.history;
+      return out(200, { latest, history: history.slice(0, 30), streak: cleanStreak(history) });
     }
     return out(400, { error: 'Unknown action' });
   } catch (e) { return out(500, { error: String(e.message || e) }); }

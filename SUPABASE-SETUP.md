@@ -3162,3 +3162,30 @@ change another admin's role, e-mail or page access.
 alter table public.profiles add column if not exists view_grants jsonb not null default '[]'::jsonb;
 alter table public.profiles add column if not exists view_denies jsonb not null default '[]'::jsonb;
 ```
+
+## HQ as the single QuickBooks writer (2026-09-18)
+
+HQ takes over QuickBooks posting from the Shopify→QuickBooks connector, for
+Shopify orders as well as its own. The Shopify import now stores, on every order
+placed since `qbo_src_from` (default 2026-09-01), the snapshot the QuickBooks
+mapper reads — list prices, discount allocations, per-line VAT, totals, the
+buyer / company / e-mail, payment terms, edits and refunds, in the connector's
+ORDER-CONTRACT shape. It carries no cost. It follows `orders`' own RLS.
+
+```sql
+alter table public.orders add column if not exists qbo_src jsonb;  -- Shopify order snapshot for QuickBooks (backfill-background → lib/qbo-map.mjs)
+```
+
+Settings the QuickBooks page writes (no SQL — listed for the record, all
+`app_settings` keys, super admin only): `qbo_post_mode` (created | fulfilled,
+default created) · `qbo_non_tax_code` (TaxCode id for "No VAT") · `qbo_class_id`
+(the Class stamped on every invoice and line) · `qbo_discount_style` (native |
+line | net, default native) · `qbo_strict` ('1' default: refuse and delete a
+mismatched invoice) · `qbo_sync_payments` ('0' default: payments stay manual) ·
+`qbo_terms_days` (default 30) · `qbo_anonymous_name` (default Anonymous) ·
+`qbo_src_from` (import snapshot from, default 2026-09-01) · `qbo_reconcile_from`
+(default 2026-09-14). `qbo_use_class` and `qbo_use_location` are no longer read.
+Netlify Blobs store `qbo` holds the reconciliation results (`reconcile`,
+`reconcile-history`). Two new scheduled/background functions need nothing but
+the existing `JOB_KEY`: `shopify-recent.mjs` (every 15 min) and
+`qbo-reconcile-background.mjs` (nightly + on demand).
