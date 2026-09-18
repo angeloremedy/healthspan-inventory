@@ -3189,3 +3189,44 @@ Netlify Blobs store `qbo` holds the reconciliation results (`reconcile`,
 `reconcile-history`). Two new scheduled/background functions need nothing but
 the existing `JOB_KEY`: `shopify-recent.mjs` (every 15 min) and
 `qbo-reconcile-background.mjs` (nightly + on demand).
+
+## Org chart (2026-09-18)
+
+The company org chart lives in HQ (Org chart, under My profile, every role reads
+it). Admins and the super admin edit it — People Operations use an admin account
+— and may link a row to the person's HQ login so the card opens their pages.
+Names, titles and the reporting line only: no pay, no costs. A removed row is
+kept with `active = false` (history), its reports move up one level.
+
+```sql
+create table if not exists public.org_people (
+  id text primary key,                          -- slug (from the name); stable once created
+  name text not null,
+  title text not null,
+  boss text,                                    -- id reported to; 'exec' = the co-founders jointly; null = a co-founder
+  level text not null default 'associate' check (level in ('founder','manager','lead','associate','consultant','intern','vacant','group')),
+  spec text,                                    -- specialist tag (product specialists) → the card's Sales page
+  profile_id uuid references public.profiles(id) on delete set null,   -- the HQ account, when linked
+  hq_name text,                                 -- denormalised at link time so every role can read it (profiles are own-row only)
+  hq_role text,
+  sort int not null default 0,
+  active boolean not null default true,
+  updated_by uuid references auth.users,
+  updated_at timestamptz not null default now()
+);
+alter table public.org_people enable row level security;
+drop policy if exists "org read" on public.org_people;
+create policy "org read" on public.org_people for select to authenticated using (true);
+drop policy if exists "org write" on public.org_people;
+create policy "org write" on public.org_people for insert to authenticated
+  with check (public.hs_role() in ('super','admin'));
+drop policy if exists "org update" on public.org_people;
+create policy "org update" on public.org_people for update to authenticated
+  using (public.hs_role() in ('super','admin')) with check (public.hs_role() in ('super','admin'));
+-- no delete policy: rows are deactivated, never deleted
+```
+
+The first admin to open the empty chart is offered "Load the People team's chart
+(Sep 2026)" — the seed in `js/19-orgchart.js` (`ORG_SEED`) goes into the table
+and the chart is edited in HQ from then on. Until the table exists the seed shows
+read-only.

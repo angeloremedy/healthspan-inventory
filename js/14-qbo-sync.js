@@ -26,8 +26,8 @@ async function renderQbo(){
   if(currentView!=='qbo')return;
   // the OAuth round-trip lands here with ?connected=1 or ?error=… in the hash
   let flash='';try{const h=location.hash;const m=h.match(/\?(.*)$/);if(m){const p=new URLSearchParams(m[1]);if(p.get('connected'))flash='<div class="panel" style="padding:10px 14px;margin-bottom:12px;border-left:3px solid var(--gr)">Connected to QuickBooks. Pick the tax code and accounts below, then review the customer matches.</div>';if(p.get('error'))flash='<div class="panel" style="padding:10px 14px;margin-bottom:12px;border-left:3px solid var(--rd)">QuickBooks said: '+esc(p.get('error'))+'</div>';history.replaceState(null,'','#/v/qbo');}}catch(e){}
-  let h='<div class="viewdesc">HQ is becoming the one system that writes sales to QuickBooks Online, for orders entered here and for Shopify orders alike: an order becomes an <b>Invoice</b> the moment it exists (list price, then the discount as QuickBooks\'s own Discount row; VAT code per line; class Sales), a cancelled unpaid order is voided only in the same month, a return becomes a <b>CreditMemo</b>. Payments are <b>not</b> sent — Collections records them in QuickBooks, and those payments come back into HQ so AR aging stays true. Until <b>Enabled</b> is on every run is a preview; the <b>reconciliation</b> below proves, order by order, that HQ produces the same invoice the old Shopify connector did.</div>'+flash;
-  if(err){c.innerHTML=h+'<div class="empty" style="margin-top:30px">'+esc(err)+'</div>';return;}
+  let h=flash; // the page tip is DESC.qbo, injected by injectDesc after the paint (this render is async)
+  if(err){c.innerHTML=h+'<div class="empty" style="margin-top:30px">'+esc(err)+'</div>';if(typeof injectDesc==='function')injectDesc('qbo');return;}
   const canEdit=qboCanEdit();const s=st.settings||{};
   /* connection */
   h+='<div class="panel" style="padding:16px 18px;margin-bottom:14px"><div class="phd">Connection</div>';
@@ -83,6 +83,7 @@ async function renderQbo(){
   h+='<div class="panel" style="padding:16px 18px;margin-bottom:14px"><div class="phd">Sync ledger</div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><input id="qbo-q" placeholder="HS or HG number…" oninput="qboLogDebounce()" style="font:inherit;padding:6px 9px;border-radius:8px;border:1px solid var(--bd);background:var(--sf);color:var(--tx)"><select id="qbo-f" onchange="qboLoadLog()" style="font:inherit;padding:6px 9px;border-radius:8px;border:1px solid var(--bd);background:var(--sf);color:var(--tx)"><option value="">All statuses</option><option value="pending">Pending / preview</option><option value="posted">Posted</option><option value="updated">Updated</option><option value="error">Errors</option><option value="voided">Voided</option><option value="skipped">Skipped</option></select>'+
     Object.entries(st.counts||{}).map(([k,v])=>'<span class="mu" style="font-size:11.5px">'+esc(k)+': '+Object.entries(v).map(([a,b])=>b+' '+a).join(', ')+'</span>').join('')+'</div><div id="qbo-log" class="mu">Loading…</div></div>';
   c.innerHTML=h;
+  if(typeof injectDesc==='function')injectDesc('qbo'); // showView injected before this async paint replaced the content
   if(st.unconfirmed)qboLoadMaps();
   qboLoadRecon();
   qboLoadLog();
@@ -90,7 +91,7 @@ async function renderQbo(){
 async function qboLoadRecon(){
   const b=$('qbo-recon-body');if(!b)return;
   try{const {latest:R,history:H,streak,error}=await qboApi('reconcile-status');
-    const btn='<a href="#" class="abtn" onclick="qboReconcile();return false">Reconcile now</a>';
+    const btn='<a href="#" class="abtn" onclick="qboImport();return false" title="Runs the full Shopify import so every order since the cutoff has its snapshot (otherwise the nightly run does it)">Import Shopify now</a><a href="#" class="abtn t-gr" onclick="qboReconcile();return false">Reconcile now</a>';
     if(error){b.textContent=error;return;}
     if(!R){b.className='';b.innerHTML='<div class="mu" style="margin-bottom:8px">No run yet. The reconciliation reads every Shopify order HQ imported since the cutoff, builds the invoice HQ would post and compares it with the invoice QuickBooks already holds under the same HG number — DocNumber, total, VAT, class, customer, due date, lines, discount row. It writes nothing to QuickBooks. Runs nightly; a week of clean runs is the signal to switch the Shopify orders over.</div>'+btn;return;}
     const bad=R.differences+R.missing;const tone=bad?'rd':(R.clean?'gr':'am');
@@ -107,6 +108,7 @@ async function qboLoadRecon(){
     if((H||[]).length>1)h+='<div class="mu" style="margin-top:10px;font-size:11px">Earlier runs: '+H.slice(1,15).map(x=>qboWhen(x.at)+' — '+(x.clean?'clean':(x.differences+x.missing)+' off')).join(' · ')+'</div>';
     b.className='';b.innerHTML=h;
   }catch(e){b.textContent='Could not load: '+e.message;}}
+async function qboImport(){const b=$('qbo-recon-body');try{await qboApi('import',{});if(b)b.insertAdjacentHTML('afterbegin','<div class="mu" style="margin-bottom:6px">Import started — the full Shopify history takes a few minutes; then press Reconcile now.</div>');}catch(e){uiAlert('Could not start: '+e.message);}}
 async function qboReconcile(){const b=$('qbo-recon-body');try{await qboApi('reconcile',{});if(b)b.insertAdjacentHTML('afterbegin','<div class="mu" style="margin-bottom:6px">Started — takes a minute or two; refresh the page for the result.</div>');}catch(e){uiAlert('Could not start: '+e.message);}}
 async function qboLoadLists(){const m=$('qbo-msg');if(m)m.textContent='Reading QuickBooks lists…';try{QBO_LISTS=await qboApi('lists');await renderQbo();}catch(e){if(m)m.textContent='Could not read lists: '+e.message;}}
 async function qboSaveSettings(){

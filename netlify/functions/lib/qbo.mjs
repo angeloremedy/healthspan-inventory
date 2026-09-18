@@ -33,7 +33,7 @@ export async function sb(path, method = 'GET', body) {
     method, headers: Object.assign({ apikey: SVC, Authorization: 'Bearer ' + SVC, 'Content-Type': 'application/json' }, prefer ? { Prefer: prefer } : {}),
     body: body === undefined ? undefined : JSON.stringify(body)
   });
-  if (!r.ok) { const t = await r.text(); throw new Error('Supabase ' + r.status + ' on ' + path.split('?')[0] + ': ' + t.slice(0, 200)); }
+  if (!r.ok) { const t = await r.text(); const msg = /^\s*</.test(t) ? '(the gateway answered with an HTML error page)' : t.slice(0, 200); throw new Error('Supabase ' + r.status + ' on ' + path.split('?')[0] + ': ' + msg); }
   const t = await r.text(); return t ? JSON.parse(t) : null;
 }
 export async function setting(key) { try { const r = await sb('app_settings?select=value&key=eq.' + encodeURIComponent(key)); return (r[0] || {}).value || ''; } catch (e) { return ''; } }

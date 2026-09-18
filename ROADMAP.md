@@ -30,10 +30,12 @@ at cutover; the accounting export CSV remains the fallback); it does not replace
 - ✅ Shopify import: centavos, Manila dates, the QuickBooks snapshot (`orders.qbo_src`), every 15 minutes for recent changes (`shopify-recent.mjs`) plus the nightly full history; page size adapts to Shopify's query cost
 - ✅ Shadow reconciliation on the QuickBooks page: HQ's predicted invoice vs the one already in QuickBooks for every Shopify order since the connector's cutoff — differences named field by field, clean-run streak, Reconcile now, nightly run; a week of clean runs is the switch signal
 - ✅ Settings: invoice at creation / fulfilment, No-VAT code, class, discount presentation, default terms, anonymous name, reconcile-from, strict totals, send payments; `qbo_use_class` / `qbo_use_location` retired. Manuals (finance, admin, super admin) rewritten for the new behaviour; runbook for pausing the GCP connector in README 9.22
+- ✅ Fixes after the first deploy: Home painted only the action row on first load (bundle TDZ on `FIN_KINDS` inside `viewAllowed`, memoised as final — ARCHITECTURE 4.16a); the QuickBooks page failed on `like.qbo_%` (raw `%` in the URL → HTML 500) and painted its own description as a flex row; Import Shopify now button beside Reconcile now
 - ▢ Next: watch the reconciliation for a week, then the cutover runbook
 
 **Org chart (Sep 18)**
-- ✅ Company org chart as its own page (under My profile, every role): the People team's Healthspan chart — co-founders, group functions, country sales with teams 1 and 2 — with the level legend and vacant posts; every name opens the person's card (reports to, direct reports, sales page / Team & access where allowed); find box, Tree / List, phone outline. Data in `js/19-orgchart.js` until the HR module owns people records
+- ✅ Company org chart as its own page (under My profile, every role): the People team's Healthspan chart — co-founders, group functions, country sales with teams 1 and 2 — with the level legend and vacant posts; every name opens the person's card (reports to, direct reports, sales page / Team & access where allowed); find box, Tree / List, phone outline
+- ✅ **Editable by admins** (People Operations use an admin account): `org_people` table with RLS, Edit / Add / Add under / Remove (reports move up, row kept inactive), link a row to an HQ account (card shows account + role; specialist tag from it), seed button on an empty table; audited
 
 
 **App-wide audit (Sep 17–18)**

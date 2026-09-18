@@ -8,8 +8,12 @@ function renderHome(){
   // already on screen for this role, just refresh the live numbers (no flicker)
   let name=(SBPROFILE&&SBPROFILE.name)||'';
   if(!name)try{name=localStorage.getItem('hs_name_cache')||'';}catch(e){} // first paint, before the profile loads
-  if($('hm-live')&&window._homeRole===ROLE&&window._homeName===name){try{homeLive();}catch(e){}return;}
-  window._homeRole=ROLE;window._homeName=name;
+  // …but only if that shell was COMPLETE: the very first paint runs from the middle of the
+  // bundle (js/09 init), before js/10+ exist, and its page catalogue can come out empty —
+  // that paint must not be treated as final (2026-09-18: Home showed only "Needs you" until
+  // you left and came back)
+  if($('hm-live')&&window._homeRole===ROLE&&window._homeName===name&&window._homeComplete){try{homeLive();}catch(e){}return;}
+  window._homeRole=ROLE;window._homeName=name;window._homeComplete=false;
   const first=(name.split(' ')[0])||''; // no name yet? greet without one — never “there”
   const h=new Date().getHours();
   const greet=h<12?'Good morning':h<18?'Good afternoon':'Good evening';
@@ -223,7 +227,7 @@ function renderHome(){
       // title = the item's text WITHOUT badge counts (the nbadge span)
       let title='';el.childNodes.forEach(n=>{if(n.nodeType===3)title+=n.textContent;else if(n.nodeType===1&&!n.classList.contains('nbadge')&&n.tagName!=='SVG'&&!n.querySelector('svg'))title+=n.textContent;});
       title=title.trim()||el.textContent.replace(/\d+$/,'').trim();
-      const ro=(typeof roFor==='function'&&roFor(v));
+      let ro=false;try{ro=(typeof roFor==='function'&&roFor(v));}catch(e){} // roFor reads js/10 state that may not exist yet
       // clone the icon WITH the sidebar's stroke styling (CSS doesn't follow the clone)
       const icon=svg?svg.outerHTML.replace('<svg ','<svg style="width:22px;height:22px" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" '):ic(HI.grid);
       const sub=(SUBS[v]&&SUBS[v].toLowerCase()!==title.toLowerCase())?SUBS[v]:'';
@@ -233,6 +237,7 @@ function renderHome(){
         (sub?'<div class="hmc-s">'+sub+'</div>':'')+'</div></div>');
     });
     flush();
+    window._homeComplete=out.length>0||!document.querySelector('.nav .ni'); // a catalogue came out (or there is no sidebar to read)
     autoSec=out.map(sec=>'<div class="hm-lbl">'+esc(sec[0])+'</div><div class="hm-grid">'+sec[1].join('')+'</div>').join('');
     if(autoSec&&ROLE!=='admin')autoSec+='<div style="font-size:10.5px;color:var(--tx3);margin-top:14px">👁 = view-only for your role — the page says who edits it.</div>';
   }catch(e){}

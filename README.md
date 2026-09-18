@@ -1204,8 +1204,15 @@ A box above the chart finds a name or title (the rest of the chart dims); on a
 phone the chart is an indented list, and Tree / List switches the layout on any
 screen. It carries no pay and no costs — names and titles only — and is read
 from the People team's "Remedy/Healthspan Org Chart" (the Healthspan page, 18
-September 2026). Until the HR module (Workstream E) owns people records the
-data lives in `js/19-orgchart.js` (`ORG_PEOPLE`), updated with the app.
+September 2026). **Admins edit it** (People Operations use an admin account):
+Edit mode adds a person or a team label, changes name / title / reports-to /
+level / order, links a row to the person's HQ account (the card then shows the
+account and its role, and a product specialist's tag comes from it), and removes
+a row — its reports move up one level and the row is kept inactive for history.
+Every change is audited. The chart lives in `org_people`; the first admin to
+open the empty table is offered the People team's September 2026 chart as a
+starting point, and until the table exists that same chart shows read-only. The
+HR module (Workstream E) will take the data over as the employee master.
 
 ## 9.23 Saved reports — the reporting layer
 

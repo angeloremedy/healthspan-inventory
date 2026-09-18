@@ -34,7 +34,7 @@ export const SPECIAL_ITEMS = { // the connector's three service items, found or 
 };
 
 export async function cfgLoad() {
-  const rows = await sb("app_settings?select=key,value&key=like.qbo_%");
+  const rows = await sb("app_settings?select=key,value&key=like.qbo_*");
   const c = {}; for (const r of rows) c[r.key] = r.value;
   return {
     enabled: c.qbo_enabled === '1', postFrom: c.qbo_post_from || '2099-01-01', postMode: c.qbo_post_mode === 'fulfilled' ? 'fulfilled' : 'created',

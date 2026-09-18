@@ -10,6 +10,7 @@
 //   POST {action:'run', force?}            admin/finance  starts the background worker now
 //   POST {action:'reconcile', since?}      admin/finance  starts the shadow reconciliation (reads QBO, writes nothing)
 //   GET  ?action=reconcile-status          admin/finance  the latest reconciliation + history (from Blobs)
+//   POST {action:'import'}                 admin/finance  runs the FULL Shopify import now (backfill-background), so every order has its snapshot
 import { connectLambda, getStore } from '@netlify/blobs';
 import { hasClient, qboEnv, loadTokens, refreshIfNeeded, client, sb, mapSet } from './lib/qbo.mjs';
 import { cleanStreak } from './lib/qbo-reconcile.mjs';
@@ -33,7 +34,7 @@ async function caller(event) {
     return { id: u.id, role: p.role || 'viewer', super: !!p.is_super, name: p.name || u.email || '' };
   } catch (e) { return null; }
 }
-async function settings() { const rows = await sb("app_settings?select=key,value&key=like.qbo_%"); const c = {}; for (const r of rows) c[r.key] = r.value; return c; }
+async function settings() { const rows = await sb("app_settings?select=key,value&key=like.qbo_*"); const c = {}; for (const r of rows) c[r.key] = r.value; return c; }
 async function audit(who, action, detail) { try { await sb('audit_log', 'POST', { user_id: who.id, who: who.name, action, detail: JSON.stringify(detail || {}).slice(0, 900) }); } catch (e) {} }
 
 export const handler = async (event) => {
@@ -127,6 +128,13 @@ export const handler = async (event) => {
       const r = await fetch(base + '/.netlify/functions/qbo-reconcile-background', { method: 'POST', headers: { 'x-job-key': process.env.JOB_KEY || '', 'Content-Type': 'application/json' }, body: JSON.stringify({ by: who.name || 'manual', since }) });
       if (!r.ok && r.status !== 202) return out(502, { error: 'The reconciliation worker did not start (' + r.status + ')' });
       await audit(who, 'qbo.reconcile', { since: since || 'default' });
+      return out(200, { ok: true, started: true });
+    }
+    if (action === 'import') {
+      const base = process.env.URL || 'https://hq.healthspan.ph';
+      const r = await fetch(base + '/.netlify/functions/backfill-background', { method: 'POST', headers: { 'x-job-key': process.env.JOB_KEY || '', 'Content-Type': 'application/json' }, body: JSON.stringify({ by: who.name || 'manual' }) });
+      if (!r.ok && r.status !== 202) return out(502, { error: 'The import worker did not start (' + r.status + ')' });
+      await audit(who, 'qbo.import', {});
       return out(200, { ok: true, started: true });
     }
     if (action === 'reconcile-status') {

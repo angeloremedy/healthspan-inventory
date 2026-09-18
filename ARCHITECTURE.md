@@ -672,7 +672,10 @@ own tag, and their account hits come from their own `orders` rows rather than
 ### 4.13a Org chart — `js/19-orgchart.js`
 
 A nineteenth classic script; nothing before it references it. `ORG_PEOPLE` is a
-flat list — `{id, name, title, boss, level, spec?}` — and the tree is derived:
+flat list — `{id, name, title, boss, level, spec?, profile_id?, hq_name?, hq_role?, sort}` —
+loaded from `public.org_people` (`orgLoad`: the table when it has rows; an empty
+table offers admins the `ORG_SEED` load; no table yet → the seed, read-only, with a
+note to the super admin) — and the tree is derived:
 `boss` names the person reported to, `'exec'` means the two co-founders jointly
 (rendered side by side as one root), a `level:'group'` row ("Team 1") is a label
 that the reporting line passes through (`orgBossOf` / `orgReports` look through
@@ -684,9 +687,13 @@ toggle, the same data renders as an indented outline. Each node is an
 `<a class="lnk org-node">` — `lnk` keeps `upgradeButtons()` from turning it into
 a pill — whose click sets `ORG_SEL` and re-renders with the person's card on top;
 the card's "Sales page" appears only when the row carries a `spec` tag **and**
-`viewAllowed('spec')`, "Team & access" only when `viewAllowed('users')`. No
-Supabase, no audit rows (opening a card is not a mutation), no names in the
-manuals. Colours are the legend's (`ORG_LEVEL`), not the theme's, so the chart
+`viewAllowed('spec')`, "Team & access" only when `viewAllowed('users')`. Opening a
+card writes nothing; every edit does — `orgSave` upserts through the user's own
+session (RLS `hs_role() in ('super','admin')`) and calls `audit('orgchart.add|edit|
+link|unlink|remove|seed')`. Remove deactivates (`active=false`) after moving the
+row's reports to its boss. Linking reads the HQ accounts through `adminUsers('list')`
+(admin-only function) and denormalises `hq_name` / `hq_role` onto the row so every
+role can show them — `profiles` is own-row-only under RLS. No names in the manuals. Colours are the legend's (`ORG_LEVEL`), not the theme's, so the chart
 reads the same in dark mode.
 
 ### 4.14 Drawer history — `js/06` + `js/04`
@@ -717,6 +724,27 @@ re-render only if `SHOPIFY` changed — `loadShopify()` resolves without data wh
 the feed errors, is `building`, or the device is offline, and the old unguarded
 re-render → load → re-render was a hot loop (an OOM in jsdom; a request storm on
 a phone). `loadVisits()` likewise never leaves `VISITS` null.
+
+### 4.16a The bundle's temporal dead zone — why Home painted half-empty (fixed 2026-09-18)
+
+`tools/build.mjs` ships the nineteen scripts as ONE file. That changes one thing the
+unbundled source never showed: a `const` declared in a later script is no longer
+"not yet declared" (where `typeof X` is safely `'undefined'`) but **declared and in
+its temporal dead zone**, where `typeof X` throws. js/09's init runs `renderHome()`
+from the middle of the bundle; the Home page catalogue walks the sidebar through
+`viewAllowed()`, which read `typeof FIN_KINDS` (a js/10 const) — in production that
+threw, the catalogue came out empty, and the "stable shell" memo then treated that
+half page as final until the role or name changed. Two rules came out of it:
+read a later script's const under `try` (`viewAllowed` does), and a memoised first
+paint must record whether it was **complete** (`window._homeComplete`) so the next
+render call repaints instead of refreshing numbers. Async views have a second trap:
+`showView()` injects the page tip (`injectDesc`) right after calling the renderer,
+so a renderer that paints later (`renderQbo`) must call `injectDesc` itself after
+its paint — and must not carry its own `.viewdesc` (the tip is `DESC` in js/01, and
+`.viewdesc` is a flex row, so raw text and `<b>` children spread into columns).
+PostgREST filters travel in the URL: a raw `%` in `like.qbo_%` is an invalid escape
+the gateway answers with an HTML 500 page — use `*` as the wildcard, and `sb()`
+now names an HTML error page instead of quoting it.
 
 ### 4.17 The role × view matrix test — `tools/test/role-view-matrix.test.js`
 

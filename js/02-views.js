@@ -23,8 +23,11 @@ function viewAllowed(v){
   // Pull-outs are company-wide: anyone may file one, and anyone named as a fund-source
   // approver must be able to decide regardless of their access level elsewhere — several
   // approvers are viewers. Stated as a rule so no future CIRCLE_BLOCK edit can revoke it.
-  // FIN_KINDS lives in js/10; viewAllowed can run before that file has loaded
-  if(v==='pullouts'||(typeof FIN_KINDS!=='undefined'&&FIN_KINDS.indexOf(v)>=0))return true; // anyone may file a finance form; the approval route is the control
+  // FIN_KINDS lives in js/10; viewAllowed can run before that file has loaded. In the ONE-FILE
+  // production bundle that is not "undefined" but a const still in its temporal dead zone —
+  // `typeof` throws there — so read it under try (the 2026-09-18 blank-Home fix)
+  let fin=[];try{fin=FIN_KINDS;}catch(e){}
+  if(v==='pullouts'||fin.indexOf(v)>=0)return true; // anyone may file a finance form; the approval route is the control
   if(v==='savedreports')return ROLE!=='viewer';
   if(v==='receiving')return ['admin','supply_chain','finance','manager'].includes(ROLE); // shipments carry costs; managers read without them                 // every source inside gates itself by role
   if(v==='routes')return ROLE==='admin';
