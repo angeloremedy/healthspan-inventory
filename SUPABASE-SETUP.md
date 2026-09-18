@@ -3195,8 +3195,10 @@ the existing `JOB_KEY`: `shopify-recent.mjs` (every 15 min) and
 The company org chart lives in HQ (Org chart, under My profile, every role reads
 it). Admins and the super admin edit it — People Operations use an admin account
 — and may link a row to the person's HQ login so the card opens their pages.
-Names, titles and the reporting line only: no pay, no costs. A removed row is
-kept with `active = false` (history), its reports move up one level.
+Names, titles and the reporting line only: no pay, no costs. "Mark vacant" keeps
+the post (title and place) and drops the name and the HQ link; "Remove" keeps the
+row with `active = false` (history) and moves its reports up one level; the super
+admin may also delete a row for good.
 
 ```sql
 create table if not exists public.org_people (
@@ -3223,7 +3225,10 @@ create policy "org write" on public.org_people for insert to authenticated
 drop policy if exists "org update" on public.org_people;
 create policy "org update" on public.org_people for update to authenticated
   using (public.hs_role() in ('super','admin')) with check (public.hs_role() in ('super','admin'));
--- no delete policy: rows are deactivated, never deleted
+-- admins deactivate rows (history); only the super admin may delete one for good
+drop policy if exists "org delete super" on public.org_people;
+create policy "org delete super" on public.org_people for delete to authenticated
+  using (public.hs_role() = 'super');
 ```
 
 The first admin to open the empty chart is offered "Load the People team's chart

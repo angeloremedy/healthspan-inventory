@@ -7,8 +7,10 @@
    reporting line.
    The chart lives in public.org_people (RLS: everyone signed in reads; admin and
    super admin write — People Operations use an admin account). Admins get an Edit
-   mode: add a person or a team label, change name / title / reports-to / level, link
-   the row to an HQ account, remove. Every change is audited. ORG_SEED is the People
+   mode (Edit chart): every box carries edit · add under · mark vacant / fill · move
+   up / down · remove; the card adds the HQ-account link. Remove takes the row off
+   the chart but keeps it (active=false); the super admin may delete it for good.
+   Every change is audited. ORG_SEED is the People
    team's chart as read on 2026-09-18 (the Healthspan page of their Canva design): it
    loads into the table the first time an admin opens an empty chart, and is what
    everyone sees until the table exists.
@@ -75,6 +77,17 @@ const ORG_SEED=[
 ];
 let ORG_PEOPLE=[],ORG_SRC='seed',ORG_LOADED=false,ORG_SEL=null,ORG_MODE=null,ORG_Q='',ORG_EDIT=false,ORG_ACCOUNTS=null,ORG_UPDATED='';
 function orgCanEdit(){return typeof ROLE!=='undefined'&&ROLE==='admin';} // admin + super admin (People Operations use an admin account)
+function orgEditing(){return ORG_EDIT&&orgCanEdit()&&ORG_SRC!=='seed';}
+// the small toolbar every row carries in Edit mode: edit · add under · vacate/fill · move up/down · remove
+function orgTools(p){
+  if(!orgEditing())return '';
+  const b=(fn,lbl,title,cls)=>'<a href="#" class="lnk org-tb'+(cls?' '+cls:'')+'" title="'+esc(title)+'" onclick="event.stopPropagation();'+fn+';return false">'+lbl+'</a>';
+  const sibs=orgKids(p.boss||null);const i=sibs.findIndex(x=>x.id===p.id);
+  return '<span class="org-tools">'+b("orgEdit('"+jsq(p.id)+"')",'✎','Edit name, title, reports to, level')+b("orgAdd('"+jsq(p.id)+"')",'＋','Add someone under '+p.name)+
+    (p.level==='group'?'':(p.level==='vacant'?b("orgFill('"+jsq(p.id)+"')",'☺','Fill this post'):b("orgVacate('"+jsq(p.id)+"')",'◌','Mark the post vacant (keeps the title and place)')))+
+    (i>0?b("orgMove('"+jsq(p.id)+"',-1)",'↑','Move before '+sibs[i-1].name):'')+(i>=0&&i<sibs.length-1?b("orgMove('"+jsq(p.id)+"',1)",'↓','Move after '+sibs[i+1].name):'')+
+    b("orgRemove('"+jsq(p.id)+"')",'✕','Remove from the chart','rd')+'</span>';
+}
 function orgById(id){return ORG_PEOPLE.find(p=>p.id===id)||null;}
 function orgKids(id){return ORG_PEOPLE.filter(p=>p.boss===id).sort((a,b)=>(a.sort||0)-(b.sort||0)||a.name.localeCompare(b.name));}
 function orgBossOf(p){if(!p||!p.boss)return [];if(p.boss==='exec')return ORG_PEOPLE.filter(x=>x.level==='founder');const b=orgById(p.boss);if(!b)return [];return b.level==='group'?orgBossOf(b):[b];}
@@ -106,8 +119,9 @@ async function orgSeedDb(){
 /* ── nodes ── */
 function orgNode(p){
   const L=ORG_LEVEL[p.level]||ORG_LEVEL.associate;const hit=ORG_Q&&orgMatch(p);const sel=ORG_SEL===p.id;
-  if(p.level==='group')return '<a href="#" class="lnk org-grp" onclick="orgSelect(\''+jsq(p.id)+'\');return false">'+esc(p.name)+'</a>';
-  return '<a href="#" class="lnk org-node'+(sel?' sel':'')+(ORG_Q&&!hit?' dim':'')+'" style="background:'+L.bg+';color:'+L.fg+';border-color:'+(sel?'var(--tx)':L.bd)+(p.level==='vacant'?';border-style:dashed':'')+'" onclick="orgSelect(\''+jsq(p.id)+'\');return false" title="'+esc(p.title)+'"><span class="org-nm">'+esc(p.name)+(p.profile_id?' <span class="org-link" title="Linked to an HQ account">⛓</span>':'')+'</span><span class="org-tt">'+esc(p.title)+'</span></a>';
+  const tools=orgTools(p);
+  if(p.level==='group')return '<span class="org-wrap"><a href="#" class="lnk org-grp" onclick="orgSelect(\''+jsq(p.id)+'\');return false">'+esc(p.name)+'</a>'+tools+'</span>';
+  return '<span class="org-wrap"><a href="#" class="lnk org-node'+(sel?' sel':'')+(ORG_Q&&!hit?' dim':'')+'" style="background:'+L.bg+';color:'+L.fg+';border-color:'+(sel?'var(--tx)':L.bd)+(p.level==='vacant'?';border-style:dashed':'')+'" onclick="orgSelect(\''+jsq(p.id)+'\');return false" title="'+esc(p.title)+'"><span class="org-nm">'+esc(p.name)+(p.profile_id?' <span class="org-link" title="Linked to an HQ account">⛓</span>':'')+'</span><span class="org-tt">'+esc(p.title)+'</span></a>'+tools+'</span>';
 }
 function orgTree(id){
   const kids=orgKids(id);if(!kids.length)return '';
@@ -125,7 +139,7 @@ function orgCard(p){
   let acts='';
   if(p.spec&&typeof viewAllowed==='function'&&viewAllowed('spec')&&typeof showSpecPage==='function')acts+='<a href="#" class="abtn t-gr" onclick="showSpecPage(\''+jsq(p.spec)+'\');return false">Sales page</a>';
   if(p.profile_id&&typeof viewAllowed==='function'&&viewAllowed('users'))acts+='<a href="#" class="abtn" onclick="showView(\'users\');return false">Team &amp; access</a>';
-  if(orgCanEdit()&&ORG_SRC!=='seed')acts+='<a href="#" class="abtn" onclick="orgEdit(\''+jsq(p.id)+'\');return false">Edit</a>'+(isGroup?'':'<a href="#" class="abtn" onclick="orgLink(\''+jsq(p.id)+'\');return false">'+(p.profile_id?'Change HQ account':'Link HQ account')+'</a>')+'<a href="#" class="abtn" onclick="orgAdd(\''+jsq(p.id)+'\');return false">Add under</a><a href="#" class="abtn t-rd" onclick="orgRemove(\''+jsq(p.id)+'\');return false">Remove</a>';
+  if(orgCanEdit()&&ORG_SRC!=='seed')acts+='<a href="#" class="abtn" onclick="orgEdit(\''+jsq(p.id)+'\');return false">Edit</a>'+(isGroup?'':(p.level==='vacant'?'<a href="#" class="abtn t-gr" onclick="orgFill(\''+jsq(p.id)+'\');return false">Fill the post</a>':'<a href="#" class="abtn" onclick="orgVacate(\''+jsq(p.id)+'\');return false">Mark vacant</a>')+'<a href="#" class="abtn" onclick="orgLink(\''+jsq(p.id)+'\');return false">'+(p.profile_id?'Change HQ account':'Link HQ account')+'</a>')+'<a href="#" class="abtn" onclick="orgAdd(\''+jsq(p.id)+'\');return false">Add under</a><a href="#" class="abtn t-rd" onclick="orgRemove(\''+jsq(p.id)+'\');return false">Remove</a>';
   const hq=p.profile_id?'<div style="margin-top:6px;font-size:12px"><span class="mu">HQ account:</span> <b>'+esc(p.hq_name||'linked')+'</b>'+(p.hq_role?' <span class="pill pgy">'+esc(String(p.hq_role).replace('_',' '))+'</span>':'')+(p.spec?' <span class="mu">· specialist tag '+esc(p.spec)+'</span>':'')+'</div>':(isGroup?'':'<div class="mu" style="margin-top:6px;font-size:11.5px">No HQ account linked'+(p.spec?' · specialist tag '+esc(p.spec):'')+'</div>');
   return '<div class="panel org-card" style="padding:14px 16px;margin-bottom:12px"><div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap">'+
     '<div style="min-width:220px;flex:1"><div style="font-size:16px;font-weight:700">'+esc(p.name)+'</div><div class="mu" style="margin-top:2px">'+esc(p.title)+'</div>'+
@@ -146,8 +160,9 @@ async function renderOrgChart(){
   if(sel)h+=orgCard(sel);
   h+='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><input id="org-q" placeholder="Find a name or title…" value="'+esc(ORG_Q)+'" oninput="orgFilter(this.value)" style="font:inherit;padding:6px 9px;border-radius:8px;border:1px solid var(--bd);background:var(--sf);color:var(--tx);min-width:220px">'+
     '<a href="#" class="abtn'+(mode==='tree'?' t-gr':'')+'" onclick="orgSetMode(\'tree\');return false">Tree</a><a href="#" class="abtn'+(mode==='list'?' t-gr':'')+'" onclick="orgSetMode(\'list\');return false">List</a>'+
-    (canEdit&&ORG_SRC!=='seed'?'<a href="#" class="abtn" onclick="orgAdd(null);return false">+ Add person</a>':'')+
+    (canEdit&&ORG_SRC!=='seed'?'<a href="#" class="abtn'+(ORG_EDIT?' t-gr':'')+'" onclick="orgToggleEdit();return false">'+(ORG_EDIT?'Done editing':'Edit chart')+'</a>'+(ORG_EDIT?'<a href="#" class="abtn" onclick="orgAdd(null);return false">+ Add person</a>':''):'')+
     '<span class="mu" style="font-size:11px;margin-left:auto">'+ORG_PEOPLE.filter(p=>p.level!=='group'&&p.level!=='vacant').length+' people · updated '+esc(ORG_UPDATED)+' · '+Object.keys(ORG_LEVEL).map(k=>'<span class="org-sw" style="background:'+ORG_LEVEL[k].bg+';border-color:'+ORG_LEVEL[k].bd+'"></span>'+esc(ORG_LEVEL[k].lbl)).join(' · ')+'</span></div>';
+  if(orgEditing())h+='<div class="mu" style="font-size:11.5px;margin:-4px 0 10px">Editing: every box now carries ✎ edit · ＋ add under · ◌ mark vacant (☺ fill) · ↑ ↓ reorder · ✕ remove. Tap a name for its card and the HQ-account link. The List layout is the easiest place to make many changes.</div>';
   if(!ORG_PEOPLE.length)h+='<div class="empty" style="margin-top:30px">Nobody on the chart yet.</div>';
   else if(mode==='tree'){
     h+='<div class="panel" style="padding:16px 14px;overflow:auto"><div class="org-tree"><ul class="org-root"><li><div class="org-exec">'+founders.map(orgNode).join('<span class="org-join"></span>')+'</div>'+orgTree('exec')+'</li></ul></div></div>';
@@ -160,6 +175,7 @@ async function renderOrgChart(){
 }
 function orgSelect(id){ORG_SEL=id||null;renderOrgChart().then(()=>{if(id){const el=document.querySelector('.org-card');if(el&&el.scrollIntoView)el.scrollIntoView({block:'nearest'});}});}
 function orgSetMode(m){ORG_MODE=m;renderOrgChart();}
+function orgToggleEdit(){ORG_EDIT=!ORG_EDIT;if(ORG_EDIT&&!ORG_MODE&&typeof window!=='undefined'&&window.innerWidth<1200)ORG_MODE='list';renderOrgChart();}
 let _orgT=null;function orgFilter(v){ORG_Q=String(v||'').trim();clearTimeout(_orgT);_orgT=setTimeout(renderOrgChart,150);}
 /* ── editing (admin + super admin) ── */
 function orgBossOpts(excludeId){
@@ -204,15 +220,40 @@ async function orgEdit(id){
   if(!v)return;
   await orgSave(Object.assign({},p,{name:v.name.trim(),title:v.title.trim(),boss:v.boss||null,level:v.level,spec:(v.spec||'').trim()||null,sort:parseInt(v.sort,10)||0}),'edit');
 }
+// the person leaves, the post stays: the box keeps its title and place, reads "Vacant", and loses the HQ-account link
+async function orgVacate(id){
+  const p=orgById(id);if(!p||!orgCanEdit()||ORG_SRC==='seed'||p.level==='group')return;
+  if(!await uiConfirm('Mark '+p.name+'\'s post ('+p.title+') as vacant?\n\nThe box stays where it is with its title; the name and the HQ-account link are removed.'))return;
+  await orgSave(Object.assign({},p,{name:'Vacant',level:'vacant',spec:null,profile_id:null,hq_name:null,hq_role:null}),'vacate');
+}
+async function orgFill(id){
+  const p=orgById(id);if(!p||!orgCanEdit()||ORG_SRC==='seed')return;
+  const v=await uiForm('Fill the post — '+p.title,[{k:'name',l:'Name',req:true,placeholder:'As it should read on the chart'},{k:'level',l:'Level',t:'select',opts:ORG_LEVEL_OPTS.filter(o=>!['vacant','group','founder'].includes(o.v)),v:'associate'},{k:'spec',l:'Specialist tag (product specialists only)',placeholder:'e.g. Rhas'}],{ok:'Fill'});
+  if(!v)return;
+  await orgSave(Object.assign({},p,{name:v.name.trim(),level:v.level,spec:(v.spec||'').trim()||null}),'fill');
+}
+// swap places with the neighbour among the same boss's rows
+async function orgMove(id,dir){
+  const p=orgById(id);if(!p||!orgCanEdit()||ORG_SRC==='seed')return;
+  const sibs=orgKids(p.boss||null);const i=sibs.findIndex(x=>x.id===id);const o=sibs[i+dir];if(!o)return;
+  // give every sibling a distinct sort first (seed rows share none, but hand-added rows may tie), then swap
+  const order=sibs.map((x,k)=>({id:x.id,sort:k+1}));const a=order[i].sort;order[i].sort=order[i+dir].sort;order[i+dir].sort=a;
+  const by=(SBUSER&&SBUSER.id)||null;const now=new Date().toISOString();
+  for(const r of order){const {error}=await SB.from('org_people').update({sort:r.sort,updated_by:by,updated_at:now}).eq('id',r.id);if(error){uiAlert('Could not reorder: '+error.message);return;}}
+  audit('orgchart.move',{id,dir});ORG_LOADED=false;renderOrgChart();
+}
+// remove: admins take a row off the chart (kept, inactive); the super admin may also delete it for good
 async function orgRemove(id){
   const p=orgById(id);if(!p||!orgCanEdit()||ORG_SRC==='seed')return;
-  const kids=orgKids(id);
-  if(!await uiConfirm('Remove '+p.name+' from the chart?'+(kids.length?'\n\nThe '+kids.length+' row'+(kids.length>1?'s':'')+' under them move up to '+(orgBossOf(p).map(b=>b.name).join(' & ')||'the top')+'.':'')))return;
-  const bossUp=p.boss;const by=(SBUSER&&SBUSER.id)||null;
-  if(kids.length){const {error}=await SB.from('org_people').update({boss:bossUp,updated_by:by,updated_at:new Date().toISOString()}).eq('boss',id);if(error){uiAlert('Could not move their reports: '+error.message);return;}}
-  const {error}=await SB.from('org_people').update({active:false,updated_by:by,updated_at:new Date().toISOString()}).eq('id',id);
-  if(error){uiAlert('Could not remove: '+error.message);return;}
-  audit('orgchart.remove',{id,name:p.name,moved:kids.length});
+  const kids=orgKids(id);const superUser=typeof isSuper==='function'&&isSuper();
+  const upTo=orgBossOf(p).map(b=>b.name).join(' & ')||'the top';
+  const opts=[{v:'soft',l:'Remove from the chart (kept in history)'}];if(superUser)opts.push({v:'hard',l:'Delete permanently (super admin)'});
+  const v=await uiForm('Remove '+p.name,[{k:'how',l:'How',t:'select',opts,v:'soft',hint:(kids.length?'The '+kids.length+' row'+(kids.length>1?'s':'')+' under them move up to '+upTo+'. ':'')+(p.level==='vacant'||p.level==='group'?'':'To keep the post open instead, use Mark vacant.')}],{ok:'Remove',danger:true});
+  if(!v)return;
+  const by=(SBUSER&&SBUSER.id)||null;const now=new Date().toISOString();
+  if(kids.length){const {error}=await SB.from('org_people').update({boss:p.boss,updated_by:by,updated_at:now}).eq('boss',id);if(error){uiAlert('Could not move their reports: '+error.message);return;}}
+  if(v.how==='hard'&&superUser){const {error}=await SB.from('org_people').delete().eq('id',id);if(error){uiAlert('Could not delete: '+error.message);return;}audit('orgchart.delete',{id,name:p.name,title:p.title,moved:kids.length});}
+  else{const {error}=await SB.from('org_people').update({active:false,updated_by:by,updated_at:now}).eq('id',id);if(error){uiAlert('Could not remove: '+error.message);return;}audit('orgchart.remove',{id,name:p.name,moved:kids.length});}
   ORG_LOADED=false;ORG_SEL=null;renderOrgChart();
 }
 async function orgLink(id){

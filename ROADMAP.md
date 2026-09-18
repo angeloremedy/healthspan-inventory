@@ -35,7 +35,7 @@ at cutover; the accounting export CSV remains the fallback); it does not replace
 
 **Org chart (Sep 18)**
 - ✅ Company org chart as its own page (under My profile, every role): the People team's Healthspan chart — co-founders, group functions, country sales with teams 1 and 2 — with the level legend and vacant posts; every name opens the person's card (reports to, direct reports, sales page / Team & access where allowed); find box, Tree / List, phone outline
-- ✅ **Editable by admins** (People Operations use an admin account): `org_people` table with RLS, Edit / Add / Add under / Remove (reports move up, row kept inactive), link a row to an HQ account (card shows account + role; specialist tag from it), seed button on an empty table; audited
+- ✅ **Editable by admins** (People Operations use an admin account): `org_people` table with RLS, Edit / Add / Add under / Remove (reports move up, row kept inactive), link a row to an HQ account (card shows account + role; specialist tag from it), seed button on an empty table; audited. Edit chart toolbar on every box (edit · add under · mark vacant / fill · reorder · remove); permanent delete for the super admin
 
 
 **App-wide audit (Sep 17–18)**

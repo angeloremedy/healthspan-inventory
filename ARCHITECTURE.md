@@ -691,7 +691,11 @@ the card's "Sales page" appears only when the row carries a `spec` tag **and**
 card writes nothing; every edit does — `orgSave` upserts through the user's own
 session (RLS `hs_role() in ('super','admin')`) and calls `audit('orgchart.add|edit|
 link|unlink|remove|seed')`. Remove deactivates (`active=false`) after moving the
-row's reports to its boss. Linking reads the HQ accounts through `adminUsers('list')`
+row's reports to its boss; a super admin may choose a hard delete (RLS `org delete
+super`). `orgVacate` keeps the row and its place — name → "Vacant", level →
+`vacant`, spec / profile link cleared — so a post survives the person; `orgFill`
+reverses it. `orgMove` renumbers the siblings 1..n and swaps two. `ORG_EDIT`
+(Edit chart) puts `orgTools()` on every node — the same handlers the card uses. Linking reads the HQ accounts through `adminUsers('list')`
 (admin-only function) and denormalises `hq_name` / `hq_role` onto the row so every
 role can show them — `profiles` is own-row-only under RLS. No names in the manuals. Colours are the legend's (`ORG_LEVEL`), not the theme's, so the chart
 reads the same in dark mode.

@@ -1205,11 +1205,15 @@ phone the chart is an indented list, and Tree / List switches the layout on any
 screen. It carries no pay and no costs — names and titles only — and is read
 from the People team's "Remedy/Healthspan Org Chart" (the Healthspan page, 18
 September 2026). **Admins edit it** (People Operations use an admin account):
-Edit mode adds a person or a team label, changes name / title / reports-to /
-level / order, links a row to the person's HQ account (the card then shows the
-account and its role, and a product specialist's tag comes from it), and removes
-a row — its reports move up one level and the row is kept inactive for history.
-Every change is audited. The chart lives in `org_people`; the first admin to
+**Edit chart** puts a small toolbar on every box — ✎ edit (name, title,
+reports to, level, order), ＋ add under, ◌ mark vacant (the post stays with its
+title and place, reads "Vacant", loses the name and the HQ link; ☺ fills it
+again), ↑ ↓ reorder among siblings, ✕ remove — and the card adds **Link HQ
+account** (the card then shows the account and its role, and a product
+specialist's tag comes from it). Remove takes the row off the chart and keeps it
+inactive for history, its reports moving up one level; the super admin may
+instead delete it for good. The List layout is the easiest place to make many
+changes at once. Every change is audited. The chart lives in `org_people`; the first admin to
 open the empty table is offered the People team's September 2026 chart as a
 starting point, and until the table exists that same chart shows read-only. The
 HR module (Workstream E) will take the data over as the employee master.
