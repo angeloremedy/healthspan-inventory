@@ -431,12 +431,12 @@
   },
   {
    "t": "step",
-   "v": "Create: name, email, starter password (8+ chars), and the specialist tag — it MUST match the name their sales are tagged with (pick from suggestions); it locks their data to them.",
+   "v": "Press + Add a person: their work e-mail, full name, and the specialist tag — it MUST match the name their sales are tagged with; it locks their data to them. Send invitation: they get an e-mail, choose their own password from the link and land in HQ.",
    "n": "2"
   },
   {
    "t": "step",
-   "v": "Send starter passwords privately (never group chats). They change it in-app via the sidebar “password” link.",
+   "v": "If the invitation didn’t arrive or has expired, press send link on their row for a fresh one. Anyone who forgets a password uses Forgot your password? on the sign-in screen. Until someone accepts, their row shows invited.",
    "n": "3"
   },
   {

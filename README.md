@@ -1267,14 +1267,22 @@ into real unit costs — true margins per product and inventory value at cost.
 
 ## 10. Team & access (admin only)
 
-Sidebar → Admin → **Team & access**. Create accounts (name, email, starter
-password, role, specialist tag), edit roles/tags, reset passwords, and
+Sidebar → Admin → **Team & access**. **+ Add a person** (e-mail, full name,
+role, specialist tag and team) sends an **invitation**: Supabase e-mails them a
+link, they choose their own password and land in HQ — nobody handles a starter
+password, the same flow as Remedy RX. Until they accept, the row shows
+*invited*. **send link** on a row e-mails a fresh one (a new invitation if they
+never accepted, a set-a-new-password link if they have); **set password** stays
+as the fallback; the sign-in screen has **Forgot your password?** for everyone.
+A search box finds anyone by name, e-mail, role or tag. Edit roles/tags and
 disable/enable accounts — no Supabase console needed. Disabling blocks sign-in
 immediately but keeps all their data; re-enable anytime. You can't disable
 yourself, nobody can touch the super admin account, and only the super admin
 can permanently delete a login. IT (`can_manage_ps`) sees this page too, but
-only to create and disable/enable product-specialist accounts. Send starter
-passwords privately; people change them in-app.
+only to invite, send links to, and disable/enable product-specialist accounts.
+The e-mails need two settings in the Supabase project (see SUPABASE-SETUP.md,
+"Invitations and password links"): the HQ URL allowed as a redirect, and a custom
+SMTP sender — Supabase's built-in sender only mails the project's own members.
 
 ## 10.5 The 2026-09-08 security audit, in one paragraph
 

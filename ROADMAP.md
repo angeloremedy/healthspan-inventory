@@ -3,7 +3,7 @@
 **The vision: one system that fully replaces Zoho, Shopify, and Verna's sheet —
 Healthspan's own NetSuite: ERP + CRM + WMS in a single platform.**
 Live at hq.healthspan.ph (installable as an app). The living copy of this plan is
-on Notion — update both as things ship. Last updated: 2026-09-18.
+on Notion — update both as things ship. Last updated: 2026-09-23.
 
 Legend: ✅ done · 🔨 in progress · ⏭ next up · ▢ planned
 
@@ -24,6 +24,9 @@ at cutover; the accounting export CSV remains the fallback); it does not replace
 ---
 
 ## ✅ Shipped so far (everything, from the start)
+
+**Team & access — add people by invitation (Sep 23)**
+- ✅ **+ Add a person** like Remedy RX: e-mail, full name, role (tag and team for specialists) → Supabase e-mails an invitation; they set their own password from the link and land in HQ. Rows show *invited* until accepted; **send link** sends a fresh invitation or a set-a-new-password link; **Forgot your password?** on the sign-in screen; search box on the table; the side form with starter passwords is gone (set password stays as a fallback). Needs Supabase Auth: HQ URL as redirect + custom SMTP. `tools/test/team-invite.test.mjs` (14)
 
 **HQ as the single QuickBooks writer (Sep 18)**
 - ✅ Finance's invoice rules ported from the Shopify→QBO connector into one pure mapper (`lib/qbo-map.mjs`), proven identical to that connector's code on ten orders; the sync pass rebuilt on it — post at order creation, list price + Discount row, VAT / No-VAT per line, class Sales, strict totals (delete on mismatch), same-month void, no outbound payments unless finance switches it on, Shopify orders from their snapshot with HG- numbers and Shopify customer names, e-mail customer matching

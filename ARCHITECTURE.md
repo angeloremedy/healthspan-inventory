@@ -215,8 +215,22 @@ dates and the QuickBooks snapshot `orders.qbo_src` — see 4.18.
 The browser never holds the service key. The function receives the caller's
 Supabase session token (`Authorization: Bearer`), verifies it against
 `/auth/v1/user`, checks the caller's profile, and only then
-uses the service key for GoTrue admin endpoints (create user, set password,
+uses the service key for GoTrue admin endpoints (invite, create user, set password,
 `ban_duration` for disable/enable — `876000h` ≈ 100 years, `none` to lift).
+**Adding people is an invitation** (2026-09-23): `create` without a password calls
+`POST /auth/v1/invite?redirect_to=<URL>/` (GoTrue e-mails the link; the profile row is
+written from the returned user), with a starter password it still creates a confirmed
+user. `link` sends `invite` again while the user has never confirmed or signed in
+(GoTrue re-invites unconfirmed users) and `recover` afterwards. The redirect is
+`HQ_AUTH_REDIRECT` or Netlify's `URL`, never the Host header. The browser side:
+js/09 reads `#access_token…&type=invite|recovery` (or `#error=…`) from the hash into
+`AUTH_LANDING` **before** the Supabase client consumes it, `initAuth` strips the hash
+(`authCleanHash`) so it never reaches the router, and `authSetPassword()` asks for the
+password with `updateUser` once the session is up; an expired link shows a plain
+message on the sign-in form. `sbForgot()` is `resetPasswordForEmail` from the sign-in
+form (the reply is the same whether or not the address has an account). `link`
+follows the password rule — another admin's account is the super admin's.
+Tested by `tools/test/team-invite.test.mjs` against a fake GoTrue + PostgREST.
 Self-disable is rejected. Three privilege tiers:
 - **admin** — full user management (7 assignable roles; `can_manage_ps` grantable on viewers = the "IT" pseudo-role).
 - **super admin** (`profiles.is_super`, Angelo only) — additionally: permanent user deletion. The super account itself is protected server-side: disable/delete/password/role-change targeting it by anyone else → 403 + audit `user.PROTECTED`.

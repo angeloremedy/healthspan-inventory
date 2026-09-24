@@ -3,6 +3,11 @@
 // work — but ONLY after verifying the caller's own Supabase session belongs to
 // a profile with role='admin'.
 // Env: SUPABASE_URL, SUPABASE_SERVICE_KEY (already set for the backfill).
+// New people are INVITED (2026-09-23): Supabase e-mails them a link to set their own
+// password, which lands on HQ (URL, or HQ_AUTH_REDIRECT) where the app asks for the
+// password. `link` sends a fresh one — a new invitation while they have never
+// accepted, a password-reset link after. Needs Supabase Auth → URL configuration to
+// allow the HQ URL, and custom SMTP (the default sender only mails project members).
 const SB_URL = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SVC = process.env.SUPABASE_SERVICE_KEY || '';
 
@@ -13,6 +18,13 @@ const HDRS = {
   'Content-Type': 'application/json'
 };
 const out = (code, body) => ({ statusCode: code, headers: HDRS, body: JSON.stringify(body) });
+// where the invitation / password link sends people back to — never the Host header
+const authRedirect = () => (process.env.HQ_AUTH_REDIRECT || process.env.URL || 'https://hq.healthspan.ph').replace(/\/$/, '') + '/';
+const gotrueError = (t) => { let j = null; try { j = JSON.parse(t); } catch (e) {} const m = (j && (j.msg || j.message || j.error_description || j.error)) || String(t || '').slice(0, 160);
+  if (/already been registered|already registered|exists/i.test(m)) return 'That e-mail already has an HQ account — use send link on their row.';
+  if (/rate limit/i.test(m)) return 'Supabase is rate-limiting e-mails — wait a minute and try again (custom SMTP lifts the limit).';
+  if (/smtp|sending|mail/i.test(m)) return 'Supabase could not send the e-mail: ' + m + ' — check Auth → SMTP settings.';
+  return m; };
 
 async function svc(path, method, body) {
   const r = await fetch(SB_URL + path, {
@@ -66,9 +78,9 @@ export const handler = async (event) => {
 
   // ── scoped PS-admin (can_manage_ps): only list/create/disable/enable, and only specialists
   if (callerScoped) {
-    if (!['list', 'create', 'disable', 'enable'].includes(act)) return out(403, { error: 'Your access covers product-specialist accounts only' });
+    if (!['list', 'create', 'disable', 'enable', 'link'].includes(act)) return out(403, { error: 'Your access covers product-specialist accounts only' });
     if (act === 'create' && p.role !== 'sales') return out(403, { error: 'You can only create product-specialist (sales) accounts' });
-    if ((act === 'disable' || act === 'enable') && p.id) {
+    if ((act === 'disable' || act === 'enable' || act === 'link') && p.id) {
       try {
         const t = await svc('/rest/v1/profiles?id=eq.' + p.id + '&select=role');
         if (!t || !t[0] || t[0].role !== 'sales') return out(403, { error: 'You can only disable/enable product-specialist accounts' });
@@ -78,7 +90,7 @@ export const handler = async (event) => {
 
   // ── SUPER ADMIN PROTECTION: nobody may disable, delete, demote, or reset the
   // password of the super admin account except the super admin themself.
-  if (['disable', 'delete', 'password', 'update'].includes(act) && p.id && p.id !== caller.id) {
+  if (['disable', 'delete', 'password', 'update', 'link'].includes(act) && p.id && p.id !== caller.id) {
     try {
       const t = await svc('/rest/v1/profiles?id=eq.' + p.id + '&select=is_super');
       if (t && t[0] && t[0].is_super) {
@@ -105,20 +117,31 @@ export const handler = async (event) => {
         ps: !!(pm[u.id] && pm[u.id].can_manage_ps),
         grants: (pm[u.id] && pm[u.id].view_grants) || [], denies: (pm[u.id] && pm[u.id].view_denies) || [],
         last: u.last_sign_in_at || '',
+        invited: !u.last_sign_in_at && !u.email_confirmed_at && !!u.invited_at, // invited, has not set a password yet
         banned: !!(u.banned_until && new Date(u.banned_until) > new Date())
       })).sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email));
       return out(200, { users: list });
     }
     if (act === 'create') {
-      const { email, password, name, role, tag, team } = p;
-      if (!email || !password || !name || !['admin','manager','sales','supply_chain','finance','marketing','viewer'].includes(role)) return out(400, { error: 'Need email, password, name, role' });
-      if (password.length < 8) return out(400, { error: 'Password must be 8+ characters' });
-      const u = await svc('/auth/v1/admin/users', 'POST', { email, password, email_confirm: true });
+      const { password, name, role, tag, team } = p;
+      const email = String(p.email || '').trim().toLowerCase();
+      if (!email || !name || !['admin','manager','sales','supply_chain','finance','marketing','viewer'].includes(role)) return out(400, { error: 'Need e-mail, name and role' });
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return out(400, { error: 'That is not an e-mail address' });
+      let u;
+      if (password) { // legacy path: a starter password set by the admin
+        if (String(password).length < 8) return out(400, { error: 'Password must be 8+ characters' });
+        u = await svc('/auth/v1/admin/users', 'POST', { email, password, email_confirm: true });
+      } else {        // the default: Supabase e-mails an invitation; they set their own password
+        const r = await fetch(SB_URL + '/auth/v1/invite?redirect_to=' + encodeURIComponent(authRedirect()), { method: 'POST', headers: { apikey: SVC, Authorization: 'Bearer ' + SVC, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, data: { name } }) });
+        const t = await r.text(); if (!r.ok) return out(400, { error: gotrueError(t) });
+        try { u = JSON.parse(t); } catch (e) { u = null; }
+        if (!u || !u.id) return out(502, { error: 'Supabase did not return the new account' });
+      }
       // can_manage_ps (the "IT" role): admin callers only; scoped callers can never grant it
       const ps = !callerScoped && role === 'viewer' && !!p.can_manage_ps;
       await svc('/rest/v1/profiles', 'POST', { id: u.id, name, role, specialist_tag: tag || null, can_manage_ps: ps, team: (tag && team) ? String(team).trim() : null });
-      await log('user.create', { email, name, role, tag: tag || '' });
-      return out(200, { ok: true, id: u.id });
+      await log(password ? 'user.create' : 'user.invite', { email, name, role, tag: tag || '' });
+      return out(200, { ok: true, id: u.id, invited: !password });
     }
     if (act === 'update') {
       const { id, name, role, tag, team, order } = p;
@@ -172,6 +195,26 @@ export const handler = async (event) => {
       await svc('/auth/v1/admin/users/' + id, 'PUT', { password });
       await log('user.password', { id: id.slice(0, 8) });
       return out(200, { ok: true });
+    }
+    if (act === 'link') {
+      const { id } = p;
+      if (!id) return out(400, { error: 'Need id' });
+      // same rule as setting a password: another admin's account is the super admin's to touch
+      if (id !== caller.id && !callerSuper) {
+        try { const t = await svc('/rest/v1/profiles?id=eq.' + id + '&select=role,is_super');
+          if (t && t[0] && (t[0].role === 'admin' || t[0].is_super)) { await log('user.PROTECTED', { attempted: 'link', target: id.slice(0, 8) }); return out(403, { error: 'Only the super admin can send a password link to another admin.' }); }
+        } catch (e) { return out(403, { error: 'Target check failed' }); }
+      }
+      const u = await svc('/auth/v1/admin/users/' + id);
+      if (!u || !u.email) return out(404, { error: 'No such account' });
+      const never = !u.last_sign_in_at && !u.email_confirmed_at;
+      const H = { apikey: SVC, Authorization: 'Bearer ' + SVC, 'Content-Type': 'application/json' };
+      const r = never
+        ? await fetch(SB_URL + '/auth/v1/invite?redirect_to=' + encodeURIComponent(authRedirect()), { method: 'POST', headers: H, body: JSON.stringify({ email: u.email }) })
+        : await fetch(SB_URL + '/auth/v1/recover?redirect_to=' + encodeURIComponent(authRedirect()), { method: 'POST', headers: H, body: JSON.stringify({ email: u.email }) });
+      if (!r.ok) return out(400, { error: gotrueError(await r.text()) });
+      await log('user.link', { id: id.slice(0, 8), kind: never ? 'invite' : 'recovery' });
+      return out(200, { ok: true, kind: never ? 'invite' : 'recovery' });
     }
     if (act === 'delete') { // SUPER ADMIN ONLY: permanent removal of a login
       if (!callerSuper) return out(403, { error: 'Super admin only — deletion is reserved to Angelo' });

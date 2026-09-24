@@ -3235,3 +3235,21 @@ The first admin to open the empty chart is offered "Load the People team's chart
 (Sep 2026)" — the seed in `js/19-orgchart.js` (`ORG_SEED`) goes into the table
 and the chart is edited in HQ from then on. Until the table exists the seed shows
 read-only.
+
+## Invitations and password links (2026-09-23)
+
+Team & access now adds people by **invitation** and sends password links; the
+sign-in screen has "Forgot your password?". No SQL. Two settings in this Supabase
+project (Dashboard → Authentication):
+
+1. **URL Configuration** — *Site URL* `https://hq.healthspan.ph` and, under
+   *Redirect URLs*, `https://hq.healthspan.ph/**`. The links land there; a URL not
+   on the list is replaced by the Site URL.
+2. **Emails → SMTP Settings** — turn on a custom SMTP sender (the same provider
+   Remedy RX uses is fine; sender e.g. `hq@healthspan.ph`). Supabase's built-in
+   sender only delivers to the project's own team members and a few per hour.
+   Optional: under *Emails → Templates*, word the *Invite user* and *Reset
+   password* mails for Healthspan HQ; keep `{{ .ConfirmationURL }}` as the link.
+
+Optional Netlify variable `HQ_AUTH_REDIRECT` overrides where the links send people
+(defaults to the site's `URL`).

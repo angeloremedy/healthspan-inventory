@@ -2083,8 +2083,12 @@
   },
   {
    "t": "step",
-   "v": "Create: name, email, starter password (8+ chars), role. For specialists set the tag — it must match the name their sales are tagged with; it is what locks their data to them. Send starter passwords privately.",
+   "v": "Press + Add a person (top right): their work e-mail, full name, role, and — for specialists — the tag (it must match the name their sales are tagged with; it is what locks their data to them) and team. Send invitation: they receive an e-mail from HQ, open the link, choose their own password and land in HQ. Nobody ever handles a starter password. Until they accept, their row shows invited.",
    "n": "1"
+  },
+  {
+   "t": "step",
+   "v": "send link on a row e-mails a fresh link — a new invitation if they never accepted, a set-a-new-password link if they have. Their old password keeps working until they use it. set password is still there for the rare case you must set one yourself. On the sign-in screen, Forgot your password? does the same for anyone, by themselves. The search box above the table finds anyone by name, e-mail, role or tag."
   },
   {
    "t": "step",
@@ -2093,7 +2097,7 @@
   },
   {
    "t": "step",
-   "v": "Edit name/role/tag · password reset · disable/enable — disabling blocks sign-in immediately, keeps every record; re-enable anytime. You can’t disable yourself.",
+   "v": "Edit name/role/tag · password link · disable/enable — disabling blocks sign-in immediately, keeps every record; re-enable anytime. You can’t disable yourself.",
    "n": "3"
   },
   {

@@ -344,6 +344,13 @@ function mbarPaint(){
 const SUPABASE_URL='https://lesjigujcajxurmsmwwc.supabase.co';
 const SUPABASE_ANON='sb_publishable_r9XyNNTaFzNu1msTaHgt-w_FBm-vsI4'; // publishable key (new format) — public by design, RLS is the security
 let SB=null,SBUSER=null,SBPROFILE=null;
+/* Arriving from an invitation or password e-mail: Supabase puts the session (or the
+   reason it failed) in the URL hash — #access_token=…&type=invite|recovery, or
+   #error=…&error_description=…. Read it BEFORE the client is created (the client
+   consumes the hash), so initAuth knows to ask for a password or explain the error. */
+const AUTH_LANDING=(function(){try{const h=location.hash||'';if(!/access_token=|error_code=|[#&]error=/.test(h))return null;
+  const q=new URLSearchParams(h.replace(/^#/,''));return {type:q.get('type')||'',error:(q.get('error_description')||q.get('error')||'').replace(/\+/g,' ')};}catch(e){return null;}})();
+function authCleanHash(){try{if(/access_token=|error_code=|[#&]error=/.test(location.hash||''))history.replaceState(null,'',location.pathname+location.search);}catch(e){}}
 function sbInit(force){
   if(SB!==null&&!force)return SB;
   if(SUPABASE_URL&&SUPABASE_ANON&&window.supabase){
@@ -360,9 +367,37 @@ async function initAuth(){
   if(!SB){showSbLogin('Login is unavailable — the auth service could not be loaded. Refresh, or check the connection.');return;}
   try{
     const {data:{session}}=await SB.auth.getSession();
-    if(session)await sbLoadProfile(session.user);
+    authCleanHash(); // the tokens / error must not stay in the address bar or reach the router
+    if(session){
+      await sbLoadProfile(session.user);
+      if(AUTH_LANDING&&/invite|recovery|signup|magiclink/.test(AUTH_LANDING.type))authSetPassword(AUTH_LANDING.type);
+    }
+    else if(AUTH_LANDING&&AUTH_LANDING.error)showSbLogin(/expired|invalid/i.test(AUTH_LANDING.error)?'That link has expired or was already used — ask for a new one, or use “Forgot your password?”.':'The link did not work: '+AUTH_LANDING.error);
     else showSbLogin();
   }catch(e){showSbLogin('Could not reach the login server — check the connection.');}
+}
+/* first sign-in from an invitation, or a password-reset link: they are signed in, now they choose a password */
+async function authSetPassword(type){
+  const invite=type!=='recovery';
+  for(;;){
+    const v=await uiForm(invite?'Welcome to Healthspan HQ — set your password':'Set a new password',[
+      {k:'p1',l:'New password',t:'password',req:1,hint:'At least 8 characters.'},
+      {k:'p2',l:'Repeat it',t:'password',req:1}
+    ],{ok:'Save password',intro:invite?'You are signed in. Choose the password you will use from now on.':''});
+    if(!v){if(invite)uiAlert('You can set it any time in Settings → Change password. Until you do, you can only get back in with a new link.');return;}
+    if(String(v.p1).length<8){await uiAlert('Use at least 8 characters.');continue;}
+    if(v.p1!==v.p2){await uiAlert('The two passwords don’t match.');continue;}
+    try{const {error}=await SB.auth.updateUser({password:v.p1});if(error)throw error;try{audit(invite?'user.invite.accepted':'user.password.reset',{});}catch(e){}uiAlert('Password saved.');return;}
+    catch(e){await uiAlert('Could not save the password: '+(e.message||e));}
+  }
+}
+/* the login screen's "Forgot your password?": Supabase e-mails a reset link (it says the same whether or not the address has an account) */
+async function sbForgot(){
+  const email=($('sb-email')&&$('sb-email').value||'').trim().toLowerCase();const err=$('sb-err');
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){if(err)err.textContent='Type your e-mail above first, then press Forgot your password?';return;}
+  try{sbInit();const {error}=await SB.auth.resetPasswordForEmail(email,{redirectTo:location.origin+'/'});if(error)throw error;
+    if(err){err.style.color='var(--gr)';err.textContent='If '+email+' has an HQ account, a link to set a new password is on its way.';}}
+  catch(e){if(err){err.style.color='var(--rd)';err.textContent='Could not send the link: '+(e.message||e);}}
 }
 /* fade the boot splash: after the app is ready, or when the login form is up.
    Kept on screen at least 650ms so a fast load doesn't strobe it. */
@@ -423,7 +458,8 @@ function showSbLogin(err){
     '<label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--tx2);margin-top:10px;cursor:pointer"><input type="checkbox" id="sb-remember" checked> Remember me on this device</label>'+
     '<div id="sb-err" style="color:var(--rd);font-size:11.5px;min-height:16px;margin:8px 0 4px">'+(err?esc(err):'')+'</div>'+
     '<button onclick="sbLogin()" style="width:100%;background:var(--ac);color:#fff;border:none;border-radius:10px;padding:11px;font-size:13.5px;font-weight:600;cursor:pointer">Sign in</button>'+
-    '<div style="font-size:10.5px;color:var(--tx3);margin-top:14px">No account or forgot the password? Ask Angelo.</div></div>';
+    '<div style="font-size:11.5px;margin-top:12px"><a href="#" class="lnk" onclick="sbForgot();return false" style="color:var(--ac);font-weight:600">Forgot your password?</a></div>'+
+    '<div style="font-size:10.5px;color:var(--tx3);margin-top:8px">No account yet? Ask Angelo.</div></div>';
 }
 async function sbLogin(){
   const email=($('sb-email')&&$('sb-email').value||'').trim();

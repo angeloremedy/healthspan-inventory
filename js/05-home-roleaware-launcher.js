@@ -288,50 +288,67 @@ async function renderUsers(){
   catch(e){$('content').innerHTML='<div class="empty" style="margin-top:40px">Could not load: '+esc(e.message)+'</div>';return;}
   const inp='style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:9px 10px;font-size:13px"';
   const lbl='style="font-size:10.5px;color:var(--tx3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin:8px 0 3px"';
+  USERS_ALL=users;
   $('content').innerHTML=
-    '<div class="g2" style="align-items:start;gap:14px">'+
-    '<div class="tcard"><div class="tscroll"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Tag</th><th>Team</th><th>Order</th><th>Last sign-in</th><th></th></tr></thead><tbody>'+
-    users.map(u=>'<tr'+(u.banned?' style="opacity:.5"':'')+'><td style="font-weight:600">'+esc(u.name||'—')+(u.is_super?' <span class="pill pbl">super</span>':'')+(u.banned?' <span class="pill prd">disabled</span>':'')+'</td>'+
+    '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">'+
+    '<input id="u-q" placeholder="Search name, e-mail, role or tag" oninput="userFilter(this.value)" autocomplete="off" style="flex:1;min-width:220px;box-sizing:border-box;background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;font-size:13px">'+
+    '<button onclick="userCreate()" style="background:var(--ac);color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">+ Add a person</button></div>'+
+    '<div class="tcard"><div class="tscroll"><table id="u-tbl"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Tag</th><th>Team</th><th>Order</th><th>Last sign-in</th><th></th></tr></thead><tbody>'+
+    users.map(u=>'<tr data-q="'+esc([u.name,u.email,u.role,u.tag,u.team].join(' ').toLowerCase())+'"'+(u.banned?' style="opacity:.5"':'')+'><td style="font-weight:600">'+esc(u.name||'—')+(u.is_super?' <span class="pill pbl">super</span>':'')+(u.banned?' <span class="pill prd">disabled</span>':'')+(u.invited?' <span class="pill pam" title="Invited — has not set a password yet">invited</span>':'')+'</td>'+
       '<td class="mu" style="font-size:11.5px">'+esc(u.email)+'</td>'+
       '<td>'+(u.is_super?'<span class="pill pbl" style="font-weight:700">super admin</span>':u.role==='admin'?'<span class="pill pbl">admin</span>':u.role==='manager'?'<span class="pill" style="background:rgba(127,119,221,.15);color:var(--pu)">sales manager</span>':u.role==='sales'?'<span class="pill pgr">product specialist</span>':u.role==='viewer'&&u.ps?'<span class="pill pgy">IT · PS accounts</span>':['supply_chain','finance','marketing','viewer'].includes(u.role)?'<span class="pill pgy">'+esc(u.role.replace('_',' '))+'</span>':'<span class="pill prd">'+esc(u.role)+'</span>')+'</td>'+
       '<td class="mu">'+esc(u.tag||'—')+'</td>'+
       '<td class="mu">'+esc(u.team||'—')+'</td>'+
       '<td class="mu r">'+(u.order!==''&&u.order!=null?esc(String(u.order)):'—')+'</td>'+
-      '<td class="mu" style="font-size:11px">'+(u.last?esc(u.last.slice(0,10)):'never')+'</td>'+
+      '<td class="mu" style="font-size:11px">'+(u.last?esc(u.last.slice(0,10)):(u.invited?'not yet — invited':'never'))+'</td>'+
       '<td style="white-space:nowrap">'+
       ((u.is_super&&u.id!==(SBUSER&&SBUSER.id))||(psOnly&&u.role!=='sales')?'<span class="pill pbl" title="Outside your scope">'+(u.is_super?'🛡 protected':'—')+'</span>':
-      psOnly?((u.banned?'<a href="#" onclick="userToggle(\''+u.id+'\',\'enable\');return false" style="color:var(--gr);font-size:11.5px">enable</a>':'<a href="#" onclick="userToggle(\''+u.id+'\',\'disable\');return false" style="color:var(--rd);font-size:11.5px">disable</a>')):
+      psOnly?('<a href="#" onclick="userLink(\''+u.id+'\',\''+jsq(u.name||u.email)+'\',\''+jsq(u.email||'')+'\','+(u.invited?1:0)+');return false" style="color:var(--ac);font-size:11.5px">send link</a> · '+(u.banned?'<a href="#" onclick="userToggle(\''+u.id+'\',\'enable\');return false" style="color:var(--gr);font-size:11.5px">enable</a>':'<a href="#" onclick="userToggle(\''+u.id+'\',\'disable\');return false" style="color:var(--rd);font-size:11.5px">disable</a>')):
       '<a href="#" onclick="userEdit(\''+u.id+'\',\''+jsq(u.name)+'\',\''+esc(u.role)+'\',\''+jsq(u.tag)+'\','+(u.ps?1:0)+',\''+jsq(u.team||'')+'\','+(u.order!==''&&u.order!=null?u.order:'null')+',\''+jsq(u.email||'')+'\');return false" style="color:var(--ac);font-size:11.5px">edit</a> · '+
       (u.is_super?'':'<a href="#" onclick="userPages(\''+u.id+'\',\''+jsq(u.name||u.email)+'\',\''+esc(u.role)+'\','+JSON.stringify(u.grants||[]).replace(/"/g,'&quot;')+','+JSON.stringify(u.denies||[]).replace(/"/g,'&quot;')+');return false" style="color:var(--ac);font-size:11.5px">pages'+((u.grants||[]).length||(u.denies||[]).length?' ('+(u.grants||[]).length+'+ '+(u.denies||[]).length+'−)':'')+'</a> · ')+
-      '<a href="#" onclick="userPass(\''+u.id+'\',\''+jsq(u.name||u.email)+'\');return false" style="color:var(--ac);font-size:11.5px">password</a> · '+
+      '<a href="#" onclick="userLink(\''+u.id+'\',\''+jsq(u.name||u.email)+'\',\''+jsq(u.email||'')+'\','+(u.invited?1:0)+');return false" style="color:var(--ac);font-size:11.5px" title="E-mails them a link to set their own password">send link</a> · '+
+      '<a href="#" onclick="userPass(\''+u.id+'\',\''+jsq(u.name||u.email)+'\');return false" style="color:var(--tx3);font-size:11.5px" title="Set a password yourself and pass it on">set password</a> · '+
       (isSuper()&&u.id!==(SBUSER&&SBUSER.id)?'<a href="#" onclick="userDelete(\''+u.id+'\',\''+jsq(u.name||u.email)+'\');return false" style="color:var(--rd);font-size:11.5px;font-weight:700">delete</a> · ':'')+
       (u.banned?'<a href="#" onclick="userToggle(\''+u.id+'\',\'enable\');return false" style="color:var(--gr);font-size:11.5px">enable</a>':
       '<a href="#" onclick="userToggle(\''+u.id+'\',\'disable\');return false" style="color:var(--rd);font-size:11.5px">disable</a>'))+
       '</td></tr>').join('')+
-    '</tbody></table></div><div class="tfooter"><span>'+users.length+' accounts · edit changes name, e-mail, role, tag, team · pages grants or denies individual pages beyond the role · disabling blocks sign-in immediately (data is kept) · you can’t disable yourself</span></div><div id="uperm-panel"></div></div>'+
-    '<div class="panel" style="padding:16px"><div class="phd">Add account</div>'+
-    '<label '+lbl+'>Name</label><input id="au-name" '+inp+'>'+
-    '<label '+lbl+'>Email</label><input id="au-email" type="email" '+inp+'>'+
-    '<label '+lbl+'>Starter password (8+ chars)</label><input id="au-pass" '+inp+'>'+
-    '<label '+lbl+'>Role</label><select id="au-role"'+(psOnly?' disabled':'')+' onchange="var t=$(\'au-tagwrap\');if(t)t.style.display=this.value===\'sales\'?\'block\':\'none\'" '+inp+'><option value="sales">Product specialist</option><option value="manager">Sales manager</option><option value="supply_chain">Supply chain — warehouse, POs, receiving</option><option value="finance">Finance — AR, payments, PDCs, costs</option><option value="marketing">Marketing — campaigns + circle read</option><option value="viewer">Viewer — read-only, no writes</option><option value="it">IT — viewer + manage specialist accounts</option><option value="admin">Admin — everything</option></select>'+
-    '<div id="au-tagwrap"><label '+lbl+'>Specialist tag <span style="text-transform:none;font-weight:400">(blank = manager, sees all)</span></label><input id="au-tag" list="au-tags" '+inp+'>'+
-    '<datalist id="au-tags">'+specNames().map(s=>'<option value="'+esc(s)+'">').join('')+'</datalist>'+
-    '<label '+lbl+'>Team <span style="text-transform:none;font-weight:400">(Business review grouping — Team 1 / Team 2 / Key accounts)</span></label><input id="au-team" list="au-teams" '+inp+'><datalist id="au-teams"><option value="Team 1"><option value="Team 2"><option value="Key accounts"></datalist></div>'+
-    '<div id="au-msg" style="min-height:16px;font-size:11.5px;margin:8px 0 4px"></div>'+
-    '<button onclick="userCreate()" style="width:100%;background:var(--ac);color:#fff;border:none;border-radius:8px;padding:11px;font-size:13px;font-weight:600;cursor:pointer">Create account</button>'+
-    '<div style="font-size:10.5px;color:var(--tx3);margin-top:10px">Send them the starter password privately — they can change it in-app via the “password” link in their sidebar.</div>'+
-    '</div></div>';
+    '</tbody></table></div><div class="tfooter"><span id="u-count">'+users.length+' accounts</span><span> · + Add a person e-mails them a link to set their own password · send link e-mails a fresh one (a new invite if they never accepted) · edit changes name, e-mail, role, tag, team · pages grants or denies individual pages beyond the role · disabling blocks sign-in immediately (data is kept) · you can’t disable yourself</span></div><div id="uperm-panel"></div></div>';
+  if(USERS_Q){const q=$('u-q');if(q){q.value=USERS_Q;userFilter(USERS_Q);}}
 }
+let USERS_ALL=[],USERS_Q='';
+function userFilter(v){
+  USERS_Q=String(v||'').trim().toLowerCase();let n=0;
+  document.querySelectorAll('#u-tbl tbody tr').forEach(tr=>{const hit=!USERS_Q||(tr.dataset.q||'').includes(USERS_Q);tr.style.display=hit?'':'none';if(hit)n++;});
+  const c=$('u-count');if(c)c.textContent=(USERS_Q?n+' of ':'')+USERS_ALL.length+' accounts';
+}
+const USER_ROLES=[{v:'sales',l:'Product specialist'},{v:'manager',l:'Sales manager'},{v:'supply_chain',l:'Supply chain — warehouse, POs, receiving'},{v:'finance',l:'Finance — AR, payments, costs'},{v:'marketing',l:'Marketing'},{v:'viewer',l:'Viewer (read-only)'},{v:'it',l:'IT — viewer + specialist accounts'},{v:'admin',l:'Admin (incl. People Operations)'}];
 async function userCreate(){
-  const g=id=>($(id)&&$(id).value||'').trim();const msg=$('au-msg');
+  const psOnly=ROLE!=='admin';
+  const roles=psOnly?USER_ROLES.filter(r=>r.v==='sales'):USER_ROLES;
+  const v=await uiForm('Add a person',[
+    {k:'email',l:'E-mail',t:'email',req:1,hint:'Their work e-mail. They get a link there to set their own password.'},
+    {k:'name',l:'Full name',req:1},
+    {k:'role',l:'Role',t:'select',opts:roles,v:'sales'},
+    {k:'tag',l:'Specialist tag (product specialists; blank for a manager who sees all)',placeholder:'The tag their Shopify orders carry, e.g. Rhas'},
+    {k:'team',l:'Team (product specialists — Team 1 / Team 2 / Key accounts)'}
+  ],{ok:'Send invitation'});
+  if(!v)return;
+  const email=String(v.email||'').trim().toLowerCase(),rv=String(v.role||'sales');
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){uiAlert('That is not an e-mail address.');return;}
   try{
-    const rv=g('au-role');
-    await adminUsers('create',{email:g('au-email'),password:g('au-pass'),name:g('au-name'),role:rv==='it'?'viewer':rv,can_manage_ps:rv==='it',tag:rv==='sales'?g('au-tag'):'',team:rv==='sales'?g('au-team'):''});
-    renderUsers();
-  }catch(e){if(msg){msg.style.color='var(--rd)';msg.textContent=e.message;}}
+    await adminUsers('create',{email,name:String(v.name||'').trim(),role:rv==='it'?'viewer':rv,can_manage_ps:rv==='it',tag:rv==='sales'?String(v.tag||'').trim():'',team:rv==='sales'?String(v.team||'').trim():''});
+    audit('user.invite',{email,role:rv});
+    await renderUsers();
+    uiAlert('Invitation sent to '+email+'. They open the link, set their own password and land in HQ. If it doesn’t arrive, press send link on their row.');
+  }catch(e){uiAlert(e.message);}
+}
+async function userLink(id,who,email,invited){
+  if(!await uiConfirm((invited?'Send '+who+' a fresh invitation':'Send '+who+' a link to set a new password')+'?\n\nIt goes to '+email+'. Their current password keeps working until they use the link.'))return;
+  try{const r=await adminUsers('link',{id});uiAlert((r&&r.kind==='invite'?'Invitation':'Password link')+' sent to '+email+'.');}
+  catch(e){uiAlert(e.message);}
 }
 async function userEdit(id,name,role,tag,ps,team,order,email){
-  const ROLES=[{v:'sales',l:'Product specialist'},{v:'manager',l:'Sales manager'},{v:'supply_chain',l:'Supply chain / warehouse'},{v:'finance',l:'Finance'},{v:'marketing',l:'Marketing'},{v:'viewer',l:'Viewer (read-only)'},{v:'it',l:'IT — viewer + specialist accounts'},{v:'admin',l:'Admin'}];
+  const ROLES=USER_ROLES;
   const v=await uiForm('Edit account — '+(name||email||''),[
     {k:'name',l:'Name',v:name||'',req:1},
     {k:'email',l:'E-mail (sign-in)',t:'email',v:email||'',req:1,hint:'Changing it takes effect at their next sign-in; no confirmation mail is sent.'},
