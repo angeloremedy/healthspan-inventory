@@ -25,6 +25,9 @@ at cutover; the accounting export CSV remains the fallback); it does not replace
 
 ## ✅ Shipped so far (everything, from the start)
 
+**Monthly sales by SKU (Sep 28)**
+- ✅ **Monthly by SKU** under Sales analytics (for the sales manager): Jan–Dec across, every SKU down grouped by product line with subtotals, year total and stock now at the end, all-lines total; units & ₱ / units / revenue, year picker, line filter, find, hide unsold, fold lines, External only / Incl. Remedy, CSV export; product column pinned left, year total and stock pinned right on a computer. Same figures as Sales overview, no costs. `tools/test/sales-monthly.test.js` (42)
+
 **Team & access — add people by invitation (Sep 23)**
 - ✅ **+ Add a person** like Remedy RX: e-mail, full name, role (tag and team for specialists) → Supabase e-mails an invitation; they set their own password from the link and land in HQ. Rows show *invited* until accepted; **send link** sends a fresh invitation or a set-a-new-password link; **Forgot your password?** on the sign-in screen; search box on the table; the side form with starter passwords is gone (set password stays as a fallback). Needs Supabase Auth: HQ URL as redirect + custom SMTP. `tools/test/team-invite.test.mjs` (14)
 

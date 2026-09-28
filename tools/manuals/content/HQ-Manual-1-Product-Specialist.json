@@ -713,28 +713,33 @@
   },
   {
    "t": "step",
-   "v": "Sales vs target: monthly attainment by total, brand line, product, and specialist — the 245-row corporate target file, or in-app targets when set.",
+   "v": "Monthly by SKU: the whole year on one page — January to December across, every SKU down under its product line with a subtotal, then the year total and the stock left now. Show units and pesos together or either alone, pick the year or a line, fold a line by clicking it, and Export CSV for the full grid.",
    "n": "2"
   },
   {
    "t": "step",
-   "v": "Per-specialist drill-downs and profile pages with month calendars.",
+   "v": "Sales vs target: monthly attainment by total, brand line, product, and specialist — the 245-row corporate target file, or in-app targets when set.",
    "n": "3"
   },
   {
    "t": "step",
-   "v": "Field coverage: contacts/day, accounts reached vs the whole universe, not-reached ranked by value.",
+   "v": "Per-specialist drill-downs and profile pages with month calendars.",
    "n": "4"
   },
   {
    "t": "step",
-   "v": "Vs accounting: continuous peso-for-peso reconciliation to the official Sales Report.",
+   "v": "Field coverage: contacts/day, accounts reached vs the whole universe, not-reached ranked by value.",
    "n": "5"
   },
   {
    "t": "step",
-   "v": "Leaderboard & pace: MTD race + projected month-end attainment per specialist — the mid-month coaching tool.",
+   "v": "Vs accounting: continuous peso-for-peso reconciliation to the official Sales Report.",
    "n": "6"
+  },
+  {
+   "t": "step",
+   "v": "Leaderboard & pace: MTD race + projected month-end attainment per specialist — the mid-month coaching tool.",
+   "n": "7"
   },
   {
    "t": "p",

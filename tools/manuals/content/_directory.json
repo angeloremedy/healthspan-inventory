@@ -50,6 +50,12 @@
   },
   {
    "sec": "Sales analytics",
+   "view": "salesmonthly",
+   "title": "Monthly sales by SKU",
+   "desc": "One year on one page: January to December across, every SKU down, grouped under its product line with a subtotal row, then the year total and the stock left now. Show units and pesos together, or either alone; pick the year and the line, find a SKU, fold a line by clicking it."
+  },
+  {
+   "sec": "Sales analytics",
    "view": "salestarget",
    "title": "Sales vs target",
    "desc": "External sales only — Remedy and Healthspan-internal orders never count toward a target. Actual booked sales versus the monthly targets set in the sheet’s Targets tab — total, per line, and per product."
@@ -247,6 +253,12 @@
    "view": "salesoverview",
    "title": "Sales overview",
    "desc": "Use External only / Incl. Remedy in the toolbar to switch the whole page between third-party sales and everything."
+  },
+  {
+   "sec": "Sales analytics",
+   "view": "salesmonthly",
+   "title": "Monthly sales by SKU",
+   "desc": "One year on one page: January to December across, every SKU down, grouped under its product line with a subtotal row, then the year total and the stock left now. Show units and pesos together, or either alone; pick the year and the line, find a SKU, fold a line by clicking it."
   },
   {
    "sec": "Sales analytics",
@@ -792,6 +804,12 @@
   },
   {
    "sec": "Sales analytics",
+   "view": "salesmonthly",
+   "title": "Monthly sales by SKU",
+   "desc": "One year on one page: January to December across, every SKU down, grouped under its product line with a subtotal row, then the year total and the stock left now. Show units and pesos together, or either alone; pick the year and the line, find a SKU, fold a line by clicking it."
+  },
+  {
+   "sec": "Sales analytics",
    "view": "salestarget",
    "title": "Sales vs target",
    "desc": "External sales only — Remedy and Healthspan-internal orders never count toward a target. Actual booked sales versus the monthly targets set in the sheet’s Targets tab — total, per line, and per product."
@@ -1319,6 +1337,12 @@
    "view": "salesoverview",
    "title": "Sales overview",
    "desc": "Use External only / Incl. Remedy in the toolbar to switch the whole page between third-party sales and everything."
+  },
+  {
+   "sec": "Sales analytics",
+   "view": "salesmonthly",
+   "title": "Monthly sales by SKU",
+   "desc": "One year on one page: January to December across, every SKU down, grouped under its product line with a subtotal row, then the year total and the stock left now. Show units and pesos together, or either alone; pick the year and the line, find a SKU, fold a line by clicking it."
   },
   {
    "sec": "Sales analytics",
@@ -1864,6 +1888,12 @@
   },
   {
    "sec": "Sales analytics",
+   "view": "salesmonthly",
+   "title": "Monthly sales by SKU",
+   "desc": "One year on one page: January to December across, every SKU down, grouped under its product line with a subtotal row, then the year total and the stock left now. Show units and pesos together, or either alone; pick the year and the line, find a SKU, fold a line by clicking it."
+  },
+  {
+   "sec": "Sales analytics",
    "view": "salestarget",
    "title": "Sales vs target",
    "desc": "External sales only — Remedy and Healthspan-internal orders never count toward a target. Actual booked sales versus the monthly targets set in the sheet’s Targets tab — total, per line, and per product."
@@ -2349,6 +2379,12 @@
    "view": "salesoverview",
    "title": "Sales overview",
    "desc": "Use External only / Incl. Remedy in the toolbar to switch the whole page between third-party sales and everything."
+  },
+  {
+   "sec": "Sales analytics",
+   "view": "salesmonthly",
+   "title": "Monthly sales by SKU",
+   "desc": "One year on one page: January to December across, every SKU down, grouped under its product line with a subtotal row, then the year total and the stock left now. Show units and pesos together, or either alone; pick the year and the line, find a SKU, fold a line by clicking it."
   },
   {
    "sec": "Sales analytics",
@@ -2966,6 +3002,12 @@
   },
   {
    "sec": "Sales analytics",
+   "view": "salesmonthly",
+   "title": "Monthly sales by SKU",
+   "desc": "One year on one page: January to December across, every SKU down, grouped under its product line with a subtotal row, then the year total and the stock left now. Show units and pesos together, or either alone; pick the year and the line, find a SKU, fold a line by clicking it."
+  },
+  {
+   "sec": "Sales analytics",
    "view": "salestarget",
    "title": "Sales vs target",
    "desc": "External sales only — Remedy and Healthspan-internal orders never count toward a target. Actual booked sales versus the monthly targets set in the sheet’s Targets tab — total, per line, and per product."
@@ -3580,6 +3622,12 @@
   },
   {
    "sec": "Sales analytics",
+   "view": "salesmonthly",
+   "title": "Monthly sales by SKU",
+   "desc": "One year on one page: January to December across, every SKU down, grouped under its product line with a subtotal row, then the year total and the stock left now. Show units and pesos together, or either alone; pick the year and the line, find a SKU, fold a line by clicking it."
+  },
+  {
+   "sec": "Sales analytics",
    "view": "salestarget",
    "title": "Sales vs target",
    "desc": "External sales only — Remedy and Healthspan-internal orders never count toward a target. Actual booked sales versus the monthly targets set in the sheet’s Targets tab — total, per line, and per product."
@@ -4035,6 +4083,12 @@
    "view": "salesoverview",
    "title": "Sales overview",
    "desc": "Use External only / Incl. Remedy in the toolbar to switch the whole page between third-party sales and everything."
+  },
+  {
+   "sec": "Sales analytics",
+   "view": "salesmonthly",
+   "title": "Monthly sales by SKU",
+   "desc": "One year on one page: January to December across, every SKU down, grouped under its product line with a subtotal row, then the year total and the stock left now. Show units and pesos together, or either alone; pick the year and the line, find a SKU, fold a line by clicking it."
   },
   {
    "sec": "Sales analytics",

@@ -416,6 +416,7 @@ function exportCurrentView(){
     case 'coverage': return exportCoverage();
     case 'dealvalue': return exportDeals();
     case 'salesoverview': return exportSalesOverview();
+    case 'salesmonthly': return exportSalesMonthly();
     case 'salesdeals': return exportSalesDeals();
     case 'salesrecon': return exportSalesRecon();
     case 'salesfield': return exportSalesField();

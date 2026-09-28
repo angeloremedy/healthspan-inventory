@@ -153,6 +153,7 @@ therefore a floor — implementation grants the full circle read to all three.
 | Expense report (file one) | ✅ | ✅ | ✅ | ✅ | ✅ | any signed-in user; the approval route is the control, same as all finance forms |
 | My profile | ✅ | ✅ | ✅ | ✅ | ✅ | everyone — it only ever shows your own items |
 | Org chart (names, titles, reporting line; a name opens the person's card) | ✅ **edits** | 👁 | 👁 | 👁 | 👁 | 👁 everyone reads — view key `orgchart`; `org_people` RLS: select for everyone signed in, insert/update for `hs_role() in ('super','admin')` (People Operations use an admin account); admins remove = deactivate, **permanent delete is super admin only** (`org delete super`). Admins also link a row to an HQ account; the card's Sales page / Team & access links appear only when `viewAllowed('spec')` / `viewAllowed('users')`. No pay, no costs |
+| Monthly sales by SKU (Jan–Dec per SKU grouped by product line, year total, stock now; CSV) | ✅ | ✅ | ✅ | ✅ | 👁 | 👁 — view key `salesmonthly`, the same gate as Sales overview (listed in `SALES_PREFIX_OK`; viewers read it too). Company-wide booked sales and on-hand units only — **no costs, no margins** |
 | Account documents (view / add) | ✅ | ✅ | ✅ | ✅ | ✅ | 👁 |
 | Visit photos (on your own visit) | ✅ | ✅ | ✅ | ✅ | ✅ | ✖ | everyone may open a visit's files; only its owner attaches |
 | Pull-out request (file one) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (viewer/IT too — `viewAllowed` returns true for every role by rule) |

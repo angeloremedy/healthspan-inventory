@@ -853,6 +853,28 @@ halving the page size on a cost error and retrying the same page. Closed-period
 orders still receive only collections, shipping and `qbo_src` (which restates
 nothing HQ books). Test: `qbo-map.test.mjs` runs `toQboSrc()` on a GraphQL node.
 
+### 4.19 Monthly sales by SKU — `js/20-sales-monthly.js`
+
+**One function computes the grid; the page and the CSV both read it.**
+`smData(year)` walks the SKU universe — every `SALESIDX` key (sheet SKUs and the
+Shopify-only packages) plus sheet SKUs with non-zero `stk()` whose category is
+not samples / marketing / R&D (`SM_NOSELL_RE`) — and for each takes
+`netMonthly(S,'')` (units + à-la-carte revenue) and `netMonthly(S,'b')` (deal
+revenue) for the twelve `YYYY-MM` keys of the year, exactly as `tgActualProduct`
+and Sales overview do, so the numbers are Sales overview's to the peso and the
+External only / Incl. Remedy toggle (`SEXT`) applies unchanged. Rows group under
+the sheet's product line (the SALESIDX line for packages), lines and SKUs sort by
+year revenue. `smFrom()` is the earliest month any SKU has history for; cells
+before it render *n/a*, cells after `monthISO()` render blank, so "no data" and
+"no sales" never look alike (`smCell`). Filters (year, line, find, hide unsold)
+are module-level `SM*` state like the other sales views; folded lines live in
+`SMCOLL` for the session. Layout: `SM_CSS` pins the product column
+(`position:sticky; left:0`) always and the year-total / stock columns
+(`right:84px` / `right:0`) only from 900 px up, so a phone keeps room for the
+months. `exportSalesMonthly()` writes the same `smData` with units and pesos per
+month (future and pre-history months empty, not 0), a total per line and a grand
+total. Test: `tools/test/sales-monthly.test.js`.
+
 ## 5. Supabase schema (see SUPABASE-SETUP.md for exact SQL)
 
 | Table | Purpose | Key columns |

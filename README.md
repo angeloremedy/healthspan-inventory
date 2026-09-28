@@ -149,6 +149,9 @@ receipt. Mark fulfilled when it ships.
 
 - **Sales overview** — units/value, deals vs à-la-carte vs free split, any
   period (today → 12 months → custom).
+- **Monthly by SKU** — one year across the page: January to December as
+  columns, every SKU as a row grouped under its product line with a subtotal,
+  then the year total and the stock left now (README 9.29).
 - **Vs target** — monthly attainment by total / line / product / specialist.
 - **Specialists** — per-PS performance with drill-downs.
 - **Field coverage** — contacts/day, accounts reached vs universe, the
@@ -1217,6 +1220,32 @@ changes at once. Every change is audited. The chart lives in `org_people`; the f
 open the empty table is offered the People team's September 2026 chart as a
 starting point, and until the table exists that same chart shows read-only. The
 HR module (Workstream E) will take the data over as the employee master.
+
+## 9.29 Monthly sales by SKU — the year on one page
+
+**Monthly by SKU** (Sales analytics, right under Sales overview; asked for by the
+sales manager, 28 September 2026) puts a whole year on one grid: **January to
+December across**, **every SKU down**, SKUs grouped under their **product line**
+with a bold subtotal row per line, then **Year to date** (or Year total for a
+past year) and **Stock now** at the end, and an **All product lines** total row
+at the bottom. Each month cell shows units and pesos together; **Units** or
+**Revenue** shows either alone. The year picker offers every year HQ holds
+Shopify history for (months before that history read *n/a*; months still to
+come stay blank; the running month says *to date*). The line picker, a find box
+(name or SKU), **Hide SKUs with no sales this year**, and **Expand / Collapse
+all** narrow it; clicking a line folds it, clicking a SKU opens its orders. The
+product column is pinned on the left, and on a computer the year total and stock
+are pinned on the right, so the months scroll between them. **Export CSV** gives
+the grid with units and ₱ for every month, a total row per line and a grand
+total.
+
+The figures are Sales overview's: booked on Shopify, units including deal units
+(+1s) and ₱0 giveaways, revenue including the deal revenue attributed to each
+product, and the same **External only / Incl. Remedy** switch (external by
+default, matching accounting). Stock now is today's on-hand from the stock
+truth (`stk()`), not a month-end figure. SKUs with stock but no sales are listed
+too — except samples, marketing and R&D items, which appear only if they sold.
+No costs anywhere. Open to every role that opens Sales overview.
 
 ## 9.23 Saved reports — the reporting layer
 
