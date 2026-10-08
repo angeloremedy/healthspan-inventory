@@ -6,22 +6,37 @@ function toggleAsk(){
   if(d.classList.contains('open')){const log=document.getElementById('asklog');if(log&&(ASK_CUR.messages.length||!log.firstChild))askRenderLog(log,ASK_EMPTY_DRAWER);}
   if(d.classList.contains('open')){const i=document.getElementById('askinput'); if(i)setTimeout(()=>i.focus(),150);}
 }
+/* What a product specialist's chat may see (2026-10-08): the same things her own pages show.
+   Company-wide sales figures (Sales overview, leaderboard) stay; other people's accounts,
+   other specialists' account lists and targets, the warehouse-only sections and suppliers go.
+   Every other role opens the company-wide pages, so their catalog is unchanged.
+   null = not a specialist (no scoping). */
+function askScope(){
+  if(typeof ROLE==='undefined'||ROLE!=='sales')return null;
+  const tag=(typeof SBPROFILE!=='undefined'&&SBPROFILE&&SBPROFILE.specialist_tag)?specCanon(SBPROFILE.specialist_tag):'';
+  const tl=tag.toLowerCase(),mine=new Set();
+  const key=n=>custNorm(acctDedup(n||''));
+  try{for(const k in (OWNERS||{}))if(specCanon(OWNERS[k]).toLowerCase()===tl)mine.add(k);}catch(e){}
+  try{for(const o of ((SHOPIFY&&SHOPIFY.recent)||[]))if(o&&o.c&&tl&&specCanon(o.t||'').toLowerCase()===tl)mine.add(key(o.c));}catch(e){}
+  return {tag,me:n=>!!tl&&specCanon(n||'').toLowerCase()===tl,acct:n=>!!n&&mine.has(key(n))};}
 function askCatalog(){
+  const SC=askScope();
   const prods=DATA.map(p=>[p.sku,p.name,p.line||'',(typeof p.stock==='number'?p.stock:''),
     (p.price!=null?p.price:''),(p.velAdj!=null?p.velAdj:(p.velocity!=null?p.velocity:'')),
     (p.monthsOfStock!=null?p.monthsOfStock:''),p.expiry||'',p.batch||'',
-    (p.daysToStockout!=null?p.daysToStockout:''),p.stockoutDate||'',p.supplier||''].join('|')).join('\n');
+    (p.daysToStockout!=null?p.daysToStockout:''),p.stockoutDate||'',SC?'':(p.supplier||'')].join('|')).join('\n');
   const batches=(BATCHES||[]).filter(b=>b.soh>0).map(b=>[b.skuCode||'',b.name,b.batch||'',b.expiry||'',b.soh].join('|')).join('\n');
-  const custs=(CUSTOMERS||[]).slice(0,150).map(c=>[c.name,c.qty,c.value,c.orders,c.skuCount,c.lastOrder||'',c.daysSince!=null?c.daysSince:'',c.trend,c.isRemedy?'REMEDY':''].join('|')).join('\n');
+  const custs=(CUSTOMERS||[]).filter(c=>!SC||SC.acct(c.name)).slice(0,150).map(c=>[c.name,c.qty,c.value,c.orders,c.skuCount,c.lastOrder||'',c.daysSince!=null?c.daysSince:'',c.trend,c.isRemedy?'REMEDY':''].join('|')).join('\n');
   const ships=(BRANCH_TRANSFERS||[]).slice(0,80).map(t=>[t.branch,t.sku,t.name,t.qty,t.dateSerial?new Date((t.dateSerial-25569)*864e5).toISOString().slice(0,10):''].join('|')).join('\n');
   const wo=collisionRows(1).slice(0,50).map(c=>[c.sku,c.name,c.batch||'',c.expiry||'',c.projExpired,c.writeOff].join('|')).join('\n');
   const mo=(MONTHS||[]).map(m=>m+'='+((MONTHLY_OUT||{})[m]||0)).join(', ');
   let out='PRODUCTS (sku|name|line|stock|price_php|forecast_per_month|months_of_cover|expiry|batch|days_to_stockout|stockout_date|supplier):\n'+prods+
-    '\n\nBATCHES with stock, FEFO order — earliest expiry first (sku|name|batch|expiry_MM/YYYY|units_on_hand):\n'+batches+
-    '\n\nCUSTOMERS (name|units|value_php|orders|sku_count|last_order|days_since_order|trend|remedy_flag):\n'+custs+
-    '\n\nREMEDY SHIPMENTS — recent shipments to Remedy branches (branch|sku|name|qty|date):\n'+ships+
+    (SC?'':'\n\nBATCHES with stock, FEFO order — earliest expiry first (sku|name|batch|expiry_MM/YYYY|units_on_hand):\n'+batches)+
+    '\n\nCUSTOMERS'+(SC?' — YOUR ACCOUNTS ONLY':'')+' (name|units|value_php|orders|sku_count|last_order|days_since_order|trend|remedy_flag):\n'+custs+
+    (SC?'':'\n\nREMEDY SHIPMENTS — recent shipments to Remedy branches (branch|sku|name|qty|date):\n'+ships+
     '\n\nWRITE-OFF RISK — projected to expire unsold (sku|name|batch|expiry|units_at_risk|writeoff_value_php):\n'+wo+
-    '\n\nMONTHLY UNITS OUT (month=units): '+mo;
+    '\n\nMONTHLY UNITS OUT (month=units): '+mo);
+  if(SC)out+='\n\nSCOPE: this person is a product specialist ('+(SC.tag||'no tag')+'). Accounts, account lists and targets below are THEIRS only; company-wide sales totals are the ones their pages show. Batch, supplier, Remedy-shipment and write-off data are not available to them — if asked, say it is outside their access.';
   const shopSales=DATA.filter(p=>p.shopifySales).map(p=>p.sku+'|'+p.name+'|'+Object.keys(p.shopifySales).sort().map(m=>m+'='+p.shopifySales[m]).join(',')).join('\n');
   // Deliberately gross: internal units still leave the warehouse, so demand and
   // reorder maths want them. Say so, because the sales VIEWS default to external
@@ -43,6 +58,7 @@ function askHqSections(){
   // today in Manila, not UTC: before 8 am the ISO date is still yesterday, and the model would place "this week" wrong
   let today;try{today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Manila',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());}catch(e){today=todayISO();}
   const S=[];const sec=(h,lines)=>{if(lines&&lines.length)S.push(h+'\n'+lines.join('\n'));};
+  const SC=askScope();
   /* week calendar for this year (ISO weeks, Monday start) */
   {const y=+today.slice(0,4);const rows=[];const d=new Date(Date.UTC(y,0,4));d.setUTCDate(d.getUTCDate()-((d.getUTCDay()||7)-1));
     for(let w=1;w<=53;w++){const a=new Date(d);const b=new Date(d);b.setUTCDate(b.getUTCDate()+6);if(isoWeek(a).y!==y&&w>1)break;rows.push('W'+w+'='+a.toISOString().slice(0,10)+'..'+b.toISOString().slice(0,10));d.setUTCDate(d.getUTCDate()+7);}
@@ -61,23 +77,24 @@ function askHqSections(){
       ['total_mtd=₱'+P(R.total.mtd)+' target='+(R.total.tgt!=null?'₱'+P(R.total.tgt):'none')+' attainment='+bizFmtPct(R.total.att)+' projected_month=₱'+P(R.total.proj)+' qtd=₱'+P(R.total.qtd)+' ytd=₱'+P(R.total.ytd)+' orders='+R.accounts.orders+' ordering_accounts='+R.accounts.ordering+' new_accounts='+R.accounts.newAccts.length+' avg_order=₱'+P(R.accounts.aov)]);
     sec('BRANDS THIS MONTH (brand|mtd_php|target_php|attainment|prev_month_php|qtd|ytd|13_month_series oldest..newest):',R.brands.map(b=>b.name+'|₱'+P(b.mtd)+'|'+(b.tgt!=null?'₱'+P(b.tgt):'-')+'|'+bizFmtPct(b.att)+'|₱'+P(b.prev)+'|₱'+P(b.qtd)+'|₱'+P(b.ytd)+'|'+b.series.map(v=>Math.round(v/1000)+'K').join(',')));
     sec('MONTHS IN THE 13-MONTH SERIES: '+R.series.join(','),[]);
-    sec('SPECIALISTS THIS MONTH (name|team|mtd_php|target_php|attainment|prev_month|orders|ordering_accounts|new_accounts|masterlist|active_90d|quiet_90d|visits|calls|demos|top_accounts):',
-      R.specs.map(s=>s.label+'|'+(s.team||'-')+'|₱'+P(s.mtd)+'|'+(s.tgt!=null?'₱'+P(s.tgt):'-')+'|'+bizFmtPct(s.att)+'|₱'+P(s.prev)+'|'+s.orders+'|'+s.ordering+'|'+s.newAccts.length+'|'+s.masterlist+'|'+s.active+'|'+s.quiet+'|'+s.visits+'|'+s.calls+'|'+s.demos+'|'+s.topAccts.map(a=>a.name+' ₱'+P(a.v)).join('; ')));
+    if(SC)sec('SPECIALISTS THIS MONTH — leaderboard (name|team|mtd_php|attainment|prev_month); details only for the person asking:',R.specs.map(s=>s.label+'|'+(s.team||'-')+'|₱'+P(s.mtd)+'|'+bizFmtPct(s.att)+'|₱'+P(s.prev)));
+    sec((SC?'YOUR NUMBERS THIS MONTH':'SPECIALISTS THIS MONTH')+' (name|team|mtd_php|target_php|attainment|prev_month|orders|ordering_accounts|new_accounts|masterlist|active_90d|quiet_90d|visits|calls|demos|top_accounts):',
+      R.specs.filter(s=>!SC||SC.me(s.name)).map(s=>s.label+'|'+(s.team||'-')+'|₱'+P(s.mtd)+'|'+(s.tgt!=null?'₱'+P(s.tgt):'-')+'|'+bizFmtPct(s.att)+'|₱'+P(s.prev)+'|'+s.orders+'|'+s.ordering+'|'+s.newAccts.length+'|'+s.masterlist+'|'+s.active+'|'+s.quiet+'|'+s.visits+'|'+s.calls+'|'+s.demos+'|'+s.topAccts.map(a=>a.name+' ₱'+P(a.v)).join('; ')));
     sec('TOP PRODUCTS THIS MONTH, external (product|sku|brand|units|revenue_php|prev_month_php|target_php):',R.products.slice(0,40).map(p=>p.name+'|'+p.sku+'|'+p.line+'|'+p.u+'|₱'+P(p.v)+'|₱'+P(p.pv)+'|'+(p.tgt!=null?'₱'+P(p.tgt):'-')));
-    sec('TOP ACCOUNTS THIS MONTH (account|mtd_php|prev_month_php|orders|brands|specialist|new?):',R.accounts.top.map(a=>a.name+'|₱'+P(a.v)+'|₱'+P(a.prev)+'|'+a.orders+'|'+a.lines+'|'+(specDisplay(a.spec||a.owner)||'-')+'|'+(a.isNew?'NEW':'')));
-    sec('NEW ACCOUNTS THIS MONTH (first order in 13 months): ',[R.accounts.newAccts.map(a=>a.name+' ₱'+P(a.v)+(a.spec?' via '+specDisplay(a.spec):'')).join('; ')||'none']);
-    sec('REPEAT ACCOUNTS GOING QUIET, 45-120 days since last order (account|days|orders_13m|revenue_13m|owner):',R.accounts.lapsed.map(l=>l.name+'|'+l.days+'|'+l.o+'|₱'+P(l.v)+'|'+(specDisplay(l.owner)||'-')));
-    sec('RISERS vs last month: ',[R.accounts.risers.map(m=>m.name+' +₱'+P(m.d)).join('; ')||'none']);sec('FALLERS vs last month: ',[R.accounts.fallers.map(m=>m.name+' -₱'+P(-m.d)).join('; ')||'none']);
+    sec('TOP ACCOUNTS THIS MONTH'+(SC?' — yours':'')+' (account|mtd_php|prev_month_php|orders|brands|specialist|new?):',R.accounts.top.filter(a=>!SC||SC.acct(a.name)).map(a=>a.name+'|₱'+P(a.v)+'|₱'+P(a.prev)+'|'+a.orders+'|'+a.lines+'|'+(specDisplay(a.spec||a.owner)||'-')+'|'+(a.isNew?'NEW':'')));
+    sec('NEW ACCOUNTS THIS MONTH'+(SC?' — yours':'')+' (first order in 13 months): ',[R.accounts.newAccts.filter(a=>!SC||SC.acct(a.name)).map(a=>a.name+' ₱'+P(a.v)+(a.spec?' via '+specDisplay(a.spec):'')).join('; ')||'none']);
+    sec('REPEAT ACCOUNTS GOING QUIET'+(SC?' — yours':'')+', 45-120 days since last order (account|days|orders_13m|revenue_13m|owner):',R.accounts.lapsed.filter(l=>!SC||SC.acct(l.name)||SC.me(l.owner)).map(l=>l.name+'|'+l.days+'|'+l.o+'|₱'+P(l.v)+'|'+(specDisplay(l.owner)||'-')));
+    sec('RISERS vs last month'+(SC?' — yours':'')+': ',[R.accounts.risers.filter(m=>!SC||SC.acct(m.name)).map(m=>m.name+' +₱'+P(m.d)).join('; ')||'none']);sec('FALLERS vs last month'+(SC?' — yours':'')+': ',[R.accounts.fallers.filter(m=>!SC||SC.acct(m.name)).map(m=>m.name+' -₱'+P(-m.d)).join('; ')||'none']);
     sec('MACHINES (equipment): revenue_mtd=₱'+P(R.machines.rev)+' units='+R.machines.units+' installs_recorded='+R.machines.installs+' demo_units_out='+R.machines.loansOut+' on_loan_now='+R.machines.onLoan+' equipment_in_stock='+R.machines.inStock,R.machines.rows.map(p=>'- '+p.name+' '+p.u+'u ₱'+P(p.v)));
     sec('FIELD ACTIVITY THIS MONTH (visit log): visits='+R.activity.visits+' calls='+R.activity.calls+' demos='+R.activity.demos+' ended_in_order='+R.activity.ordered+' new_accounts_opened='+R.activity.opened,[]);
-    sec('WHAT HQ NOTICED (auto-generated observations):',R.trends.map(t=>'- '+t.t));
-    if(R.unassigned&&R.unassigned.v>0)sec('REVENUE UNDER TAGS THAT ARE NOT A SPECIALIST ACCOUNT: ₱'+P(R.unassigned.v)+' ('+R.unassigned.tags.join(', ')+')',[]);
+    if(!SC)sec('WHAT HQ NOTICED (auto-generated observations):',R.trends.map(t=>'- '+t.t)); // they name accounts and other specialists
+    if(!SC&&R.unassigned&&R.unassigned.v>0)sec('REVENUE UNDER TAGS THAT ARE NOT A SPECIALIST ACCOUNT: ₱'+P(R.unassigned.v)+' ('+R.unassigned.tags.join(', ')+')',[]);
   }
   /* targets for this and next month */
-  {const ym=today.slice(0,7);const rows=(TARGETS||[]).filter(t=>t.month===ym||t.month===bizYmAdd(ym,1)).map(t=>t.month+'|'+t.scope+'|'+(t.name||'TOTAL')+'|₱'+P(t.value));
+  {const ym=today.slice(0,7);const rows=(TARGETS||[]).filter(t=>t.month===ym||t.month===bizYmAdd(ym,1)).filter(t=>!SC||t.scope!=='SPECIALIST'||SC.me(t.name)).map(t=>t.month+'|'+t.scope+'|'+(t.name||'TOTAL')+'|₱'+P(t.value));
     sec('TARGETS (month|scope|name|php):',rows);}
   /* loans out */
-  if(typeof LOANS!=='undefined'&&LOANS&&LOANS.length)sec('DEMO / LOANER UNITS OUT (sku|serial|account|out_date|due_date):',LOANS.filter(l=>l.status==='out').map(l=>l.sku+'|'+l.serial+'|'+l.account+'|'+l.out_date+'|'+l.due_date));
+  if(!SC&&typeof LOANS!=='undefined'&&LOANS&&LOANS.length)sec('DEMO / LOANER UNITS OUT (sku|serial|account|out_date|due_date):',LOANS.filter(l=>l.status==='out').map(l=>l.sku+'|'+l.serial+'|'+l.account+'|'+l.out_date+'|'+l.due_date));
   return S.length?'\n\n'+S.join('\n\n'):'';
 }
 async function askDiag(){ // manager/admin: one tiny model call, timed — is the door open?
@@ -102,16 +119,15 @@ function mdLite(t){
     close();out+='<p style="margin:4px 0">'+inl(l)+'</p>';}
   close();return out;}
 function askFmt(t){return mdLite(t);}
-/* Which model answers Ask Healthspan — the person's own choice, kept on this device.
-   Settings → AI holds the company default; this dropdown overrides it for the chat only. */
-const ASK_MODELS=['gemini','anthropic'];
-function askGetModel(){try{const v=localStorage.getItem('hs_ask_model')||'';return ASK_MODELS.includes(v)?v:'';}catch(e){return '';}}
-function askSetModel(v){v=ASK_MODELS.includes(v)?v:'';try{if(v)localStorage.setItem('hs_ask_model',v);else localStorage.removeItem('hs_ask_model');}catch(e){}askPaintModel();}
+/* Which model answers Ask Healthspan — Claude Haiku 5.5 unless the person picks Gemini Flash
+   (kept on this device). Since 2026-10-08 the chat no longer follows Settings → AI; that stays
+   the company default for Draft with AI, the planning review, the Slack bot and the nudge.
+   The device key is new (hs_ask_model2) so picks made when Gemini was the default start over. */
+const ASK_MODELS=['anthropic','gemini'];
+function askGetModel(){try{const v=localStorage.getItem('hs_ask_model2')||'';return ASK_MODELS.includes(v)?v:'';}catch(e){return '';}}
+function askSetModel(v){v=ASK_MODELS.includes(v)?v:'';try{if(v)localStorage.setItem('hs_ask_model2',v);else localStorage.removeItem('hs_ask_model2');}catch(e){}askPaintModel();}
 function askPaintModel(){const sels=[...document.querySelectorAll('select.askmodel')];if(!sels.length)return;
-  const paint=()=>{const v=askGetModel()||(ASK_MODELS.includes(window.AI_DEFAULT)?window.AI_DEFAULT:'gemini');sels.forEach(s=>{if(s.value!==v)s.value=v;});};
-  paint();
-  // no personal pick yet → show the company default (Settings → AI), read once per session
-  if(!askGetModel()&&window.AI_DEFAULT===undefined&&SB){window.AI_DEFAULT='';try{SB.from('app_settings').select('value').eq('key','ai_provider').maybeSingle().then(({data})=>{window.AI_DEFAULT=(data&&data.value)||'';paint();});}catch(e){}}}
+  const v=askGetModel()||'anthropic';sels.forEach(s=>{if(s.value!==v)s.value=v;});}
 /* ── ONE CHAT ENGINE, TWO SURFACES ────────────────────────────────────────────
    The side drawer and the full page (view "ask") both show ASK_CUR, the current
    conversation, and both call askAsk(). Every conversation is saved per person in
@@ -225,7 +241,7 @@ async function renderAskPage(){
     '<div class="mu" style="padding:8px 12px;font-size:10.5px;border-top:1px solid var(--bd)">Chats are yours alone — nobody else can open them.</div></aside>'+
     '<section class="askmain">'+
       '<div class="askpg-hd"><a href="#" class="abtn askpg-menu" onclick="askToggleList();return false" title="Chats">☰</a><span id="askpg-title" style="font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(ASK_CUR.title||'New chat')+'</span>'+
-        '<select id="askmodel-pg" class="askmodel" onchange="askSetModel(this.value)" title="Which model answers"><option value="gemini">Gemini Flash</option><option value="anthropic">Claude Haiku</option></select></div>'+
+        '<select id="askmodel-pg" class="askmodel" onchange="askSetModel(this.value)" title="Which model answers"><option value="anthropic">Claude Haiku 5.5</option><option value="gemini">Gemini Flash</option></select></div>'+
       '<div id="askpg-log" class="asklog askpg-log"></div>'+
       '<div class="askbar askpg-bar"><textarea id="askpg-input" placeholder="Ask Healthspan…" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();askPageSend();}"></textarea><button id="askpg-btn" onclick="askPageSend()">Ask</button></div>'+
       '<div class="askfoot" style="padding-bottom:8px">Answers come from live HQ data — warehouse, Shopify sales (external only unless you ask), accounts, targets, visits · stock is warehouse-level, not per-branch</div>'+

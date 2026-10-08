@@ -25,6 +25,11 @@ at cutover; the accounting export CSV remains the fallback); it does not replace
 
 ## ✅ Shipped so far (everything, from the start)
 
+**Ask Healthspan on Claude Haiku 5.5; specialist chats scoped (Oct 8)**
+- ✅ Claude Haiku 5.5 (`claude-haiku-5-5`, `ASK_MODEL` overrides) answers Ask Healthspan by default — every question, no Sonnet escalation; Haiku 4.5 then Gemini Flash behind it; Gemini Flash still one click away in the dropdown (old device picks reset). Draft with AI, Slack bot and nudge keep the Settings → AI default
+- ✅ A product specialist's chat is given only her accounts, her target and leaderboard figures — no other specialists' accounts or targets, batches, suppliers, Remedy shipments, write-off risk or loaners. `tools/test/ask-scope.test.js`
+- ▢ Slack `/stock` is not tied to HQ logins (company-wide feed for anyone in the channel) — decide whether to restrict
+
 **Specialists see their own products, month by month (Oct 8)**
 - ✅ Monthly by SKU gains **Whose sales**: specialists open it on **My sales** (or the whole company); managers pick any specialist. The specialist page shows **Products sold — <month>** (every product, units + ₱, total) following the calendar; tap a month bar or ‹ › to switch; link to every month. Business review: **All products sold** per specialist (open on your own) and the name links to the specialist page. Home card **My products by month** for specialists. Built from the per-order index, external only by default. `tools/test/sales-monthly.test.js` (66)
 

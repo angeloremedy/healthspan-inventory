@@ -626,7 +626,9 @@ told to give the closest answer the data supports rather than "not available".
 The server trims the catalog to what the question needs (small sales sections
 are always kept whole) and gives analysis questions a little thinking time.
 
-**Draft with AI, Ask Healthspan, the Slack bot and the Monday nudge run on Gemini Flash
+**Ask Healthspan answers with Claude Haiku 5.5** (since 8 October 2026; needs
+`ANTHROPIC_API_KEY` in Netlify — without it the chat falls back to the company
+default). **Draft with AI, the Slack bot and the Monday nudge run on Gemini Flash
 (free tier)** by default — one env var, `GEMINI_API_KEY`. On the free tier unit
 costs and supplier payables are left out of prompts; Claude stays as an optional
 safety net. See "AI provider" in SUPABASE-SETUP.md.
@@ -676,18 +678,31 @@ live on one page: **Appearance** (theme, light / dark / match device),
 **Shortcuts & help** (favourites, bottom bar, manual) and, for managers and
 admins, **AI** — the company default model for Draft with AI, the planning
 review, the Slack bot and the Monday nudge: **Gemini Flash** (free, default) or
-**Claude Haiku**. Each shows whether its key is set in Netlify; only the super
+**Claude Haiku** (Ask Healthspan has its own default, Claude Haiku 5.5). Each shows whether its key is set in Netlify; only the super
 admin changes the choice (it is `app_settings.ai_provider`, read by the workers
 on every call); anyone can run the connection test. The footer keeps
 name · role · Settings · Sign out.
 
 ## 9.17h Ask Healthspan, and picking the model per question
 
-The chat is **Ask Healthspan** (top-bar button and drawer). A small dropdown in
-the drawer header — Gemini Flash / Claude Haiku — chooses which model answers
-*your* questions; it is remembered on the device and sent with each question, so
-one person's preference never changes the company default in Settings → AI. With
-no pick made, the dropdown shows the company default.
+The chat is **Ask Healthspan** (top-bar button and drawer). It answers with
+**Claude Haiku 5.5** unless you pick **Gemini Flash** in the small dropdown in the
+drawer header (or on the full page); the pick is remembered on the device and sent
+with each question. Picks made before 8 October 2026, when Gemini was the default,
+were reset. If Haiku 5.5 is unavailable the answer comes from Haiku 4.5, then
+Gemini Flash, and says which model replied.
+
+**What it may answer.** Everything it is given is filtered by who is asking. The
+HQ records (orders, quotes, approvals, backorders, receivables, cheques, payables,
+unit costs) are pulled on the server for the role in your session — a specialist
+gets her own orders and quotes, unit costs and payables only reach finance and
+admin. The sales and stock summary that the browser adds is trimmed for a
+**product specialist** to what her own pages show: her accounts only, the
+leaderboard (names, month to date, attainment) but full detail only for her, her
+own target, and no batches, suppliers, Remedy shipments, write-off risk or
+loaners. Other roles get the company-wide summary their pages already show. The
+Slack bot (`/stock`) is not tied to an HQ login and answers from the company-wide
+inventory and sales feed for anyone who can use the command in Slack.
 
 **Ask Healthspan as a full page.** Home → Ask Healthspan (or ⤢ in the drawer)
 opens the chat ChatGPT-style: your conversations on the left — grouped Today /

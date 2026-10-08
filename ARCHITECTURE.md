@@ -446,12 +446,20 @@ the first question); `renderAskPage()` builds the two-column page (`.askpg`) and
 the top-bar button opens. No database → the chat works, unsaved.
 
 ### 3.10 Ask Healthspan model pick
-`askGetModel()/askSetModel()` (js/09) keep the person's choice in
-`localStorage.hs_ask_model` and `sendAsk` sends it as `provider`; `ask.mjs`
-forwards it to the worker only when it is `gemini` or `anthropic` (`ASK_PICK`),
-and the worker applies `setProviderPref(payload.provider)` *after* reading the
-company default from `app_settings.ai_provider`, so the personal pick wins for
-that question only. Settings → AI offers the same two.
+**Claude Haiku 5.5 is the chat's default (2026-10-08).** The worker reads the
+company default (`app_settings.ai_provider`), then — for the chat, not Draft with
+AI (`mode: 'draft'`) — switches to `anthropic` when an Anthropic key exists, then
+applies the person's own pick. For a Claude answer it calls `llm({…, claudeModel:
+ASK_CLAUDE})`: `ASK_CLAUDE` = `ASK_MODEL` env or `claude-haiku-5-5`, used for every
+chat question (no escalation to Sonnet on "hard" questions), one patient retry on
+429/5xx, then the Slack bot's fast Claude (`STOCKBOT_MODEL`, Haiku 4.5), then
+Gemini Flash — so a missing or retired model never leaves the chat without an
+answer, and the answer's `model` says which one replied. `askGetModel()/
+askSetModel()` (js/09) keep a person's pick in `localStorage.hs_ask_model2` (a new
+key, so picks made while Gemini was the default start over); no pick shows Claude.
+`ask.mjs` still forwards only `gemini`/`anthropic` (`ASK_PICK`). Settings → AI
+stays the company default for Draft with AI, the planning review, the Slack bot
+and the Monday nudge.
 
 ### 4.5a One door to the models — `lib/llm.mjs`
 
@@ -477,6 +485,25 @@ view: ISO-week calendar (`isoWeek()`), weekly external sales folded from
 targets, loaners). Each is a few KB, and `trimCatalog()` on the server keeps any
 section under 9 KB whole, so a date question that matches no keyword still has
 its data. The system prompt names the sections and how dates map onto them.
+
+**Two halves, two kinds of scoping.** The server half (`buildHqContext` in the
+worker: HQ orders, quotes, approvals, backorders, AR, PDCs, payables, unit costs)
+is read with the service key but filtered by the role and tag `ask.mjs` takes
+from the verified session — the browser cannot widen it; unit costs and payables
+only reach finance and admin, and never a free-tier model. The browser half
+(`askCatalog()` + `askHqSections()`) is built from what that browser already
+holds. Since 2026-10-08 `askScope()` trims it for a **product specialist** to
+what her pages show: her accounts only (owned in `accounts.owner_tag`, or
+ordered under her tag) in CUSTOMERS, top accounts, new, quiet, risers and
+fallers; the specialists section reduced to a leaderboard (name, team, MTD,
+attainment, previous month) plus her own full row; TARGETS without other
+specialists' rows; no batches, supplier names, Remedy shipments, write-off risk,
+loaners or the auto-observations (they name accounts and people); and a SCOPE
+line telling the model. Other roles open the company-wide pages, so their catalog
+is unchanged. This is a convenience boundary, not a security one: the sales
+cache the browser downloads for Sales overview carries company-wide orders, so a
+technical user could read them in developer tools — the AI simply is not handed
+them. Test: `tools/test/ask-scope.test.js`.
 
 ### 4.5c Provider choice at runtime
 

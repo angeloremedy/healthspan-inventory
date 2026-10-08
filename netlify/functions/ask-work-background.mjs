@@ -1,9 +1,9 @@
 // Background worker for the dashboard's Ask Healthspan box (up to 15 min runtime — no timeouts).
 // Receives { id, question, catalog, history }, asks the configured model
-// (lib/llm.mjs — Gemini Flash by default, Claude as the safety net), and writes
+// (lib/llm.mjs — Claude Haiku 5.5 for the chat, Gemini Flash as the safety net), and writes
 // the result to Blobs for ask.mjs to serve.
 import { connectLambda, getStore } from '@netlify/blobs';
-import { llm, hasKey, isHardQuestion, isFreeTier, provider, setProviderPref } from './lib/llm.mjs';
+import { llm, hasKey, isHardQuestion, isFreeTier, provider, setProviderPref, keyFor, ASK_CLAUDE } from './lib/llm.mjs';
 import { requireJobKey } from './lib/guard.mjs';
 
 const SYSTEM = [
@@ -146,7 +146,11 @@ export const handler = async (event) => {
   const who = payload.who || { role: 'viewer', tag: '' };
   const mode = String(payload.mode || '');   // 'draft' = Draft with AI: short prompt, wants depth
   try { const r = await sbq('app_settings?select=value&key=eq.ai_provider'); setProviderPref((r[0] || {}).value || ''); } catch (e) {} // Settings → AI (company default)
-  if (['gemini', 'anthropic'].includes(String(payload.provider || ''))) setProviderPref(payload.provider); // the person's own pick in the Ask Healthspan dropdown wins for this question
+  // Ask Healthspan answers with Claude Haiku 5.5 by default (2026-10-08); Draft with AI keeps the company default.
+  // The person's own pick in the Ask Healthspan dropdown wins for this question.
+  const chat = mode !== 'draft';
+  if (chat && keyFor('anthropic')) setProviderPref('anthropic'); // no Claude key yet → the company default answers instead of an error
+  if (['gemini', 'anthropic'].includes(String(payload.provider || ''))) setProviderPref(payload.provider);
   if (!id) return { statusCode: 400, body: 'no id' };
 
   let store = null;
@@ -189,7 +193,7 @@ export const handler = async (event) => {
 
   await stage('model');
   // one call; lib/llm.mjs already retries on a rate limit and falls back across models/providers
-  const out = await llm({ system, messages: msgs, maxTokens: smart ? 8000 : 2000, smart, depth: mode === 'draft' ? 'deep' : '' });
+  const out = await llm({ system, messages: msgs, maxTokens: smart ? 8000 : 2000, smart, depth: mode === 'draft' ? 'deep' : '', claudeModel: chat && provider() === 'anthropic' ? ASK_CLAUDE : '' });
   const res = { answer: out.text, errMsg: out.error };
   const usedModel = out.model || provider();
 

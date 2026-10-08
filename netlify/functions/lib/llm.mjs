@@ -28,6 +28,9 @@
 // context. Everything else in HQ is ordinary sales/inventory data.
 
 const FAST_CLAUDE = process.env.STOCKBOT_MODEL || 'claude-haiku-4-5-20251001';
+// Ask Healthspan's own default (Angelo, 2026-10-08): Claude Haiku 5.5. ASK_MODEL overrides it;
+// it is deliberately not STOCKBOT_MODEL, so the Slack bot's setting cannot change the chat.
+export const ASK_CLAUDE = process.env.ASK_MODEL || 'claude-haiku-5-5';
 const SMART_CLAUDE = process.env.STOCKBOT_SMART_MODEL || 'claude-sonnet-5';
 const GEM_MODEL = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
 const GEM_LITE = process.env.GEMINI_MODEL_LITE || 'gemini-3.5-flash-lite';
@@ -138,8 +141,9 @@ async function callClaude({ system, messages, maxTokens, model, key }) {
  * Never throws. Order of attempts:
  *   gemini:    Flash → (429/5xx) wait, Flash again → Flash-Lite → Claude fast if a key exists
  *   anthropic: smart/fast Claude → fast Claude → Gemini Flash if a key exists
+ *   anthropic + claudeModel: that model for every question (one patient retry) → fast Claude → Gemini Flash
  */
-export async function llm({ system = '', messages = [], maxTokens = 2000, smart = false, depth = '', only = false } = {}) {
+export async function llm({ system = '', messages = [], maxTokens = 2000, smart = false, depth = '', only = false, claudeModel = '' } = {}) {
   const gk = process.env.GEMINI_API_KEY, ak = process.env.ANTHROPIC_API_KEY;
   const deep = depth === 'deep'; if (deep) smart = true;
   let attempts = [];
@@ -153,6 +157,9 @@ export async function llm({ system = '', messages = [], maxTokens = 2000, smart 
     // everyday model stays next in line so a rate limit on 3.8 never blocks the answer
     if (gk) { if (deep) attempts.push({ p: 'gemini', model: GEM_DEEP, retry: true, deep: true }); attempts.push({ p: 'gemini', model: GEM_MODEL, retry: !deep }); attempts.push({ p: 'gemini', model: GEM_LITE }); }
     if (ak) attempts.push({ p: 'anthropic', model: deep ? SMART_CLAUDE : FAST_CLAUDE });
+  } else if (claudeModel) { // a caller that names its Claude model (Ask Healthspan): no escalation to Sonnet
+    if (ak) { attempts.push({ p: 'anthropic', model: claudeModel, retry: true }); if (claudeModel !== FAST_CLAUDE) attempts.push({ p: 'anthropic', model: FAST_CLAUDE }); }
+    if (gk) attempts.push({ p: 'gemini', model: GEM_MODEL });
   } else {
     if (ak) { attempts.push({ p: 'anthropic', model: smart ? SMART_CLAUDE : FAST_CLAUDE }); if (smart) attempts.push({ p: 'anthropic', model: FAST_CLAUDE }); }
     if (gk) attempts.push({ p: 'gemini', model: deep ? GEM_DEEP : GEM_MODEL, deep });

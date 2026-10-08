@@ -445,7 +445,7 @@ async function renderSettings(){
       '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><select id="aiprov" '+(canSet?'onchange="setAiProvider(this.value)"':'disabled')+' style="font:inherit;padding:7px 10px;border-radius:8px;border:1px solid var(--bd);background:var(--sf);color:var(--tx);min-width:200px">'+
       AI_CHOICES.map(([k,lbl])=>'<option value="'+k+'"'+(cur===k?' selected':'')+(keys[k]?'':' disabled')+'>'+esc(lbl)+(keys[k]?'':' — no key')+'</option>').join('')+'</select>'+
       '<a href="#" class="abtn" onclick="settingsAiTest();return false">Test connection</a><span class="mu" id="ai-test" style="font-size:11.5px"></span></div>'+
-      '<div class="mu" style="font-size:11px;margin-top:8px">Company default for Draft with AI, the planning review, the Slack bot and the Monday nudge. Ask Healthspan has its own dropdown so anyone can switch between the two for a question. '+(canSet?'Saved for everyone the moment you pick it.':'Only the super admin changes this.')+' Providers without a key in Netlify are greyed out.</div></div>';}
+      '<div class="mu" style="font-size:11px;margin-top:8px">Company default for Draft with AI, the planning review, the Slack bot and the Monday nudge. Ask Healthspan answers with Claude Haiku 5.5 by default; anyone can switch to Gemini Flash in its own dropdown. '+(canSet?'Saved for everyone the moment you pick it.':'Only the super admin changes this.')+' Providers without a key in Netlify are greyed out.</div></div>';}
   $('content').innerHTML=h;}
 async function setAiProvider(v){
   if(!isSuper())return;const st=$('ai-test');if(st)st.textContent='Saving…';

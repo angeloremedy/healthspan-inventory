@@ -1,6 +1,6 @@
 /* The model door: provider choice, retry on 429, cross-provider fallback, free-tier scrub flag.
    Run from the repo root: node tools/test/llm-provider.test.mjs */
-import { llm, provider, isFreeTier, isHardQuestion, fixPeso, setProviderPref } from '../../netlify/functions/lib/llm.mjs';
+import { llm, provider, isFreeTier, isHardQuestion, fixPeso, setProviderPref, ASK_CLAUDE } from '../../netlify/functions/lib/llm.mjs';
 const calls=[];
 globalThis.fetch=async(url,opt)=>{calls.push(url.split('?')[0]);
   const body=JSON.parse(opt.body);
@@ -60,4 +60,16 @@ t('chosen provider failing → fell back to Gemini, and the result says so',r9.p
 calls.length=0;const r10=await llm({system:'S',messages:[{role:'user',content:'q'}],only:true});
 t('only:true tests that provider alone — no fallback, the 401 surfaces',!r10.text&&r10.provider==='mistral'&&/401/.test(r10.error)&&calls.length===1,r10.error);
 setProviderPref('');delete process.env.MISTRAL_API_KEY;delete process.env.GEMINI_API_KEY;
+// Ask Healthspan's default: Claude Haiku 5.5 for every chat question, no escalation to Sonnet
+t('Ask Healthspan default model is Claude Haiku 5.5',ASK_CLAUDE==='claude-haiku-5-5',ASK_CLAUDE);
+process.env.ANTHROPIC_API_KEY='a';process.env.GEMINI_API_KEY='g';setProviderPref('anthropic');calls.length=0;bodies=[];
+globalThis.fetch=async(url,opt)=>{calls.push(url.split('?')[0]);bodies.push(JSON.parse(opt.body));if(url.includes('generativelanguage'))return {ok:true,json:async()=>({candidates:[{content:{parts:[{text:'g'}]}}]})};return {ok:true,json:async()=>({content:[{type:'text',text:'haiku says'}]})};};
+const r11=await llm({system:'S',messages:[{role:'user',content:'why did sales drop? compare brands'}],smart:true,claudeModel:ASK_CLAUDE});
+t('claudeModel: even a hard question goes to Haiku 5.5, one call',r11.model==='claude-haiku-5-5'&&bodies[0].model==='claude-haiku-5-5'&&calls.length===1&&r11.text==='haiku says',r11.model+' '+calls.length);
+calls.length=0;bodies=[];
+globalThis.fetch=async(url,opt)=>{calls.push(url.split('?')[0]);const b=JSON.parse(opt.body);bodies.push(b);if(url.includes('generativelanguage'))return {ok:true,json:async()=>({candidates:[{content:{parts:[{text:'gemini rescue'}]}}]})};
+  if(b.model==='claude-haiku-5-5')return {ok:false,status:404,text:async()=>'model not found'};return {ok:false,status:529,text:async()=>'overloaded'};};
+const r12=await llm({system:'S',messages:[{role:'user',content:'q'}],claudeModel:ASK_CLAUDE});
+t('Haiku 5.5 unavailable → Haiku 4.5 → Gemini Flash, and the answer still arrives',r12.provider==='gemini'&&r12.text==='gemini rescue'&&bodies.map(b=>b.model).filter(Boolean).join(',')==='claude-haiku-5-5,claude-haiku-4-5-20251001',bodies.map(b=>b.model).join(','));
+setProviderPref('');delete process.env.ANTHROPIC_API_KEY;delete process.env.GEMINI_API_KEY;
 console.log(ok+'/'+(ok+fail)+' passed');process.exit(fail?1:0);
