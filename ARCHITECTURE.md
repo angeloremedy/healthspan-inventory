@@ -451,13 +451,19 @@ company default (`app_settings.ai_provider`), then — for the chat, not Draft w
 AI (`mode: 'draft'`) — switches to `anthropic` when an Anthropic key exists, then
 applies the person's own pick. For a Claude answer it calls `llm({…, claudeModel:
 ASK_CLAUDE})`: `ASK_CLAUDE` = `ASK_MODEL` env or `claude-haiku-5-5`, used for every
-chat question (no escalation to Sonnet on "hard" questions), one patient retry on
+chat question (no automatic escalation on "hard" questions), one patient retry on
 429/5xx, then the Slack bot's fast Claude (`STOCKBOT_MODEL`, Haiku 4.5), then
-Gemini Flash — so a missing or retired model never leaves the chat without an
+Gemini Flash. A **hard question** (`isHardQuestion()` in `lib/llm.mjs`: why /
+analyse / compare / recommend / report / plan / strategy / trend / breakdown /
+summarise / review / explain, over 250 characters, or three question marks) goes to
+`ASK_SONNET` instead (`ASK_SMART_MODEL` env or `claude-sonnet-5-5`), the attempt list
+then being Sonnet 5.5 → Haiku 5.5 → Haiku 4.5 → Gemini Flash. Nobody picks Sonnet —
+it is not in the dropdown (Angelo, 2026-10-08) — so a missing or retired model never leaves the chat without an
 answer, and the answer's `model` says which one replied. `askGetModel()/
 askSetModel()` (js/09) keep a person's pick in `localStorage.hs_ask_model2` (a new
 key, so picks made while Gemini was the default start over); no pick shows Claude.
-`ask.mjs` still forwards only `gemini`/`anthropic` (`ASK_PICK`). Settings → AI
+`ask.mjs` forwards only `gemini`/`anthropic` (`ASK_PICK`). Each answer
+carries `m` (the model id) and `askModelLbl()` prints it under the answer. Settings → AI
 stays the company default for Draft with AI, the planning review, the Slack bot
 and the Monday nudge.
 
@@ -918,6 +924,28 @@ flagged in the footer. `SMSPEC` is `null` until first use, then a specialist's o
 tag (`smMyTag()`) or `''` (company); a specialist's picker offers only her own
 sales and the company — the data is in the browser either way, the picker is a
 convenience, not a gate.
+
+### 4.20 Usage — `js/21-usage.js`, `public.usage_daily`, `usage_ping()`
+
+**Counted where navigation already passes.** `pushRoute()` (js/04) is the one
+place every page change goes through — `showView`, the specialist / order /
+account / pick-list / delivery / statement pages, and back/forward (the ping sits
+before the `ROUTING` early return). It calls `usagePing('view', usageRouteKey(h))`
+(`#/v/<view>` → the view; `#/s/` spec, `#/o/` order, `#/a/` account, `#/p/`
+pickslip, `#/d/` delivery, `#/m/` statement); a second ping for the same page
+within 5 s is a repaint, not a visit. `askAsk()` calls `usagePing('ask', model)`
+(or `failed`) after each answer. The ping is a fire-and-forget `SB.rpc('usage_ping')`
+— a security-definer function that upserts the caller's (`auth.uid()`) row for the
+Manila day: `views`, `sessions` (+1 when the last activity was 30+ minutes ago),
+`pages` / `ask_models` jsonb counters, `last_at`. There is no insert/update policy,
+so nobody writes the table directly, and the only select policy is
+`hs_role() = 'super'`. Before the SQL runs the RPC fails silently. `renderUsage()`
+reads the rows for the period, names them through `adminUsers('list')` (names,
+roles, last sign-in, invited, disabled) and folds them (`usageFold`) into people,
+pages, days and models; the anonymous question log (`/api/asklog`, now up to 90
+days, read in parallel) adds Slack questions, failures and response times. Page
+labels come from the sidebar row of each view (`usagePageLbl`). `usage` is
+super-only in `viewAllowed` and in `NEVER_GRANT`. Test: `tools/test/usage.test.js`.
 
 ## 5. Supabase schema (see SUPABASE-SETUP.md for exact SQL)
 

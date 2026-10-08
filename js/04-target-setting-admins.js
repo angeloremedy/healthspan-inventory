@@ -431,6 +431,7 @@ function acctList(){
 let CUR_ACCT=null,ACCT_BACK='customers';
 let ROUTING=false; // true while applying a route from the URL (prevents push loops)
 function pushRoute(h){
+  try{if(typeof usagePing==='function')usagePing('view',usageRouteKey(h));}catch(e){} // Usage page: one page open (back/forward included)
   // a page change while a drawer is open closes the drawer — the page must never move underneath it
   try{if(typeof drawerIsOpen==='function'&&drawerIsOpen())closeDrawer(true);}catch(e){}
   if(ROUTING)return;

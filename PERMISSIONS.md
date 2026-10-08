@@ -187,6 +187,7 @@ therefore a floor — implementation grants the full circle read to all three.
 | Transfer orders | ✅ | ✅ | ✖ | ✅ | 👁 | ✖ |
 | Landed cost & valuation (COSTS page) | ✅ | ✖ | ✖ | ✖ | ✅ | ✖ |
 | Ask Healthspan (context auto-scoped to role) | ✅ full | ✅ no costs | ✅ own scope — her accounts, her target, leaderboard figures only; no batches, suppliers, shipments, write-off, loaners (`askScope()`, 2026-10-08) | ✅ ops scope | ✅ incl. costs | ✅ circle scope |
+| Usage (Admin → Usage: who uses HQ and Ask Healthspan, how often) | super admin only | ✖ | ✖ | ✖ | ✖ | ✖ — `usage_daily` RLS: select for `hs_role() = 'super'` only; rows written only by `usage_ping()` for the caller's own row; never grantable person by person; counts only, never question text |
 | QuickBooks sync page (view, confirm matches, retry, sync now) | ✅ | ✖ | ✖ | ✖ | ✅ | ✖ — view key `qbo`; viewer has no access either. `viewAllowed` and `qbo-admin.mjs` agree |
 | QuickBooks connect / settings / enable | super admin only | ✖ | ✖ | ✖ | 👁 settings | ✖ — Connect, Disconnect, Save settings and Enable/Disable are refused server-side in `qbo-auth.mjs` and `qbo-admin.mjs` (`settings`) for anyone else; admin and finance see the settings read-only |
 | QuickBooks shadow reconciliation (view, Reconcile now) | ✅ | ✖ | ✖ | ✖ | ✅ | ✖ — `qbo-admin.mjs` `reconcile` / `reconcile-status`, same gate as the page; reads QuickBooks, writes nothing; the result carries order totals and QuickBooks customer names, never costs |

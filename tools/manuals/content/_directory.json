@@ -3548,6 +3548,12 @@
   },
   {
    "sec": "Admin",
+   "view": "usage",
+   "title": "Usage — HQ and Ask Healthspan",
+   "desc": "Who uses HQ and how often (super admin only): people active in the last 7, 30 or 90 days, page opens, sessions, last seen, the pages each person uses most, and Ask Healthspan questions by person and by model — plus the Slack bot’s questions, failures and response time from the anonymous question log. Counting started when this page went live."
+  },
+  {
+   "sec": "Admin",
    "view": "cutover",
    "title": "Cutover switches",
    "desc": "The declaration of independence. Each switch moves one source of truth from the legacy system (Shopify pricing, Shopify order entry, Verna’s sheet) to this platform — with the readiness case shown beside it."

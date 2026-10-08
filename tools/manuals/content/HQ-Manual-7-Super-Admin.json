@@ -161,7 +161,7 @@
   },
   {
    "t": "p",
-   "v": "The Ask Healthspan button (top bar) answers plain-language questions over everything HQ knows — inventory, sales, receivables, cheques, approvals, backorders, quotes, pipeline — and its knowledge is automatically scoped to YOUR role: specialists get their own numbers, costs and margins only answer for finance and admin. Any hour, in the app or on Slack (/stock). It answers with Claude Haiku 5.5; a small dropdown in the drawer header switches to Gemini Flash and remembers your pick on this device. It is also a full page — Home → Ask Healthspan, or ⤢ in the drawer — that keeps every conversation: your chats on the left (search, rename, delete), the thread on the right. Chats are yours alone; nobody else can open them. Settings → Shortcuts chooses which one the top-bar button opens."
+   "v": "The Ask Healthspan button (top bar) answers plain-language questions over everything HQ knows — inventory, sales, receivables, cheques, approvals, backorders, quotes, pipeline — and its knowledge is automatically scoped to YOUR role: specialists get their own numbers, costs and margins only answer for finance and admin. Any hour, in the app or on Slack (/stock). It answers with Claude Haiku 5.5, and hands the hard questions (why, compare, analyse, plan, long or multi-part) to Claude Sonnet 5.5 on its own; each answer names the model. A small dropdown in the drawer header switches to Gemini Flash and remembers your pick on this device. It is also a full page — Home → Ask Healthspan, or ⤢ in the drawer — that keeps every conversation: your chats on the left (search, rename, delete), the thread on the right. Chats are yours alone; nobody else can open them. Settings → Shortcuts chooses which one the top-bar button opens."
   },
   {
    "t": "h2",
@@ -849,6 +849,10 @@
    "t": "step",
    "n": "10",
    "v": "<b>Settings</b> (footer or phone menu) holds theme and light/dark mode, Change password, Sign out, favourites, the bottom bar and your manual. Admin → Approval routes is one card per form; edit each step in place — saves on change. Settings → AI is where you pick the company model for Draft with AI, the planning review, the Slack bot and the Monday nudge (Gemini Flash default, Claude Haiku, DeepSeek, Kimi, Groq); Ask Healthspan has its own default, Claude Haiku 5.5. Keys live in Netlify and the page shows which are set."
+  },
+  {
+   "t": "p",
+   "v": "<b>Usage</b> (Admin → Usage, super admin only) shows who uses HQ and how often: people active in the last 7, 30 or 90 days, page opens, sessions, last seen, each person's most used pages, and Ask Healthspan questions per person and per model, plus the Slack bot's questions, failures and response time. People who have not opened HQ in the period sit dimmed at the bottom. Counts only — what people ask is never shown with their name. Export CSV gives the table."
   },
   {
    "t": "callout",

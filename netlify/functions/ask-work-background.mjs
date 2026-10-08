@@ -3,7 +3,7 @@
 // (lib/llm.mjs — Claude Haiku 5.5 for the chat, Gemini Flash as the safety net), and writes
 // the result to Blobs for ask.mjs to serve.
 import { connectLambda, getStore } from '@netlify/blobs';
-import { llm, hasKey, isHardQuestion, isFreeTier, provider, setProviderPref, keyFor, ASK_CLAUDE } from './lib/llm.mjs';
+import { llm, hasKey, isHardQuestion, isFreeTier, provider, setProviderPref, keyFor, ASK_CLAUDE, ASK_SONNET } from './lib/llm.mjs';
 import { requireJobKey } from './lib/guard.mjs';
 
 const SYSTEM = [
@@ -150,7 +150,8 @@ export const handler = async (event) => {
   // The person's own pick in the Ask Healthspan dropdown wins for this question.
   const chat = mode !== 'draft';
   if (chat && keyFor('anthropic')) setProviderPref('anthropic'); // no Claude key yet → the company default answers instead of an error
-  if (['gemini', 'anthropic'].includes(String(payload.provider || ''))) setProviderPref(payload.provider);
+  const pick = String(payload.provider || '');   // anthropic = Claude · gemini = Gemini Flash
+  if (['gemini', 'anthropic'].includes(pick)) setProviderPref(pick);
   if (!id) return { statusCode: 400, body: 'no id' };
 
   let store = null;
@@ -193,7 +194,7 @@ export const handler = async (event) => {
 
   await stage('model');
   // one call; lib/llm.mjs already retries on a rate limit and falls back across models/providers
-  const out = await llm({ system, messages: msgs, maxTokens: smart ? 8000 : 2000, smart, depth: mode === 'draft' ? 'deep' : '', claudeModel: chat && provider() === 'anthropic' ? ASK_CLAUDE : '' });
+  const out = await llm({ system, messages: msgs, maxTokens: smart ? 8000 : 2000, smart, depth: mode === 'draft' ? 'deep' : '', claudeModel: chat && provider() === 'anthropic' ? (smart ? ASK_SONNET : ASK_CLAUDE) : '' }); // Haiku 5.5, Sonnet 5.5 for a hard question
   const res = { answer: out.text, errMsg: out.error };
   const usedModel = out.model || provider();
 

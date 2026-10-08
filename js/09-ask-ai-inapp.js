@@ -119,11 +119,14 @@ function mdLite(t){
     close();out+='<p style="margin:4px 0">'+inl(l)+'</p>';}
   close();return out;}
 function askFmt(t){return mdLite(t);}
-/* Which model answers Ask Healthspan — Claude Haiku 5.5 unless the person picks Gemini Flash
-   (kept on this device). Since 2026-10-08 the chat no longer follows Settings → AI; that stays
-   the company default for Draft with AI, the planning review, the Slack bot and the nudge.
-   The device key is new (hs_ask_model2) so picks made when Gemini was the default start over. */
+/* Which model answers Ask Healthspan — Claude (Haiku 5.5, and Sonnet 5.5 on its own for the hard
+   questions: the server decides, there is nothing to pick) unless the person picks Gemini Flash
+   (kept on this device). Every answer names the model that wrote it. Since 2026-10-08 the chat no
+   longer follows Settings → AI; that stays the company default for Draft with AI, the planning
+   review, the Slack bot and the nudge. The device key is new (hs_ask_model2) so picks made when
+   Gemini was the default start over. */
 const ASK_MODELS=['anthropic','gemini'];
+function askModelLbl(id){const m=String(id||'');return /sonnet-5-5/.test(m)?'Claude Sonnet 5.5':/haiku-5-5/.test(m)?'Claude Haiku 5.5':/haiku-4-5/.test(m)?'Claude Haiku 4.5':/sonnet/.test(m)?'Claude Sonnet':/haiku/.test(m)?'Claude Haiku':/gemini/.test(m)?'Gemini Flash':m;}
 function askGetModel(){try{const v=localStorage.getItem('hs_ask_model2')||'';return ASK_MODELS.includes(v)?v:'';}catch(e){return '';}}
 function askSetModel(v){v=ASK_MODELS.includes(v)?v:'';try{if(v)localStorage.setItem('hs_ask_model2',v);else localStorage.removeItem('hs_ask_model2');}catch(e){}askPaintModel();}
 function askPaintModel(){const sels=[...document.querySelectorAll('select.askmodel')];if(!sels.length)return;
@@ -167,7 +170,9 @@ async function askDeleteChat(id){
 function askRenderLog(log,emptyHtml){
   if(!log)return;
   if(!ASK_CUR.messages.length){log.innerHTML=emptyHtml||'';return;}
-  log.innerHTML=ASK_CUR.messages.map((m,i)=>m.r==='u'?'<div class="askq">'+esc(m.t)+'</div>':'<div class="aska"'+(m.pending?' id="ask-pending"':'')+'>'+(m.pending?esc(m.t):(m.ok===false?'<span style="color:var(--rd)">'+esc(m.t)+'</span>':askFmt(m.t)))+'</div>').join('');
+  log.innerHTML=ASK_CUR.messages.map((m,i)=>m.r==='u'?'<div class="askq">'+esc(m.t)+'</div>':'<div class="aska"'+(m.pending?' id="ask-pending"':'')+'>'+(m.pending?esc(m.t):(m.ok===false?'<span style="color:var(--rd)">'+esc(m.t)+'</span>':askFmt(m.t)))+
+    // which model answered (Haiku 5.5, or Sonnet 5.5 for a hard question)
+    (!m.pending&&m.m?'<div class="askmeta">'+esc(askModelLbl(m.m))+'</div>':'')+'</div>').join('');
   log.scrollTop=log.scrollHeight;}
 function askPaintAll(){
   const d=document.getElementById('asklog');if(d)askRenderLog(d,ASK_EMPTY_DRAWER);
@@ -205,10 +210,12 @@ async function askAsk(inputId,logId,btnId){
   const ans=out.answer?{r:'a',t:out.answer,m:out.model||'',at:new Date().toISOString()}:{r:'a',t:out.error||'No answer',ok:false,at:new Date().toISOString()};
   if(i>=0)ASK_CUR.messages[i]=ans;else ASK_CUR.messages.push(ans);
   ASK_BUSY=false;if(btn)btn.disabled=false;
+  try{if(typeof usagePing==='function')usagePing('ask',out.answer?(out.model||'answered'):'failed');}catch(e){} // counts only, never the question
   askPaintAll();
   if(out.answer)askSaveCur();
 }
 function sendAsk(){return askAsk('askinput','asklog','askbtn');}          // the drawer
+
 function askPageSend(){return askAsk('askpg-input','askpg-log','askpg-btn');} // the page
 /* which surface the top-bar button opens — a personal preference (Settings) */
 function askPref(){try{return localStorage.getItem('hs_ask_open')==='page'?'page':'drawer';}catch(e){return 'drawer';}}
@@ -241,7 +248,7 @@ async function renderAskPage(){
     '<div class="mu" style="padding:8px 12px;font-size:10.5px;border-top:1px solid var(--bd)">Chats are yours alone — nobody else can open them.</div></aside>'+
     '<section class="askmain">'+
       '<div class="askpg-hd"><a href="#" class="abtn askpg-menu" onclick="askToggleList();return false" title="Chats">☰</a><span id="askpg-title" style="font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(ASK_CUR.title||'New chat')+'</span>'+
-        '<select id="askmodel-pg" class="askmodel" onchange="askSetModel(this.value)" title="Which model answers"><option value="anthropic">Claude Haiku 5.5</option><option value="gemini">Gemini Flash</option></select></div>'+
+        '<select id="askmodel-pg" class="askmodel" onchange="askSetModel(this.value)" title="Which model answers"><option value="anthropic">Claude</option><option value="gemini">Gemini Flash</option></select></div>'+
       '<div id="askpg-log" class="asklog askpg-log"></div>'+
       '<div class="askbar askpg-bar"><textarea id="askpg-input" placeholder="Ask Healthspan…" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();askPageSend();}"></textarea><button id="askpg-btn" onclick="askPageSend()">Ask</button></div>'+
       '<div class="askfoot" style="padding-bottom:8px">Answers come from live HQ data — warehouse, Shopify sales (external only unless you ask), accounts, targets, visits · stock is warehouse-level, not per-branch</div>'+
@@ -330,7 +337,7 @@ function buildMobileNav(){
     return el?el.outerHTML.replace('<svg ','<svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" '):'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>';
   };
   const mLabel=v=>{
-    const SHORT={orgchart:'Org chart',bizreview:'Review',reports:'Reports',savedreports:'Saved',qbo:'QuickBooks',ask:'Ask',settings:'Settings',neworder:'Order',logvisit:'Visit',followups:'To-dos',salesdue:'Reorder',approvals:'Approve',orders:'Orders',salespace:'Pace',customers:'Accounts',fulfillq:'Fulfill',scan:'Scan',cyclecount:'Count',po:'POs',receiving:'Receiving',ar:'AR',pdc:'PDCs',cashflow:'Cash',returns:'Returns',campaigns:'Campaigns',promos:'Promos',salesoverview:'Sales',salesmonthly:'Monthly',pipeline:'Pipeline',dashboard:'Inventory',quotes:'Quotes',complaints:'Complaints',salesevents:'Events',transfers:'Transfers',quarantine:'Quarantine',whkpi:'KPIs',suppliers:'Suppliers',valuation:'Costs',catalog:'Items',recall:'Recall',targets:'Targets',scorecards:'Reviews',users:'Team',audit:'Log',commissions:'Commis.',regs:'Regs',salestarget:'Vs target',salesfield:'Coverage',crmstats:'Activity',serials:'Serials',loans:'Loaners',expreport:'Exp. report',profile:'Profile',all:'SKUs',forecast:'Stockout',health:'Data'};
+    const SHORT={orgchart:'Org chart',bizreview:'Review',reports:'Reports',savedreports:'Saved',qbo:'QuickBooks',ask:'Ask',settings:'Settings',neworder:'Order',logvisit:'Visit',followups:'To-dos',salesdue:'Reorder',approvals:'Approve',orders:'Orders',salespace:'Pace',customers:'Accounts',fulfillq:'Fulfill',scan:'Scan',cyclecount:'Count',po:'POs',receiving:'Receiving',ar:'AR',pdc:'PDCs',cashflow:'Cash',returns:'Returns',campaigns:'Campaigns',promos:'Promos',salesoverview:'Sales',salesmonthly:'Monthly',usage:'Usage',pipeline:'Pipeline',dashboard:'Inventory',quotes:'Quotes',complaints:'Complaints',salesevents:'Events',transfers:'Transfers',quarantine:'Quarantine',whkpi:'KPIs',suppliers:'Suppliers',valuation:'Costs',catalog:'Items',recall:'Recall',targets:'Targets',scorecards:'Reviews',users:'Team',audit:'Log',commissions:'Commis.',regs:'Regs',salestarget:'Vs target',salesfield:'Coverage',crmstats:'Activity',serials:'Serials',loans:'Loaners',expreport:'Exp. report',profile:'Profile',all:'SKUs',forecast:'Stockout',health:'Data'};
     if(SHORT[v])return SHORT[v];
     const el=document.querySelector('.nav .ni[onclick*="\''+v+'\'"]');
     if(!el)return v;

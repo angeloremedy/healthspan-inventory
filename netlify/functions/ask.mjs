@@ -6,7 +6,7 @@ import crypto from 'node:crypto';
 import { connectLambda, getStore } from '@netlify/blobs';
 import { llm, provider, hasKey, keysPresent, setProviderPref } from './lib/llm.mjs';
 import { sessionUser } from './lib/guard.mjs';
-const ASK_PICK = ['gemini', 'anthropic']; // the two models the Ask Healthspan dropdown offers; anything else falls back to Settings → AI
+const ASK_PICK = ['gemini', 'anthropic']; // what the Ask Healthspan dropdown offers (anthropic = Claude: Haiku 5.5, Sonnet 5.5 for hard questions); anything else → Claude
 
 const HDRS = {
   'Access-Control-Allow-Origin': '*',

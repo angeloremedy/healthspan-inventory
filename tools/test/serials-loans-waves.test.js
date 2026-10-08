@@ -17,7 +17,7 @@ ok('splash uses the real app icon', /id="splash"[^]*?icon-512\.png/.test(html));
 ok('splash is standalone-only', /display-mode: standalone/.test(html) && /id="splash" style="display:none/.test(html));
 ok('browser tab never shows it', (()=>{ // jsdom is not standalone, so the gate must leave it hidden
   const el=d.getElementById('splash'); return el&&el.style.display==='none';})());
-ok('all app scripts defer', (html.match(/<script defer src="js\//g)||[]).length===21, (html.match(/<script defer src="js\//g)||[]).length);
+ok('all app scripts defer', (html.match(/<script defer src="js\//g)||[]).length===22, (html.match(/<script defer src="js\//g)||[]).length);
 ok('CDN libs defer too', (html.match(/<script defer src="https:/g)||[]).length===2);
 ok('no blocking external script left', !/<script src=/.test(html));
 ok('preconnects present', /rel="preconnect" href="https:\/\/lesjigujcajxurmsmwwc/.test(html));
@@ -27,10 +27,10 @@ ok('QuickBooks tokens never reach the browser: qbo-admin status omits token fiel
 ok('sidebar item and SHORT label for the QuickBooks page', /showView\('qbo',this\)"[^>]*>(?:<svg[^]*?<\/svg>)?QuickBooks sync<\/div>/.test(html)&&/qbo:'QuickBooks'/.test(fs.readFileSync('js/09-ask-ai-inapp.js','utf8')));
 ok('font files shipped', ['400','500','600','700'].every(w=>fs.existsSync('fonts/montserrat-latin-'+w+'-normal.woff2')));
 ok('two-level sidebar markup: rail + panel', /<div class="rail" id="rail"/.test(html)&&/<div class="sbp">/.test(html)&&/\.nav \.offarea\{display:none!important\}/.test(html));
-ok('Ask Healthspan: drawer title, placeholder, model dropdown; no "Ask HQ" left', /<\/svg>Ask Healthspan<button class="ax" onclick="askToPage\(\)"[^>]*>⤢<\/button><select id="askmodel"/.test(html)&&/placeholder="Ask Healthspan…"/.test(html)&&/<option value="anthropic">Claude Haiku 5\.5<\/option><option value="gemini">Gemini Flash<\/option>/.test(html)&&!/Ask HQ/.test(html)&&!fs.readdirSync('js').some(f=>/Ask HQ/.test(fs.readFileSync('js/'+f,'utf8'))));
+ok('Ask Healthspan: drawer title, placeholder, model dropdown; no "Ask HQ" left', /<\/svg>Ask Healthspan<button class="ax" onclick="askToPage\(\)"[^>]*>⤢<\/button><select id="askmodel"/.test(html)&&/placeholder="Ask Healthspan…"/.test(html)&&/<option value="anthropic">Claude<\/option><option value="gemini">Gemini Flash<\/option>/.test(html)&&!/Ask HQ/.test(html)&&!fs.readdirSync('js').some(f=>/Ask HQ/.test(fs.readFileSync('js/'+f,'utf8'))));
 {const ask=fs.readFileSync('netlify/functions/ask.mjs','utf8'),wk=fs.readFileSync('netlify/functions/ask-work-background.mjs','utf8');
  ok('ask.mjs forwards only gemini|anthropic as the per-question provider', /ASK_PICK = \['gemini', 'anthropic'\]/.test(ask)&&/provider: ASK_PICK\.includes\(String\(payload\.provider/.test(ask));
- ok('worker: the personal pick overrides the company default', /setProviderPref\(payload\.provider\)/.test(wk)&&wk.indexOf("key=eq.ai_provider")<wk.indexOf("setProviderPref(payload.provider)"));}
+ ok('worker: the personal pick overrides the company default', /if \(\['gemini', 'anthropic'\]\.includes\(pick\)\) setProviderPref\(pick\)/.test(wk)&&wk.indexOf("key=eq.ai_provider")<wk.indexOf("setProviderPref(pick)"));}
 ok('touch inputs are 16px', /pointer:coarse.*font-size:16px/s.test(html));
 
 // the build step ships js/01…13 as ONE hashed bundle; names must survive minification

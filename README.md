@@ -686,11 +686,16 @@ name · role · Settings · Sign out.
 ## 9.17h Ask Healthspan, and picking the model per question
 
 The chat is **Ask Healthspan** (top-bar button and drawer). It answers with
-**Claude Haiku 5.5** unless you pick **Gemini Flash** in the small dropdown in the
-drawer header (or on the full page); the pick is remembered on the device and sent
-with each question. Picks made before 8 October 2026, when Gemini was the default,
-were reset. If Haiku 5.5 is unavailable the answer comes from Haiku 4.5, then
-Gemini Flash, and says which model replied.
+**Claude** — **Haiku 5.5** for everyday questions and, on its own, **Sonnet 5.5**
+for the hard ones (questions that ask why, compare, analyse, recommend, plan,
+summarise or explain, long questions, and questions with three or more parts) —
+unless you pick **Gemini Flash** in the small dropdown in the drawer header (or on
+the full page). Sonnet is not in the dropdown; the switch is automatic. The pick is
+remembered on the device and sent with each question, and every answer names the
+model that wrote it. Picks made before 8 October 2026, when Gemini was the default,
+were reset. If the chosen Claude model is unavailable the answer comes from
+Haiku 5.5, then Haiku 4.5, then Gemini Flash. Sonnet costs about twenty times
+Haiku per question, which is why it only takes the hard questions.
 
 **What it may answer.** Everything it is given is filtered by who is asking. The
 HQ records (orders, quotes, approvals, backorders, receivables, cheques, payables,
@@ -1281,6 +1286,26 @@ the **Business review** puts **All products sold — <month>** under each
 specialist's section (open on your own, folded for others) and makes the
 specialist's name a link to her page. Home gives specialists a **My products by
 month** card.
+
+## 9.30 Usage — who uses HQ and Ask Healthspan
+
+**Admin → Usage** is the super admin's view of adoption (8 October 2026). For
+the last 7, 30 or 90 days it shows how many people opened HQ (and how many on an
+average weekday), page opens and sessions, Ask Healthspan questions, and how
+often Ask answered without an error and how fast. A chart gives every day's
+people in HQ and Ask questions. The table lists every active account — busiest
+first — with last seen, days active, sessions, page opens, Ask questions and the
+three pages each person opens most; people who have not opened HQ in the period
+are dimmed at the bottom (invited-but-not-joined accounts are marked). Below it:
+the pages people open (opens and how many people), and Ask questions by the model
+that answered (Haiku 5.5, Sonnet 5.5, Gemini Flash, errors), with the Slack
+`/stock` bot's question count. Export CSV gives the per-person table.
+
+HQ counts quietly as people work: every page open and every Ask answer adds one to
+that person's row for the day (`usage_ping()` → `public.usage_daily`, SQL in
+SUPABASE-SETUP.md → "Usage (2026-10-08)"). Only the super admin can read it. What
+people ask is never stored against their name — Ask chats stay private to their
+owner; the Usage page shows counts only. Counting starts the day the SQL runs.
 
 ## 9.23 Saved reports — the reporting layer
 

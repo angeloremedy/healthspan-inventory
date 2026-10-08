@@ -5,7 +5,7 @@ Read `README.md` (what it does), `ARCHITECTURE.md` (how), `PERMISSIONS.md` (who 
 `ROADMAP.md` (what is next and what is deliberately NOT built) before changing anything.
 
 ## Stack
-- Front end: `index.html` shell + classic scripts `js/00-…` to `js/20-…` sharing ONE global
+- Front end: `index.html` shell + classic scripts `js/00-…` to `js/21-…` sharing ONE global
   lexical scope (no modules, no bundler at dev time). `tools/build.mjs` concatenates them
   in `index.html` tag order into `dist/app.<hash>.js` (esbuild, identifiers untouched).
 - Backend: Netlify Functions in `netlify/functions/*.mjs` (+ `lib/`), Supabase (Postgres,

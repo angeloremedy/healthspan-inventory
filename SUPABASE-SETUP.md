@@ -3253,3 +3253,56 @@ project (Dashboard → Authentication):
 
 Optional Netlify variable `HQ_AUTH_REDIRECT` overrides where the links send people
 (defaults to the site's `URL`).
+
+## Usage (2026-10-08)
+
+The super admin's **Usage** page (Admin → Usage) counts, per person per Manila day,
+page opens (per page), sessions and Ask Healthspan questions (per model). The app
+calls `usage_ping()` on every page open and every answer; nobody can write rows
+directly, and only the super admin can read them. What people ask is not stored
+here (the anonymous question log in Netlify Blobs keeps counts and timings).
+
+```sql
+create table if not exists public.usage_daily (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  day date not null,
+  views int not null default 0,
+  sessions int not null default 0,
+  asks int not null default 0,
+  pages jsonb not null default '{}'::jsonb,
+  ask_models jsonb not null default '{}'::jsonb,
+  first_at timestamptz not null default now(),
+  last_at timestamptz not null default now(),
+  primary key (user_id, day)
+);
+alter table public.usage_daily enable row level security;
+drop policy if exists "usage super read" on public.usage_daily;
+create policy "usage super read" on public.usage_daily for select to authenticated
+  using (public.hs_role() = 'super');
+
+create or replace function public.usage_ping(p_kind text, p_key text)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  d date := (now() at time zone 'Asia/Manila')::date;
+  k text := coalesce(nullif(left(regexp_replace(coalesce(p_key, ''), '[^A-Za-z0-9_.:-]', '', 'g'), 40), ''), 'other');
+begin
+  if auth.uid() is null or p_kind not in ('view', 'ask') then return; end if;
+  insert into public.usage_daily (user_id, day) values (auth.uid(), d) on conflict (user_id, day) do nothing;
+  if p_kind = 'view' then
+    update public.usage_daily set
+      views = views + 1,
+      sessions = sessions + case when views = 0 or last_at < now() - interval '30 minutes' then 1 else 0 end,
+      pages = jsonb_set(pages, array[k], to_jsonb(coalesce((pages ->> k)::int, 0) + 1)),
+      last_at = now()
+    where user_id = auth.uid() and day = d;
+  else
+    update public.usage_daily set
+      asks = asks + 1,
+      ask_models = jsonb_set(ask_models, array[k], to_jsonb(coalesce((ask_models ->> k)::int, 0) + 1)),
+      last_at = now()
+    where user_id = auth.uid() and day = d;
+  end if;
+end $$;
+revoke all on function public.usage_ping(text, text) from public;
+grant execute on function public.usage_ping(text, text) to authenticated;
+```

@@ -39,19 +39,13 @@ export default async (req) => {
 
   // GET: recent days
   const url = new URL(req.url);
-  const days = Math.min(14, Math.max(1, parseInt(url.searchParams.get('days') || '7', 10)));
+  const days = Math.min(90, Math.max(1, parseInt(url.searchParams.get('days') || '7', 10))); // the Usage page reads up to 90
   const out = {};
   let total = 0, failed = 0;
-  for (let i = 0; i < days; i++) {
-    const d = new Date(Date.now() - i * 864e5).toISOString().slice(0, 10);
-    let v = null;
-    try { v = await store.get('log-' + d, { type: 'json' }); } catch (err) {}
-    if (v && v.length) {
-      out[d] = v;
-      total += v.length;
-      failed += v.filter(x => !x.ok).length;
-    }
-  }
+  const keys = []; for (let i = 0; i < days; i++) keys.push(new Date(Date.now() - i * 864e5).toISOString().slice(0, 10));
+  const got = await Promise.all(keys.map(d => store.get('log-' + d, { type: 'json' }).catch(() => null)));
+  keys.forEach((d, i) => { const v = got[i];
+    if (v && v.length) { out[d] = v; total += v.length; failed += v.filter(x => !x.ok).length; } });
   return Response.json({ summary: { days, questions: total, failed }, logs: out });
 };
 

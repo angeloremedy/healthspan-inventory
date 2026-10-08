@@ -1,6 +1,6 @@
 /* The model door: provider choice, retry on 429, cross-provider fallback, free-tier scrub flag.
    Run from the repo root: node tools/test/llm-provider.test.mjs */
-import { llm, provider, isFreeTier, isHardQuestion, fixPeso, setProviderPref, ASK_CLAUDE } from '../../netlify/functions/lib/llm.mjs';
+import { llm, provider, isFreeTier, isHardQuestion, fixPeso, setProviderPref, ASK_CLAUDE, ASK_SONNET } from '../../netlify/functions/lib/llm.mjs';
 const calls=[];
 globalThis.fetch=async(url,opt)=>{calls.push(url.split('?')[0]);
   const body=JSON.parse(opt.body);
@@ -71,5 +71,11 @@ globalThis.fetch=async(url,opt)=>{calls.push(url.split('?')[0]);const b=JSON.par
   if(b.model==='claude-haiku-5-5')return {ok:false,status:404,text:async()=>'model not found'};return {ok:false,status:529,text:async()=>'overloaded'};};
 const r12=await llm({system:'S',messages:[{role:'user',content:'q'}],claudeModel:ASK_CLAUDE});
 t('Haiku 5.5 unavailable → Haiku 4.5 → Gemini Flash, and the answer still arrives',r12.provider==='gemini'&&r12.text==='gemini rescue'&&bodies.map(b=>b.model).filter(Boolean).join(',')==='claude-haiku-5-5,claude-haiku-4-5-20251001',bodies.map(b=>b.model).join(','));
+t('the switch-to model for hard questions is Claude Sonnet 5.5',ASK_SONNET==='claude-sonnet-5-5',ASK_SONNET);
+calls.length=0;bodies=[];
+globalThis.fetch=async(url,opt)=>{calls.push(url.split('?')[0]);const b=JSON.parse(opt.body);bodies.push(b);if(url.includes('generativelanguage'))return {ok:true,json:async()=>({candidates:[{content:{parts:[{text:'g'}]}}]})};
+  if(b.model==='claude-sonnet-5-5')return {ok:false,status:529,text:async()=>'overloaded'};return {ok:true,json:async()=>({content:[{type:'text',text:'haiku rescue'}]})};};
+const r13=await llm({system:'S',messages:[{role:'user',content:'q'}],claudeModel:ASK_SONNET});
+t('Sonnet 5.5 picked: tried twice on overload, then Haiku 5.5 answers',r13.model==='claude-haiku-5-5'&&bodies.map(b=>b.model).join(',')==='claude-sonnet-5-5,claude-sonnet-5-5,claude-haiku-5-5',bodies.map(b=>b.model).join(','));
 setProviderPref('');delete process.env.ANTHROPIC_API_KEY;delete process.env.GEMINI_API_KEY;
 console.log(ok+'/'+(ok+fail)+' passed');process.exit(fail?1:0);

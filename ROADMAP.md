@@ -25,8 +25,11 @@ at cutover; the accounting export CSV remains the fallback); it does not replace
 
 ## ✅ Shipped so far (everything, from the start)
 
+**Usage page for the super admin (Oct 8)**
+- ✅ Admin → **Usage**: people active (7/30/90 days, average a weekday), page opens, sessions, last seen, days active, each person's most used pages, Ask Healthspan questions per person and per model, the Slack bot's questions, failures and response time; daily chart; people who never opened HQ listed; CSV. Counted through `usage_ping()` into `public.usage_daily` (super-only read). Question text never tied to a name. `tools/test/usage.test.js`
+
 **Ask Healthspan on Claude Haiku 5.5; specialist chats scoped (Oct 8)**
-- ✅ Claude Haiku 5.5 (`claude-haiku-5-5`, `ASK_MODEL` overrides) answers Ask Healthspan by default — every question, no Sonnet escalation; Haiku 4.5 then Gemini Flash behind it; Gemini Flash still one click away in the dropdown (old device picks reset). Draft with AI, Slack bot and nudge keep the Settings → AI default
+- ✅ Claude Haiku 5.5 (`claude-haiku-5-5`, `ASK_MODEL` overrides) answers Ask Healthspan by default; **Claude Sonnet 5.5** (`claude-sonnet-5-5`, `ASK_SMART_MODEL`) takes the hard questions on its own (`isHardQuestion`) — not in the dropdown; every answer names its model; Haiku 4.5 then Gemini Flash behind; Gemini Flash in the dropdown (old device picks reset). Draft with AI, Slack bot and nudge keep the Settings → AI default
 - ✅ A product specialist's chat is given only her accounts, her target and leaderboard figures — no other specialists' accounts or targets, batches, suppliers, Remedy shipments, write-off risk or loaners. `tools/test/ask-scope.test.js`
 - ▢ Slack `/stock` is not tied to HQ logins (company-wide feed for anyone in the channel) — decide whether to restrict
 

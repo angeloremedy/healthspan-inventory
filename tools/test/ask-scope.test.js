@@ -15,9 +15,11 @@ let fail=0;const ok=(n,c,x)=>{console.log((c?'PASS ':'FAIL ')+n+(x!==undefined&&
 
 // ── the default model ──
 ok('worker: the chat asks for Claude when a Claude key exists, then the person\'s pick wins',
-  /const chat = mode !== 'draft';\s*if \(chat && keyFor\('anthropic'\)\) setProviderPref\('anthropic'\);[^\n]*\n\s*if \(\['gemini', 'anthropic'\]\.includes\(String\(payload\.provider/.test(wk));
-ok('worker: the chat names Haiku 5.5 (ASK_CLAUDE) as its Claude model; Draft with AI does not', /claudeModel: chat && provider\(\) === 'anthropic' \? ASK_CLAUDE : ''/.test(wk));
-ok('both dropdowns: Claude Haiku 5.5 first, Gemini Flash second', /<option value="anthropic">Claude Haiku 5\.5<\/option><option value="gemini">Gemini Flash<\/option><\/select>/.test(html)&&/<option value="anthropic">Claude Haiku 5\.5<\/option><option value="gemini">Gemini Flash<\/option><\/select>/.test(v09));
+  /const chat = mode !== 'draft';\s*if \(chat && keyFor\('anthropic'\)\) setProviderPref\('anthropic'\);[^\n]*\n[^\n]*\n\s*if \(\['gemini', 'anthropic'\]\.includes\(pick\)\) setProviderPref\(pick\);/.test(wk));
+ok('worker: Claude means Haiku 5.5, and Sonnet 5.5 by itself for a hard question; Draft with AI keeps its own model', /claudeModel: chat && provider\(\) === 'anthropic' \? \(smart \? ASK_SONNET : ASK_CLAUDE\) : ''/.test(wk)&&/const smart = isHardQuestion\(question\);/.test(wk));
+const OPTS=/<option value="anthropic">Claude<\/option><option value="gemini">Gemini Flash<\/option><\/select>/;
+ok('both dropdowns: Claude first, Gemini Flash second — Sonnet is not a choice', OPTS.test(html)&&OPTS.test(v09)&&!/value="sonnet"/.test(html+v09));
+ok('ask.mjs forwards only gemini|anthropic', /ASK_PICK = \['gemini', 'anthropic'\];/.test(fs.readFileSync('netlify/functions/ask.mjs','utf8')));
 ok('old device picks (made while Gemini was the default) are not carried over', /hs_ask_model2/.test(v09)&&!/'hs_ask_model'/.test(v09));
 
 const test=`
@@ -28,6 +30,13 @@ document.body.insertAdjacentHTML('beforeend','<select class="askmodel" id="m1"><
 askPaintModel();ok('no pick on this device → the dropdown shows Claude Haiku 5.5', $('m1').value==='anthropic', $('m1').value);
 askSetModel('gemini');ok('a pick is kept on the device', askGetModel()==='gemini'&&$('m1').value==='gemini');
 askSetModel('');askPaintModel();ok('clearing the pick returns to Claude', $('m1').value==='anthropic');
+askSetModel('sonnet');ok('"sonnet" is not a pick any more', askGetModel()==='');askSetModel('');
+// every answer names the model that wrote it — Haiku 5.5, or Sonnet 5.5 when the question was hard
+document.body.insertAdjacentHTML('beforeend','<div id="asklog"></div><input id="askinput"><button id="askbtn"></button>');
+ASK_CUR={id:null,title:'',messages:[{r:'u',t:'Stock of TD040?'},{r:'a',t:'Haiku answer',m:'claude-haiku-5-5'},{r:'u',t:'Why did Meline drop? Compare brands.'},{r:'a',t:'Sonnet answer',m:'claude-sonnet-5-5'}]};askPaintAll();
+const metas=[...$('asklog').querySelectorAll('.askmeta')].map(x=>x.textContent);
+ok('each answer says which model wrote it', metas.join('|')==='Claude Haiku 5.5|Claude Sonnet 5.5', metas.join('|'));
+ok('no "ask again" button — the switch is automatic', !$('asklog').querySelector('.askre')&&typeof askAgainSonnet==='undefined');
 
 DATA=[{sku:'AAA',name:'Alpha cream',line:'Meline',stock:7,price:100,supplier:'Acme Labs Spain',expiry:'12/2027',batch:'B1'}];
 BATCHES=[{skuCode:'AAA',name:'Alpha cream',batch:'B1',expiry:'12/2027',soh:7}];
