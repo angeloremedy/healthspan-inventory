@@ -713,33 +713,38 @@
   },
   {
    "t": "step",
-   "v": "Monthly by SKU: the whole year on one page — January to December across, every SKU down under its product line with a subtotal, then the year total and the stock left now. Show units and pesos together or either alone, pick the year or a line, fold a line by clicking it, and Export CSV for the full grid.",
+   "v": "Monthly by SKU: opens on My sales — every product you sold, January to December across, units and pesos per month under each product line, with your year total. This is the page for your bi-monthly report; Export CSV gives the whole grid. The first box switches to the whole company.",
    "n": "2"
   },
   {
    "t": "step",
-   "v": "Sales vs target: monthly attainment by total, brand line, product, and specialist — the 245-row corporate target file, or in-app targets when set.",
+   "v": "Your page (My profile) shows Products sold for the month on the calendar — every product with units and pesos and a total. Tap a month's bar in Monthly sales, or ‹ ›, to switch months. In the Business review, your section lists All products sold for the review month.",
    "n": "3"
   },
   {
    "t": "step",
-   "v": "Per-specialist drill-downs and profile pages with month calendars.",
+   "v": "Sales vs target: monthly attainment by total, brand line, product, and specialist — the 245-row corporate target file, or in-app targets when set.",
    "n": "4"
   },
   {
    "t": "step",
-   "v": "Field coverage: contacts/day, accounts reached vs the whole universe, not-reached ranked by value.",
+   "v": "Per-specialist drill-downs and profile pages with month calendars.",
    "n": "5"
   },
   {
    "t": "step",
-   "v": "Vs accounting: continuous peso-for-peso reconciliation to the official Sales Report.",
+   "v": "Field coverage: contacts/day, accounts reached vs the whole universe, not-reached ranked by value.",
    "n": "6"
   },
   {
    "t": "step",
-   "v": "Leaderboard & pace: MTD race + projected month-end attainment per specialist — the mid-month coaching tool.",
+   "v": "Vs accounting: continuous peso-for-peso reconciliation to the official Sales Report.",
    "n": "7"
+  },
+  {
+   "t": "step",
+   "v": "Leaderboard & pace: MTD race + projected month-end attainment per specialist — the mid-month coaching tool.",
+   "n": "8"
   },
   {
    "t": "p",

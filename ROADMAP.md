@@ -25,6 +25,9 @@ at cutover; the accounting export CSV remains the fallback); it does not replace
 
 ## ✅ Shipped so far (everything, from the start)
 
+**Specialists see their own products, month by month (Oct 8)**
+- ✅ Monthly by SKU gains **Whose sales**: specialists open it on **My sales** (or the whole company); managers pick any specialist. The specialist page shows **Products sold — <month>** (every product, units + ₱, total) following the calendar; tap a month bar or ‹ › to switch; link to every month. Business review: **All products sold** per specialist (open on your own) and the name links to the specialist page. Home card **My products by month** for specialists. Built from the per-order index, external only by default. `tools/test/sales-monthly.test.js` (66)
+
 **Monthly sales by SKU (Sep 28)**
 - ✅ **Monthly by SKU** under Sales analytics (for the sales manager): Jan–Dec across, every SKU down grouped by product line with subtotals, year total and stock now at the end, all-lines total; units & ₱ / units / revenue, year picker, line filter, find, hide unsold, fold lines, External only / Incl. Remedy, CSV export; product column pinned left, year total and stock pinned right on a computer. Same figures as Sales overview, no costs. `tools/test/sales-monthly.test.js` (42)
 

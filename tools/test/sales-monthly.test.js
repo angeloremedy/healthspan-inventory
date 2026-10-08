@@ -22,6 +22,8 @@ ok('T map, dispatch, re-render, DESC, SHORT, SUBS, export', /salesmonthly:'Month
   /currentView==='salesmonthly'\) renderSalesMonthly\(\)/.test(src.v01)&&/salesmonthly:'One year on one page/.test(src.v01)&&/salesmonthly:'Monthly'/.test(src.v09)&&
   /salesmonthly:'Jan–Dec per SKU, with stock'/.test(src.v05)&&/case 'salesmonthly': return exportSalesMonthly\(\)/.test(src.v08));
 
+ok('business review: a specialist\'s name opens the specialist page', /\(mine\|\|ROLE!=='sales'\)&&viewAllowed\('spec'\)\?'<a href="#" onclick="showSpecPage\(/.test(fs.readFileSync('js/12-business-review.js','utf8')));
+ok('specialist page: the month chart is clickable', /onClick:\(e,els\)=>\{if\(els&&els\.length&&yms\[els\[0\]\.index\]\)specPickMonth/.test(src.v05));
 const test=`
 (async()=>{
 const OUT=[];window.__out=OUT;const ok=(n,c,x)=>OUT.push([!!c,n,x===undefined?'':String(x)]);
@@ -130,6 +132,66 @@ ok('no cost or margin anywhere on the page', !/cost|margin/i.test($('content').t
 ROLE='sales';SBPROFILE={name:'S',role:'sales',specialist_tag:'Rhas'};
 ok('specialists may open it, like Sales overview', viewAllowed('salesmonthly'));
 ROLE='viewer';ok('viewers may open it', viewAllowed('salesmonthly'));
+
+// ── specialist mode (2026-10-08): one specialist's products, month by month ──
+/* Lady: Jan  AAA 3u ₱300 + its 5+1 deal line ₱150 · BBB 2u ₱400
+         now  AAA 4u ₱400 · an internal order (Remedy BGC) AAA 10u ₱1,000
+   Rhas: now  AAA 6u ₱600 */
+ROLE='manager';SBPROFILE={name:'M',role:'manager'};SMSPEC=null;SMYEAR=Y;SMLINE='';SMQ='';SMSHOW='both';setSext(true);
+SHOPIFY.recentFrom=(+Y-1)+'-12-15';
+SHOPIFY.recent=(JAN===NOW?[]:[{n:'#L1',dt:JAN+'-05',t:'Lady',c:'Skin Clinic',x:0,ls:[['AAA',3,300],['AAA - 5+1',0,150],['BBB',2,400]]}]).concat([
+  {n:'#L2',dt:NOW+'-02',t:'Lady',c:'Skin Clinic',x:0,ls:[['AAA',4,400]]},
+  {n:'#L3',dt:NOW+'-03',t:'Lady',c:'Remedy BGC',x:1,ls:[['AAA',10,1000]]},
+  {n:'#R1',dt:NOW+'-04',t:'Rhas',c:'Derma Hub',x:0,ls:[['AAA',6,600]]}]);
+mergeShopify();
+renderSalesMonthly();
+const so=[...$('sm-spec').options].map(o=>o.textContent);
+ok('managers get a picker: whole company + every specialist', so[0]==='Whole company'&&so.includes('Lady')&&so.includes('Rhas'), so.join('|'));
+ok('…and start on the whole company', $('sm-spec').value==='', $('sm-spec').value);
+SMSPEC='Lady';renderSalesMonthly();
+const LA=rowOf('Alpha cream');
+if(JAN!==NOW){
+  ok('Lady, AAA January: 3 u, ₱300 + ₱150 deal line = ₱450', cellTxt(LA,1)==='3 u ₱450', cellTxt(LA,1));
+  ok('Lady, BBB January 2 u ₱400', cellTxt(rowOf('Beta serum'),1)==='2 u ₱400', cellTxt(rowOf('Beta serum'),1));
+}
+ok('Lady, AAA this month: 4 u ₱400 — the Remedy order left out, Rhas not counted', cellTxt(LA,nowI)==='4 u ₱400', cellTxt(LA,nowI));
+ok('only what she sold is listed (no Gamma mask, no package)', !rowOf('Gamma mask')&&!rowOf('Starter package'));
+ok('her total: '+(JAN===NOW?'4 u ₱400':'9 u ₱1,250'), cellTxt(rowOf('All product lines'),13)===(JAN===NOW?'4 u ₱400':'9 u ₱1,250'), cellTxt(rowOf('All product lines'),13));
+ok('the card says whose orders', /Lady’s orders/.test($('content').querySelector('.met.gr').textContent));
+ok('no "hide unsold" box in specialist mode', !/Hide SKUs with no sales/.test($('content').textContent));
+setSext(false);renderSalesMonthly();
+ok('Incl. Remedy adds her internal order: AAA this month 14 u ₱1,400', cellTxt(rowOf('Alpha cream'),nowI)==='14 u ₱1,400', cellTxt(rowOf('Alpha cream'),nowI));
+setSext(true);
+ok('the year picker offers only years the per-order history covers (it starts '+Y+'-01 here)', smYears().join()===Y, smYears().join());
+let got2=null;downloadCSV=(n,h,r)=>{got2={n,h,r};};exportSalesMonthly();
+ok('her export is named for her', got2&&got2.n==='monthly_sales_by_sku_'+Y+'_Lady_external', got2&&got2.n);
+
+const P=specProducts('Lady',NOW,true);
+ok('specProducts: this month = AAA 4 u ₱400, external', P.rows.length===1&&P.rows[0].sku==='AAA'&&P.rows[0].u===4&&P.rows[0].v===400&&P.tot.v===400, JSON.stringify(P.tot));
+ok('specProducts: incl. internal when asked', specProducts('Lady',NOW,false).tot.u===14);
+
+// a specialist signs in: the page opens on her own sales, and she can only switch to the company
+ROLE='sales';SBPROFILE={name:'Lady',role:'sales',specialist_tag:'Lady'};SMSPEC=null;renderSalesMonthly();
+const so2=[...$('sm-spec').options].map(o=>o.textContent);
+ok('a specialist lands on "My sales"', $('sm-spec').value==='Lady'&&so2.length===2&&/^My sales/.test(so2[0])&&so2[1]==='Whole company', so2.join('|'));
+ok('…and is never offered another specialist', !so2.includes('Rhas'));
+
+// her own page: the products follow the calendar month
+loadVisits=async()=>[];loadNativeOrders=async()=>[];VISITS=[];NORDERS=[];
+CAL_YM=NOW;CAL_SEL=null;CUR_SPEC='Lady';currentView='spec';await renderSpecPage();
+const pp=()=>$('sp-prods').textContent;
+ok('specialist page: "Products sold — <this month>" lists AAA with 4 units and the total', /Products sold —/.test(pp())&&/Alpha cream/.test(pp())&&/Total — 1 product/.test(pp())&&/₱400/.test(pp()), pp().slice(0,160));
+ok('…the 12-month top list is gone', !/Top products \(12 months\)/.test($('content').textContent));
+if(JAN!==NOW){
+  specPickMonth(JAN);await new Promise(r=>setTimeout(r,20));
+  ok('tapping a month (or ‹ ›) switches the list: January has AAA and BBB, ₱850', CAL_YM===JAN&&/Beta serum/.test(pp())&&/₱850/.test(pp()), pp().slice(0,200));
+}
+ok('a button opens every month, product by product', /Every month, product by product/.test(pp()));
+
+// business review: the full product list per specialist, open for your own section
+const bz=bizProdDetails({name:'Lady',label:'Lady'},{ym:NOW,label:'This month'},true);
+ok('business review: "All products sold" opens for her own section with units and pesos', /<details class="bz-prods" open/.test(bz)&&/Alpha cream/.test(bz)&&/₱400/.test(bz)&&/Total — 1 product/.test(bz));
+ok('…and is folded for someone else’s', !/ open/.test(bizProdDetails({name:'Rhas',label:'Rhas'},{ym:NOW,label:'x'},false).split('>')[0]));
 })().catch(e=>{window.__out=[[false,'crashed: '+(e&&e.stack||e),'']];}).finally(()=>{window.__done=true;});
 `;
 w.eval(app+'\n;\n'+test);

@@ -178,6 +178,7 @@ function renderHome(){
     today.push(card(go('logvisit'),'Log a visit','~10 seconds, right after the call',HI.pin,1));
     today.push(card(go('followups'),'Follow-ups','Your to-dos & planned visits',HI.check));
     if(myTag)today.push(card('showSpecPage(\''+esc(myTag).replace(/'/g,"\\'")+'\')','My page','Your numbers, calendar & accounts',HI.cal));
+    if(myTag)today.push(card('SMSPEC=null;'+go('salesmonthly'),'My products by month','What you sold, product by product — Jan to Dec',HI.chart));
     sections=[
       ['Today',today],
       ['Sell more',[
@@ -545,6 +546,8 @@ function showSpecPage(name){
 }
 function calShift(d){const [y,m]=(CAL_YM||monthISO()).split('-').map(Number);const nd=new Date(y,m-1+d,1);CAL_YM=nd.getFullYear()+'-'+String(nd.getMonth()+1).padStart(2,'0');CAL_SEL=null;renderSpecPage();}
 function calPick(day){CAL_SEL=day;renderSpecPage();}
+/* a month bar on the specialist page: calendar and product list jump to that month */
+function specPickMonth(ym){CAL_YM=ym;CAL_SEL=null;renderSpecPage().then(()=>{const el=$('sp-prods');if(el&&el.scrollIntoView)el.scrollIntoView({behavior:'smooth',block:'start'});});}
 async function renderSpecPage(){
   const name=CUR_SPEC;if(!name){showView(SPEC_BACK);return;}
   await Promise.all([loadVisits(),loadNativeOrders()]);
@@ -596,13 +599,21 @@ async function renderSpecPage(){
       e.order.map(o=>row('<span class="pill pgr">order</span>',esc(ordLabel(o))+' · '+esc(o.account),fmtPeso(o.total),'showOrderPage(\''+o.id+'\')')).join('')+
       '<button class="no-print" onclick="window._lvAccount=\'\';window._lvDate=\''+CAL_SEL+'\';showView(\'logvisit\',null)" style="margin-top:10px;background:var(--ac);color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12px;font-weight:600;cursor:pointer">+ Plan / log a visit on this day</button></div>';
   }
-  // top products (13-mo) from sp.skus
-  const nameOf={};DATA.forEach(p=>nameOf[p.sku]=p.name);
-  const sheetSkus=new Set(DATA.map(p=>p.sku));const bases=[...sheetSkus].sort((a,b)=>b.length-a.length);
-  const agg={};for(const sku in (sp.skus||{})){const c=sp.skus[sku];const s=String(sku).trim();
-    const base=sheetSkus.has(s)?s:(bases.find(b=>s.startsWith(b)&&s.length>b.length)||bases.find(b=>b.length>=4&&s.length>b.length&&s.includes(b))||s);
-    const isB=base!==s&&sheetSkus.has(base);const g=agg[base]||(agg[base]={u:0,v:0});if(!isB)g.u+=c.u||0;g.v+=c.v||0;}
-  const top=Object.keys(agg).map(k=>({n:nameOf[k]||k,u:agg[k].u,v:agg[k].v})).sort((a,b)=>b.v-a.v).slice(0,8);
+  /* products sold in the month the calendar shows — every product, units and pesos, external
+     only like the target (a specialist copies these into her bi-monthly report; 2026-10-08) */
+  const calLbl=new Date(cy,cm-1,1).toLocaleString('en-PH',{month:'long',year:'numeric'});
+  const PM=(typeof specProducts==='function')?specProducts(name,CAL_YM,true):{rows:[],tot:{u:0,v:0},complete:true};
+  const prodHtml='<div class="panel" style="padding:16px" id="sp-prods"><div class="phd" style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center">'+
+      '<span>Products sold — '+esc(calLbl)+'</span>'+
+      '<span class="no-print" style="display:flex;gap:6px"><button class="btn" onclick="calShift(-1)" title="Previous month" style="font-size:11.5px;padding:4px 10px">‹</button><button class="btn" onclick="calShift(1)" title="Next month" style="font-size:11.5px;padding:4px 10px">›</button></span></div>'+
+    (!PM.complete?'<div style="font-size:12px;color:var(--am);margin-bottom:6px">HQ’s per-order history starts '+esc(PM.from)+' — this month is not in it.</div>':'')+
+    (PM.rows.length?'<div class="tscroll"><table style="min-width:0"><thead><tr><th>Product</th><th style="text-align:right">Units</th><th style="text-align:right">Sales</th></tr></thead><tbody>'+
+      PM.rows.map(r=>'<tr onclick="openSalesDrawer(\''+jsq(r.sku)+'\')" style="cursor:pointer"><td style="white-space:normal"><b>'+esc(r.name)+'</b><div class="mu" style="font-size:10.5px">'+esc(r.line)+' · '+esc(r.sku)+'</div></td><td class="r">'+r.u.toLocaleString()+'</td><td class="r" style="font-weight:600">'+fmtPeso(r.v)+'</td></tr>').join('')+
+      '<tr style="background:var(--sf2)"><td style="font-weight:700">Total — '+PM.rows.length+' product'+(PM.rows.length===1?'':'s')+'</td><td class="r" style="font-weight:700">'+PM.tot.u.toLocaleString()+'</td><td class="r" style="font-weight:700">'+fmtPeso(PM.tot.v)+'</td></tr>'+
+      '</tbody></table></div>':'<div style="font-size:12px;color:var(--tx3)">No products booked in '+esc(calLbl)+'.</div>')+
+    '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px" class="no-print">'+
+      '<button class="btn" onclick="SMSPEC=\''+jsq(name)+'\';SMYEAR=\''+CAL_YM.slice(0,4)+'\';showView(\'salesmonthly\',null)" style="font-size:12px">Every month, product by product →</button>'+
+      '<span class="mu" style="font-size:10.5px">External sales, like your target · units include deal +1s · tap a bar in Monthly sales or ‹ › to change the month</span></div></div>';
   const canSeeAll=ROLE==='admin'||!(SBPROFILE&&SBPROFILE.specialist_tag);
   $('content').innerHTML=
     '<div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap" class="no-print">'+
@@ -621,9 +632,8 @@ async function renderSpecPage(){
     (tg&&tg.value?'<div style="margin-bottom:14px">'+attBar(mc.v/tg.value*100)+'</div>':'')+
     '<div class="panel" style="padding:16px;margin-bottom:14px"><div class="phd">Calendar — visits & orders</div>'+calHtml+dayHtml+'</div>'+
     '<div class="g2" style="align-items:start;margin-bottom:14px">'+
-    '<div class="panel" style="padding:16px"><div class="phd">Monthly sales'+(tg?' vs target':'')+'</div><div class="cw" style="height:220px"><canvas id="spChart"></canvas></div></div>'+
-    '<div class="panel" style="padding:16px"><div class="phd">Top products (12 months)</div>'+
-    (top.length?top.map(t=>'<div class="drow"><span class="dlbl">'+esc(t.n)+'</span><span class="dval">'+t.u.toLocaleString()+' u'+(t.v?' · '+fmtPeso(t.v):'')+'</span></div>').join(''):'<div style="font-size:12px;color:var(--tx3)">No product data yet.</div>')+'</div>'+
+    '<div class="panel" style="padding:16px"><div class="phd">Monthly sales'+(tg?' vs target':'')+' <span class="mu" style="font-weight:400;font-size:11px">· tap a month for its products</span></div><div class="cw" style="height:220px"><canvas id="spChart"></canvas></div></div>'+
+    prodHtml+
     '</div>'+
     '<div class="g2" style="align-items:start">'+
     '<div class="panel" style="padding:16px"><div class="phd">Open follow-ups</div>'+
@@ -641,7 +651,8 @@ async function renderSpecPage(){
     window._spChart=new Chart($('spChart'),{data:{labels:yms,datasets:[
       {type:'bar',label:'Booked',data:yms.map(m=>Math.round(nmSp[m].v)),backgroundColor:'rgba(29,158,117,0.55)',borderRadius:3},
       {type:'line',label:'Target',data:tgt,borderColor:'#BA7517',borderDash:[5,4],pointRadius:2,spanGaps:true}]},
-      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}},scales:{y:{beginAtZero:true,ticks:{callback:v=>'₱'+Math.round(v).toLocaleString()},grid:{color:'rgba(128,128,128,0.12)'}},x:{grid:{display:false}}}}});
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}},scales:{y:{beginAtZero:true,ticks:{callback:v=>'₱'+Math.round(v).toLocaleString()},grid:{color:'rgba(128,128,128,0.12)'}},x:{grid:{display:false}}},
+        onClick:(e,els)=>{if(els&&els.length&&yms[els[0].index])specPickMonth(yms[els[0].index]);}}});
   }catch(e){}
   // My profile for a specialist IS this page, with their own numbers and files layered on
   if(currentView==='profile'&&typeof profileDecorate==='function'){try{await profileDecorate();}catch(e){}}

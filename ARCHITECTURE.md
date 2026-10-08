@@ -875,6 +875,23 @@ months. `exportSalesMonthly()` writes the same `smData` with units and pesos per
 month (future and pre-history months empty, not 0), a total per line and a grand
 total. Test: `tools/test/sales-monthly.test.js`.
 
+**Specialist mode reads the per-order index, not the aggregates.** The cache's
+`specialists[tag].skus` is a 13-month total with no months, so one specialist's
+products per month come from `ORDIDX` (built in `mergeShopify` from
+`SHOPIFY.recent`: base SKU → orders with tag `t`, date, units `q` on the base
+line, pesos `a` on base + deal lines, internal flag `x`). `smSpecIdx(spec, ext)`
+folds it to `{base:{ym:{u,v}}}` by `specCanon` tag, dropping `ordInternal`
+orders when `ext`; `specProducts(spec, ym, ext)` turns one month of it into rows
+for the specialist page (`renderSpecPage`, products follow `CAL_YM`; the chart's
+`onClick` → `specPickMonth`) and the Business review (`bizProdDetails`). Those two
+always pass external (a target never counts internal); the grid follows `SEXT`.
+`smSpecFrom()` is the first complete month of the index (`recentFrom`, rounded up
+when it starts mid-month) — earlier months are *n/a*, and the index's size cap is
+flagged in the footer. `SMSPEC` is `null` until first use, then a specialist's own
+tag (`smMyTag()`) or `''` (company); a specialist's picker offers only her own
+sales and the company — the data is in the browser either way, the picker is a
+convenience, not a gate.
+
 ## 5. Supabase schema (see SUPABASE-SETUP.md for exact SQL)
 
 | Table | Purpose | Key columns |

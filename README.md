@@ -151,7 +151,8 @@ receipt. Mark fulfilled when it ships.
   period (today → 12 months → custom).
 - **Monthly by SKU** — one year across the page: January to December as
   columns, every SKU as a row grouped under its product line with a subtotal,
-  then the year total and the stock left now (README 9.29).
+  then the year total and the stock left now; for the whole company or one
+  specialist — specialists open it on their own sales (README 9.29).
 - **Vs target** — monthly attainment by total / line / product / specialist.
 - **Specialists** — per-PS performance with drill-downs.
 - **Field coverage** — contacts/day, accounts reached vs universe, the
@@ -1246,6 +1247,25 @@ default, matching accounting). Stock now is today's on-hand from the stock
 truth (`stk()`), not a month-end figure. SKUs with stock but no sales are listed
 too — except samples, marketing and R&D items, which appear only if they sold.
 No costs anywhere. Open to every role that opens Sales overview.
+
+**Whose sales** (8 October 2026, after a specialist could not find her
+September figures per product for her bi-monthly report): the first box on the
+page switches between the whole company and **one specialist**. A product
+specialist opens it on **My sales** and may switch only to the whole company;
+managers and admins pick any specialist. In specialist mode the grid lists only
+what that specialist sold this year, from the orders tagged to her in Shopify
+(units on the product's own lines, pesos including its deal lines; External
+only by default), and the year picker offers the years the per-order history
+covers (it reaches back to 1 January or 180 days, whichever is earlier). The
+same per-month product list appears in two more places: the **specialist page**
+(a specialist's My profile / My page) now shows **Products sold — <month>**
+beside the monthly chart — every product with units and pesos and a total,
+following the calendar's month; ‹ › or tapping a month's bar switches it, and
+**Every month, product by product →** opens this page on that specialist — and
+the **Business review** puts **All products sold — <month>** under each
+specialist's section (open on your own, folded for others) and makes the
+specialist's name a link to her page. Home gives specialists a **My products by
+month** card.
 
 ## 9.23 Saved reports — the reporting layer
 
