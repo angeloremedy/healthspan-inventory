@@ -706,33 +706,38 @@
   },
   {
    "t": "step",
-   "v": "Monthly by SKU for one specialist: pick the name in the first box. A specialist's page shows Products sold for the calendar's month, and each specialist's section in the Business review lists All products sold; click a specialist's name there to open their page.",
+   "v": "Sales export: pick a month and HQ reads every order of it from Shopify — By product (units and sales per product, a deal’s pesos counted under the product it bundles), Order lines (every line with customer and specialist) and Orders (each order checked against Shopify’s own subtotal). Download Excel saves all three sheets in one workbook. Cancelled, TEST and pull-out orders are left out; External only / Incl. Remedy decides the internal orders.",
    "n": "3"
   },
   {
    "t": "step",
-   "v": "Sales vs target: monthly attainment by total, brand line, product, and specialist — the 245-row corporate target file, or in-app targets when set.",
+   "v": "Monthly by SKU for one specialist: pick the name in the first box. A specialist's page shows Products sold for the calendar's month, and each specialist's section in the Business review lists All products sold; click a specialist's name there to open their page.",
    "n": "4"
   },
   {
    "t": "step",
-   "v": "Per-specialist drill-downs and profile pages with month calendars.",
+   "v": "Sales vs target: monthly attainment by total, brand line, product, and specialist — the 245-row corporate target file, or in-app targets when set.",
    "n": "5"
   },
   {
    "t": "step",
-   "v": "Field coverage: contacts/day, accounts reached vs the whole universe, not-reached ranked by value.",
+   "v": "Per-specialist drill-downs and profile pages with month calendars.",
    "n": "6"
   },
   {
    "t": "step",
-   "v": "Vs accounting: continuous peso-for-peso reconciliation to the official Sales Report.",
+   "v": "Field coverage: contacts/day, accounts reached vs the whole universe, not-reached ranked by value.",
    "n": "7"
   },
   {
    "t": "step",
-   "v": "Leaderboard & pace: MTD race + projected month-end attainment per specialist — the mid-month coaching tool.",
+   "v": "Vs accounting: continuous peso-for-peso reconciliation to the official Sales Report.",
    "n": "8"
+  },
+  {
+   "t": "step",
+   "v": "Leaderboard & pace: MTD race + projected month-end attainment per specialist — the mid-month coaching tool.",
+   "n": "9"
   },
   {
    "t": "p",
@@ -853,6 +858,10 @@
   {
    "t": "p",
    "v": "<b>Usage</b> (Admin → Usage, super admin only) shows who uses HQ and how often: people active in the last 7, 30 or 90 days, page opens, sessions, last seen, each person's most used pages, and Ask Healthspan questions per person and per model, plus the Slack bot's questions, failures and response time. People who have not opened HQ in the period sit dimmed at the bottom. Counts only — what people ask is never shown with their name. Export CSV gives the table."
+  },
+  {
+   "t": "p",
+   "v": "To give someone outside admin, sales manager and finance the <b>Sales export</b> — for example a viewer who prepares the monthly sales by hand — open Team & access, choose Page access on their row, set Sales export to always allow, and save. It cannot be given to a product specialist."
   },
   {
    "t": "callout",

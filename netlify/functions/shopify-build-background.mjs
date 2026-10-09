@@ -8,6 +8,7 @@
 // lines are NOT multiplied into units (that would double count).
 import { connectLambda, getStore } from '@netlify/blobs';
 import { requireJobKey } from './lib/guard.mjs';
+import { isInternal } from './lib/shopify.mjs';
 
 const STORE_HANDLE = process.env.SHOPIFY_STORE || 'healthspan-global';
 const API = 'https://' + STORE_HANDLE + '.myshopify.com/admin/api/2025-01/graphql.json';
@@ -72,20 +73,7 @@ export const handler = async (event) => {
        customer name or the specialist tag says so — the tag is how accounting
        recognises it, the customer name catches orders that were never tagged.
        BMAP keywords mirror netlify/functions/refresh.mjs so the two feeds agree. */
-    const INT_TAG = /^(remedy|reemdy|healthspan)/i;
-    /* Anchored on purpose. An unanchored /vertis|gh mall/ also matches a genuine
-       third-party clinic located in Ayala Vertis North or GH Mall, and because
-       targets and commissions exclude internal unconditionally, that would quietly
-       take revenue out of someone's attainment and pay with nothing on screen to
-       explain it. Only names that BEGIN with a Remedy/Healthspan marker, or the
-       named branch owners, count. */
-    const INT_CUST = /^(remedy|reemdy|healthspan)\b|^(remedy|reemdy)\s+(vertis|gh\s+mall|bgc)\b|^(april\s+geraldez|angela\s+dacones)\b/i;
-    const isInternal = (custName, tags) => {
-      const t = Array.isArray(tags) ? tags : [tags];
-      // every tag, not just the first: an order tagged ['Rhas','Remedy'] is internal
-      return t.some(x => INT_TAG.test(String(x || '').trim())) ||
-             INT_CUST.test(String(custName || '').trim());
-    };
+    // isInternal (lib/shopify.mjs): the one rule for both the cache and the sales export
     let cursor = null;
     for (let page = 0; page < 40; page++) {
       const d = await gql(token,

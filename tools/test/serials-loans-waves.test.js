@@ -17,7 +17,7 @@ ok('splash uses the real app icon', /id="splash"[^]*?icon-512\.png/.test(html));
 ok('splash is standalone-only', /display-mode: standalone/.test(html) && /id="splash" style="display:none/.test(html));
 ok('browser tab never shows it', (()=>{ // jsdom is not standalone, so the gate must leave it hidden
   const el=d.getElementById('splash'); return el&&el.style.display==='none';})());
-ok('all app scripts defer', (html.match(/<script defer src="js\//g)||[]).length===22, (html.match(/<script defer src="js\//g)||[]).length);
+ok('all app scripts defer', (html.match(/<script defer src="js\//g)||[]).length===23, (html.match(/<script defer src="js\//g)||[]).length);
 ok('CDN libs defer too', (html.match(/<script defer src="https:/g)||[]).length===2);
 ok('no blocking external script left', !/<script src=/.test(html));
 ok('preconnects present', /rel="preconnect" href="https:\/\/lesjigujcajxurmsmwwc/.test(html));
@@ -279,7 +279,7 @@ ROLE='admin';SBPROFILE={name:'Angelo',role:'admin',is_super:true};navSync();
 {const rail=document.getElementById('rail');const vis=()=>[...document.querySelectorAll('.nav .ni')].filter(x=>!x.classList.contains('offarea')&&x.dataset.deny!=='1'&&!x.closest('#fav-sec')).length;
  ok('rail lists six areas', rail&&rail.querySelectorAll('.rl').length===6&&[...rail.querySelectorAll('.rl')].map(x=>x.dataset.area).join()==='home,sales,warehouse,finance,planning,admin');
  navAreaSelect('sales',true);
- ok('Sales area shows only Sales & CRM + Sales analytics', vis()===25&&[...document.querySelectorAll('.nav .nlbl')].filter(x=>!x.classList.contains('offarea')).map(x=>x.textContent.trim()).join('|')==='Sales & CRM|Sales analytics', vis());
+ ok('Sales area shows only Sales & CRM + Sales analytics', vis()===26&&[...document.querySelectorAll('.nav .nlbl')].filter(x=>!x.classList.contains('offarea')).map(x=>x.textContent.trim()).join('|')==='Sales & CRM|Sales analytics', vis());
  ok('rail marks the chosen area', rail.querySelector('.rl.active').dataset.area==='sales');
  const before=vis();showView('po',null);
  ok('opening a Warehouse page moves the rail and highlights the row', rail.querySelector('.rl.active').dataset.area==='warehouse'&&(document.querySelector('.nav .ni.active')||{}).textContent.trim()==='Purchase orders', (document.querySelector('.nav .ni.active')||{}).textContent);

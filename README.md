@@ -1307,6 +1307,35 @@ SUPABASE-SETUP.md → "Usage (2026-10-08)"). Only the super admin can read it. W
 people ask is never stored against their name — Ask chats stay private to their
 owner; the Usage page shows counts only. Counting starts the day the SQL runs.
 
+## 9.31 Sales export — a month from Shopify in one click
+
+**Sales analytics → Sales export** (8 October 2026) replaces a by-hand routine:
+export the month's orders from Shopify, move each order's subtotal onto a product,
+then pivot "Sum of Subtotal by Lineitem name". Pick the month (the last complete
+month opens first) and HQ reads every order of that month straight from Shopify.
+Three tabs: **By product** (product, SKU, units, sales, number of orders, grand
+total — A to Z like the old pivot, click a header to sort), **Order lines** (every
+line with order, date, customer, specialist, line item, SKU, quantity, unit price,
+sales, and the product a deal line counts under) and **Orders** (each order's lines
+against Shopify's own subtotal; any difference is highlighted). **Download Excel**
+saves all three as one workbook (`healthspan_sales_YYYY-MM.xlsx`); **Refresh from
+Shopify** reads the month again.
+
+The rules are HQ's everywhere else: cancelled, TEST and pull-out orders are left
+out; Remedy and Healthspan-internal orders follow **External only / Incl. Remedy**
+(external by default, as accounting books it); a deal or bundle line's pesos count
+under the product it bundles (TD040B → TD040) while units come from the product's
+own lines; a package with no product of its own (PK0114) is its own row. A line's
+sales are its price × quantity less every discount Shopify allocated to it —
+line-level and order-level — so every order's lines add up to Shopify's subtotal,
+and the Orders tab proves it. Amounts are VAT-inclusive, as booked.
+
+**Who:** admins, the sales manager and finance by role; anyone else only when the
+page is granted to them on Team & access → Page access (a viewer with this one page
+added is the intended set-up for the person who used to do it by hand). Product
+specialists never — it is company-wide customer and order data. The server checks
+the same rule before it reads Shopify.
+
 ## 9.23 Saved reports — the reporting layer
 
 Sales analytics → **Saved reports** is what people who came from NetSuite mean by

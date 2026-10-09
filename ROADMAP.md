@@ -25,6 +25,10 @@ at cutover; the accounting export CSV remains the fallback); it does not replace
 
 ## ✅ Shipped so far (everything, from the start)
 
+**Sales export (Oct 8)**
+- ✅ Sales analytics → **Sales export**: pick a month, HQ reads every Shopify order of it (`sales-export.mjs`, 25 per call) — By product / Order lines / Orders (each order checked against Shopify's subtotal), Download Excel (three sheets). Replaces a monthly by-hand Shopify export + pivot. Line sales include order-level discounts. Admin, sales manager, finance by role; others by page grant; never specialists. `tools/test/sales-export.test.mjs`, `sales-export.test.js`
+- ▢ Check: the sales cache counts line pesos with `discountedTotalSet` (no order-level discounts) — compare a month's Sales export total with Monthly by SKU; if deal orders are overstated, switch the build to allocations too
+
 **Usage page for the super admin (Oct 8)**
 - ✅ Admin → **Usage**: people active (7/30/90 days, average a weekday), page opens, sessions, last seen, days active, each person's most used pages, Ask Healthspan questions per person and per model, the Slack bot's questions, failures and response time; daily chart; people who never opened HQ listed; CSV. Counted through `usage_ping()` into `public.usage_daily` (super-only read). Question text never tied to a name. `tools/test/usage.test.js`
 

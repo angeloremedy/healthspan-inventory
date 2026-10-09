@@ -262,6 +262,12 @@
   },
   {
    "sec": "Sales analytics",
+   "view": "salesexport",
+   "title": "Sales export — one month from Shopify",
+   "desc": "One click instead of a Shopify export and a pivot: pick the month and HQ reads every order from Shopify. By product gives units and sales per product (a deal’s pesos count under the product it bundles), Order lines every line with customer and specialist, Orders each order against Shopify’s own subtotal so nothing is double-counted or missed."
+  },
+  {
+   "sec": "Sales analytics",
    "view": "salestarget",
    "title": "Sales vs target",
    "desc": "External sales only — Remedy and Healthspan-internal orders never count toward a target. Actual booked sales versus the monthly targets set in the sheet’s Targets tab — total, per line, and per product."
@@ -1346,6 +1352,12 @@
   },
   {
    "sec": "Sales analytics",
+   "view": "salesexport",
+   "title": "Sales export — one month from Shopify",
+   "desc": "One click instead of a Shopify export and a pivot: pick the month and HQ reads every order from Shopify. By product gives units and sales per product (a deal’s pesos count under the product it bundles), Order lines every line with customer and specialist, Orders each order against Shopify’s own subtotal so nothing is double-counted or missed."
+  },
+  {
+   "sec": "Sales analytics",
    "view": "salestarget",
    "title": "Sales vs target",
    "desc": "External sales only — Remedy and Healthspan-internal orders never count toward a target. Actual booked sales versus the monthly targets set in the sheet’s Targets tab — total, per line, and per product."
@@ -2388,6 +2400,12 @@
   },
   {
    "sec": "Sales analytics",
+   "view": "salesexport",
+   "title": "Sales export — one month from Shopify",
+   "desc": "One click instead of a Shopify export and a pivot: pick the month and HQ reads every order from Shopify. By product gives units and sales per product (a deal’s pesos count under the product it bundles), Order lines every line with customer and specialist, Orders each order against Shopify’s own subtotal so nothing is double-counted or missed."
+  },
+  {
+   "sec": "Sales analytics",
    "view": "salestarget",
    "title": "Sales vs target",
    "desc": "External sales only — Remedy and Healthspan-internal orders never count toward a target. Actual booked sales versus the monthly targets set in the sheet’s Targets tab — total, per line, and per product."
@@ -3005,6 +3023,12 @@
    "view": "salesmonthly",
    "title": "Monthly sales by SKU",
    "desc": "One year on one page: January to December across, every SKU down, grouped under its product line with a subtotal row, then the year total and the stock left now. Show units and pesos together, or either alone; pick the year and the line, find a SKU, fold a line by clicking it."
+  },
+  {
+   "sec": "Sales analytics",
+   "view": "salesexport",
+   "title": "Sales export — one month from Shopify",
+   "desc": "One click instead of a Shopify export and a pivot: pick the month and HQ reads every order from Shopify. By product gives units and sales per product (a deal’s pesos count under the product it bundles), Order lines every line with customer and specialist, Orders each order against Shopify’s own subtotal so nothing is double-counted or missed."
   },
   {
    "sec": "Sales analytics",

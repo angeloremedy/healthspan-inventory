@@ -947,6 +947,36 @@ days, read in parallel) adds Slack questions, failures and response times. Page
 labels come from the sidebar row of each view (`usagePageLbl`). `usage` is
 super-only in `viewAllowed` and in `NEVER_GRANT`. Test: `tools/test/usage.test.js`.
 
+### 4.21 Sales export — `js/22-sales-export.js`, `netlify/functions/sales-export.mjs`
+
+**Read on demand, not from the cache.** The cache (`SHOPIFY.recent`) carries SKU,
+quantity and pesos per line but no line names, statuses or companies, and only
+reaches back to 1 January. The export therefore asks Shopify directly:
+`sales-export.mjs` answers `GET ?ym=YYYY-MM[&after=cursor]` with one page of 25
+orders (Manila month → UTC range in the search query, `status:any`, sorted by
+creation), so no call runs long; the page loops until `next` is null (≤ 60 pages)
+and keeps the month in memory. Per line: `originalTotalSet − Σ discountAllocations`
+× `currentQuantity / quantity` — `discountedTotalSet` would miss order-level
+discounts, which Healthspan's draft orders use for deals (a 6+1 bundle line at
+₱57,000 plus seven units at ₱9,500 with a ₱66,500 order discount). Lines removed by
+an edit are dropped. The order carries Manila date, customer, billing company,
+first tag (specialist), financial / fulfilment status, cancelled, internal
+(`isInternal` — now in `lib/shopify.mjs`, shared with the cache build), TEST,
+pull-out, and Shopify's current subtotal / total / discounts / shipping / tax.
+Access: `mayExport()` — super admin, admin, manager, finance by role; otherwise the
+`salesexport` page grant in `profiles.view_grants`; `sales` never; a deny wins
+(except for the super admin). `viewAllowed('salesexport')` mirrors it (roles, plus
+the grant path that already exists for every non-cost page; blocked for viewer,
+marketing and supply chain by default in `CIRCLE_BLOCK`). In the browser
+`sxBuild()` (pure) applies the HQ rules: skip cancelled / TEST / pull-out, skip
+internal when External only, map each SKU to its base with the same
+longest-prefix-then-contains rule as `mergeShopify` against the master SKUs, units
+only from a product's own lines, pesos from all of them; orders get `diff` = lines −
+Shopify subtotal. `sxSheets()` turns that into three sheets; `sxExcel()` writes them
+with SheetJS 0.18.5, loaded on demand from cdnjs with an SRI hash (CSV files if it
+cannot load). Tests: `tools/test/sales-export.test.mjs` (server),
+`tools/test/sales-export.test.js` (page).
+
 ## 5. Supabase schema (see SUPABASE-SETUP.md for exact SQL)
 
 | Table | Purpose | Key columns |
