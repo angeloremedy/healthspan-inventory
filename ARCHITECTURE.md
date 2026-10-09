@@ -977,6 +977,43 @@ with SheetJS 0.18.5, loaded on demand from cdnjs with an SRI hash (CSV files if 
 cannot load). Tests: `tools/test/sales-export.test.mjs` (server),
 `tools/test/sales-export.test.js` (page).
 
+### 4.22 remedy-loop — `tools/loop/`, `.github/workflows/observe.yml`, `repair.yml`
+
+The Remedy builder loop, adapted to HQ (task mode only — HQ has no SPEC.md; the
+regression baseline is the existing suites). Files:
+- `gate.sh` — the one "safe to merge" check: `npm test` (TZ=Asia/Manila), build smoke
+  + `node --check`, manuals directory → compose → pagecheck → coverage. Logs to a
+  temp dir; puts the generated `_directory.json` back unless `KEEP_MANUALS=1`.
+- `observe.py` — Level 1. Writes a report of rows (check C1 tests per suite, C2 build,
+  C3 manuals, C4 other workflows' last run on main + leftover `manuals/*` branches,
+  C5 live site via `live-check.mjs`). `file_findings.py` turns rows into issues keyed
+  by a hidden `finding-key` (check + message with digits/paths normalised): create,
+  update, close. `triage.py` gives each NEW issue one read-only Claude comment
+  (Read/Glob/Grep, $1 cap, 5 per night).
+- `live-check.mjs` — fetches the shell, compares its `app.<hash>.js` with the bundle
+  built from main (the hash is of the code, so equal source → equal name; a mismatch
+  means a deploy failed), probes `sales-export` without a session (expects 401), and
+  with Playwright (`playwright-core` installed outside the repo on the runner, system
+  Chrome) records page errors, console errors and any 4xx/5xx the sign-in screen
+  triggers.
+- `loop.py` — Level 2. Planner (read-only; may refuse) → per subtask Builder (edits,
+  Bash) → protected-path guard (reverts edits to CLAUDE.md, SUPABASE-SETUP.md,
+  netlify.toml, `.github/`, `manuals/`, `_directory.json`, `fonts/`, `*.png`,
+  manifest, `package-lock.json`, `tools/loop/`, the frozen QBO fixtures) → Judge
+  (runs the gate, reads the diff, JSON verdict; unparseable = fail) → commit. Then
+  the gate with `KEEP_MANUALS=1` and a manuals commit, push `loop/<ts>-issue-N`,
+  `gh pr create`. Roles: `agents/planner.md`, `builder.md`, `judge.md`, `triage.md`;
+  CLAUDE.md is loaded for every role. Budgets: planner $1.5, builder $6, judge $2 per
+  call, $30 per run; 3 attempts per subtask in CI. Trace in `runs/<ts>/` (gitignored;
+  uploaded as the workflow artifact).
+- `repair.yml` runs only when `github.actor == repository_owner` adds `agent:ready`
+  (or dispatches by hand). The runner has the Claude token and the job's GitHub token,
+  no app secrets; tests stub every external service. PRs opened with the job token do
+  not trigger `check.yml` (GitHub rule) — the gate already ran on the branch.
+- Manuals PDFs are now byte-reproducible (`invariant=1` in `tools/manuals/fw.py`), so
+  an unchanged manual never shows as a diff — the nightly `manuals.yml` used to see
+  nine changed PDFs every night.
+
 ## 5. Supabase schema (see SUPABASE-SETUP.md for exact SQL)
 
 | Table | Purpose | Key columns |

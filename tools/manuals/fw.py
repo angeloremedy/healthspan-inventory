@@ -200,7 +200,8 @@ def build(path, role_title, audience, story, foot_note, kicker='User Manual',
                 self.notify('TOCEntry', (level, text, self.page - 1, key))
     doc = ManualDoc(path, pagesize=A4, leftMargin=M, rightMargin=M,
                     topMargin=44, bottomMargin=44, title='Healthspan HQ — ' + role_title + ' Manual',
-                    author='Healthspan Global, Inc.')
+                    author='Healthspan Global, Inc.',
+                    invariant=1)  # same content → same bytes (no timestamp / random id), so an unchanged manual never shows as a diff
     # zero padding: reportlab defaults to 6pt all round, which shifted every
     # measured x by +6 (body 63 instead of 57, steps 83 instead of 77)
     # 4.5pt top inset: measured, the first heading of a body page sits at top=52.6

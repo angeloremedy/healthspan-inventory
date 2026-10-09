@@ -25,6 +25,12 @@ at cutover; the accounting export CSV remains the fallback); it does not replace
 
 ## ✅ Shipped so far (everything, from the start)
 
+**remedy-loop runs HQ (Oct 9)**
+- ✅ Level 1 — `observe.yml` nightly 2:30am Manila: tests per suite, build, manuals, other workflows, live site (bundle = main's build, functions answer 401, sign-in screen clean in a real browser) → one issue per problem (`hq-finding`), updated, self-closing; read-only Claude triage comment on new ones
+- ✅ Level 2 — `repair.yml`: owner labels an issue `agent:ready` → plan / build / judge on the HQ gate (`tools/loop/gate.sh`) → PR for a human to merge; refuses SQL, settings, secrets, protected paths, money/QBO, product decisions (`agent:needs-human`); $30 per-run cap
+- ✅ Manuals PDFs byte-reproducible (`invariant=1`) — the nightly manuals run no longer sees nine "changed" PDFs every night
+- ▢ Watch two weeks of observer issues and loop PRs; then consider `AUTOFIX_CHECKS` (auto `agent:ready`) for C1/C3 only — see the autonomy dial (remedy-loop skill)
+
 **Sales export (Oct 8)**
 - ✅ Sales analytics → **Sales export**: pick a month, HQ reads every Shopify order of it (`sales-export.mjs`, 25 per call) — By product / Order lines / Orders (each order checked against Shopify's subtotal), Download Excel (three sheets). Replaces a monthly by-hand Shopify export + pivot. Line sales include order-level discounts. Admin, sales manager, finance by role; others by page grant; never specialists. `tools/test/sales-export.test.mjs`, `sales-export.test.js`
 - ▢ Check: the sales cache counts line pesos with `discountedTotalSet` (no order-level discounts) — compare a month's Sales export total with Monthly by SKU; if deal orders are overstated, switch the build to allocations too
@@ -554,9 +560,9 @@ minus approved leave and HR-recorded absences; OT entered by HR.
 - ✅ **Forecast accuracy tracking (MAPE)** — shipped (Planning → Forecast accuracy; monthly freeze + self-grading)
 - ✅ **Git + CI** — shipped Sep 17: repo `angeloremedy/healthspan-inventory` is the source of truth (drag-drop deploys retired); `check.yml` runs tests + build smoke + manual coverage on every push; `manuals.yml` rebuilds the PDFs nightly and opens a PR when they change
 - ✅ **Claude on the runner (subscription auth)** — Sep 17: `CLAUDE_CODE_OAUTH_TOKEN` stored as a repo secret (Team subscription, no API billing); `claude-preflight.yml` (manual) proves Claude Code authenticates on a GitHub runner — green in 14 s. This is the prerequisite for the remedy-loop levels below
-- ▢ **remedy-loop, Level 1 — Observer**: nightly Claude run reads `check.yml`/`manuals.yml` results, console errors and the ROADMAP, files GitHub issues with a proposed fix (no code changes). Start here; watch a week of issues for signal before Level 2
-- ▢ **remedy-loop, Level 2 — Repair**: `agent:ready` label on an issue → Claude Code fixes on a branch, runs `npm test` + build + coverage, opens a PR; human merges. Change classes allowed: test fixes, manual paragraphs, copy, `viewAllowed` rows, small bugs. Protected paths in CLAUDE.md stay human-only
-- ▢ **remedy-loop, Level 3 — SPEC-driven build**: first candidate is the payroll engine (Workstream E 1b) — SPEC.md + acceptance tests written first, Planner/Builder/Judge iterate to a passing PR
+- ✅ (Oct 9, see top) **remedy-loop, Level 1 — Observer**: nightly Claude run reads `check.yml`/`manuals.yml` results, console errors and the ROADMAP, files GitHub issues with a proposed fix (no code changes). Start here; watch a week of issues for signal before Level 2
+- ✅ (Oct 9, see top) **remedy-loop, Level 2 — Repair**: `agent:ready` label on an issue → Claude Code fixes on a branch, runs `npm test` + build + coverage, opens a PR; human merges. Change classes allowed: test fixes, manual paragraphs, copy, `viewAllowed` rows, small bugs. Protected paths in CLAUDE.md stay human-only
+- ▢ **remedy-loop, Level 3 — SPEC-driven build** (not now — Angelo, Oct 9): first candidate is the payroll engine (Workstream E 1b) — SPEC.md + acceptance tests written first, Planner/Builder/Judge iterate to a passing PR
 - ▢ Disable legacy Supabase JWT keys (after confirming new keys) · rotate service keys on a schedule
 - ▢ Flip the CSP from report-only to enforced after a week of clean consoles (netlify.toml) · replace the remaining `prompt()`/`alert()` multi-field flows with drawers · table-driven role×view matrix test · tests for admin-users.mjs / upload.mjs
 

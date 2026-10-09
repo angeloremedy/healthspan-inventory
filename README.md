@@ -1336,6 +1336,40 @@ added is the intended set-up for the person who used to do it by hand). Product
 specialists never — it is company-wide customer and order data. The server checks
 the same rule before it reads Shopify.
 
+## 9.32 remedy-loop — the robot that watches HQ and fixes small things
+
+(9 October 2026.) Two GitHub workflows, both on the Claude Team subscription
+(`CLAUDE_CODE_OAUTH_TOKEN`, no API billing):
+
+**Every night at 2:30am Manila — `observe.yml`.** Runs every check HQ has: each
+test suite on its own, the build, the nine manuals (pagination and coverage), the
+last run of every other workflow, and the live site (page up, running main's
+build, a session-checked function answers 401 not 500, the sign-in screen loads with
+no errors — in a real browser, without signing in). Each kind of problem becomes one
+GitHub issue labelled `hq-finding`; the issue is updated while the problem persists
+and **closes itself** the first night it is gone. A new issue gets a read-only Claude
+comment: likely cause, proposed fix, and whether the loop can do it. Nothing changes
+code at this level.
+
+**When you add the label `agent:ready` to an issue — `repair.yml`.** Only the repo
+owner's label starts it. The loop (`tools/loop/loop.py`) plans the change (1–3
+steps), a Builder makes each step and writes the test that proves it, a separate
+Judge runs the HQ gate (`tools/loop/gate.sh`: all tests, build, manuals) and reads
+the diff against CLAUDE.md, up to three tries per step; then the full gate once more,
+the manuals rebuilt, and a **pull request** that you review and merge. It never
+merges, never writes SQL, never touches a secret, a workflow, netlify.toml or another
+protected path (any such edit is reverted and the try fails), and refuses — with a
+comment and the label `agent:needs-human` — anything that needs SQL, a setting, a new
+dependency, money or QuickBooks rules, patient data, or a product decision. A run is
+capped at $30 of usage. Labels you will see: `agent:ready` (go), `agent:pr-open`,
+`agent:escalated` (it tried and could not; the comment says why), `agent:needs-human`.
+
+Anyone can write a task for it with the **Task for the loop** issue template: what to
+change, and how to tell it is done. The clearer the "done when", the better it does.
+
+By hand: `gh workflow run observe.yml` · `gh workflow run repair.yml -f issue=12` ·
+locally `python tools/loop/loop.py --issue 12 --no-pr`.
+
 ## 9.23 Saved reports — the reporting layer
 
 Sales analytics → **Saved reports** is what people who came from NetSuite mean by
